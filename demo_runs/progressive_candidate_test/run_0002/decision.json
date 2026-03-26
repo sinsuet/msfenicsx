@@ -1,0 +1,28 @@
+{
+  "iteration": 2,
+  "run_id": "run_0002",
+  "status": "proposal_applied",
+  "applied_changes": [
+    {
+      "path": "materials.spreader_material.conductivity",
+      "action": "set",
+      "old": 500.0,
+      "new": 500.0,
+      "reason": "Maintain maximum conductivity as it is already at the upper bound; this is the primary lever for lateral spreading."
+    },
+    {
+      "path": "components.2.height",
+      "action": "set",
+      "old": 0.1,
+      "new": 0.12,
+      "reason": "Increase spreader height by 20% (within 1.5x limit) to provide more vertical thermal mass and conduction path above the chip without exceeding domain bounds."
+    },
+    {
+      "path": "components.2.width",
+      "action": "set",
+      "old": 0.7,
+      "new": 0.84,
+      "reason": "Increase spreader width by 20% to extend lateral heat spreading area towards the cold boundaries, staying well within the [0.2, 1.0] domain limit."
+    }
+  ]
+}

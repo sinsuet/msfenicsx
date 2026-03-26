@@ -1,0 +1,20 @@
+{
+  "valid": false,
+  "reasons": [
+    "components.2.width must stay within [0.2, 1.0], got 1.050000",
+    "components.2.width step ratio must stay within [0.5, 1.5], got 1.500000",
+    "component heat_spreader moves outside the current envelope"
+  ],
+  "checked_changes": [
+    {
+      "path": "components.2.width",
+      "old": 0.7,
+      "new": 1.05
+    },
+    {
+      "path": "components.2.height",
+      "old": 0.1,
+      "new": 0.15
+    }
+  ]
+}

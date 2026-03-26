@@ -1,0 +1,29 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\n  \"decision_summary\": \"The chip peak temperature (89.26°C) exceeds the 85.0°C limit. The most effective primary lever is to increase the heat spreader conductivity, which is currently at a moderate level (500 W/mK) but has room to grow within bounds. Increasing conductivity by 40% (within the 2.0x step limit) will enhance lateral heat spreading and reduce the local hot spot.\",\n  \"changes\": [\n    {\n      \"path\": \"materials.spreader_material.conductivity\",\n      \"action\": \"set\",\n      \"old\": 500.0,\n      \"new\": 700.0,\n      \"reason\": \"Increasing spreader conductivity improves lateral heat distribution away from the chip center, directly lowering the peak temperature violation.\"\n    }\n  ],\n  \"expected_effects\": [\n    \"Reduction in chip_max_temperature towards or below 85.0°C\",\n    \"More uniform temperature profile across the heat spreader\"\n  ],\n  \"risk_notes\": [\n    \"Diminishing returns may occur if the bottleneck shifts to the base plate conductivity or boundary conditions.\",\n    \"Ensure the new value stays within the defined upper bound of the material library if applicable (current editable bound allows up to higher values, but physical realism should be monitored).\"\n  ]\n}",
+        "role": "assistant"
+      },
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null
+    }
+  ],
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 1959,
+    "completion_tokens": 297,
+    "total_tokens": 2256,
+    "completion_tokens_details": {
+      "text_tokens": 297
+    },
+    "prompt_tokens_details": {
+      "text_tokens": 1959
+    }
+  },
+  "created": 1774497129,
+  "system_fingerprint": null,
+  "model": "qwen3.5-plus",
+  "id": "chatcmpl-3639be87-26b7-9833-afea-ea73d49ba8a4"
+}

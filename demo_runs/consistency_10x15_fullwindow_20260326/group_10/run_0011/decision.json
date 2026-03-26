@@ -1,0 +1,14 @@
+{
+  "iteration": 11,
+  "run_id": "run_0011",
+  "status": "proposal_applied",
+  "applied_changes": [
+    {
+      "path": "components.2.height",
+      "action": "set",
+      "old": 0.14,
+      "new": 0.16,
+      "reason": "Increasing the spreader height adds thermal mass and cross-sectional area for heat conduction, helping to lower the peak chip temperature now that conductivity is maxed out."
+    }
+  ]
+}

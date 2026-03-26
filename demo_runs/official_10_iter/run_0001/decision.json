@@ -1,0 +1,14 @@
+{
+  "iteration": 1,
+  "run_id": "run_0001",
+  "status": "proposal_applied",
+  "applied_changes": [
+    {
+      "path": "materials.spreader_material.conductivity",
+      "action": "set",
+      "old": 90.0,
+      "new": 126.0,
+      "reason": "Increasing spreader conductivity improves lateral heat distribution away from the chip center, directly lowering the peak temperature."
+    }
+  ]
+}

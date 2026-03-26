@@ -1,0 +1,15 @@
+{
+  "valid": false,
+  "reasons": [
+    "materials.spreader_material.conductivity must stay within [20.0, 500.0], got 548.800000",
+    "conductivity must stay within [0.1, 500.0], got 548.800000",
+    "spreader_material: conductivity must stay within [0.1, 500.0], got 548.800000"
+  ],
+  "checked_changes": [
+    {
+      "path": "materials.spreader_material.conductivity",
+      "old": 392.0,
+      "new": 548.8
+    }
+  ]
+}

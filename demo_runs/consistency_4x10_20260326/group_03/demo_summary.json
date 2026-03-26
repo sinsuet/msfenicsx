@@ -1,0 +1,166 @@
+{
+  "generated_at_utc": "2026-03-26T03:53:44.758532+00:00",
+  "runs_root": "demo_runs/consistency_4x10_20260326/group_03",
+  "run_count": 8,
+  "runs": [
+    {
+      "run_id": "run_0001",
+      "iteration": 1,
+      "status": "proposal_applied",
+      "chip_max_before": 89.30130373621631,
+      "constraint_limit": 85.0,
+      "llm_decision_summary": "The chip peak temperature (89.3°C) exceeds the limit (85.0°C). The most effective primary lever is to increase the heat spreader conductivity to improve lateral heat distribution away from the chip center. I will increase the spreader conductivity by a factor of 1.5 (from 90 to 135 W/(m*K)), which is within the allowed single-step ratio and bounds.",
+      "changed_paths": [
+        "materials.spreader_material.conductivity"
+      ],
+      "change_categories": [
+        "material"
+      ],
+      "validation_status": "valid",
+      "validation_reasons": [],
+      "run_dir": "demo_runs/consistency_4x10_20260326/group_03/run_0001",
+      "chip_max_after": 89.28351669652271,
+      "delta_chip_max": -0.017787039693601514
+    },
+    {
+      "run_id": "run_0002",
+      "iteration": 2,
+      "status": "proposal_applied",
+      "chip_max_before": 89.28351669652271,
+      "constraint_limit": 85.0,
+      "llm_decision_summary": "The chip peak temperature (89.28°C) exceeds the 85.0°C limit. The most effective primary lever is to increase the heat spreader conductivity to improve lateral heat distribution away from the chip center. I will increase the spreader conductivity by a factor of 1.5 (from 135.0 to 202.5 W/(m*K)), which is within the allowed [0.5x, 2.0x] step ratio and bounds.",
+      "changed_paths": [
+        "materials.spreader_material.conductivity"
+      ],
+      "change_categories": [
+        "material"
+      ],
+      "validation_status": "valid",
+      "validation_reasons": [],
+      "run_dir": "demo_runs/consistency_4x10_20260326/group_03/run_0002",
+      "chip_max_after": 89.27038463623634,
+      "delta_chip_max": -0.013132060286366709
+    },
+    {
+      "run_id": "run_0003",
+      "iteration": 3,
+      "status": "proposal_applied",
+      "chip_max_before": 89.27038463623634,
+      "constraint_limit": 85.0,
+      "llm_decision_summary": "The chip peak temperature (89.27°C) exceeds the limit (85.0°C). The most effective primary lever is to increase the heat spreader conductivity to enhance lateral heat spreading and reduce the thermal hotspot. A conservative 40% increase is proposed, staying well within the 2x step limit and material bounds.",
+      "changed_paths": [
+        "materials.spreader_material.conductivity"
+      ],
+      "change_categories": [
+        "material"
+      ],
+      "validation_status": "valid",
+      "validation_reasons": [],
+      "run_dir": "demo_runs/consistency_4x10_20260326/group_03/run_0003",
+      "chip_max_after": 89.26398448025654,
+      "delta_chip_max": -0.006400155979804367
+    },
+    {
+      "run_id": "run_0004",
+      "iteration": 4,
+      "status": "proposal_applied",
+      "chip_max_before": 89.26398448025654,
+      "constraint_limit": 85.0,
+      "llm_decision_summary": "The chip peak temperature (89.26°C) exceeds the limit (85.0°C). The most effective primary lever is to increase the heat spreader conductivity to improve lateral heat distribution away from the chip center. I will increase the spreader conductivity by a factor of 1.5, which is within the allowed single-step ratio and bounds.",
+      "changed_paths": [
+        "materials.spreader_material.conductivity"
+      ],
+      "change_categories": [
+        "material"
+      ],
+      "validation_status": "valid",
+      "validation_reasons": [],
+      "run_dir": "demo_runs/consistency_4x10_20260326/group_03/run_0004",
+      "chip_max_after": 89.2581039247931,
+      "delta_chip_max": -0.005880555463434689
+    },
+    {
+      "run_id": "run_0005",
+      "iteration": 5,
+      "status": "proposal_applied",
+      "chip_max_before": 89.2581039247931,
+      "constraint_limit": 85.0,
+      "llm_decision_summary": "The chip peak temperature (89.26°C) exceeds the 85.0°C limit. The most effective primary lever is to increase the heat spreader conductivity to improve lateral heat distribution away from the chip center. I will increase the spreader conductivity by a factor of 1.5 (from 425.25 to ~637.8), which is within the allowed 2.0x step limit and below the 500.0 upper bound constraint mentioned in the prompt text (note: prompt says bounds [20, 500] but current value is 425.25, so 500 is the hard cap. I must respect the 500 cap). Correction: The current value is 425.25. The max bound is 500.0. A 1.5x increase would be 637, which violates the bound. I will set it to the maximum allowed value of 500.0 to maximize heat spreading capability.",
+      "changed_paths": [
+        "materials.spreader_material.conductivity"
+      ],
+      "change_categories": [
+        "material"
+      ],
+      "validation_status": "valid",
+      "validation_reasons": [],
+      "run_dir": "demo_runs/consistency_4x10_20260326/group_03/run_0005",
+      "chip_max_after": 89.25623754213548,
+      "delta_chip_max": -0.0018663826576243991
+    },
+    {
+      "run_id": "run_0006",
+      "iteration": 6,
+      "status": "proposal_applied",
+      "chip_max_before": 89.25623754213548,
+      "constraint_limit": 85.0,
+      "llm_decision_summary": "The chip peak temperature (89.26°C) exceeds the limit (85.0°C). The most effective immediate action is to maximize the heat spreader's conductivity, which is currently at its upper bound of 500.0 W/(m*K). Since material tuning is saturated, the next best lever is to increase the geometric cross-section of the heat spreader to improve lateral heat distribution. I will increase the spreader width by approximately 14% (from 0.7 to 0.8), which is within the allowed 1.5x step ratio and domain bounds.",
+      "changed_paths": [
+        "components.2.width"
+      ],
+      "change_categories": [
+        "geometry"
+      ],
+      "validation_status": "valid",
+      "validation_reasons": [],
+      "run_dir": "demo_runs/consistency_4x10_20260326/group_03/run_0006",
+      "chip_max_after": 89.25622844203588,
+      "delta_chip_max": -9.100099603642775e-06
+    },
+    {
+      "run_id": "run_0007",
+      "iteration": 7,
+      "status": "invalid_proposal",
+      "chip_max_before": 89.25622844203588,
+      "constraint_limit": 85.0,
+      "llm_decision_summary": "The chip peak temperature (89.26°C) exceeds the 85.0°C limit. The most effective primary lever is to increase the heat spreader conductivity, which is currently at a moderate level (500 W/mK) but has room to grow within bounds. Increasing conductivity by 40% (within the 2.0x step limit) will enhance lateral heat spreading and reduce the local hot spot.",
+      "changed_paths": [
+        "materials.spreader_material.conductivity"
+      ],
+      "change_categories": [
+        "material"
+      ],
+      "validation_status": "invalid",
+      "validation_reasons": [
+        "materials.spreader_material.conductivity must stay within [20.0, 500.0], got 700.000000",
+        "conductivity must stay within [0.1, 500.0], got 700.000000",
+        "spreader_material: conductivity must stay within [0.1, 500.0], got 700.000000"
+      ],
+      "run_dir": "demo_runs/consistency_4x10_20260326/group_03/run_0007",
+      "chip_max_after": 89.25622844203588,
+      "delta_chip_max": 0.0
+    },
+    {
+      "run_id": "run_0008",
+      "iteration": 8,
+      "status": "invalid_proposal",
+      "chip_max_before": 89.25622844203588,
+      "constraint_limit": 85.0,
+      "llm_decision_summary": "The chip temperature (89.26°C) exceeds the limit (85.0°C). Previous attempts to increase spreader conductivity hit the upper bound (500.0). Following the strategy shift suggestion, I will now coordinate a geometric expansion of the heat spreader. Increasing both width and height will enlarge the thermal cross-section and lateral spreading area, reducing thermal resistance without violating material bounds.",
+      "changed_paths": [
+        "components.2.width",
+        "components.2.height"
+      ],
+      "change_categories": [
+        "geometry"
+      ],
+      "validation_status": "invalid",
+      "validation_reasons": [
+        "component heat_spreader moves outside the current envelope"
+      ],
+      "run_dir": "demo_runs/consistency_4x10_20260326/group_03/run_0008",
+      "chip_max_after": null,
+      "delta_chip_max": null
+    }
+  ]
+}

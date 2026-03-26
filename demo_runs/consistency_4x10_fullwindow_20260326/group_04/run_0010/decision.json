@@ -1,0 +1,14 @@
+{
+  "iteration": 10,
+  "run_id": "run_0010",
+  "status": "proposal_applied",
+  "applied_changes": [
+    {
+      "path": "components.2.height",
+      "action": "set",
+      "old": 0.1,
+      "new": 0.15,
+      "reason": "Increasing spreader height by 50% (within 1.5x limit) increases the cross-sectional area for heat flow from the chip into the high-conductivity spreader, reducing thermal resistance and lowering peak temperature."
+    }
+  ]
+}

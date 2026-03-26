@@ -1,0 +1,15 @@
+{
+  "feasible": true,
+  "violations": [],
+  "objective_summary": {
+    "chip_max_temperature": 58.57775063802708
+  },
+  "priority_actions": [],
+  "temperature_min": 25.0,
+  "temperature_max": 58.57775063802708,
+  "mesh": {
+    "num_cells": 927,
+    "num_vertices": 533,
+    "target_mesh_size": 0.03333333333333333
+  }
+}

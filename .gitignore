@@ -1,0 +1,17 @@
+.worktrees/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+
+# Local editor settings
+.vscode/
+
+# Generated simulation outputs
+outputs/
+runs/
+
+# Local environment and secrets
+.env
+.env.*

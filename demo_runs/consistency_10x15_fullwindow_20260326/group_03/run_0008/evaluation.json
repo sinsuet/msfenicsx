@@ -1,0 +1,26 @@
+{
+  "feasible": false,
+  "violations": [
+    {
+      "name": "chip_max_temperature",
+      "op": "<=",
+      "limit": 85.0,
+      "actual": 89.26012431036911,
+      "margin": -4.2601243103691075,
+      "severity": "high"
+    }
+  ],
+  "objective_summary": {
+    "chip_max_temperature": 89.26012431036911
+  },
+  "priority_actions": [
+    "lower chip peak temperature from 89.2601 to <= 85.0000"
+  ],
+  "temperature_min": 25.0,
+  "temperature_max": 89.26012431036911,
+  "mesh": {
+    "num_cells": 991,
+    "num_vertices": 570,
+    "target_mesh_size": 0.030000000000000002
+  }
+}

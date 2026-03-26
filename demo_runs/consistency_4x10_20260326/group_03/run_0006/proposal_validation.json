@@ -1,0 +1,11 @@
+{
+  "valid": true,
+  "reasons": [],
+  "checked_changes": [
+    {
+      "path": "components.2.width",
+      "old": 0.7,
+      "new": 0.8
+    }
+  ]
+}

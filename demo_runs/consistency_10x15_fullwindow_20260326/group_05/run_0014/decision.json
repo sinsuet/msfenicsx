@@ -1,0 +1,14 @@
+{
+  "iteration": 14,
+  "run_id": "run_0014",
+  "status": "proposal_applied",
+  "applied_changes": [
+    {
+      "path": "materials.base_material.conductivity",
+      "action": "set",
+      "old": 12.0,
+      "new": 24.0,
+      "reason": "Spreader material and width are likely saturated or at limits. Increasing base plate conductivity (currently low at 12.0) provides a new path for heat to reach the Dirichlet boundaries on the left and right, reducing the overall thermal resistance of the system."
+    }
+  ]
+}

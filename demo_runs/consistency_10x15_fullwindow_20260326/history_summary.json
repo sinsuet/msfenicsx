@@ -1,0 +1,206 @@
+{
+  "generated_at_utc": "2026-03-26T05:39:09.592609+00:00",
+  "root": "demo_runs/consistency_10x15_fullwindow_20260326",
+  "group_count": 10,
+  "feasible_group_count": 9,
+  "average_latest_chip_max": 58.05412673490205,
+  "best_group_id": "group_02",
+  "best_group_chip_max": 43.164618910763636,
+  "aggregate_figures": {
+    "trajectories": "figures/consistency_10x15_trajectories.png",
+    "final_chip_max": "figures/consistency_10x15_final_chip_max.png",
+    "first_base_k_round": "figures/consistency_10x15_first_base_k_round.png"
+  },
+  "groups": [
+    {
+      "group_id": "group_01",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 58.61285725663505,
+      "best_chip_max": 58.61285725663505,
+      "first_feasible_run": "run_0012",
+      "first_base_k_run": "run_0011",
+      "applied_run_count": 8,
+      "invalid_run_count": 7,
+      "latest_status": "proposal_applied",
+      "history_summary": "group_01/history_summary.json",
+      "history_html": "group_01/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_01/figures/chip_max_trend.png",
+        "delta_trend": "group_01/figures/delta_trend.png",
+        "category_timeline": "group_01/figures/category_timeline.png"
+      }
+    },
+    {
+      "group_id": "group_02",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 43.164618910763636,
+      "best_chip_max": 43.164618910763636,
+      "first_feasible_run": "run_0010",
+      "first_base_k_run": "run_0009",
+      "applied_run_count": 9,
+      "invalid_run_count": 6,
+      "latest_status": "invalid_proposal",
+      "history_summary": "group_02/history_summary.json",
+      "history_html": "group_02/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_02/figures/chip_max_trend.png",
+        "delta_trend": "group_02/figures/delta_trend.png",
+        "category_timeline": "group_02/figures/category_timeline.png"
+      }
+    },
+    {
+      "group_id": "group_03",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 89.20486690827713,
+      "best_chip_max": 89.20486690827713,
+      "first_feasible_run": null,
+      "first_base_k_run": null,
+      "applied_run_count": 9,
+      "invalid_run_count": 6,
+      "latest_status": "invalid_proposal",
+      "history_summary": "group_03/history_summary.json",
+      "history_html": "group_03/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_03/figures/chip_max_trend.png",
+        "delta_trend": "group_03/figures/delta_trend.png",
+        "category_timeline": "group_03/figures/category_timeline.png"
+      }
+    },
+    {
+      "group_id": "group_04",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 68.84832939290591,
+      "best_chip_max": 68.84832939290591,
+      "first_feasible_run": "run_0012",
+      "first_base_k_run": "run_0011",
+      "applied_run_count": 9,
+      "invalid_run_count": 6,
+      "latest_status": "invalid_proposal",
+      "history_summary": "group_04/history_summary.json",
+      "history_html": "group_04/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_04/figures/chip_max_trend.png",
+        "delta_trend": "group_04/figures/delta_trend.png",
+        "category_timeline": "group_04/figures/category_timeline.png"
+      }
+    },
+    {
+      "group_id": "group_05",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 58.57789274011505,
+      "best_chip_max": 58.57789274011505,
+      "first_feasible_run": "run_0015",
+      "first_base_k_run": "run_0014",
+      "applied_run_count": 8,
+      "invalid_run_count": 7,
+      "latest_status": "invalid_proposal",
+      "history_summary": "group_05/history_summary.json",
+      "history_html": "group_05/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_05/figures/chip_max_trend.png",
+        "delta_trend": "group_05/figures/delta_trend.png",
+        "category_timeline": "group_05/figures/category_timeline.png"
+      }
+    },
+    {
+      "group_id": "group_06",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 58.612856424134335,
+      "best_chip_max": 58.612856424134335,
+      "first_feasible_run": "run_0012",
+      "first_base_k_run": "run_0011",
+      "applied_run_count": 9,
+      "invalid_run_count": 6,
+      "latest_status": "proposal_applied",
+      "history_summary": "group_06/history_summary.json",
+      "history_html": "group_06/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_06/figures/chip_max_trend.png",
+        "delta_trend": "group_06/figures/delta_trend.png",
+        "category_timeline": "group_06/figures/category_timeline.png"
+      }
+    },
+    {
+      "group_id": "group_07",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 43.164618910763636,
+      "best_chip_max": 43.164618910763636,
+      "first_feasible_run": "run_0008",
+      "first_base_k_run": "run_0007",
+      "applied_run_count": 8,
+      "invalid_run_count": 7,
+      "latest_status": "invalid_proposal",
+      "history_summary": "group_07/history_summary.json",
+      "history_html": "group_07/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_07/figures/chip_max_trend.png",
+        "delta_trend": "group_07/figures/delta_trend.png",
+        "category_timeline": "group_07/figures/category_timeline.png"
+      }
+    },
+    {
+      "group_id": "group_08",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 58.61285725663505,
+      "best_chip_max": 58.61285725663505,
+      "first_feasible_run": "run_0012",
+      "first_base_k_run": "run_0011",
+      "applied_run_count": 9,
+      "invalid_run_count": 6,
+      "latest_status": "proposal_applied",
+      "history_summary": "group_08/history_summary.json",
+      "history_html": "group_08/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_08/figures/chip_max_trend.png",
+        "delta_trend": "group_08/figures/delta_trend.png",
+        "category_timeline": "group_08/figures/category_timeline.png"
+      }
+    },
+    {
+      "group_id": "group_09",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 43.164618910763636,
+      "best_chip_max": 43.164618910763636,
+      "first_feasible_run": "run_0011",
+      "first_base_k_run": "run_0010",
+      "applied_run_count": 8,
+      "invalid_run_count": 7,
+      "latest_status": "invalid_proposal",
+      "history_summary": "group_09/history_summary.json",
+      "history_html": "group_09/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_09/figures/chip_max_trend.png",
+        "delta_trend": "group_09/figures/delta_trend.png",
+        "category_timeline": "group_09/figures/category_timeline.png"
+      }
+    },
+    {
+      "group_id": "group_10",
+      "run_count": 15,
+      "initial_chip_max": 89.30130373621631,
+      "latest_observed_chip_max": 58.57775063802708,
+      "best_chip_max": 58.57775063802708,
+      "first_feasible_run": "run_0015",
+      "first_base_k_run": "run_0014",
+      "applied_run_count": 8,
+      "invalid_run_count": 7,
+      "latest_status": "invalid_proposal",
+      "history_summary": "group_10/history_summary.json",
+      "history_html": "group_10/history.html",
+      "group_figures": {
+        "chip_max_trend": "group_10/figures/chip_max_trend.png",
+        "delta_trend": "group_10/figures/delta_trend.png",
+        "category_timeline": "group_10/figures/category_timeline.png"
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "iteration": 14,
+  "run_id": "run_0014",
+  "status": "invalid_proposal",
+  "applied_changes": [],
+  "validation_reasons": [
+    "component heat_spreader moves outside the current envelope"
+  ]
+}

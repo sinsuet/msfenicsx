@@ -1,0 +1,14 @@
+{
+  "iteration": 4,
+  "run_id": "run_0004",
+  "status": "proposal_applied",
+  "applied_changes": [
+    {
+      "path": "materials.spreader_material.conductivity",
+      "action": "set",
+      "old": 378.0,
+      "new": 500.0,
+      "reason": "Maximizing spreader conductivity within bounds improves lateral heat spreading, directly reducing the localized hot spot under the chip."
+    }
+  ]
+}

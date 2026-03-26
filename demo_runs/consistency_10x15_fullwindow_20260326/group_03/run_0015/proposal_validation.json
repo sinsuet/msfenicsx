@@ -1,0 +1,18 @@
+{
+  "valid": false,
+  "reasons": [
+    "component heat_spreader moves outside the current envelope"
+  ],
+  "checked_changes": [
+    {
+      "path": "components.2.width",
+      "old": 0.84,
+      "new": 1.0
+    },
+    {
+      "path": "materials.spreader_material.conductivity",
+      "old": 500.0,
+      "new": 500.0
+    }
+  ]
+}

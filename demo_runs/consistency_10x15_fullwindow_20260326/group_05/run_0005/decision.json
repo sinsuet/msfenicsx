@@ -1,0 +1,14 @@
+{
+  "iteration": 5,
+  "run_id": "run_0005",
+  "status": "proposal_applied",
+  "applied_changes": [
+    {
+      "path": "materials.spreader_material.conductivity",
+      "action": "set",
+      "old": 453.6,
+      "new": 500.0,
+      "reason": "Increase spreader conductivity to the maximum allowed bound (500.0) to maximize lateral heat spreading and reduce the chip hot spot temperature. This step ratio (~1.1x) is within the permitted [0.5x, 2.0x] range."
+    }
+  ]
+}

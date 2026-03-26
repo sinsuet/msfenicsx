@@ -1,0 +1,13 @@
+{
+  "decision_summary": "constraints are already satisfied",
+  "changes": [],
+  "expected_effects": [
+    "keep current feasible design"
+  ],
+  "risk_notes": [],
+  "model_info": {
+    "provider": "dry_run",
+    "model": "rule_based_stub",
+    "requested_at_utc": "2026-03-25T10:30:25.676749+00:00"
+  }
+}

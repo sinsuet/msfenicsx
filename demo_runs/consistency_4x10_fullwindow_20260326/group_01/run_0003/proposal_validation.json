@@ -1,0 +1,11 @@
+{
+  "valid": true,
+  "reasons": [],
+  "checked_changes": [
+    {
+      "path": "materials.spreader_material.conductivity",
+      "old": 189.0,
+      "new": 283.5
+    }
+  ]
+}

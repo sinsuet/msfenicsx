@@ -1,0 +1,466 @@
+\documentclass[aspectratio=169]{ctexbeamer}
+\usetheme{Madrid}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\setbeamertemplate{navigation symbols}{}
+\setbeamersize{text margin left=0.6cm,text margin right=0.6cm}
+\newcommand{\missingfigure}[2]{\fbox{\parbox[c][#2][c]{#1}{\centering 图像未生成}}}
+
+\title{大模型驱动二维稳态导热优化闭环}
+\author{ZhaochengLi}
+\institute{中科院微小卫星创新院}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{汇报结构}
+\tableofcontents
+\end{frame}
+
+\section{问题定义}
+
+\begin{frame}{问题定义与目标}
+\begin{itemize}
+\item 当前案例研究一个二维稳态导热问题，求解对象是标量温度场 $T(x,y)$。
+\item 几何上包含 3 个矩形组件：底板、芯片、热扩展块。
+\item baseline 的芯片最高温度约为 89.301 degC，约束为 $T_{\max,\mathrm{chip}} \le 85.0$ degC。
+\item 因此我们需要的不只是“算一次温度场”，还需要一个能持续修改设计参数、验证合法性并比较结果的闭环。
+\end{itemize}
+\vspace{0.3cm}
+\begin{block}{当前模型的变量分工}
+PDE 的场变量只有温度 $T$；LLM 迭代修改的是材料参数、几何参数和热源参数，而不是直接改求解代码。
+\end{block}
+\end{frame}
+
+\begin{frame}{物理模型与数学形式}
+\small
+\textbf{控制方程}
+\[
+-\nabla \cdot \left(k \nabla T \right) = q \qquad \text{in } \Omega
+\]
+\textbf{边界条件}
+\[
+T = 25^\circ \mathrm{C} \quad \text{on } \Gamma_{left} \cup \Gamma_{right}
+\]
+\[
+-k \nabla T \cdot n = 0 \quad \text{on the remaining boundary}
+\]
+\textbf{变分形式}
+\[
+\text{Find } T \in V \text{ with prescribed Dirichlet data, such that}
+\]
+\[
+\int_{\Omega} k \nabla T \cdot \nabla v \, \mathrm{d}x
+=
+\int_{\Omega} q v \, \mathrm{d}x,
+\quad \forall v \in V_0
+\]
+\begin{itemize}
+\item $k$ 为各子区域导热率，$q$ 为芯片区域等效体热源。
+\item 这是一个单场线性稳态热传导问题，适合作为 FEniCSx 入门与 LLM 闭环优化模板。
+\end{itemize}
+\end{frame}
+
+\section{组件建模}
+
+\begin{frame}{组件建模与 baseline 参数}
+\scriptsize
+\begin{tabularx}{\linewidth}{l l l l l}
+\toprule
+组件 & 左下角 $(x_0,y_0)$ & 尺寸 $(w,h)$ & 材料 & $k$ \\
+\midrule
+base\_plate & (0.00, 0.00) & 1.20 $\times$ 0.20 & base\_material & 12.0 \\
+chip & (0.45, 0.20) & 0.30 $\times$ 0.12 & chip\_material & 45.0 \\
+heat\_spreader & (0.25, 0.32) & 0.70 $\times$ 0.10 & spreader\_material & 90.0 \\
+\bottomrule
+\end{tabularx}
+\vspace{0.2cm}
+\begin{itemize}
+\item 设计域：$(0,0)$ 到 $(1.2,0.5)$。
+\item 芯片上施加等效体热源 $15000\,\mathrm{W/m^3}$。
+\item 采用 SI 风格单位：长度 m，温度 degC，导热率 $\mathrm{W/(m\cdot K)}$。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{组件最初摆放}
+\centering
+\includegraphics[width=0.82\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/run_0001/outputs/figures/layout.png}
+\vspace{0.2cm}
+\begin{itemize}
+\item 底板位于最下层，连接两侧 25 degC 冷端边界。
+\item 芯片位于中部，是唯一发热组件。
+\item 热扩展块位于芯片上方，承担横向扩散任务。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{网格、子区域与离散方式}
+\begin{columns}[T]
+\column{0.48\linewidth}
+\centering
+\includegraphics[width=0.95\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/run_0001/outputs/figures/mesh.png}
+\\[0.15cm]
+\footnotesize 网格图
+\column{0.48\linewidth}
+\centering
+\includegraphics[width=0.95\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/run_0001/outputs/figures/subdomains.png}
+\\[0.15cm]
+\footnotesize 子区域标签图
+\end{columns}
+\vspace{0.2cm}
+\begin{itemize}
+\item 温度场函数空间：$V_h = P_1$ Lagrange。
+\item 材料场与热源场：DG0 分片常数。
+\item 线性求解器：LU。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{baseline 仿真结果}
+\begin{columns}[T]
+\column{0.57\linewidth}
+\centering
+\includegraphics[width=0.98\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/run_0001/outputs/figures/temperature.png}
+\column{0.40\linewidth}
+\small
+\begin{block}{关键指标}
+\begin{itemize}
+\item 芯片最高温：89.301 degC
+\item 约束上限：85.0 degC
+\item 判定：\alert{不满足约束}
+\end{itemize}
+\end{block}
+\begin{block}{物理解读}
+\begin{itemize}
+\item 热点集中在芯片及热扩展块附近。
+\item 温度沿底板向左右冷端传递。
+\item baseline 已具备明确优化空间。
+\end{itemize}
+\end{block}
+\end{columns}
+\end{frame}
+
+\section{LLM 优化闭环}
+
+\begin{frame}{为什么需要 LLM 参与优化}
+\begin{itemize}
+\item 单次仿真只能回答“当前设计的温度场是什么”。
+\item 工程问题真正关心的是：如果不满足约束，下一步应该改哪里、改多少、是否合法。
+\item 当前系统不是让 LLM 直接改 Python，而是让它对结构化 state 提出修改建议。
+\item 因此整个 workflow 变成：\textbf{状态驱动建模} + \textbf{FEniCSx 求解} + \textbf{约束评估} + \textbf{LLM 提案} + \textbf{合法性校验}。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{整体 workflow}
+\small
+\begin{enumerate}
+\item 读取当前 \texttt{state.yaml}
+\item 编译几何、网格、材料场、热源场和 PDE
+\item 运行 FEniCSx 求解，输出温度场和图片
+\item evaluator 提取指标并判断是否违反约束
+\item DashScope \texttt{qwen3.5-plus} 生成结构化 proposal
+\item validator 检查变量边界、步长、重叠和越界
+\item 合法则生成 \texttt{next\_state.yaml} 并进入下一轮
+\end{enumerate}
+\vspace{0.2cm}
+\begin{block}{关键原则}
+LLM 是受约束的提案者，不是无边界的代码修改者。
+\end{block}
+\end{frame}
+
+\begin{frame}{run 与 iteration 的区别}
+\small
+\begin{itemize}
+\item \texttt{run\_0001} 是目录编号，每个目录保存一次 iteration 的完整快照。
+\item 真正的“第几轮”看 \texttt{decision.json} 里的 \texttt{iteration}。
+\item 一个 run 目录中通常包含：
+\end{itemize}
+\begin{center}
+\begin{tabular}{llll}
+\texttt{state.yaml} & \texttt{evaluation.json} & \texttt{proposal.json} & \texttt{decision.json} \\
+\texttt{proposal\_validation.json} & \texttt{next\_state.yaml} & \texttt{outputs/} & \\
+\end{tabular}
+\end{center}
+\begin{itemize}
+\item 本轮 proposal 的效果往往要到下一轮 evaluation 才能看到。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{LLM 可修改参数：材料与载荷}
+\scriptsize
+\begin{tabularx}{\linewidth}{l X l l l}
+\toprule
+变量标签 & 路径 & 类别 & 范围 & 推荐方向 \\
+\midrule
+Spreader Conductivity & materials.spreader\_material.conductivity & material & 20--500 & increase \\
+Base Plate Conductivity & materials.base\_material.conductivity & material & 5--250 & increase \\
+Chip Heat Source & heat\_sources.0.value & load & 5000--50000 & decrease \\
+\bottomrule
+\end{tabularx}
+\vspace{0.2cm}
+\begin{itemize}
+\item 当前真实模型：DashScope \texttt{qwen3.5-plus}。
+\item 热源变量只用于 what-if 场景探索，不是当前主设计杠杆。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{LLM 可修改参数：几何与合法性约束}
+\scriptsize
+\begin{tabularx}{\linewidth}{l X l l l}
+\toprule
+变量标签 & 路径 & 类别 & 范围 & 推荐方向 \\
+\midrule
+Heat Spreader Width & components.2.width & geometry & 0.2--1 & increase \\
+Heat Spreader Height & components.2.height & geometry & 0.05--0.18 & increase \\
+Heat Spreader X Position & components.2.x0 & geometry & 0--0.5 & move\_toward\_chip\_center \\
+Heat Spreader Y Position & components.2.y0 & geometry & 0.2--0.4 & move\_toward\_chip\_with\_clearance \\
+\bottomrule
+\end{tabularx}
+\vspace{0.15cm}
+\begin{block}{proposal validation}
+\begin{itemize}
+\item 导热率必须在变量上下界内，单步变化不能超过 $2.0\times$
+\item 尺寸单步变化不能超过 $1.5\times$
+\item 位置移动不能超过设计域宽高的 $25\%$
+\item 组件不能重叠，也不能超出允许设计域
+\end{itemize}
+\end{block}
+\end{frame}
+
+\section{代表性单跑}
+
+\begin{frame}{代表性单跑：15轮温度轨迹}
+\centering
+\includegraphics[width=0.85\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/figures/chip_max_trend.png}
+\vspace{0.1cm}
+\begin{itemize}
+\item 本页默认选用代表性单跑：\texttt{group\_06}。
+\item 这类单跑通常会经历“前期平台 + 中后期策略切换”的形态，而不是每轮都明显下降。
+\item 单跑章节的作用是解释闭环如何工作；跨组稳定性要看后面的 10 组正式实验。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{代表性单跑：关键轮次与策略切换}
+\scriptsize
+\begin{tabularx}{\linewidth}{p{1.25cm} p{1.15cm} X X p{2.1cm}}
+\toprule
+轮次 & 状态 & 修改内容 & 芯片峰值变化 (degC) & 说明 \\
+\midrule
+run\_0001 & valid & 热扩展块导热率 & 89.30 -> 89.28 (-0.02) & 该杠杆较弱 \\
+run\_0005 & invalid & 热扩展块导热率 & 89.26 -> 89.26 (+0.00) & 超出变量范围 \\
+run\_0011 & valid & 底板导热率 & 89.26 -> 58.61 (-30.64) & 显著降温 \\
+run\_0015 & valid & 底板导热率 & 当前 58.61 & 识别到底板瓶颈 \\
+\bottomrule
+\end{tabularx}
+\vspace{0.15cm}
+\begin{itemize}
+\item 代表性路径里，前期通常先调 \texttt{spreader\_k}，改善有限。
+\item 真正的大幅降温往往出现在识别并切换到底板导热率 \texttt{base\_k} 之后。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{代表性单跑：LLM 在关键轮次看到了什么}
+\small
+\begin{columns}[T]
+\column{0.46\linewidth}
+\begin{block}{系统 prompt 的硬约束}
+\begin{itemize}
+\item 只返回 JSON，不输出 Markdown
+\item 提案必须保守且物理上合理
+\item 优先少量但高影响的改动
+\item 不要修改与当前约束无关的字段
+\end{itemize}
+\end{block}
+\column{0.51\linewidth}
+\begin{block}{run\_0011 输入摘要}
+\begin{itemize}
+\item 当前芯片峰值 89.256 degC，高于约束 85.0 degC。
+\item 当轮状态中，spreader\_k=500.0，base\_k=12.0，spreader 宽度=0.90 m。
+\item 前两轮改善仅 -0.0005 和 +0.0000 degC，已明显进入平台期。
+\item history 明确提示：近期改善极小，几何修改已频繁触碰合法性边界。
+\end{itemize}
+\end{block}
+\end{columns}
+\vspace{0.1cm}
+\begin{itemize}
+\item LLM 看到的不是一句“帮我降温”，而是完整的当前 state、可编辑变量表、evaluation 指标和历史轨迹摘要。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{代表性单跑：为什么会切换到 base\_k}
+\small
+\begin{block}{前期策略为什么失效}
+\begin{itemize}
+\item run\_0001 起优先调 spreader\_k，累计仅变化 -0.045 degC。
+\item run\_0005 试图把 spreader\_k 提到 595.35，超过上界 500，被 validator 拒绝。
+\item run\_0006 将 spreader 宽度从 0.7 调到 0.9，结果仅 +0.00001 degC。
+\end{itemize}
+\end{block}
+\begin{block}{策略切换的物理含义}
+\begin{itemize}
+\item 因此需要从“热点上方扩散”切换到“整条散热路径”的全局瓶颈，也就是 base\_k。
+\item 也就是说，局部扩散已经不是主要瓶颈，真正的限制来自热量能否继续穿过底板并传到左右冷端。
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{代表性单跑：关键 proposal 与执行动作}
+\small
+\begin{columns}[T]
+\column{0.52\linewidth}
+\begin{block}{proposal.json 摘要}
+\begin{itemize}
+\item 模型：qwen3.5-plus
+\item \texttt{materials.base\_material.conductivity}
+\item 动作：set，12.0 -> 24.0
+\item 理由：提升底板导热率，增强热扩展块到两侧冷端的整体传热通道。
+\end{itemize}
+\end{block}
+\column{0.43\linewidth}
+\begin{block}{validator + executor}
+\begin{itemize}
+\item validator 结果：valid=true，允许进入执行阶段。
+\item 执行器会把提案写入 next\_state.yaml，并重新运行 FEniCSx 求解、评估与画图。
+\item 因此每轮都有可回滚快照：state / evaluation / proposal / validation / outputs。
+\end{itemize}
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{代表性单跑：关键动作兑现后的效果}
+\small
+\begin{columns}[T]
+\column{0.50\linewidth}
+\begin{block}{run\_0011 -> run\_0012}
+\begin{itemize}
+\item run\_0011 求解后芯片峰值为 89.256 degC，仍处于不可行状态。
+\item run\_0012 兑现后降到 58.613 degC，单步变化 -30.643 degC。
+\end{itemize}
+\end{block}
+\begin{block}{为什么这一跳这么大}
+\begin{itemize}
+\item 这一跳不是局部小修，而是把热从热扩展块更快送到底板，再送往左右 25 degC 冷端。
+\item 系统因此从违反约束切换到可行域，说明 base\_k 是该案例里的全局决定性杠杆。
+\end{itemize}
+\end{block}
+\column{0.46\linewidth}
+\centering
+\includegraphics[width=0.98\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/figures/chip_max_trend.png}
+\\[0.08cm]
+\footnotesize 曲线中的台阶式下降，对应的就是这次 \texttt{base\_k} 策略切换
+\end{columns}
+\end{frame}
+
+\begin{frame}{代表性单跑：初始与最终布局/温度场对比}
+\begin{columns}[T]
+\column{0.49\linewidth}
+\centering
+\includegraphics[width=0.92\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/run_0001/outputs/figures/layout.png}
+\\[0.05cm]
+\includegraphics[width=0.92\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/run_0001/outputs/figures/temperature.png}
+\\[0.1cm]
+\footnotesize 左：baseline 布局与温度场
+\column{0.49\linewidth}
+\centering
+\includegraphics[width=0.92\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/run_0015/outputs/figures/layout.png}
+\\[0.05cm]
+\includegraphics[width=0.92\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/group_06/run_0015/outputs/figures/temperature.png}
+\\[0.1cm]
+\footnotesize 右：最终状态布局与温度场
+\end{columns}
+\vspace{0.15cm}
+\begin{itemize}
+\item 最终状态摘要：热扩展块宽度 0.90 m，底板导热率 24.0，热扩展块导热率 500.0。
+\item 这说明：真正决定性的是整体热路径变通畅，而不只是热点上方局部材料变好。
+\end{itemize}
+\end{frame}
+
+\section{10组 15轮正式实验}
+
+\begin{frame}{10组 15轮正式实验：实验设置}
+\small
+\begin{itemize}
+\item 同一案例、同一 baseline、同一约束、同一真实模型：DashScope \texttt{qwen3.5-plus}。
+\item 每组独立运行 15 轮，并允许保留非法 proposal 记录，完整观察策略切换过程。
+\item 这一步的目标不是再展示“单次能不能成功”，而是回答：重复运行后，结果和策略到底有多一致。
+\end{itemize}
+\vspace{0.2cm}
+\begin{block}{本轮正式结论摘要}
+\begin{itemize}
+\item 组数：10
+\item 最终进入可行域：9 / 10
+\item 最终芯片峰值均值：58.054
+\item 最优组：group\_02、group\_07、group\_09，最佳最终温度 43.165 degC
+\item 最差最终温度：89.205 degC
+\end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{10组 15轮正式实验：全组轨迹}
+\centering
+\includegraphics[width=0.78\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/figures/consistency_10x15_trajectories.png}
+\vspace{0.05cm}
+\begin{itemize}
+\item 大多数组前半段都停在约 89.2--89.3 degC 的平台上。
+\item 温度曲线是否出现台阶式下降，取决于何时切换到真正的全局杠杆。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{10组 15轮正式实验：最终结果分布}
+\centering
+\includegraphics[width=0.82\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/figures/consistency_10x15_final_chip_max.png}
+\vspace{0.15cm}
+\begin{itemize}
+\item 最终结果不是单点收敛，而是明显分成多档。
+\item 这一点说明系统具备较强的局部一致性，但还没有达到强全局收敛一致性。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{10组 15轮正式实验：第一次使用 base\_k 的轮次}
+\centering
+\includegraphics[width=0.78\linewidth]{/home/hymn/msfenicsx/demo_runs/consistency_10x15_fullwindow_20260326/figures/consistency_10x15_first_base_k_round.png}
+\vspace{0.05cm}
+\begin{itemize}
+\item 这张图回答“结果差异为什么会出现”。
+\item 多数组的成败差异，不在前 5 轮，而在何时把注意力从热扩展块切换到底板导热路径。
+\end{itemize}
+\end{frame}
+
+\begin{frame}{结果分群与机制解释}
+\small
+\begin{block}{结果分群}
+\begin{itemize}
+\item 最优组（约 43 degC）：group\_02、group\_07、group\_09
+\item 主流成功组（约 58--59 degC）：group\_01、group\_05、group\_06、group\_08、group\_10
+\item 部分成功组（约 69 degC）：group\_04
+\item 失败组（约 89 degC）：group\_03
+\end{itemize}
+\end{block}
+\begin{block}{机制解释}
+\begin{itemize}
+\item 前半段高频出现的是 \texttt{spreader\_k}，这是局部直觉杠杆。
+\item 真正决定性的是 \texttt{base\_k}：是否及时识别、幅度是否足够、是否来得及在 15 轮窗口内兑现。
+\end{itemize}
+\end{block}
+\end{frame}
+
+\section{结论}
+
+\begin{frame}{结论与下一步}
+\begin{itemize}
+\item 当前案例已经形成了一个完整的最小闭环：state 驱动建模、FEniCSx 求解、LLM 提案、proposal validation、逐轮记录、可视化与回滚。
+\item 10 组正式实验表明：LLM 在这个案例上已经表现出较强的前期策略一致性，但最终效果并不唯一。
+\item 最终 9/10 组进入可行域，说明系统并不脆弱；但结果分群明显，说明关键策略触发时机仍然不稳定。
+\item 当前最有解释力的机制是：是否及时识别 \texttt{base\_k} 这个全局瓶颈，以及是否在有限轮数内把它推到足够强。
+\item 当前局限：仍是二维、稳态、单温度场模型，尚未包含对流、界面热阻和瞬态过程。
+\item 下一步如果继续增强，可以把跨轮记忆、策略引导和更强物理约束进一步接入闭环，让多次重复实验的结果分布更集中。
+\end{itemize}
+\end{frame}
+
+\end{document}

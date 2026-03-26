@@ -1,0 +1,11 @@
+{
+  "iteration": 7,
+  "run_id": "run_0007",
+  "status": "invalid_proposal",
+  "applied_changes": [],
+  "validation_reasons": [
+    "materials.spreader_material.conductivity must stay within [20.0, 500.0], got 700.000000",
+    "conductivity must stay within [0.1, 500.0], got 700.000000",
+    "spreader_material: conductivity must stay within [0.1, 500.0], got 700.000000"
+  ]
+}

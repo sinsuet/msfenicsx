@@ -1,0 +1,11 @@
+{
+  "valid": true,
+  "reasons": [],
+  "checked_changes": [
+    {
+      "path": "materials.base_material.conductivity",
+      "old": 12.0,
+      "new": 18.0
+    }
+  ]
+}

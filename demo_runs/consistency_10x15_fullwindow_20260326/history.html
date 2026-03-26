@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Thermal Optimization History Collection</title>
+  <style>
+    :root {
+      --bg: #f4efe7;
+      --panel: rgba(255,255,255,0.94);
+      --line: #d9d0c2;
+      --ink: #201c18;
+      --muted: #6b635c;
+      --accent: #a44a3f;
+      --shadow: 0 12px 38px rgba(67, 48, 31, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, #fff7ed 0, transparent 28rem),
+        linear-gradient(180deg, #fbf5ec 0%, var(--bg) 100%);
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .shell {
+      max-width: 1540px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .hero {
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .stat, .figure-card, .group-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: white;
+    }
+    .stat-label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: 0.82rem;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 1.22rem;
+      font-weight: 700;
+    }
+    .panel {
+      padding: 18px;
+    }
+    .figure-grid, .group-grid {
+      display: grid;
+      gap: 14px;
+    }
+    .figure-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-bottom: 18px;
+    }
+    .group-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .meta {
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 0.94rem;
+      margin-top: 8px;
+    }
+    a.button {
+      display: inline-block;
+      margin-top: 12px;
+      text-decoration: none;
+      color: white;
+      background: var(--accent);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+    }
+    @media (max-width: 1180px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .figure-grid, .group-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <h1>Thermal Optimization History Collection</h1>
+      <p class="subtitle">
+        这个总览页面面向批量实验目录。上半部分给出跨组统计和已有聚合图，下半部分给出每组入口，方便你跳到任一组的详细历史工作台。
+      </p>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Aggregate Figures</h2>
+      <div class="figure-grid" id="figure-grid"></div>
+      <h2>Group Dashboards</h2>
+      <div class="group-grid" id="group-grid"></div>
+    </section>
+  </div>
+
+  <script>
+    const collectionSummary = {"generated_at_utc": "2026-03-26T05:39:09.598560+00:00", "root": "demo_runs/consistency_10x15_fullwindow_20260326", "group_count": 10, "feasible_group_count": 9, "average_latest_chip_max": 58.05412673490205, "best_group_id": "group_02", "best_group_chip_max": 43.164618910763636, "aggregate_figures": {"trajectories": "figures/consistency_10x15_trajectories.png", "final_chip_max": "figures/consistency_10x15_final_chip_max.png", "first_base_k_round": "figures/consistency_10x15_first_base_k_round.png"}, "groups": [{"group_id": "group_01", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 58.61285725663505, "best_chip_max": 58.61285725663505, "first_feasible_run": "run_0012", "first_base_k_run": "run_0011", "applied_run_count": 8, "invalid_run_count": 7, "latest_status": "proposal_applied", "history_summary": "group_01/history_summary.json", "history_html": "group_01/history.html", "group_figures": {"chip_max_trend": "group_01/figures/chip_max_trend.png", "delta_trend": "group_01/figures/delta_trend.png", "category_timeline": "group_01/figures/category_timeline.png"}}, {"group_id": "group_02", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 43.164618910763636, "best_chip_max": 43.164618910763636, "first_feasible_run": "run_0010", "first_base_k_run": "run_0009", "applied_run_count": 9, "invalid_run_count": 6, "latest_status": "invalid_proposal", "history_summary": "group_02/history_summary.json", "history_html": "group_02/history.html", "group_figures": {"chip_max_trend": "group_02/figures/chip_max_trend.png", "delta_trend": "group_02/figures/delta_trend.png", "category_timeline": "group_02/figures/category_timeline.png"}}, {"group_id": "group_03", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 89.20486690827713, "best_chip_max": 89.20486690827713, "first_feasible_run": null, "first_base_k_run": null, "applied_run_count": 9, "invalid_run_count": 6, "latest_status": "invalid_proposal", "history_summary": "group_03/history_summary.json", "history_html": "group_03/history.html", "group_figures": {"chip_max_trend": "group_03/figures/chip_max_trend.png", "delta_trend": "group_03/figures/delta_trend.png", "category_timeline": "group_03/figures/category_timeline.png"}}, {"group_id": "group_04", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 68.84832939290591, "best_chip_max": 68.84832939290591, "first_feasible_run": "run_0012", "first_base_k_run": "run_0011", "applied_run_count": 9, "invalid_run_count": 6, "latest_status": "invalid_proposal", "history_summary": "group_04/history_summary.json", "history_html": "group_04/history.html", "group_figures": {"chip_max_trend": "group_04/figures/chip_max_trend.png", "delta_trend": "group_04/figures/delta_trend.png", "category_timeline": "group_04/figures/category_timeline.png"}}, {"group_id": "group_05", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 58.57789274011505, "best_chip_max": 58.57789274011505, "first_feasible_run": "run_0015", "first_base_k_run": "run_0014", "applied_run_count": 8, "invalid_run_count": 7, "latest_status": "invalid_proposal", "history_summary": "group_05/history_summary.json", "history_html": "group_05/history.html", "group_figures": {"chip_max_trend": "group_05/figures/chip_max_trend.png", "delta_trend": "group_05/figures/delta_trend.png", "category_timeline": "group_05/figures/category_timeline.png"}}, {"group_id": "group_06", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 58.612856424134335, "best_chip_max": 58.612856424134335, "first_feasible_run": "run_0012", "first_base_k_run": "run_0011", "applied_run_count": 9, "invalid_run_count": 6, "latest_status": "proposal_applied", "history_summary": "group_06/history_summary.json", "history_html": "group_06/history.html", "group_figures": {"chip_max_trend": "group_06/figures/chip_max_trend.png", "delta_trend": "group_06/figures/delta_trend.png", "category_timeline": "group_06/figures/category_timeline.png"}}, {"group_id": "group_07", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 43.164618910763636, "best_chip_max": 43.164618910763636, "first_feasible_run": "run_0008", "first_base_k_run": "run_0007", "applied_run_count": 8, "invalid_run_count": 7, "latest_status": "invalid_proposal", "history_summary": "group_07/history_summary.json", "history_html": "group_07/history.html", "group_figures": {"chip_max_trend": "group_07/figures/chip_max_trend.png", "delta_trend": "group_07/figures/delta_trend.png", "category_timeline": "group_07/figures/category_timeline.png"}}, {"group_id": "group_08", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 58.61285725663505, "best_chip_max": 58.61285725663505, "first_feasible_run": "run_0012", "first_base_k_run": "run_0011", "applied_run_count": 9, "invalid_run_count": 6, "latest_status": "proposal_applied", "history_summary": "group_08/history_summary.json", "history_html": "group_08/history.html", "group_figures": {"chip_max_trend": "group_08/figures/chip_max_trend.png", "delta_trend": "group_08/figures/delta_trend.png", "category_timeline": "group_08/figures/category_timeline.png"}}, {"group_id": "group_09", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 43.164618910763636, "best_chip_max": 43.164618910763636, "first_feasible_run": "run_0011", "first_base_k_run": "run_0010", "applied_run_count": 8, "invalid_run_count": 7, "latest_status": "invalid_proposal", "history_summary": "group_09/history_summary.json", "history_html": "group_09/history.html", "group_figures": {"chip_max_trend": "group_09/figures/chip_max_trend.png", "delta_trend": "group_09/figures/delta_trend.png", "category_timeline": "group_09/figures/category_timeline.png"}}, {"group_id": "group_10", "run_count": 15, "initial_chip_max": 89.30130373621631, "latest_observed_chip_max": 58.57775063802708, "best_chip_max": 58.57775063802708, "first_feasible_run": "run_0015", "first_base_k_run": "run_0014", "applied_run_count": 8, "invalid_run_count": 7, "latest_status": "invalid_proposal", "history_summary": "group_10/history_summary.json", "history_html": "group_10/history.html", "group_figures": {"chip_max_trend": "group_10/figures/chip_max_trend.png", "delta_trend": "group_10/figures/delta_trend.png", "category_timeline": "group_10/figures/category_timeline.png"}}]};
+    const groups = collectionSummary.groups || [];
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function formatNumber(value) {
+      return typeof value === "number" ? value.toFixed(6) : "N/A";
+    }
+
+    function renderStats() {
+      const items = [
+        ["Group Count", collectionSummary.group_count ?? groups.length],
+        ["Feasible Groups", collectionSummary.feasible_group_count ?? "N/A"],
+        ["Average Latest", formatNumber(collectionSummary.average_latest_chip_max)],
+        ["Best Group", collectionSummary.best_group_id || "N/A"],
+        ["Best Chip Max", formatNumber(collectionSummary.best_group_chip_max)],
+      ];
+      document.getElementById("stats").innerHTML = items.map(([label, value]) => `
+        <div class="stat">
+          <div class="stat-label">${escapeHtml(label)}</div>
+          <div class="stat-value">${escapeHtml(value)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderFigures() {
+      const labels = {
+        trajectories: "Trajectories",
+        final_chip_max: "Final Chip Max",
+        first_base_k_round: "First Base K Round",
+      };
+      const figures = collectionSummary.aggregate_figures || {};
+      document.getElementById("figure-grid").innerHTML = Object.entries(figures)
+        .filter(([, value]) => Boolean(value))
+        .map(([key, value]) => `
+          <div class="figure-card">
+            <h3>${escapeHtml(labels[key] || key)}</h3>
+            <img src="${escapeHtml(value)}" alt="${escapeHtml(labels[key] || key)}">
+          </div>
+        `)
+        .join("") || '<div class="figure-card">No aggregate figures found.</div>';
+    }
+
+    function renderGroups() {
+      document.getElementById("group-grid").innerHTML = groups.map((group) => `
+        <div class="group-card">
+          <h3>${escapeHtml(group.group_id)}</h3>
+          <div class="meta">
+            run_count: ${escapeHtml(group.run_count)}<br>
+            initial_chip_max: ${escapeHtml(formatNumber(group.initial_chip_max))}<br>
+            latest_observed_chip_max: ${escapeHtml(formatNumber(group.latest_observed_chip_max))}<br>
+            best_chip_max: ${escapeHtml(formatNumber(group.best_chip_max))}<br>
+            first_feasible_run: ${escapeHtml(group.first_feasible_run || "N/A")}<br>
+            first_base_k_run: ${escapeHtml(group.first_base_k_run || "N/A")}<br>
+            invalid_run_count: ${escapeHtml(group.invalid_run_count)}<br>
+            latest_status: ${escapeHtml(group.latest_status || "N/A")}
+          </div>
+          <a class="button" href="${escapeHtml(group.history_html || '#')}">Open Group Dashboard</a>
+        </div>
+      `).join("");
+    }
+
+    renderStats();
+    renderFigures();
+    renderGroups();
+  </script>
+</body>
+</html>

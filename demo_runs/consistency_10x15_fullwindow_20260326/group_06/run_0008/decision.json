@@ -1,0 +1,14 @@
+{
+  "iteration": 8,
+  "run_id": "run_0008",
+  "status": "proposal_applied",
+  "applied_changes": [
+    {
+      "path": "materials.spreader_material.conductivity",
+      "action": "set",
+      "old": 396.9,
+      "new": 476.28,
+      "reason": "Increasing spreader conductivity by 20% (within the 2.0x limit) improves lateral heat distribution, reducing the thermal bottleneck at the chip interface."
+    }
+  ]
+}

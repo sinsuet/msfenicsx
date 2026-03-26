@@ -1,0 +1,10 @@
+{
+  "iteration": 13,
+  "run_id": "run_0013",
+  "status": "invalid_proposal",
+  "applied_changes": [],
+  "validation_reasons": [
+    "components.2.width must stay within [0.2, 1.0], got 1.008000",
+    "component heat_spreader moves outside the current envelope"
+  ]
+}

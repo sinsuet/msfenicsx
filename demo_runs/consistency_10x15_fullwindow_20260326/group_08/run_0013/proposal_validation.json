@@ -1,0 +1,13 @@
+{
+  "valid": false,
+  "reasons": [
+    "component heat_spreader moves outside the current envelope"
+  ],
+  "checked_changes": [
+    {
+      "path": "components.2.width",
+      "old": 0.84,
+      "new": 1.0
+    }
+  ]
+}
