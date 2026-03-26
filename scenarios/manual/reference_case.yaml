@@ -1,0 +1,54 @@
+schema_version: "1.0"
+case_meta:
+  case_id: reference-case-001
+  scenario_id: panel-radiation-baseline
+coordinate_system:
+  plane: panel_xy
+panel_domain:
+  width: 1.0
+  height: 0.8
+materials:
+  aluminum:
+    conductivity: 205.0
+    emissivity: 0.78
+components:
+  - component_id: comp-001
+    role: payload
+    shape: rect
+    pose:
+      x: 0.3
+      y: 0.35
+      rotation_deg: 0.0
+    geometry:
+      width: 0.16
+      height: 0.09
+    material_ref: aluminum
+    thermal_tags:
+      - electronics
+boundary_features:
+  - feature_id: sink-top
+    kind: line_sink
+    edge: top
+    start: 0.2
+    end: 0.8
+    sink_temperature: 285.0
+    transfer_coefficient: 12.0
+loads:
+  - load_id: load-001
+    target_component_id: comp-001
+    total_power: 18.0
+physics:
+  kind: steady_heat_radiation
+  ambient_temperature: 290.0
+  stefan_boltzmann: 5.670374419e-8
+mesh_profile:
+  nx: 48
+  ny: 40
+solver_profile:
+  nonlinear_solver: snes
+  absolute_tolerance: 1.0e-8
+  relative_tolerance: 1.0e-8
+  max_iterations: 50
+provenance:
+  source: manual_reference_case
+  authored_on: "2026-03-26"
