@@ -1,28 +1,38 @@
 # msfenicsx Clean Rebuild (Phase 1)
 
-This repository is being rebuilt from a clean baseline for Phase 1. Legacy demo code can coexist during transition, but new work should align with the clean architecture boundaries below.
+`msfenicsx` now targets a clean Phase 1 baseline for two-dimensional thermal dataset generation and official FEniCSx solving of steady conduction problems with nonlinear radiation sink boundaries.
 
 ## Top-Level Module Boundaries
 
-- `core/`: runtime kernel and CLI surface (`core/cli/`)
-- `evaluation/`: metrics, scoring, and benchmark execution
-- `optimizers/`: optimization strategies and orchestration
-- `llm/`: LLM adapters, prompting, and model-facing workflows
-- `visualization/`: plotting, rendering, and reporting surfaces
+- `core/`: canonical schema, geometry, generator, solver, artifact I/O, and CLI
+- `evaluation/`: reserved boundary for future evaluation logic
+- `optimizers/`: reserved boundary for future optimization integrations
+- `llm/`: reserved boundary for future strategy-layer integrations
+- `visualization/`: reserved boundary for future read-only rendering and reporting
 
-## Rebuild-Oriented Repository Structure
+## Phase 1 Flow
 
-Phase 1 is organized around these top-level areas:
+The current baseline flow is:
 
-- `core/`
-- `evaluation/`
-- `optimizers/`
-- `llm/`
-- `visualization/`
-- `scenarios/`
-- `scenario_runs/`
-- `tests/`
-- `docs/`
+`scenario_template -> thermal_case -> thermal_solution -> scenario_runs/ bundle`
 
-`scenario_runs/` is intended for generated run outputs and is ignored by git.
+Seed inputs live under `scenarios/`, and generated run artifacts are written under `scenario_runs/` at runtime and ignored by git.
 
+## CLI
+
+Available commands:
+
+- `msfenicsx validate-scenario-template --template scenarios/templates/panel_radiation_baseline.yaml`
+- `msfenicsx generate-case --template scenarios/templates/panel_radiation_baseline.yaml --seed 3 --output-root ./generated_cases`
+- `msfenicsx solve-case --case ./generated_cases/<case_id>.yaml --output-root ./scenario_runs`
+
+## Verification
+
+The rebuilt Phase 1 baseline is currently covered by targeted tests in:
+
+- `tests/schema/`
+- `tests/geometry/`
+- `tests/generator/`
+- `tests/solver/`
+- `tests/io/`
+- `tests/cli/`
