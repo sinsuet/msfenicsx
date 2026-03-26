@@ -11,6 +11,8 @@ __pycache__/
 # Generated simulation outputs
 outputs/
 runs/
+# Phase 1 clean rebuild generated scenario artifacts
+scenario_runs/
 
 # Local environment and secrets
 .env
