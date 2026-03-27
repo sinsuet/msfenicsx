@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 
+from core.generator.paired_pipeline import generate_operating_case_pair
 from optimizers.models import OptimizationResult, OptimizationSpec
 
 
@@ -29,12 +30,18 @@ def save_optimization_result(result: OptimizationResult | dict[str, Any], path: 
 
 def resolve_evaluation_spec_path(spec_path: str | Path, optimization_spec: OptimizationSpec | dict[str, Any]) -> Path:
     spec_payload = _coerce_payload(optimization_spec)
-    raw_path = Path(spec_payload["evaluation_protocol"]["evaluation_spec_path"])
-    if raw_path.is_absolute():
-        return raw_path
-    if raw_path.exists():
-        return raw_path
-    return Path(spec_path).resolve().parent / raw_path
+    return _resolve_path(spec_path, spec_payload["evaluation_protocol"]["evaluation_spec_path"])
+
+
+def resolve_benchmark_template_path(spec_path: str | Path, optimization_spec: OptimizationSpec | dict[str, Any]) -> Path:
+    spec_payload = _coerce_payload(optimization_spec)
+    return _resolve_path(spec_path, spec_payload["benchmark_source"]["template_path"])
+
+
+def generate_benchmark_cases(spec_path: str | Path, optimization_spec: OptimizationSpec | dict[str, Any]) -> dict[str, Any]:
+    spec_payload = _coerce_payload(optimization_spec)
+    template_path = resolve_benchmark_template_path(spec_path, spec_payload)
+    return generate_operating_case_pair(template_path, seed=int(spec_payload["benchmark_source"]["seed"]))
 
 
 def _coerce_payload(value: OptimizationSpec | OptimizationResult | dict[str, Any]) -> dict[str, Any]:
@@ -59,6 +66,15 @@ def _load_payload(path: str | Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise TypeError(f"Optimizer file {resolved_path} must deserialize to a mapping.")
     return payload
+
+
+def _resolve_path(spec_path: str | Path, raw_path: str | Path) -> Path:
+    candidate_path = Path(raw_path)
+    if candidate_path.is_absolute():
+        return candidate_path
+    if candidate_path.exists():
+        return candidate_path.resolve()
+    return Path(spec_path).resolve().parent / candidate_path
 
 
 def _save_payload(payload: dict[str, Any], path: str | Path) -> Path:

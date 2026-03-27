@@ -35,9 +35,9 @@ constraints:
     operating_case: cold
     metric: component.battery_pack.temperature_min
     relation: ">="
-    limit: 268.0
+    limit: 259.5
   - constraint_id: hot_component_spread_limit
     operating_case: hot
     metric: components.max_temperature_spread
     relation: "<="
-    limit: 20.0
+    limit: 1.0

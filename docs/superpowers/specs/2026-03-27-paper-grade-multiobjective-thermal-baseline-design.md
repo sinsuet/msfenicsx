@@ -3,6 +3,8 @@
 > Status: approved direction for the next active mainline after the Phase 1 clean rebuild.
 >
 > This spec replaces the current toy multicase optimizer baseline. No compatibility layer is required. Obsolete baseline specs, examples, and tests may be deleted once the new path is implemented.
+>
+> Update on 2026-03-27: benchmark scene content, operating cases, physics scope, and evaluation targets in this document remain active. The optimizer-platform ladder originally written here as a single-backbone `NSGA-II` sequence is superseded by `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`.
 
 ## 1. Goal
 
@@ -11,7 +13,7 @@ Define the first paper-grade research baseline for `msfenicsx` after the Phase 1
 - keep `core/` as the single-case canonical kernel
 - replace the current degenerate one-component hot/cold optimizer example
 - establish a realistic two-case, multiobjective, constrained satellite thermal benchmark
-- make `NSGA-II` plus domain operators the active classical baseline before any LLM strategy work resumes
+- make a pure `NSGA-II` reset the immediate active classical baseline and define a later multi-backbone optimizer matrix for operator-pool and controller research
 - upgrade dataset generation where needed so the optimization benchmark is generated from the active platform rather than hand-carried as a toy example
 
 This spec is a clean replacement plan, not an incremental compatibility plan.
@@ -333,65 +335,55 @@ Those can follow after the baseline benchmark is stable.
 
 ## 7. Optimizer Baseline Ladder
 
-The new experimental ladder should be:
+The optimizer ladder for this benchmark is now a multi-backbone matrix rather than a single-backbone `NSGA-II` sequence.
 
-### B0: Vanilla `NSGA-II`
+Implemented today:
 
-- standard `pymoo` `NSGA-II`
-- standard float initialization
-- standard crossover and mutation
-- repair for geometry and radiator legality
+- pure `NSGA-II` raw baseline
 
-Purpose:
+Approved next-stage matrix:
 
-- establish the clean classical baseline
+- `B0-matrix-raw`
+  - `NSGA-II`
+  - `NSGA-III`
+  - `C-TAEA`
+  - `RVEA`
+  - constrained `MOEA/D`
+  - `CMOPSO`
+- `B1-matrix-pool-random`
+  - the same six backbones
+  - the same domain operator pool
+  - the same legality repair
+  - `random_uniform` controller
+- `L1-matrix-pool-llm`
+  - future phase only
+  - same six backbones
+  - same operator pool
+  - only the controller changes
 
-### B1: Hybrid-Operator `NSGA-II`
-
-- same Pareto ranking backbone as `NSGA-II`
-- offspring generation can draw from both standard and domain operators
-- same evaluation budget as `B0`
-
-Purpose:
-
-- establish the strongest non-LLM traditional baseline
-
-### P1: LLM-Policy Hybrid `NSGA-II`
-
-- future phase only
-- LLM controls operator subset, weighting, or phase switching
-- still consumes the same canonical cases, solver, and evaluation contracts
-
-Purpose:
-
-- show better feasibility speed or better Pareto quality under matched budget
-
-`P1` is out of scope for the immediate implementation phase.
+The design details for this matrix now live in `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`.
 
 ## 8. Domain Operator Pool
 
-The domain-operator pool should keep the individual as a numeric decision vector, but introduce problem-aware offspring proposals.
+The shared operator pool for this benchmark remains numeric and benchmark-aware, but it is now explicitly algorithm-agnostic rather than tied to one backbone.
 
-Required operators:
+Approved shared operators:
 
-1. `standard_sbx_pm`
-   - regular global variation
-2. `hotspot_pull`
-   - move `processor` or `rf_power_amp` toward stronger radiator coupling
-3. `battery_relief`
-   - move `battery_pack` away from strong cold-side cooling exposure
-4. `pair_separate`
-   - increase spacing between the hottest electronics
-5. `radiator_slide`
-   - shift radiator interval along the edge
-6. `radiator_expand_contract`
-   - enlarge or shrink radiator resource
-7. `repair_project`
-   - enforce legality after mutation
-8. `local_refine`
-   - small perturbation around already-feasible designs
+1. `sbx_pm_global`
+2. `local_refine`
+3. `hot_pair_to_sink`
+4. `hot_pair_separate`
+5. `battery_to_warm_zone`
+6. `radiator_align_hot_pair`
+7. `radiator_expand`
+8. `radiator_contract`
 
-This mixed operator space is the core bridge to the later LLM strategy layer. The LLM should later guide this operator space, not replace the MOEA or the solver.
+Design rules:
+
+- operators act on numeric decision vectors
+- operators are shared across the approved backbones
+- legality repair remains a shared post-processing step rather than an operator
+- future `LLM` work should guide this shared operator space rather than replace the optimizer or solver
 
 ## 9. Clean Replacement Scope
 
@@ -418,8 +410,8 @@ The new baseline is acceptable only if all of the following are true:
 
 1. The new reference design starts infeasible and violates at least two thermal constraints.
 2. The three objectives all vary over the optimization run.
-3. `B0` and `B1` both run on the same benchmark and matched evaluation budgets.
-4. `B1` reaches feasibility faster or reaches a better Pareto set than `B0`.
+3. Raw and pool experiment variants both run on the same benchmark and matched evaluation budgets.
+4. Pool-random and later pool-LLM comparisons differ only by controller choice on the same operator pool.
 5. The new generator can create paired hot/cold cases from the active benchmark template.
 6. The old toy multicase baseline is no longer presented as the active research path anywhere in docs or scenarios.
 

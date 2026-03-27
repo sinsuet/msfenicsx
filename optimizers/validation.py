@@ -7,19 +7,40 @@ from numbers import Real
 from typing import Any
 
 
-SUPPORTED_ALGORITHMS = {"pymoo_nsga2"}
+SUPPORTED_BACKBONES_BY_FAMILY = {
+    "genetic": ("nsga2", "nsga3", "ctaea", "rvea"),
+    "decomposition": ("moead",),
+    "swarm": ("cmopso",),
+}
+SUPPORTED_MODES = {"raw", "pool"}
+SUPPORTED_CONTROLLERS = {"random_uniform", "llm"}
+SUPPORTED_OPERATOR_POOL = (
+    "sbx_pm_global",
+    "local_refine",
+    "hot_pair_to_sink",
+    "hot_pair_separate",
+    "battery_to_warm_zone",
+    "radiator_align_hot_pair",
+    "radiator_expand",
+    "radiator_contract",
+)
 
 
 class OptimizationValidationError(ValueError):
     """Raised when an optimizer-layer payload is invalid."""
 
 
+def list_supported_backbones() -> list[str]:
+    return sorted(backbone for backbones in SUPPORTED_BACKBONES_BY_FAMILY.values() for backbone in backbones)
+
+
 def validate_optimization_spec_payload(payload: Mapping[str, Any]) -> None:
-    required_keys = ("schema_version", "spec_meta", "design_variables", "algorithm", "evaluation_protocol")
+    required_keys = ("schema_version", "spec_meta", "benchmark_source", "design_variables", "algorithm", "evaluation_protocol")
     _require_mapping(payload, "OptimizationSpec")
     _require_required_keys(payload, required_keys, "OptimizationSpec")
     spec_meta = _require_mapping(payload["spec_meta"], "spec_meta")
     _require_text(spec_meta.get("spec_id"), "spec_meta.spec_id")
+    _validate_benchmark_source(payload["benchmark_source"])
     design_variables = _require_sequence(payload["design_variables"], "design_variables")
     if not design_variables:
         raise OptimizationValidationError("design_variables must contain at least one variable.")
@@ -27,7 +48,8 @@ def validate_optimization_spec_payload(payload: Mapping[str, Any]) -> None:
     seen_paths: set[str] = set()
     for variable in design_variables:
         _validate_design_variable(variable, seen_variable_ids, seen_paths)
-    _validate_algorithm(payload["algorithm"])
+    algorithm = _validate_algorithm(payload["algorithm"])
+    _validate_operator_control(payload.get("operator_control"), mode=algorithm["mode"])
     _validate_evaluation_protocol(payload["evaluation_protocol"])
 
 
@@ -83,25 +105,86 @@ def _validate_design_variable(
     seen_paths.add(path)
 
 
-def _validate_algorithm(algorithm: Any) -> None:
-    required_keys = ("name", "population_size", "num_generations", "seed")
+def _validate_algorithm(algorithm: Any) -> dict[str, Any]:
+    required_keys = ("family", "backbone", "mode", "population_size", "num_generations", "seed")
     _require_mapping(algorithm, "algorithm")
     _require_required_keys(algorithm, required_keys, "algorithm")
-    name = _require_text(algorithm["name"], "algorithm.name")
-    if name not in SUPPORTED_ALGORITHMS:
+    if "name" in algorithm:
         raise OptimizationValidationError(
-            f"algorithm.name '{name}' must be one of {sorted(SUPPORTED_ALGORITHMS)}."
+            "algorithm.name has been replaced by algorithm.family / algorithm.backbone / algorithm.mode."
         )
-    if int(_require_real(algorithm["population_size"], "algorithm.population_size")) <= 0:
+    family = _require_text(algorithm["family"], "algorithm.family")
+    if family not in SUPPORTED_BACKBONES_BY_FAMILY:
+        raise OptimizationValidationError(
+            f"algorithm.family '{family}' must be one of {sorted(SUPPORTED_BACKBONES_BY_FAMILY)}."
+        )
+    backbone = _require_text(algorithm["backbone"], "algorithm.backbone")
+    if backbone not in SUPPORTED_BACKBONES_BY_FAMILY[family]:
+        raise OptimizationValidationError(
+            f"algorithm.backbone '{backbone}' is not approved for algorithm.family '{family}'."
+        )
+    mode = _require_text(algorithm["mode"], "algorithm.mode")
+    if mode not in SUPPORTED_MODES:
+        raise OptimizationValidationError(f"algorithm.mode '{mode}' must be one of {sorted(SUPPORTED_MODES)}.")
+    if _require_integer(algorithm["population_size"], "algorithm.population_size") <= 0:
         raise OptimizationValidationError("algorithm.population_size must be positive.")
-    if int(_require_real(algorithm["num_generations"], "algorithm.num_generations")) <= 0:
+    if _require_integer(algorithm["num_generations"], "algorithm.num_generations") <= 0:
         raise OptimizationValidationError("algorithm.num_generations must be positive.")
-    int(_require_real(algorithm["seed"], "algorithm.seed"))
+    _require_integer(algorithm["seed"], "algorithm.seed")
+    if "operator_mode" in algorithm:
+        raise OptimizationValidationError("algorithm.operator_mode has been replaced by algorithm.mode.")
+    if "operator_pool" in algorithm:
+        raise OptimizationValidationError("algorithm.operator_pool has moved to the top-level operator_control block.")
+    return {"family": family, "backbone": backbone, "mode": mode}
+
+
+def _validate_operator_control(operator_control: Any, *, mode: str) -> None:
+    if mode == "raw":
+        if operator_control is not None:
+            raise OptimizationValidationError("operator_control is allowed only when algorithm.mode is 'pool'.")
+        return
+
+    if operator_control is None:
+        raise OptimizationValidationError("operator_control is required when algorithm.mode is 'pool'.")
+
+    required_keys = ("controller", "operator_pool")
+    _require_mapping(operator_control, "operator_control")
+    _require_required_keys(operator_control, required_keys, "operator_control")
+    controller = _require_text(operator_control["controller"], "operator_control.controller")
+    if controller not in SUPPORTED_CONTROLLERS:
+        raise OptimizationValidationError(
+            f"operator_control.controller '{controller}' must be one of {sorted(SUPPORTED_CONTROLLERS)}."
+        )
+
+    operator_pool = _require_sequence(operator_control["operator_pool"], "operator_control.operator_pool")
+    if not operator_pool:
+        raise OptimizationValidationError("operator_control.operator_pool must contain at least one operator.")
+    seen_operator_ids: set[str] = set()
+    for index, operator_id in enumerate(operator_pool):
+        validated_operator_id = _require_text(operator_id, f"operator_control.operator_pool[{index}]")
+        if validated_operator_id not in SUPPORTED_OPERATOR_POOL:
+            raise OptimizationValidationError(
+                f"operator_control.operator_pool[{index}] '{validated_operator_id}' must be one of "
+                f"{list(SUPPORTED_OPERATOR_POOL)}."
+            )
+        if validated_operator_id in seen_operator_ids:
+            raise OptimizationValidationError(
+                f"operator_control.operator_pool contains duplicate operator '{validated_operator_id}'."
+            )
+        seen_operator_ids.add(validated_operator_id)
 
 
 def _validate_evaluation_protocol(protocol: Any) -> None:
     _require_mapping(protocol, "evaluation_protocol")
     _require_text(protocol.get("evaluation_spec_path"), "evaluation_protocol.evaluation_spec_path")
+
+
+def _validate_benchmark_source(source: Any) -> None:
+    required_keys = ("template_path", "seed")
+    _require_mapping(source, "benchmark_source")
+    _require_required_keys(source, required_keys, "benchmark_source")
+    _require_text(source["template_path"], "benchmark_source.template_path")
+    _require_integer(source["seed"], "benchmark_source.seed")
 
 
 def _validate_candidate_record(record: Any, label: str) -> None:
@@ -166,3 +249,9 @@ def _require_real(value: Any, label: str) -> float:
     if not isinstance(value, Real):
         raise OptimizationValidationError(f"{label} must be a real number.")
     return float(value)
+
+
+def _require_integer(value: Any, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, Real) or int(value) != value:
+        raise OptimizationValidationError(f"{label} must be an integer.")
+    return int(value)

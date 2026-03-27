@@ -12,9 +12,11 @@ The active optimization mainline is now organized around:
 
 - paired hot/cold operating cases
 - multiobjective thermal evaluation
+- plain `pymoo` `NSGA-II` as the active classical optimizer baseline
 - Pareto search as the optimizer output contract
 
 The previous single-objective optimizer path has been retired from the active mainline.
+The previous heuristic hybrid `B1` path is no longer part of the active supported baseline ladder.
 
 ## Top-Level Module Boundaries
 
@@ -40,12 +42,14 @@ Active multicase evaluation flow:
 
 Active optimizer mainline:
 
-`base design -> hot/cold operating cases -> FEniCSx solves -> multicase evaluation_report -> Pareto search -> representative solutions + Pareto artifacts`
+`base design -> hot/cold operating cases -> FEniCSx solves -> multicase evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
 
 Seed inputs live under `scenarios/`, and generated run artifacts are written under `scenario_runs/` at runtime and ignored by git.
 
-The active multicase evaluation spec lives at `scenarios/evaluation/panel_hot_cold_multiobjective_baseline.yaml`.
-The active multicase optimization spec lives at `scenarios/optimization/reference_hot_cold_nsga2.yaml`.
+The active benchmark template lives at `scenarios/templates/panel_four_component_hot_cold_benchmark.yaml`.
+The active multicase evaluation spec lives at `scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml`.
+The active multicase optimization spec lives at `scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml`.
+Future operator-pool controller work is approved only under the newer multi-backbone optimizer-matrix direction. It should not be reintroduced as an `NSGA-II`-only branch.
 
 Current built-in evaluation metric namespaces are:
 
@@ -59,12 +63,32 @@ Current built-in evaluation metric namespaces are:
 
 Available commands:
 
-- `conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/panel_radiation_baseline.yaml`
-- `conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/panel_radiation_baseline.yaml --seed 3 --output-root ./generated_cases`
-- `conda run -n msfenicsx python -m core.cli.main solve-case --case ./generated_cases/<case_id>.yaml --output-root ./scenario_runs`
-- `conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/<scenario_id>/<case_id>/case.yaml --solution ./scenario_runs/<scenario_id>/<case_id>/solution.yaml --spec scenarios/evaluation/panel_hot_cold_multiobjective_baseline.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/<scenario_id>/<case_id>`
-- `conda run -n msfenicsx python -m evaluation.cli evaluate-operating-cases --case hot=scenarios/manual/reference_case_hot.yaml --case cold=scenarios/manual/reference_case_cold.yaml --solution hot=/tmp/hot_solution.yaml --solution cold=/tmp/cold_solution.yaml --spec scenarios/evaluation/panel_hot_cold_multiobjective_baseline.yaml --output ./multicase_evaluation.yaml`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-operating-cases --case hot=scenarios/manual/reference_case_hot.yaml --case cold=scenarios/manual/reference_case_cold.yaml --optimization-spec scenarios/optimization/reference_hot_cold_nsga2.yaml --output-root ./scenario_runs/optimizations/reference-hot-cold-nsga2`
+- `conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/panel_four_component_hot_cold_benchmark.yaml`
+- `conda run -n msfenicsx python -m core.cli.main generate-operating-case-pair --template scenarios/templates/panel_four_component_hot_cold_benchmark.yaml --seed 11 --output-root ./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11`
+- `conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<case_id>.yaml --output-root ./scenario_runs`
+- `conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/<scenario_id>/<case_id>/case.yaml --solution ./scenario_runs/<scenario_id>/<case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/<scenario_id>/<case_id>`
+- `conda run -n msfenicsx python -m evaluation.cli evaluate-operating-cases --case hot=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<hot_case_id>.yaml --case cold=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<cold_case_id>.yaml --solution hot=./scenario_runs/<scenario_id>/<hot_case_id>/solution.yaml --solution cold=./scenario_runs/<scenario_id>/<cold_case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./scenario_runs/evaluations/panel-four-component-hot-cold-baseline/seed-11/report.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --output-root ./scenario_runs/optimizations/panel-four-component-b0`
+
+For templates with `operating_case_profiles`, use `generate-operating-case-pair`; `generate-case` is intentionally rejected for the active benchmark to avoid unloaded single-case artifacts.
+Text artifacts in the active repository workflows should default to UTF-8 encoding.
+
+## Baseline Ladder
+
+Implemented today:
+
+- `B0`: plain `pymoo` `NSGA-II` over the eight benchmark design variables
+
+Approved next-stage optimizer architecture:
+
+- `B0-matrix-raw`: raw runs for `NSGA-II`, `NSGA-III`, `C-TAEA`, `RVEA`, constrained `MOEA/D`, and `CMOPSO`
+- `B1-matrix-pool-random`: the same six backbones under one shared operator pool with a `random_uniform` controller
+- `L1-matrix-pool-llm`: future phase only, replacing only the controller on the same operator pool
+
+The repository now includes the first-batch raw matrix runtime for `NSGA-II`, `NSGA-III`, `C-TAEA`, `RVEA`, constrained `MOEA/D`, and `CMOPSO`, together with the matrix spec contract and raw scenario specs. Shared pool adapters, pool-random drivers, and pool-LLM drivers remain to be implemented. The design and plan live in:
+
+- `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
+- `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`
 
 ## Verification
 

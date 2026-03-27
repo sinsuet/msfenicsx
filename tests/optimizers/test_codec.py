@@ -1,77 +1,104 @@
 import numpy as np
 import pytest
 
-from core.schema.models import ThermalCase
+from core.generator.paired_pipeline import generate_operating_case_pair
 from optimizers.codec import DecisionVectorError, apply_decision_vector, extract_decision_vector
 from optimizers.models import OptimizationSpec
 
 
-def _case() -> ThermalCase:
-    return ThermalCase.from_dict(
-        {
-            "schema_version": "1.0",
-            "case_meta": {"case_id": "case-001", "scenario_id": "panel-baseline"},
-            "coordinate_system": {"plane": "panel_xy"},
-            "panel_domain": {"width": 1.0, "height": 0.8},
-            "materials": {"aluminum": {"conductivity": 205.0, "emissivity": 0.78}},
-            "components": [
-                {
-                    "component_id": "comp-001",
-                    "role": "payload",
-                    "shape": "rect",
-                    "pose": {"x": 0.3, "y": 0.35, "rotation_deg": 0.0},
-                    "geometry": {"width": 0.16, "height": 0.09},
-                    "material_ref": "aluminum",
-                }
-            ],
-            "boundary_features": [],
-            "loads": [{"load_id": "load-001", "target_component_id": "comp-001", "total_power": 18.0}],
-            "physics": {"kind": "steady_heat_radiation"},
-            "mesh_profile": {"nx": 12, "ny": 10},
-            "solver_profile": {"nonlinear_solver": "snes"},
-            "provenance": {"source": "unit-test"},
-        }
-    )
+def _case():
+    return generate_operating_case_pair("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml", seed=11)["hot"]
 
 
 def _spec() -> OptimizationSpec:
     return OptimizationSpec.from_dict(
         {
             "schema_version": "1.0",
-            "spec_meta": {"spec_id": "position-search", "description": "Payload position search."},
+            "spec_meta": {"spec_id": "panel-four-component-hot-cold-nsga2-b0", "description": "B0 benchmark search."},
+            "benchmark_source": {
+                "template_path": "scenarios/templates/panel_four_component_hot_cold_benchmark.yaml",
+                "seed": 11,
+            },
             "design_variables": [
                 {
-                    "variable_id": "payload_x",
+                    "variable_id": "processor_x",
                     "path": "components[0].pose.x",
-                    "lower_bound": 0.08,
-                    "upper_bound": 0.92,
+                    "lower_bound": 0.12,
+                    "upper_bound": 0.88,
                 },
                 {
-                    "variable_id": "payload_y",
+                    "variable_id": "processor_y",
                     "path": "components[0].pose.y",
-                    "lower_bound": 0.045,
-                    "upper_bound": 0.755,
+                    "lower_bound": 0.12,
+                    "upper_bound": 0.66,
+                },
+                {
+                    "variable_id": "rf_power_amp_x",
+                    "path": "components[1].pose.x",
+                    "lower_bound": 0.12,
+                    "upper_bound": 0.88,
+                },
+                {
+                    "variable_id": "rf_power_amp_y",
+                    "path": "components[1].pose.y",
+                    "lower_bound": 0.12,
+                    "upper_bound": 0.66,
+                },
+                {
+                    "variable_id": "battery_pack_x",
+                    "path": "components[3].pose.x",
+                    "lower_bound": 0.12,
+                    "upper_bound": 0.88,
+                },
+                {
+                    "variable_id": "battery_pack_y",
+                    "path": "components[3].pose.y",
+                    "lower_bound": 0.12,
+                    "upper_bound": 0.66,
+                },
+                {
+                    "variable_id": "radiator_start",
+                    "path": "boundary_features[0].start",
+                    "lower_bound": 0.05,
+                    "upper_bound": 0.7,
+                },
+                {
+                    "variable_id": "radiator_end",
+                    "path": "boundary_features[0].end",
+                    "lower_bound": 0.2,
+                    "upper_bound": 0.95,
                 },
             ],
-            "algorithm": {"name": "pymoo_nsga2", "population_size": 4, "num_generations": 1, "seed": 7},
+            "algorithm": {
+                "family": "genetic",
+                "backbone": "nsga2",
+                "mode": "raw",
+                "population_size": 4,
+                "num_generations": 1,
+                "seed": 7,
+            },
             "evaluation_protocol": {"evaluation_spec_path": "unused.yaml"},
         }
     )
 
 
-def test_extract_and_apply_decision_vector_round_trip() -> None:
+def test_extract_and_apply_decision_vector_round_trip_for_b0_layout_variables() -> None:
     case = _case()
     spec = _spec()
 
     vector = extract_decision_vector(case, spec)
-    mutated = apply_decision_vector(case, spec, np.array([0.5, 0.6]))
+    mutated = apply_decision_vector(case, spec, np.array([0.42, 0.6, 0.74, 0.58, 0.33, 0.22, 0.12, 0.88]))
 
-    assert vector.tolist() == [0.3, 0.35]
-    assert mutated.components[0]["pose"]["x"] == pytest.approx(0.5)
+    assert vector.tolist() == pytest.approx([0.465458, 0.418131, 0.823217, 0.365615, 0.598222, 0.54933, 0.25, 0.75])
+    assert mutated.components[0]["pose"]["x"] == pytest.approx(0.42)
     assert mutated.components[0]["pose"]["y"] == pytest.approx(0.6)
-    assert case.components[0]["pose"]["x"] == pytest.approx(0.3)
+    assert mutated.components[1]["pose"]["x"] == pytest.approx(0.74)
+    assert mutated.components[3]["pose"]["y"] == pytest.approx(0.22)
+    assert mutated.boundary_features[0]["start"] == pytest.approx(0.12)
+    assert mutated.boundary_features[0]["end"] == pytest.approx(0.88)
+    assert case.components[0]["pose"]["x"] == pytest.approx(0.465458)
 
 
 def test_apply_decision_vector_rejects_out_of_bounds_values() -> None:
     with pytest.raises(DecisionVectorError):
-        apply_decision_vector(_case(), _spec(), np.array([1.2, 0.6]))
+        apply_decision_vector(_case(), _spec(), np.array([1.2, 0.6, 0.74, 0.58, 0.33, 0.22, 0.12, 0.88]))

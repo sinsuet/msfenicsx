@@ -1,12 +1,12 @@
 import pytest
 
 from core.contracts.case_contracts import CaseContractError, assert_case_geometry_contracts
+from core.generator.paired_pipeline import generate_operating_case_pair
 from core.geometry.layout_rules import (
     component_respects_keep_out_regions,
     component_within_domain,
     components_overlap,
 )
-from core.schema.io import load_case
 
 
 def _rect_component(component_id: str, x: float, y: float, width: float, height: float) -> dict:
@@ -16,7 +16,7 @@ def _rect_component(component_id: str, x: float, y: float, width: float, height:
         "shape": "rect",
         "pose": {"x": x, "y": y, "rotation_deg": 0.0},
         "geometry": {"width": width, "height": height},
-        "material_ref": "aluminum",
+        "material_ref": "electronics_housing",
     }
 
 
@@ -50,13 +50,13 @@ def test_component_respects_keep_out_regions_rejects_intersection() -> None:
 
 
 def test_assert_case_geometry_contracts_accepts_reference_case() -> None:
-    case = load_case("scenarios/manual/reference_case.yaml")
+    case = generate_operating_case_pair("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml", seed=11)["hot"]
 
     assert_case_geometry_contracts(case)
 
 
 def test_assert_case_geometry_contracts_rejects_overlapping_components() -> None:
-    case = load_case("scenarios/manual/reference_case.yaml").to_dict()
+    case = generate_operating_case_pair("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml", seed=11)["hot"].to_dict()
     case["components"].append(_rect_component("comp-002", x=0.3, y=0.35, width=0.16, height=0.09))
 
     with pytest.raises(CaseContractError, match="overlap"):

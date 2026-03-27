@@ -1,15 +1,23 @@
 from pathlib import Path
 
+import pytest
+import yaml
+
 from optimizers.io import load_optimization_result, load_optimization_spec, save_optimization_result, save_optimization_spec
 from optimizers.models import OptimizationResult, OptimizationSpec
+from optimizers.validation import OptimizationValidationError
 
 
 def _spec_payload() -> dict:
     return {
         "schema_version": "1.0",
         "spec_meta": {
-            "spec_id": "reference-hot-cold-nsga2",
-            "description": "Multicase NSGA-II baseline over payload position.",
+            "spec_id": "panel-four-component-hot-cold-nsga2-benchmark-source",
+            "description": "Benchmark-sourced multicase NSGA-II baseline over payload position.",
+        },
+        "benchmark_source": {
+            "template_path": "scenarios/templates/panel_four_component_hot_cold_benchmark.yaml",
+            "seed": 11,
         },
         "design_variables": [
             {
@@ -26,13 +34,15 @@ def _spec_payload() -> dict:
             },
         ],
         "algorithm": {
-            "name": "pymoo_nsga2",
+            "family": "genetic",
+            "backbone": "nsga2",
+            "mode": "raw",
             "population_size": 4,
             "num_generations": 1,
             "seed": 7,
         },
         "evaluation_protocol": {
-            "evaluation_spec_path": "scenarios/evaluation/panel_hot_cold_multiobjective_baseline.yaml",
+            "evaluation_spec_path": "scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml",
         },
     }
 
@@ -135,5 +145,30 @@ def test_save_and_load_yaml_round_trip(tmp_path: Path) -> None:
     save_optimization_spec(OptimizationSpec.from_dict(_spec_payload()), spec_path)
     save_optimization_result(OptimizationResult.from_dict(_result_payload()), result_path)
 
-    assert load_optimization_spec(spec_path).to_dict() == _spec_payload()
+    loaded_spec = load_optimization_spec(spec_path)
+    assert loaded_spec.to_dict() == _spec_payload()
+    assert loaded_spec.benchmark_source["seed"] == 11
+    assert loaded_spec.algorithm["family"] == "genetic"
+    assert loaded_spec.algorithm["backbone"] == "nsga2"
+    assert loaded_spec.algorithm["mode"] == "raw"
     assert load_optimization_result(result_path).to_dict() == _result_payload()
+
+
+def test_matrix_spec_uses_family_backbone_mode_contract() -> None:
+    spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga3_raw_b0.yaml")
+
+    assert {key: spec.algorithm[key] for key in ("family", "backbone", "mode")} == {
+        "family": "genetic",
+        "backbone": "nsga3",
+        "mode": "raw",
+    }
+
+
+def test_pool_spec_requires_operator_control_block() -> None:
+    with open("scenarios/optimization/panel_four_component_hot_cold_nsga2_pool_random_b1.yaml", "r", encoding="utf-8") as handle:
+        payload = yaml.safe_load(handle)
+
+    payload.pop("operator_control")
+
+    with pytest.raises(OptimizationValidationError):
+        OptimizationSpec.from_dict(payload)

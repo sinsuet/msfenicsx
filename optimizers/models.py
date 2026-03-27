@@ -17,9 +17,11 @@ def _deepcopy_field_dict(instance: Any) -> dict[str, Any]:
 class OptimizationSpec:
     schema_version: str
     spec_meta: dict[str, Any]
+    benchmark_source: dict[str, Any]
     design_variables: list[dict[str, Any]]
     algorithm: dict[str, Any]
     evaluation_protocol: dict[str, Any]
+    operator_control: dict[str, Any] | None = None
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Self:
@@ -28,7 +30,10 @@ class OptimizationSpec:
         return cls(**copied)
 
     def to_dict(self) -> dict[str, Any]:
-        return _deepcopy_field_dict(self)
+        payload = _deepcopy_field_dict(self)
+        if payload.get("operator_control") is None:
+            payload.pop("operator_control", None)
+        return payload
 
 
 @dataclass(slots=True)

@@ -1,5 +1,7 @@
 # Paper-Grade Multiobjective Thermal Baseline Implementation Plan
 
+> Superseded note: Tasks `1-5` in this plan remain part of the implemented platform history for the paired hot/cold benchmark. The earlier heuristic-hybrid `B1` direction described later in this file is no longer the active paper-facing mainline and is superseded first by `docs/superpowers/plans/2026-03-27-pure-nsga2-mainline-reset.md`, and then for future optimizer-platform work by `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the current toy multicase optimizer path with a paper-grade hot/cold multiobjective thermal benchmark generated from the active platform, using `NSGA-II` and a hybrid-operator extension as the new research baseline.
@@ -12,7 +14,7 @@
 
 Spec reference: `docs/superpowers/specs/2026-03-27-paper-grade-multiobjective-thermal-baseline-design.md`
 
-This plan supersedes the toy-baseline intent in `docs/superpowers/plans/2026-03-27-msfenicsx-multicase-multiobjective-mainline.md`. Do not extend that old plan.
+This plan is the active implementation plan for the paper-grade baseline. Do not reintroduce the earlier toy multicase reset path.
 
 ## File Structure
 

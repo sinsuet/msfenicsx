@@ -5,7 +5,7 @@ from core.geometry.layout_rules import component_within_domain, components_overl
 
 
 def test_place_components_produces_non_overlapping_layout_inside_domain() -> None:
-    template = load_template_model("scenarios/templates/panel_radiation_baseline.yaml")
+    template = load_template_model("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml")
     sampled = sample_template_parameters(template, seed=5)
 
     placed_components = place_components(

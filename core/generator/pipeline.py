@@ -15,6 +15,10 @@ from core.schema.models import ThermalCase
 
 def generate_case(template_path: str | Path, seed: int) -> ThermalCase:
     template = load_template_model(template_path)
+    if template.operating_case_profiles:
+        raise ValueError(
+            "Templates with operating_case_profiles must be generated with generate-operating-case-pair."
+        )
     sampled_payload = sample_template_parameters(template, seed=seed)
     placed_components = place_components(template=template, sampled_components=sampled_payload["components"], seed=seed)
     boundary_features = synthesize_boundary_features(sampled_payload["boundary_features"])

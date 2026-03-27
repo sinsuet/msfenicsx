@@ -1,0 +1,49 @@
+schema_version: "1.0"
+spec_meta:
+  spec_id: panel-four-component-hot-cold-nsga2-raw-b0
+  description: Raw NSGA-II matrix baseline over three component positions and radiator interval.
+benchmark_source:
+  template_path: scenarios/templates/panel_four_component_hot_cold_benchmark.yaml
+  seed: 11
+design_variables:
+  - variable_id: processor_x
+    path: components[0].pose.x
+    lower_bound: 0.12
+    upper_bound: 0.88
+  - variable_id: processor_y
+    path: components[0].pose.y
+    lower_bound: 0.12
+    upper_bound: 0.66
+  - variable_id: rf_power_amp_x
+    path: components[1].pose.x
+    lower_bound: 0.12
+    upper_bound: 0.88
+  - variable_id: rf_power_amp_y
+    path: components[1].pose.y
+    lower_bound: 0.12
+    upper_bound: 0.66
+  - variable_id: battery_pack_x
+    path: components[3].pose.x
+    lower_bound: 0.12
+    upper_bound: 0.88
+  - variable_id: battery_pack_y
+    path: components[3].pose.y
+    lower_bound: 0.12
+    upper_bound: 0.66
+  - variable_id: radiator_start
+    path: boundary_features[0].start
+    lower_bound: 0.05
+    upper_bound: 0.7
+  - variable_id: radiator_end
+    path: boundary_features[0].end
+    lower_bound: 0.2
+    upper_bound: 0.95
+algorithm:
+  family: genetic
+  backbone: nsga2
+  mode: raw
+  population_size: 16
+  num_generations: 8
+  seed: 7
+evaluation_protocol:
+  evaluation_spec_path: scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml

@@ -102,7 +102,7 @@ boundary_feature_families:
 load_rules: []
 material_rules:
   - material_id: panel_substrate
-    conductivity: 205.0
+    conductivity: 25.0
     emissivity: 0.78
   - material_id: electronics_housing
     conductivity: 160.0
@@ -112,27 +112,27 @@ material_rules:
     emissivity: 0.88
 operating_case_profiles:
   - operating_case_id: hot
-    ambient_temperature: 300.0
+    ambient_temperature: 315.0
     component_power_overrides:
-      processor: 24.0
-      rf_power_amp: 20.0
-      obc: 10.0
-      battery_pack: 2.0
+      processor: 96.0
+      rf_power_amp: 80.0
+      obc: 20.0
+      battery_pack: 4.0
     boundary_feature_overrides:
       radiator-top-001:
-        sink_temperature: 292.0
-        transfer_coefficient: 8.0
+        sink_temperature: 305.0
+        transfer_coefficient: 4.0
   - operating_case_id: cold
-    ambient_temperature: 275.0
+    ambient_temperature: 255.0
     component_power_overrides:
-      processor: 8.0
-      rf_power_amp: 6.0
-      obc: 4.0
-      battery_pack: 0.5
+      processor: 32.0
+      rf_power_amp: 24.0
+      obc: 8.0
+      battery_pack: 1.0
     boundary_feature_overrides:
       radiator-top-001:
-        sink_temperature: 270.0
-        transfer_coefficient: 16.0
+        sink_temperature: 248.0
+        transfer_coefficient: 10.0
 mesh_profile:
   nx: 48
   ny: 40
