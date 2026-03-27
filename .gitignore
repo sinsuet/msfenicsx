@@ -7,6 +7,7 @@ __pycache__/
 
 # Local editor settings
 .vscode/
+.superpowers/
 
 # Generated simulation outputs
 outputs/
