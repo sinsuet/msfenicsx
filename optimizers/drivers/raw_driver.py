@@ -11,6 +11,7 @@ from pymoo.optimize import minimize
 
 from core.schema.io import load_case
 from evaluation.io import load_multicase_spec
+from optimizers.algorithm_config import resolve_algorithm_config
 from optimizers.io import generate_benchmark_cases, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.models import OptimizationResult
 from optimizers.problem import CandidateArtifacts, ThermalOptimizationProblem, objective_to_minimization
@@ -23,10 +24,16 @@ class OptimizationRun:
     representative_artifacts: dict[str, CandidateArtifacts]
 
 
-def run_raw_optimization(base_cases: dict[str, Any], optimization_spec: Any, evaluation_spec: Any) -> OptimizationRun:
+def run_raw_optimization(
+    base_cases: dict[str, Any],
+    optimization_spec: Any,
+    evaluation_spec: Any,
+    *,
+    spec_path: str | Path | None = None,
+) -> OptimizationRun:
     spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
     evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
-    algorithm_config = spec_payload["algorithm"]
+    algorithm_config = resolve_algorithm_config(spec_path, spec_payload)
     if algorithm_config["mode"] != "raw":
         raise ValueError(f"run_raw_optimization only supports algorithm.mode='raw', got {algorithm_config['mode']!r}.")
 
@@ -69,7 +76,7 @@ def run_raw_optimization_from_spec(spec_path: str | Path) -> OptimizationRun:
     optimization_spec = load_optimization_spec(spec_path)
     base_cases = generate_benchmark_cases(spec_path, optimization_spec)
     evaluation_spec = load_multicase_spec(resolve_evaluation_spec_path(spec_path, optimization_spec))
-    return run_raw_optimization(base_cases, optimization_spec, evaluation_spec)
+    return run_raw_optimization(base_cases, optimization_spec, evaluation_spec, spec_path=spec_path)
 
 
 def _load_base_cases(base_cases: dict[str, Any]) -> dict[str, Any]:

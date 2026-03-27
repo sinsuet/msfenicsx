@@ -1,0 +1,13 @@
+schema_version: "1.0"
+profile_meta:
+  profile_id: panel-four-component-hot-cold-nsga2-raw-profile
+  description: Active hot/cold benchmark tuning for raw NSGA-II variation.
+family: genetic
+backbone: nsga2
+mode: raw
+parameters:
+  crossover:
+    eta: 10
+    prob: 0.9
+  mutation:
+    eta: 15

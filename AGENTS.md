@@ -67,10 +67,12 @@ Future operator-pool work should follow the multi-backbone optimizer-matrix spec
 
 - Canonical execution context for this repository is WSL2 Ubuntu.
 - Even if the workspace is opened from Windows through a UNC path such as `\\wsl$\Ubuntu\home\hymn\msfenicsx`, agents should treat the repo as Linux-first and use `/home/hymn/msfenicsx` as the working path.
+- Use explicit repository-relative paths with forward slashes (`/`) whenever practical.
 - Use the `msfenicsx` conda environment for Python, CLI, and tests.
 - Prefer running verification with `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...` inside WSL rather than relying on Windows Conda discovery.
 - Avoid Windows-native environment paths such as `D:\...` for repo execution unless the user explicitly requests Windows-side validation.
 - Repository text artifacts should default to UTF-8 encoding without BOM, and Python text I/O should explicitly use `encoding="utf-8"` for repository files.
+- Treat terminal-side mojibake from the host or WSL bridge as environment noise unless the same corruption is present in the saved repository artifact itself.
 - Prefer commands like:
   - `conda run -n msfenicsx pytest -v`
   - `conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/panel_four_component_hot_cold_benchmark.yaml`
@@ -78,6 +80,14 @@ Future operator-pool work should follow the multi-backbone optimizer-matrix spec
   - `conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<case_id>.yaml --output-root ./scenario_runs`
   - `conda run -n msfenicsx python -m evaluation.cli evaluate-operating-cases --case hot=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<hot_case_id>.yaml --case cold=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<cold_case_id>.yaml --solution hot=./scenario_runs/<scenario_id>/<hot_case_id>/solution.yaml --solution cold=./scenario_runs/<scenario_id>/<cold_case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./scenario_runs/evaluations/panel-four-component-hot-cold-baseline/seed-11/report.yaml`
   - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --output-root ./scenario_runs/optimizations/panel-four-component-b0`
+
+## Engineering Guardrails
+
+- Read the exact source before editing and preserve precise edit context.
+- If a write looks risky because of locking, permissions, or unclear ownership, stop and notify first.
+- Never hardcode API keys, tokens, or private credentials; load secrets from environment variables or explicit local configuration.
+- Do not silently change important runtime or solver defaults without documenting the change.
+- Fix root causes with physically and architecturally defensible changes instead of fake passes, temporary bypasses, or scientifically invalid shortcuts.
 
 ## Data and Artifact Rules
 
@@ -92,6 +102,9 @@ Future operator-pool work should follow the multi-backbone optimizer-matrix spec
 - Prefer `scenario_runs/` as the canonical runtime root for generated cases, solved case bundles, evaluation reports, and optimization bundles.
 - Active optimizer runs should write manifest-backed bundles under paths such as `scenario_runs/optimizations/...`.
 - Templates with `operating_case_profiles` should be generated through `generate-operating-case-pair`, not `generate-case`.
+- Remove temporary scripts, debug files, caches, and one-off intermediate outputs after validation when they are not part of the intended repository state.
+- Human-authored source and docs stay in source and docs paths.
+- Update `.gitignore` when new generated artifact classes appear.
 - Do not manually edit generated artifacts to change conclusions.
 
 ## Testing Expectations
@@ -111,13 +124,25 @@ Current Phase 1 test areas are:
 - `tests/evaluation/`
 - `tests/optimizers/`
 
+## Evidence and Reporting Expectations
+
+- Scientific or performance claims must identify the relevant template, case, solver profile, seed, and runtime path or artifact bundle.
+- For multicase optimization claims, identify the operating cases and whether the evidence comes from one representative Pareto point or the Pareto set as a whole.
+- If comparing future controller methods, keep the operator pool, repair, benchmark seeds, evaluation spec, and simulation budget matched unless the comparison is explicitly framed as a different experiment class.
+- If comparing future backbone methods, keep benchmark source, evaluation spec, design-variable encoding, repair, and total expensive-evaluation budget matched unless the comparison is explicitly framed as a different experiment class.
+- If something is not validated yet, label it as a hypothesis rather than a confirmed result.
+- Comparative claims should use more than one seed unless the work is explicitly exploratory.
+- Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis instead of hiding them.
+- Failure reasons and dominant violations are valid evidence and should be retained in reports or run artifacts when relevant.
+
 ## Documentation Expectations
 
 - For major contract or workflow changes, update:
   - `README.md`
   - relevant docs under `docs/`
-  - `RULES.md` and `AGENTS.md` when guidance changes
+  - `AGENTS.md` when repository guidance changes
 - Keep active docs aligned with implemented reality.
+- Treat `AGENTS.md` as the single authoritative repository guidance file.
 
 ## Useful References
 

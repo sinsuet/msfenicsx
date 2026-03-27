@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from optimizers.algorithm_config import resolve_algorithm_config
 from optimizers.io import load_optimization_result, load_optimization_spec, save_optimization_result, save_optimization_spec
 from optimizers.models import OptimizationResult, OptimizationSpec
 from optimizers.validation import OptimizationValidationError
@@ -164,6 +165,25 @@ def test_matrix_spec_uses_family_backbone_mode_contract() -> None:
     }
 
 
+def test_active_nsga_specs_resolve_benchmark_profiles() -> None:
+    nsga2_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_raw_b0.yaml")
+    nsga3_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga3_raw_b0.yaml")
+
+    nsga2_algorithm = resolve_algorithm_config(
+        "scenarios/optimization/panel_four_component_hot_cold_nsga2_raw_b0.yaml",
+        nsga2_spec,
+    )
+    nsga3_algorithm = resolve_algorithm_config(
+        "scenarios/optimization/panel_four_component_hot_cold_nsga3_raw_b0.yaml",
+        nsga3_spec,
+    )
+
+    assert nsga2_algorithm["parameters"]["crossover"]["eta"] == 10
+    assert nsga2_algorithm["parameters"]["mutation"]["eta"] == 15
+    assert nsga3_algorithm["parameters"]["crossover"]["eta"] == 10
+    assert nsga3_algorithm["parameters"]["mutation"]["eta"] == 15
+
+
 def test_pool_spec_requires_operator_control_block() -> None:
     with open("scenarios/optimization/panel_four_component_hot_cold_nsga2_pool_random_b1.yaml", "r", encoding="utf-8") as handle:
         payload = yaml.safe_load(handle)
@@ -172,3 +192,68 @@ def test_pool_spec_requires_operator_control_block() -> None:
 
     with pytest.raises(OptimizationValidationError):
         OptimizationSpec.from_dict(payload)
+
+
+def test_resolve_algorithm_config_merges_global_defaults_profile_and_inline_overrides(tmp_path: Path) -> None:
+    profile_path = tmp_path / "nsga2_profile.yaml"
+    profile_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "1.0",
+                "profile_meta": {
+                    "profile_id": "panel-four-component-hot-cold-nsga2-raw-profile",
+                    "description": "Test profile for algorithm parameter resolution.",
+                },
+                "family": "genetic",
+                "backbone": "nsga2",
+                "mode": "raw",
+                "parameters": {
+                    "crossover": {"eta": 11},
+                    "mutation": {"eta": 17},
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    spec_payload = _spec_payload()
+    spec_payload["algorithm"]["profile_path"] = str(profile_path)
+    spec_payload["algorithm"]["parameters"] = {
+        "mutation": {"eta": 13},
+    }
+    spec = OptimizationSpec.from_dict(spec_payload)
+
+    resolved = resolve_algorithm_config(tmp_path / "optimization_spec.yaml", spec)
+
+    assert resolved["family"] == "genetic"
+    assert resolved["backbone"] == "nsga2"
+    assert resolved["mode"] == "raw"
+    assert resolved["parameters"]["crossover"] == {"operator": "sbx", "eta": 11, "prob": 0.9}
+    assert resolved["parameters"]["mutation"] == {"operator": "pm", "eta": 13}
+
+
+def test_resolve_algorithm_config_rejects_mismatched_profile_identity(tmp_path: Path) -> None:
+    profile_path = tmp_path / "wrong_profile.yaml"
+    profile_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "1.0",
+                "profile_meta": {
+                    "profile_id": "panel-four-component-hot-cold-nsga3-raw-profile",
+                    "description": "Mismatched profile fixture.",
+                },
+                "family": "genetic",
+                "backbone": "nsga3",
+                "mode": "raw",
+                "parameters": {},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    spec_payload = _spec_payload()
+    spec_payload["algorithm"]["profile_path"] = str(profile_path)
+    spec = OptimizationSpec.from_dict(spec_payload)
+
+    with pytest.raises(OptimizationValidationError):
+        resolve_algorithm_config(tmp_path / "optimization_spec.yaml", spec)

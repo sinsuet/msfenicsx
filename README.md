@@ -49,6 +49,8 @@ Seed inputs live under `scenarios/`, and generated run artifacts are written und
 The active benchmark template lives at `scenarios/templates/panel_four_component_hot_cold_benchmark.yaml`.
 The active multicase evaluation spec lives at `scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml`.
 The active multicase optimization spec lives at `scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml`.
+Benchmark-specific optimizer tuning now lives in optimizer-layer profile files under `scenarios/optimization/profiles/`, while repository-wide backbone defaults live under `optimizers/`.
+The active effective algorithm settings are resolved as `global backbone defaults < benchmark profile < spec inline parameter overrides`.
 Future operator-pool controller work is approved only under the newer multi-backbone optimizer-matrix direction. It should not be reintroduced as an `NSGA-II`-only branch.
 
 Current built-in evaluation metric namespaces are:
@@ -89,6 +91,13 @@ The repository now includes the first-batch raw matrix runtime for `NSGA-II`, `N
 
 - `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
 - `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`
+
+Current optimizer parameter layering:
+
+- backbone wrappers instantiate algorithms from resolved `algorithm.parameters` rather than hardcoded benchmark-specific values
+- repository-wide defaults live in `optimizers/algorithm_config.py`
+- benchmark-specific overrides live in per-backbone profile files such as `scenarios/optimization/profiles/panel_four_component_hot_cold_nsga2_raw.yaml`
+- individual optimization specs can still add final inline `algorithm.parameters` overrides when a one-off experiment needs to deviate from the benchmark profile
 
 ## Verification
 

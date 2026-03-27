@@ -6,7 +6,8 @@ from typing import Any
 
 import numpy as np
 from pymoo.algorithms.moo.moead import MOEAD, default_decomp
-from pymoo.util.ref_dirs import get_reference_directions
+
+from optimizers.raw_backbones.common import build_reference_directions, resolve_population_fraction_size
 
 
 FAMILY = "decomposition"
@@ -18,7 +19,7 @@ class ConstrainedMOEAD(MOEAD):
 
     def _setup(self, problem, **kwargs):
         if self.ref_dirs is None:
-            self.ref_dirs = get_reference_directions("energy", problem.n_obj, n_points=self.pop_size)
+            self.ref_dirs = build_reference_directions(problem.n_obj, self.pop_size, self.reference_direction_parameters)
         self.pop_size = len(self.ref_dirs)
         self.neighbors = np.argsort(
             np.linalg.norm(self.ref_dirs[:, None, :] - self.ref_dirs[None, :, :], axis=2),
@@ -60,6 +61,9 @@ class ConstrainedMOEAD(MOEAD):
 
 def build_algorithm(problem: Any, algorithm_config: dict[str, Any]) -> ConstrainedMOEAD:
     pop_size = int(algorithm_config["population_size"])
-    ref_dirs = get_reference_directions("energy", problem.n_obj, n_points=pop_size)
-    n_neighbors = min(max(2, pop_size // 2), len(ref_dirs))
-    return ConstrainedMOEAD(ref_dirs=ref_dirs, n_neighbors=n_neighbors)
+    parameters = algorithm_config["parameters"]
+    ref_dirs = build_reference_directions(problem.n_obj, pop_size, parameters["reference_directions"])
+    n_neighbors = min(resolve_population_fraction_size(pop_size, parameters["neighbors"]), len(ref_dirs))
+    algorithm = ConstrainedMOEAD(ref_dirs=ref_dirs, n_neighbors=n_neighbors)
+    algorithm.reference_direction_parameters = parameters["reference_directions"]
+    return algorithm

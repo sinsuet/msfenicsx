@@ -81,6 +81,28 @@ def validate_optimization_result_payload(payload: Mapping[str, Any]) -> None:
     _require_mapping(payload["provenance"], "provenance")
 
 
+def validate_algorithm_profile_payload(payload: Mapping[str, Any]) -> None:
+    required_keys = ("schema_version", "profile_meta", "family", "backbone", "mode", "parameters")
+    _require_mapping(payload, "AlgorithmProfile")
+    _require_required_keys(payload, required_keys, "AlgorithmProfile")
+    profile_meta = _require_mapping(payload["profile_meta"], "profile_meta")
+    _require_text(profile_meta.get("profile_id"), "profile_meta.profile_id")
+    family = _require_text(payload["family"], "AlgorithmProfile.family")
+    if family not in SUPPORTED_BACKBONES_BY_FAMILY:
+        raise OptimizationValidationError(
+            f"AlgorithmProfile.family '{family}' must be one of {sorted(SUPPORTED_BACKBONES_BY_FAMILY)}."
+        )
+    backbone = _require_text(payload["backbone"], "AlgorithmProfile.backbone")
+    if backbone not in SUPPORTED_BACKBONES_BY_FAMILY[family]:
+        raise OptimizationValidationError(
+            f"AlgorithmProfile.backbone '{backbone}' is not approved for AlgorithmProfile.family '{family}'."
+        )
+    mode = _require_text(payload["mode"], "AlgorithmProfile.mode")
+    if mode not in SUPPORTED_MODES:
+        raise OptimizationValidationError(f"AlgorithmProfile.mode '{mode}' must be one of {sorted(SUPPORTED_MODES)}.")
+    _require_mapping(payload["parameters"], "AlgorithmProfile.parameters")
+
+
 def _validate_design_variable(
     variable: Any,
     seen_variable_ids: set[str],
@@ -131,6 +153,10 @@ def _validate_algorithm(algorithm: Any) -> dict[str, Any]:
     if _require_integer(algorithm["num_generations"], "algorithm.num_generations") <= 0:
         raise OptimizationValidationError("algorithm.num_generations must be positive.")
     _require_integer(algorithm["seed"], "algorithm.seed")
+    if "profile_path" in algorithm:
+        _require_text(algorithm["profile_path"], "algorithm.profile_path")
+    if "parameters" in algorithm:
+        _require_mapping(algorithm["parameters"], "algorithm.parameters")
     if "operator_mode" in algorithm:
         raise OptimizationValidationError("algorithm.operator_mode has been replaced by algorithm.mode.")
     if "operator_pool" in algorithm:

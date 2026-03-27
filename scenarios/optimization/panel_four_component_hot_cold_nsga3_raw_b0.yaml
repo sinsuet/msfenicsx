@@ -45,5 +45,6 @@ algorithm:
   population_size: 16
   num_generations: 8
   seed: 7
+  profile_path: scenarios/optimization/profiles/panel_four_component_hot_cold_nsga3_raw.yaml
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml

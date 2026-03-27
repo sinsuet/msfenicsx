@@ -18,7 +18,7 @@
 截至 `2026-03-26`，与论文主张直接相关的仓库真相以以下文档为准：
 
 - [HANDOFF.md](../../HANDOFF.md)
-- [RULES.md](../../RULES.md)
+- [AGENTS.md](../../AGENTS.md)
 - [0016-mass-search-space-mode-hybrid-operator-integration.md](../adr/0016-mass-search-space-mode-hybrid-operator-integration.md)
 - [0007-vop-maas-verified-operator-policy-experimental-mode.md](../archive/adr/0007-vop-maas-verified-operator-policy-experimental-mode.md)
 - [R21_l1_l4_algo_llm_campaign_20260306.md](../archive/reports/R21_l1_l4_algo_llm_campaign_20260306.md)

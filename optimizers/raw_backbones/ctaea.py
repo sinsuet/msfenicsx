@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from pymoo.algorithms.moo.ctaea import CTAEA
-from pymoo.util.ref_dirs import get_reference_directions
+
+from optimizers.raw_backbones.common import build_pm, build_reference_directions, build_sbx
 
 
 FAMILY = "genetic"
@@ -13,5 +14,11 @@ BACKBONE = "ctaea"
 
 
 def build_algorithm(problem: Any, algorithm_config: dict[str, Any]) -> CTAEA:
-    ref_dirs = get_reference_directions("energy", problem.n_obj, n_points=int(algorithm_config["population_size"]))
-    return CTAEA(ref_dirs=ref_dirs)
+    pop_size = int(algorithm_config["population_size"])
+    parameters = algorithm_config["parameters"]
+    ref_dirs = build_reference_directions(problem.n_obj, pop_size, parameters["reference_directions"])
+    return CTAEA(
+        ref_dirs=ref_dirs,
+        crossover=build_sbx(parameters["crossover"]),
+        mutation=build_pm(parameters["mutation"]),
+    )

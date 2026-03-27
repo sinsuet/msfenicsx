@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from itertools import combinations
 from typing import Any
 
 import numpy as np
 
 from core.schema.models import ThermalCase
-from optimizers.codec import apply_decision_vector
+from optimizers.codec import DecisionVectorError, _set_path_value
 
 
 MIN_RADIATOR_SPAN = 0.15
@@ -18,13 +19,28 @@ MAX_SEPARATION_PASSES = 24
 
 def repair_case_from_vector(base_case: Any, optimization_spec: Any, vector: np.ndarray) -> ThermalCase:
     spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
-    candidate_case = apply_decision_vector(base_case, spec_payload, vector)
-    payload = candidate_case.to_dict()
+    payload = _apply_vector_without_case_validation(base_case, spec_payload, vector)
     component_bounds, radiator_bounds = _collect_variable_bounds(spec_payload)
     _clamp_target_components(payload["components"], component_bounds)
     _repair_radiator_intervals(payload["boundary_features"], radiator_bounds)
     _resolve_component_overlaps(payload["components"], component_bounds)
     return ThermalCase.from_dict(payload)
+
+
+def _apply_vector_without_case_validation(base_case: Any, optimization_spec: dict[str, Any], vector: np.ndarray) -> dict[str, Any]:
+    case_payload = base_case.to_dict() if hasattr(base_case, "to_dict") else dict(base_case)
+    values = np.asarray(vector, dtype=np.float64)
+    design_variables = optimization_spec["design_variables"]
+    if values.size != len(design_variables):
+        raise DecisionVectorError(
+            f"Decision vector length {values.size} does not match {len(design_variables)} design variables."
+        )
+    mutated_payload = deepcopy(case_payload)
+    for variable, value in zip(design_variables, values.tolist(), strict=True):
+        lower_bound = float(variable["lower_bound"])
+        upper_bound = float(variable["upper_bound"])
+        _set_path_value(mutated_payload, variable["path"], _clamp(float(value), lower_bound, upper_bound))
+    return mutated_payload
 
 
 def _collect_variable_bounds(
@@ -89,25 +105,36 @@ def _resolve_component_overlaps(
         for left_index, right_index in combinations(range(len(components)), 2):
             left = components[left_index]
             right = components[right_index]
-            overlap_x = _axis_overlap(
-                float(left["pose"]["x"]),
-                float(left["geometry"]["width"]),
-                float(right["pose"]["x"]),
-                float(right["geometry"]["width"]),
-            )
-            overlap_y = _axis_overlap(
-                float(left["pose"]["y"]),
-                float(left["geometry"]["height"]),
-                float(right["pose"]["y"]),
-                float(right["geometry"]["height"]),
-            )
+            overlap_x, overlap_y = _component_overlap_deltas(left, right)
             if overlap_x <= 0.0 or overlap_y <= 0.0:
                 continue
             changed = True
-            if overlap_x <= overlap_y:
-                _separate_pair(components, left_index, right_index, movable_indices, component_bounds, axis="x", delta=overlap_x)
-            else:
-                _separate_pair(components, left_index, right_index, movable_indices, component_bounds, axis="y", delta=overlap_y)
+            primary_axis = "x" if overlap_x <= overlap_y else "y"
+            secondary_axis = "y" if primary_axis == "x" else "x"
+            primary_delta = overlap_x if primary_axis == "x" else overlap_y
+            secondary_delta = overlap_y if secondary_axis == "y" else overlap_x
+            _separate_pair(
+                components,
+                left_index,
+                right_index,
+                movable_indices,
+                component_bounds,
+                axis=primary_axis,
+                delta=primary_delta,
+            )
+            updated_left = components[left_index]
+            updated_right = components[right_index]
+            retry_overlap_x, retry_overlap_y = _component_overlap_deltas(updated_left, updated_right)
+            if retry_overlap_x > 0.0 and retry_overlap_y > 0.0:
+                _separate_pair(
+                    components,
+                    left_index,
+                    right_index,
+                    movable_indices,
+                    component_bounds,
+                    axis=secondary_axis,
+                    delta=secondary_delta,
+                )
         if not changed:
             return
 
@@ -148,6 +175,22 @@ def _set_component_axis(component: dict[str, Any], axis: str, value: float, boun
 
 def _axis_overlap(center_a: float, size_a: float, center_b: float, size_b: float) -> float:
     return 0.5 * (size_a + size_b) - abs(center_b - center_a)
+
+
+def _component_overlap_deltas(left: dict[str, Any], right: dict[str, Any]) -> tuple[float, float]:
+    overlap_x = _axis_overlap(
+        float(left["pose"]["x"]),
+        float(left["geometry"]["width"]),
+        float(right["pose"]["x"]),
+        float(right["geometry"]["width"]),
+    )
+    overlap_y = _axis_overlap(
+        float(left["pose"]["y"]),
+        float(left["geometry"]["height"]),
+        float(right["pose"]["y"]),
+        float(right["geometry"]["height"]),
+    )
+    return overlap_x, overlap_y
 
 
 def _clamp(value: float, lower_bound: float, upper_bound: float) -> float:

@@ -35,7 +35,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         evaluation_spec = load_multicase_spec(evaluation_spec_path)
         if optimization_spec.algorithm["mode"] != "raw":
             raise NotImplementedError("Pool-mode optimizer drivers are not implemented yet.")
-        run = run_raw_optimization(cases, optimization_spec, evaluation_spec)
+        run = run_raw_optimization(cases, optimization_spec, evaluation_spec, spec_path=args.optimization_spec)
         write_optimization_artifacts(args.output_root, run)
         return 0
     parser.error(f"Unsupported command: {args.command}")
