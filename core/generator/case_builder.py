@@ -16,6 +16,7 @@ def build_thermal_case(
 ) -> ThermalCase:
     template_id = template.template_meta["template_id"]
     case_id = f"{template_id}-seed-{seed:04d}"
+    panel_material_ref = next(iter(sampled_payload["materials"]))
     components = []
     loads = []
     for component in placed_components:
@@ -39,6 +40,7 @@ def build_thermal_case(
         "case_meta": {"case_id": case_id, "scenario_id": template_id},
         "coordinate_system": template.coordinate_system,
         "panel_domain": template.panel_domain,
+        "panel_material_ref": panel_material_ref,
         "materials": sampled_payload["materials"],
         "components": components,
         "boundary_features": boundary_features,

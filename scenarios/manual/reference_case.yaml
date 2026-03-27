@@ -7,6 +7,7 @@ coordinate_system:
 panel_domain:
   width: 1.0
   height: 0.8
+panel_material_ref: aluminum
 materials:
   aluminum:
     conductivity: 205.0

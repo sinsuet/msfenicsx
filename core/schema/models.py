@@ -29,6 +29,7 @@ class ScenarioTemplate:
     boundary_feature_families: list[dict[str, Any]]
     load_rules: list[dict[str, Any]]
     material_rules: list[dict[str, Any]]
+    operating_case_profiles: list[dict[str, Any]]
     mesh_profile: dict[str, Any]
     solver_profile: dict[str, Any]
     generation_rules: dict[str, Any]
@@ -49,6 +50,7 @@ class ThermalCase:
     case_meta: dict[str, Any]
     coordinate_system: dict[str, Any]
     panel_domain: dict[str, Any]
+    panel_material_ref: str
     materials: dict[str, Any]
     components: list[dict[str, Any]]
     boundary_features: list[dict[str, Any]]

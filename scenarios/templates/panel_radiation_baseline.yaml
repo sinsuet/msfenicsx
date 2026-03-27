@@ -58,6 +58,7 @@ material_rules:
   - material_id: aluminum
     conductivity: 205.0
     emissivity: 0.78
+operating_case_profiles: []
 mesh_profile:
   nx: 48
   ny: 40

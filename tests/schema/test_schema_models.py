@@ -7,6 +7,7 @@ def test_thermal_case_requires_case_meta_and_components() -> None:
         "case_meta": {"case_id": "case-001", "scenario_id": "panel-baseline"},
         "coordinate_system": {"plane": "panel_xy"},
         "panel_domain": {"width": 1.0, "height": 0.8},
+        "panel_material_ref": "aluminum",
         "materials": {
             "aluminum": {"conductivity": 205.0, "emissivity": 0.78},
         },
@@ -22,6 +23,7 @@ def test_thermal_case_requires_case_meta_and_components() -> None:
     case = ThermalCase.from_dict(payload)
 
     assert case.case_meta["case_id"] == "case-001"
+    assert case.panel_material_ref == "aluminum"
     assert case.components == []
     assert case.to_dict() == payload
 
@@ -41,6 +43,14 @@ def test_scenario_template_round_trips_to_dict() -> None:
         "boundary_feature_families": [],
         "load_rules": [],
         "material_rules": [],
+        "operating_case_profiles": [
+            {
+                "operating_case_id": "hot",
+                "ambient_temperature": 300.0,
+                "component_power_overrides": {"processor": 24.0},
+                "boundary_feature_overrides": {"radiator-top": {"sink_temperature": 292.0}},
+            }
+        ],
         "mesh_profile": {"nx": 32, "ny": 24},
         "solver_profile": {"nonlinear_solver": "snes"},
         "generation_rules": {"seed_policy": "external"},
@@ -49,6 +59,7 @@ def test_scenario_template_round_trips_to_dict() -> None:
     template = ScenarioTemplate.from_dict(payload)
 
     assert template.template_meta["template_id"] == "panel-radiation-baseline"
+    assert template.operating_case_profiles[0]["operating_case_id"] == "hot"
     assert template.to_dict() == payload
 
 

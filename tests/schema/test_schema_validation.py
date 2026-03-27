@@ -1,6 +1,41 @@
 import pytest
 
-from core.schema.validation import SchemaValidationError, validate_thermal_case_payload
+from core.schema.validation import (
+    SchemaValidationError,
+    validate_scenario_template_payload,
+    validate_thermal_case_payload,
+)
+
+
+def _base_template_payload() -> dict:
+    return {
+        "schema_version": "1.0",
+        "template_meta": {
+            "template_id": "panel-four-component-hot-cold-benchmark",
+            "description": "Four-component paired hot/cold benchmark.",
+        },
+        "coordinate_system": {"plane": "panel_xy"},
+        "panel_domain": {"width": 1.0, "height": 0.8},
+        "placement_regions": [],
+        "keep_out_regions": [],
+        "component_families": [],
+        "boundary_feature_families": [],
+        "load_rules": [],
+        "material_rules": [
+            {"material_id": "panel_substrate", "conductivity": 205.0, "emissivity": 0.78},
+        ],
+        "operating_case_profiles": [
+            {
+                "operating_case_id": "hot",
+                "ambient_temperature": 300.0,
+                "component_power_overrides": {"processor": 24.0},
+                "boundary_feature_overrides": {"radiator-top": {"sink_temperature": 292.0}},
+            }
+        ],
+        "mesh_profile": {"nx": 32, "ny": 24},
+        "solver_profile": {"nonlinear_solver": "snes"},
+        "generation_rules": {"seed_policy": "external"},
+    }
 
 
 def _base_case_payload() -> dict:
@@ -9,6 +44,7 @@ def _base_case_payload() -> dict:
         "case_meta": {"case_id": "case-001", "scenario_id": "panel-baseline"},
         "coordinate_system": {"plane": "panel_xy"},
         "panel_domain": {"width": 1.0, "height": 0.8},
+        "panel_material_ref": "aluminum",
         "materials": {
             "aluminum": {"conductivity": 205.0, "emissivity": 0.78},
         },
@@ -89,6 +125,14 @@ def test_validate_thermal_case_accepts_supported_shapes_and_line_sink() -> None:
     validate_thermal_case_payload(payload)
 
 
+def test_validate_thermal_case_rejects_unknown_panel_material_ref() -> None:
+    payload = _base_case_payload()
+    payload["panel_material_ref"] = "panel_substrate"
+
+    with pytest.raises(SchemaValidationError, match="panel_material_ref"):
+        validate_thermal_case_payload(payload)
+
+
 def test_validate_thermal_case_rejects_unsupported_shape() -> None:
     payload = _base_case_payload()
     payload["components"][0]["shape"] = "triangle"
@@ -121,3 +165,24 @@ def test_validate_thermal_case_rejects_invalid_line_sink_support() -> None:
 
     with pytest.raises(SchemaValidationError, match="line_sink"):
         validate_thermal_case_payload(payload)
+
+
+def test_validate_scenario_template_accepts_operating_case_profiles() -> None:
+    payload = _base_template_payload()
+
+    validate_scenario_template_payload(payload)
+
+
+def test_validate_scenario_template_rejects_duplicate_operating_case_ids() -> None:
+    payload = _base_template_payload()
+    payload["operating_case_profiles"].append(
+        {
+            "operating_case_id": "hot",
+            "ambient_temperature": 280.0,
+            "component_power_overrides": {},
+            "boundary_feature_overrides": {},
+        }
+    )
+
+    with pytest.raises(SchemaValidationError, match="operating_case_id"):
+        validate_scenario_template_payload(payload)

@@ -27,6 +27,7 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
         "boundary_feature_families",
         "load_rules",
         "material_rules",
+        "operating_case_profiles",
         "mesh_profile",
         "solver_profile",
         "generation_rules",
@@ -42,6 +43,7 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
     _require_sequence(payload["boundary_feature_families"], "boundary_feature_families")
     _require_sequence(payload["load_rules"], "load_rules")
     _require_sequence(payload["material_rules"], "material_rules")
+    _require_sequence(payload["operating_case_profiles"], "operating_case_profiles")
     _require_mapping(payload["mesh_profile"], "mesh_profile")
     _require_mapping(payload["solver_profile"], "solver_profile")
     _require_mapping(payload["generation_rules"], "generation_rules")
@@ -49,6 +51,7 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
         _validate_component_family(family)
     for family in payload["boundary_feature_families"]:
         _validate_boundary_feature_family(family)
+    _validate_operating_case_profiles(payload["operating_case_profiles"])
 
 
 def validate_thermal_case_payload(payload: Mapping[str, Any]) -> None:
@@ -57,6 +60,7 @@ def validate_thermal_case_payload(payload: Mapping[str, Any]) -> None:
         "case_meta",
         "coordinate_system",
         "panel_domain",
+        "panel_material_ref",
         "materials",
         "components",
         "boundary_features",
@@ -72,6 +76,11 @@ def validate_thermal_case_payload(payload: Mapping[str, Any]) -> None:
     _require_mapping(payload["coordinate_system"], "coordinate_system")
     _validate_panel_domain(payload["panel_domain"])
     _require_mapping(payload["materials"], "materials")
+    panel_material_ref = payload["panel_material_ref"]
+    if not isinstance(panel_material_ref, str) or not panel_material_ref:
+        raise SchemaValidationError("panel_material_ref must be a non-empty string.")
+    if panel_material_ref not in payload["materials"]:
+        raise SchemaValidationError(f"panel_material_ref '{panel_material_ref}' is not defined in materials.")
     _require_sequence(payload["components"], "components")
     _require_sequence(payload["boundary_features"], "boundary_features")
     _require_sequence(payload["loads"], "loads")
@@ -125,6 +134,23 @@ def _validate_boundary_feature_family(family: Any) -> None:
     kind = family.get("kind")
     if kind is not None and kind != "line_sink":
         raise SchemaValidationError(f"Unsupported boundary feature kind '{kind}'.")
+
+
+def _validate_operating_case_profiles(profiles: Sequence[Any]) -> None:
+    operating_case_ids: set[str] = set()
+    for profile in profiles:
+        _require_mapping(profile, "operating_case_profile")
+        operating_case_id = profile.get("operating_case_id")
+        if not isinstance(operating_case_id, str) or not operating_case_id:
+            raise SchemaValidationError("operating_case_profile.operating_case_id must be a non-empty string.")
+        if operating_case_id in operating_case_ids:
+            raise SchemaValidationError(f"Duplicate operating_case_id '{operating_case_id}' in operating_case_profiles.")
+        operating_case_ids.add(operating_case_id)
+        _require_positive_real(profile.get("ambient_temperature"), f"ambient_temperature for {operating_case_id}")
+        component_power_overrides = profile.get("component_power_overrides")
+        boundary_feature_overrides = profile.get("boundary_feature_overrides")
+        _require_mapping(component_power_overrides, f"component_power_overrides for {operating_case_id}")
+        _require_mapping(boundary_feature_overrides, f"boundary_feature_overrides for {operating_case_id}")
 
 
 def _validate_component(component: Any) -> None:
