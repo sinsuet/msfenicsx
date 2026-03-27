@@ -1,5 +1,7 @@
 # Msfenicsx Clean Rebuild Design
 
+> 2026-03-27 addendum: `evaluation/` and `optimizers/` have now moved onto a multicase multiobjective mainline. The core canonical objects remain `scenario_template`, `thermal_case`, and `thermal_solution`; objective and constraint definitions live in standalone `evaluation_spec` files, while design variables and optimizer settings live in standalone `optimization_spec` files. The active optimizer path is hot/cold multicase evaluation plus Pareto search rather than the earlier constrained single-objective baseline. See `docs/reports/R61_msfenicsx_evaluation_layer_rollout_20260326.md`, `docs/reports/R62_msfenicsx_optimizer_baseline_rollout_20260327.md`, and `docs/reports/R63_msfenicsx_multicase_multiobjective_reset_20260327.md`.
+
 > Status: approved design draft for a full platform reset. Old implementation code is disposable. `docs/` remains the long-term knowledge base.
 
 ## 1. Goal
