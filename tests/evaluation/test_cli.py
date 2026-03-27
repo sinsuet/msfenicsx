@@ -11,24 +11,56 @@ def _case() -> ThermalCase:
     return ThermalCase.from_dict(
         {
             "schema_version": "1.0",
-            "case_meta": {"case_id": "case-001", "scenario_id": "panel-baseline"},
+            "case_meta": {"case_id": "case-001", "scenario_id": "panel-four-component-hot-cold-benchmark"},
             "coordinate_system": {"plane": "panel_xy"},
             "panel_domain": {"width": 1.0, "height": 0.8},
+            "panel_material_ref": "panel_substrate",
             "materials": {
-                "aluminum": {"conductivity": 205.0, "emissivity": 0.78},
+                "panel_substrate": {"conductivity": 205.0, "emissivity": 0.78},
+                "electronics_housing": {"conductivity": 160.0, "emissivity": 0.82},
+                "battery_insulated_housing": {"conductivity": 45.0, "emissivity": 0.88},
             },
             "components": [
                 {
-                    "component_id": "comp-001",
-                    "role": "payload",
+                    "component_id": "processor-001",
+                    "role": "processor",
                     "shape": "rect",
-                    "pose": {"x": 0.3, "y": 0.35, "rotation_deg": 0.0},
-                    "geometry": {"width": 0.16, "height": 0.09},
-                    "material_ref": "aluminum",
+                    "pose": {"x": 0.18, "y": 0.2, "rotation_deg": 0.0},
+                    "geometry": {"width": 0.16, "height": 0.1},
+                    "material_ref": "electronics_housing",
+                },
+                {
+                    "component_id": "rf-power-amp-001",
+                    "role": "rf_power_amp",
+                    "shape": "rect",
+                    "pose": {"x": 0.55, "y": 0.24, "rotation_deg": 0.0},
+                    "geometry": {"width": 0.14, "height": 0.1},
+                    "material_ref": "electronics_housing",
+                },
+                {
+                    "component_id": "obc-001",
+                    "role": "obc",
+                    "shape": "rect",
+                    "pose": {"x": 0.3, "y": 0.5, "rotation_deg": 0.0},
+                    "geometry": {"width": 0.12, "height": 0.08},
+                    "material_ref": "electronics_housing",
+                },
+                {
+                    "component_id": "battery-001",
+                    "role": "battery_pack",
+                    "shape": "rect",
+                    "pose": {"x": 0.72, "y": 0.48, "rotation_deg": 0.0},
+                    "geometry": {"width": 0.16, "height": 0.11},
+                    "material_ref": "battery_insulated_housing",
                 }
             ],
             "boundary_features": [],
-            "loads": [{"load_id": "load-001", "target_component_id": "comp-001", "total_power": 18.0}],
+            "loads": [
+                {"load_id": "load-processor", "target_component_id": "processor-001", "total_power": 18.0},
+                {"load_id": "load-rf", "target_component_id": "rf-power-amp-001", "total_power": 14.0},
+                {"load_id": "load-obc", "target_component_id": "obc-001", "total_power": 8.0},
+                {"load_id": "load-battery", "target_component_id": "battery-001", "total_power": 1.0},
+            ],
             "physics": {"kind": "steady_heat_radiation"},
             "mesh_profile": {"nx": 32, "ny": 24},
             "solver_profile": {"nonlinear_solver": "snes"},
@@ -51,11 +83,29 @@ def _solution() -> ThermalSolution:
             },
             "component_summaries": [
                 {
-                    "component_id": "comp-001",
+                    "component_id": "processor-001",
                     "temperature_min": 296.0,
                     "temperature_mean": 309.1,
                     "temperature_max": 320.0,
-                }
+                },
+                {
+                    "component_id": "rf-power-amp-001",
+                    "temperature_min": 298.0,
+                    "temperature_mean": 311.0,
+                    "temperature_max": 322.0,
+                },
+                {
+                    "component_id": "obc-001",
+                    "temperature_min": 292.0,
+                    "temperature_mean": 304.0,
+                    "temperature_max": 315.0,
+                },
+                {
+                    "component_id": "battery-001",
+                    "temperature_min": 289.0,
+                    "temperature_mean": 300.0,
+                    "temperature_max": 309.0,
+                },
             ],
             "provenance": {"solver": "fenicsx"},
         }
@@ -90,7 +140,7 @@ def test_evaluation_cli_writes_report_and_bundle_snapshot(tmp_path: Path) -> Non
                 "constraints": [
                     {
                         "constraint_id": "payload_peak_limit",
-                        "metric": "component.comp-001.temperature_max",
+                        "metric": "component.rf-power-amp-001.temperature_max",
                         "relation": "<=",
                         "limit": 325.0,
                     }
@@ -135,14 +185,19 @@ def test_multicase_evaluation_cli_writes_report(tmp_path: Path) -> None:
         hot_case.to_dict()
         | {
             "case_meta": {"case_id": "case-002", "scenario_id": "panel-baseline"},
-            "loads": [{"load_id": "load-001", "target_component_id": "comp-001", "total_power": 8.0}],
+            "loads": [
+                {"load_id": "load-processor", "target_component_id": "processor-001", "total_power": 8.0},
+                {"load_id": "load-rf", "target_component_id": "rf-power-amp-001", "total_power": 6.0},
+                {"load_id": "load-obc", "target_component_id": "obc-001", "total_power": 4.0},
+                {"load_id": "load-battery", "target_component_id": "battery-001", "total_power": 0.5},
+            ],
             "boundary_features": [
                 {
-                    "feature_id": "sink-top",
+                    "feature_id": "radiator-top-001",
                     "kind": "line_sink",
                     "edge": "top",
-                    "start": 0.2,
-                    "end": 0.8,
+                    "start": 0.25,
+                    "end": 0.75,
                     "sink_temperature": 270.0,
                     "transfer_coefficient": 16.0,
                 }
@@ -166,11 +221,29 @@ def test_multicase_evaluation_cli_writes_report(tmp_path: Path) -> None:
             },
             "component_summaries": [
                 {
-                    "component_id": "comp-001",
+                    "component_id": "processor-001",
+                    "temperature_min": 271.0,
+                    "temperature_mean": 276.0,
+                    "temperature_max": 282.0,
+                },
+                {
+                    "component_id": "rf-power-amp-001",
+                    "temperature_min": 272.0,
+                    "temperature_mean": 277.0,
+                    "temperature_max": 283.0,
+                },
+                {
+                    "component_id": "obc-001",
+                    "temperature_min": 269.0,
+                    "temperature_mean": 274.0,
+                    "temperature_max": 280.0,
+                },
+                {
+                    "component_id": "battery-001",
                     "temperature_min": 267.0,
                     "temperature_mean": 272.5,
                     "temperature_max": 278.0,
-                }
+                },
             ],
         }
     )
@@ -184,8 +257,8 @@ def test_multicase_evaluation_cli_writes_report(tmp_path: Path) -> None:
             {
                 "schema_version": "1.0",
                 "spec_meta": {
-                    "spec_id": "panel-hot-cold-multiobjective",
-                    "description": "Hot/cold multicase evaluation baseline.",
+                    "spec_id": "panel-four-component-hot-cold-baseline",
+                    "description": "Paper-grade hot/cold multicase evaluation baseline.",
                 },
                 "operating_cases": [
                     {"operating_case_id": "hot", "description": "Hot operating case"},
@@ -193,25 +266,25 @@ def test_multicase_evaluation_cli_writes_report(tmp_path: Path) -> None:
                 ],
                 "objectives": [
                     {
-                        "objective_id": "minimize_hot_peak_temperature",
+                        "objective_id": "minimize_hot_pa_peak",
                         "operating_case": "hot",
-                        "metric": "summary.temperature_max",
+                        "metric": "component.rf_power_amp.temperature_max",
                         "sense": "minimize",
                     },
                     {
-                        "objective_id": "minimize_cold_radiator_span",
+                        "objective_id": "maximize_cold_battery_min",
                         "operating_case": "cold",
-                        "metric": "case.total_radiator_span",
-                        "sense": "minimize",
+                        "metric": "component.battery_pack.temperature_min",
+                        "sense": "maximize",
                     },
                 ],
                 "constraints": [
                     {
-                        "constraint_id": "hot_peak_limit",
+                        "constraint_id": "hot_pa_limit",
                         "operating_case": "hot",
-                        "metric": "summary.temperature_max",
+                        "metric": "component.rf_power_amp.temperature_max",
                         "relation": "<=",
-                        "limit": 350.0,
+                        "limit": 355.0,
                     }
                 ],
             },

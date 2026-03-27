@@ -33,7 +33,7 @@ def resolve_metric_value(case_payload: Mapping[str, Any], solution_payload: Mapp
     if parts[0] == "solver" and len(parts) == 2:
         return _require_numeric(solution_payload["solver_diagnostics"].get(parts[1]), metric_key)
     if parts[0] == "component" and len(parts) == 3:
-        component = _find_component_summary(solution_payload["component_summaries"], parts[1])
+        component = _find_component_summary(case_payload["components"], solution_payload["component_summaries"], parts[1])
         return _require_numeric(component.get(parts[2]), metric_key)
     if parts[0] == "components" and len(parts) == 2:
         return _resolve_components_metric(solution_payload["component_summaries"], parts[1], metric_key)
@@ -126,11 +126,30 @@ def _resolve_components_metric(component_summaries: list[dict[str, Any]], field:
     return float(max(means) - min(means))
 
 
-def _find_component_summary(component_summaries: list[dict[str, Any]], component_id: str) -> Mapping[str, Any]:
+def _find_component_summary(
+    case_components: list[dict[str, Any]],
+    component_summaries: list[dict[str, Any]],
+    component_selector: str,
+) -> Mapping[str, Any]:
     for component_summary in component_summaries:
-        if component_summary.get("component_id") == component_id:
+        if component_summary.get("component_id") == component_selector:
             return component_summary
-    raise MetricResolutionError(f"Component summary '{component_id}' is not available in thermal_solution.")
+
+    matching_components = [component for component in case_components if component.get("role") == component_selector]
+    if len(matching_components) == 1:
+        component_id = matching_components[0]["component_id"]
+        for component_summary in component_summaries:
+            if component_summary.get("component_id") == component_id:
+                return component_summary
+        raise MetricResolutionError(f"Component summary '{component_id}' is not available in thermal_solution.")
+    if len(matching_components) > 1:
+        raise MetricResolutionError(
+            f"Component selector '{component_selector}' matches multiple case components; use component_id instead."
+        )
+    for component_summary in component_summaries:
+        if component_summary.get("component_id") == component_selector:
+            return component_summary
+    raise MetricResolutionError(f"Component summary '{component_selector}' is not available in thermal_solution.")
 
 
 def _require_numeric(value: Any, metric_key: str) -> float:

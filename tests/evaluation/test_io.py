@@ -102,8 +102,8 @@ def _multicase_spec_payload() -> dict:
     return {
         "schema_version": "1.0",
         "spec_meta": {
-            "spec_id": "panel-hot-cold-multiobjective",
-            "description": "Hot/cold multicase evaluation baseline.",
+            "spec_id": "panel-four-component-hot-cold-baseline",
+            "description": "Paper-grade hot/cold multicase evaluation baseline.",
         },
         "operating_cases": [
             {"operating_case_id": "hot", "description": "Hot operating case"},
@@ -111,19 +111,25 @@ def _multicase_spec_payload() -> dict:
         ],
         "objectives": [
             {
-                "objective_id": "minimize_hot_peak_temperature",
+                "objective_id": "minimize_hot_pa_peak",
                 "operating_case": "hot",
-                "metric": "summary.temperature_max",
+                "metric": "component.rf_power_amp.temperature_max",
                 "sense": "minimize",
+            },
+            {
+                "objective_id": "maximize_cold_battery_min",
+                "operating_case": "cold",
+                "metric": "component.battery_pack.temperature_min",
+                "sense": "maximize",
             }
         ],
         "constraints": [
             {
-                "constraint_id": "hot_peak_limit",
+                "constraint_id": "hot_pa_limit",
                 "operating_case": "hot",
-                "metric": "summary.temperature_max",
+                "metric": "component.rf_power_amp.temperature_max",
                 "relation": "<=",
-                "limit": 350.0,
+                "limit": 355.0,
             }
         ],
     }
@@ -133,8 +139,8 @@ def _multicase_report_payload() -> dict:
     return {
         "schema_version": "1.0",
         "evaluation_meta": {
-            "report_id": "panel-hot-cold-eval-001",
-            "spec_id": "panel-hot-cold-multiobjective",
+            "report_id": "panel-four-component-hot-cold-baseline-eval-001",
+            "spec_id": "panel-four-component-hot-cold-baseline",
         },
         "feasible": True,
         "case_reports": {
@@ -144,15 +150,15 @@ def _multicase_report_payload() -> dict:
                     "report_id": "eval-002",
                     "case_id": "case-002",
                     "solution_id": "sol-002",
-                    "spec_id": "panel-hot-cold-multiobjective",
+                    "spec_id": "panel-four-component-hot-cold-baseline",
                 }
             },
         },
         "objective_summary": [
             {
-                "objective_id": "minimize_hot_peak_temperature",
+                "objective_id": "minimize_hot_pa_peak",
                 "operating_case": "hot",
-                "metric": "summary.temperature_max",
+                "metric": "component.rf_power_amp.temperature_max",
                 "sense": "minimize",
                 "value": 322.4,
             }
@@ -164,7 +170,7 @@ def _multicase_report_payload() -> dict:
         "provenance": {
             "source_case_ids": {"hot": "case-001", "cold": "case-002"},
             "source_solution_ids": {"hot": "sol-001", "cold": "sol-002"},
-            "source_spec_id": "panel-hot-cold-multiobjective",
+            "source_spec_id": "panel-four-component-hot-cold-baseline",
         },
     }
 

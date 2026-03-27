@@ -12,6 +12,7 @@ def _case() -> ThermalCase:
             "case_meta": {"case_id": "case-001", "scenario_id": "panel-baseline"},
             "coordinate_system": {"plane": "panel_xy"},
             "panel_domain": {"width": 1.0, "height": 0.8},
+            "panel_material_ref": "aluminum",
             "materials": {
                 "aluminum": {"conductivity": 205.0, "emissivity": 0.78},
             },
