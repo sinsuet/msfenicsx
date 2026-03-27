@@ -1,0 +1,146 @@
+schema_version: "1.0"
+template_meta:
+  template_id: panel-four-component-hot-cold-benchmark
+  description: Four-component paired hot/cold benchmark for the paper-grade thermal baseline.
+coordinate_system:
+  plane: panel_xy
+panel_domain:
+  width: 1.0
+  height: 0.8
+placement_regions:
+  - region_id: main-deck
+    kind: rect
+    x_min: 0.05
+    x_max: 0.95
+    y_min: 0.05
+    y_max: 0.72
+keep_out_regions:
+  - region_id: top-edge-harness-strip
+    kind: rect
+    x_min: 0.0
+    x_max: 1.0
+    y_min: 0.74
+    y_max: 0.8
+component_families:
+  - family_id: processor
+    role: processor
+    shape: rect
+    count_range:
+      min: 1
+      max: 1
+    geometry:
+      width:
+        min: 0.14
+        max: 0.18
+      height:
+        min: 0.09
+        max: 0.12
+    material_ref: electronics_housing
+    thermal_tags:
+      - processor
+  - family_id: rf_power_amp
+    role: rf_power_amp
+    shape: rect
+    count_range:
+      min: 1
+      max: 1
+    geometry:
+      width:
+        min: 0.12
+        max: 0.16
+      height:
+        min: 0.08
+        max: 0.11
+    material_ref: electronics_housing
+    thermal_tags:
+      - rf_power_amp
+  - family_id: obc
+    role: obc
+    shape: rect
+    count_range:
+      min: 1
+      max: 1
+    geometry:
+      width:
+        min: 0.1
+        max: 0.14
+      height:
+        min: 0.07
+        max: 0.1
+    material_ref: electronics_housing
+    thermal_tags:
+      - obc
+  - family_id: battery_pack
+    role: battery_pack
+    shape: rect
+    count_range:
+      min: 1
+      max: 1
+    geometry:
+      width:
+        min: 0.14
+        max: 0.18
+      height:
+        min: 0.1
+        max: 0.13
+    material_ref: battery_insulated_housing
+    thermal_tags:
+      - battery_pack
+boundary_feature_families:
+  - family_id: radiator-top
+    kind: line_sink
+    edge: top
+    span:
+      min: 0.25
+      max: 0.75
+    sink_temperature:
+      min: 286.0
+      max: 286.0
+    transfer_coefficient:
+      min: 10.0
+      max: 10.0
+load_rules: []
+material_rules:
+  - material_id: panel_substrate
+    conductivity: 205.0
+    emissivity: 0.78
+  - material_id: electronics_housing
+    conductivity: 160.0
+    emissivity: 0.82
+  - material_id: battery_insulated_housing
+    conductivity: 45.0
+    emissivity: 0.88
+operating_case_profiles:
+  - operating_case_id: hot
+    ambient_temperature: 300.0
+    component_power_overrides:
+      processor: 24.0
+      rf_power_amp: 20.0
+      obc: 10.0
+      battery_pack: 2.0
+    boundary_feature_overrides:
+      radiator-top-001:
+        sink_temperature: 292.0
+        transfer_coefficient: 8.0
+  - operating_case_id: cold
+    ambient_temperature: 275.0
+    component_power_overrides:
+      processor: 8.0
+      rf_power_amp: 6.0
+      obc: 4.0
+      battery_pack: 0.5
+    boundary_feature_overrides:
+      radiator-top-001:
+        sink_temperature: 270.0
+        transfer_coefficient: 16.0
+mesh_profile:
+  nx: 48
+  ny: 40
+solver_profile:
+  nonlinear_solver: snes
+  absolute_tolerance: 1.0e-8
+  relative_tolerance: 1.0e-8
+  max_iterations: 50
+generation_rules:
+  seed_policy: external
+  max_placement_attempts: 300
