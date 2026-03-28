@@ -13,9 +13,17 @@ FAMILY = "swarm"
 BACKBONE = "cmopso"
 
 
-def build_algorithm(problem: Any, algorithm_config: dict[str, Any]) -> CMOPSO:
+def build_algorithm_kwargs(problem: Any, algorithm_config: dict[str, Any]) -> dict[str, Any]:
     del problem
     pop_size = int(algorithm_config["population_size"])
     parameters = algorithm_config["parameters"]
     elite_size = resolve_population_fraction_size(pop_size, parameters["elite_archive"])
-    return CMOPSO(pop_size=pop_size, elite_size=elite_size)
+    return {
+        "pop_size": pop_size,
+        "elite_size": elite_size,
+    }
+
+
+def build_algorithm(problem: Any, algorithm_config: dict[str, Any]) -> CMOPSO:
+    kwargs = build_algorithm_kwargs(problem, algorithm_config)
+    return CMOPSO(pop_size=kwargs["pop_size"], elite_size=kwargs["elite_size"])

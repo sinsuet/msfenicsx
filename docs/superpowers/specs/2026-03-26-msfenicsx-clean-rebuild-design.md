@@ -30,7 +30,7 @@ User-approved context:
 
 Methodology reference:
 
-- [R60](/home/hymn/msfenicsx/docs/msgalaxy/R60_msfenicsx_2d_fenicsx_migration_initial_report_20260326.md) remains the top-level migration and research-direction reference
+- [R60](/home/hymn/msfenicsx/docs/reports/R60_msfenicsx_2d_fenicsx_migration_initial_report_20260326.md) remains the top-level migration and research-direction reference
 
 ## 3. Problem Definition
 
@@ -578,7 +578,7 @@ These are future layers, not baseline requirements.
 
 ## 18. Why This Architecture Matches the Research Direction
 
-This design aligns with the migration logic in [R60](/home/hymn/msfenicsx/docs/msgalaxy/R60_msfenicsx_2d_fenicsx_migration_initial_report_20260326.md):
+This design aligns with the migration logic in [R60](/home/hymn/msfenicsx/docs/reports/R60_msfenicsx_2d_fenicsx_migration_initial_report_20260326.md):
 
 - the physical truth loop is formalized first
 - direct LLM control is not treated as the foundation

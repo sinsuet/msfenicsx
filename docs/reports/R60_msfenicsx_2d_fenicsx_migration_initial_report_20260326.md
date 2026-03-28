@@ -1,5 +1,7 @@
 # R60 面向二维 FEniCSx 热优化的 MsGalaxy 思路迁移初步研究报告（2026-03-26）
 
+> Historical note on 2026-03-28: this migration report is retained as repository history and moved under `docs/reports/`. The earlier `docs/msgalaxy/` exploratory notes that fed into it were removed from the active repository because they no longer match the current `msfenicsx` mainline.
+
 ## 1. 任务背景
 
 本报告的目标不是继续讨论 MsGalaxy 现有三维卫星布局主线本身，而是回答一个更贴近当前新项目推进的问题：
@@ -20,7 +22,7 @@
 
 ### 2.1 `msgalaxy` 当前真实边界
 
-从 `docs/msgalaxy/README.md` 与 `R57 / R58 / R59` 的最终收敛结论来看，`msgalaxy` 当前真实主线具有以下特征：
+从迁移期保留下来的 `msgalaxy` 研究结论来看，`msgalaxy` 当时的真实主线具有以下特征：
 
 - 活跃主线是 `mass`。
 - 默认稳定模式是 `position_only`。
@@ -63,7 +65,7 @@
 
 ---
 
-## 3. 从 `R57 / R58 / R59` 可继承的稳定共识
+## 3. 从迁移期研究结论可继承的稳定共识
 
 `msgalaxy` 多份文档反复批判和收敛后，真正稳定的共识主要有六条，这六条都可以直接作为二维项目的上位原则：
 

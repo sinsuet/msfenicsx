@@ -44,6 +44,14 @@ def _optimization_spec_payload() -> dict:
     }
 
 
+def _union_optimization_spec_path() -> str:
+    return "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml"
+
+
+def _matrix_union_optimization_spec_path(backbone: str) -> str:
+    return f"scenarios/optimization/panel_four_component_hot_cold_{backbone}_union_uniform_p1.yaml"
+
+
 def test_optimizer_cli_optimize_benchmark_writes_result_and_pareto_artifacts(tmp_path: Path) -> None:
     output_root = tmp_path / "optimizer_run"
     spec_path = tmp_path / "optimization_spec.yaml"
@@ -98,3 +106,50 @@ def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_
         assert (representative_root / "cases" / "cold.yaml").exists()
         assert (representative_root / "solutions" / "hot.yaml").exists()
         assert (representative_root / "solutions" / "cold.yaml").exists()
+
+
+def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(tmp_path: Path) -> None:
+    output_root = tmp_path / "union_optimizer_run"
+
+    exit_code = main(
+        [
+            "optimize-benchmark",
+            "--optimization-spec",
+            _union_optimization_spec_path(),
+            "--output-root",
+            str(output_root),
+        ]
+    )
+
+    assert exit_code == 0
+    assert (output_root / "optimization_result.json").exists()
+    assert (output_root / "pareto_front.json").exists()
+    assert (output_root / "controller_trace.json").exists()
+    assert (output_root / "operator_trace.json").exists()
+
+    controller_trace = json.loads((output_root / "controller_trace.json").read_text(encoding="utf-8"))
+    operator_trace = json.loads((output_root / "operator_trace.json").read_text(encoding="utf-8"))
+    manifest_payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
+
+    assert controller_trace
+    assert operator_trace
+    assert manifest_payload["snapshots"]["controller_trace"] == "controller_trace.json"
+    assert manifest_payload["snapshots"]["operator_trace"] == "operator_trace.json"
+
+
+def test_optimizer_cli_union_mode_dispatches_moead_and_cmopso_specs(tmp_path: Path) -> None:
+    for backbone in ("moead", "cmopso"):
+        output_root = tmp_path / f"{backbone}_union_optimizer_run"
+        exit_code = main(
+            [
+                "optimize-benchmark",
+                "--optimization-spec",
+                _matrix_union_optimization_spec_path(backbone),
+                "--output-root",
+                str(output_root),
+            ]
+        )
+
+        assert exit_code == 0
+        assert (output_root / "controller_trace.json").exists()
+        assert (output_root / "operator_trace.json").exists()

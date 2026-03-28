@@ -1,0 +1,179 @@
+"""Decomposition-family union adapter for controller-guided offspring proposals."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+from pymoo.core.population import Population
+
+from optimizers.codec import extract_decision_vector
+from optimizers.operator_pool.controllers import build_controller
+from optimizers.operator_pool.layout import VariableLayout
+from optimizers.operator_pool.models import ParentBundle
+from optimizers.operator_pool.operators import get_operator_definition, native_operator_id_for_backbone
+from optimizers.operator_pool.state import ControllerState
+from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
+from optimizers.raw_backbones.moead import ConstrainedMOEAD, build_algorithm_kwargs
+from optimizers.repair import repair_case_from_vector
+
+
+@dataclass(slots=True)
+class DecompositionUnionAdapterArtifacts:
+    algorithm: Any
+    controller_trace: list[ControllerTraceRow]
+    operator_trace: list[OperatorTraceRow]
+
+
+class UnionConstrainedMOEAD(ConstrainedMOEAD):
+    def __init__(
+        self,
+        *,
+        operator_ids: list[str],
+        controller_id: str,
+        variable_layout: VariableLayout,
+        repair_reference_case: Any,
+        optimization_spec: dict[str, Any],
+        ref_dirs: np.ndarray,
+        n_neighbors: int,
+        reference_direction_parameters: dict[str, Any],
+    ) -> None:
+        super().__init__(ref_dirs=ref_dirs, n_neighbors=n_neighbors)
+        self.reference_direction_parameters = reference_direction_parameters
+        self.union_controller = build_controller(controller_id)
+        self.operator_ids = list(operator_ids)
+        self.variable_layout = variable_layout
+        self.repair_reference_case = repair_reference_case
+        self.optimization_spec = optimization_spec
+        self.native_operator_id = native_operator_id_for_backbone("decomposition", "moead")
+        self.controller_trace: list[ControllerTraceRow] = []
+        self.operator_trace: list[OperatorTraceRow] = []
+
+    def _next(self):
+        pop = self.pop
+        n_parents = self.mating.crossover.n_parents
+        for neighbor_index in self.random_state.permutation(len(pop)):
+            parent_indices = self.selection.do(
+                self.problem,
+                pop,
+                1,
+                n_parents,
+                neighbors=[self.neighbors[neighbor_index]],
+                to_pop=False,
+                random_state=self.random_state,
+            )
+            row = np.asarray(parent_indices, dtype=np.int64).reshape(-1)
+            parents = ParentBundle.from_vectors(*(np.asarray(pop[index].X, dtype=np.float64) for index in row))
+            evaluation_index = int(self.problem._next_evaluation_index)
+            state = ControllerState.from_parent_bundle(
+                parents,
+                family="decomposition",
+                backbone="moead",
+                generation_index=max(0, int(getattr(self, "n_iter", 0))),
+                evaluation_index=evaluation_index,
+                metadata={"neighbor_index": int(neighbor_index), "parent_indices": row.tolist()},
+            )
+            operator_id = self.union_controller.select_operator(state, self.operator_ids, self.random_state)
+            if operator_id == self.native_operator_id:
+                raw_proposal = self._native_moead_proposal(pop, row)
+                proposal_kind = "native"
+            else:
+                native_proposal = self._native_moead_proposal(pop, row)
+                custom_proposal = get_operator_definition(operator_id).propose(
+                    parents=parents,
+                    state=state,
+                    variable_layout=self.variable_layout,
+                    rng=self.random_state,
+                )
+                # MOEA/D depends strongly on neighborhood-native offspring geometry.
+                # Inject only a small custom displacement on top of the native proposal.
+                raw_proposal = 0.98 * native_proposal + 0.02 * np.asarray(custom_proposal, dtype=np.float64)
+                proposal_kind = "custom"
+            repaired_proposal = self._repair_vector(raw_proposal)
+            self.controller_trace.append(
+                ControllerTraceRow(
+                    generation_index=state.generation_index,
+                    evaluation_index=state.evaluation_index,
+                    family="decomposition",
+                    backbone="moead",
+                    controller_id=self.union_controller.controller_id,
+                    candidate_operator_ids=tuple(self.operator_ids),
+                    selected_operator_id=operator_id,
+                    metadata={
+                        "neighbor_index": int(neighbor_index),
+                        "parent_indices": row.tolist(),
+                        "proposal_kind": proposal_kind,
+                    },
+                )
+            )
+            self.operator_trace.append(
+                OperatorTraceRow(
+                    generation_index=state.generation_index,
+                    evaluation_index=state.evaluation_index,
+                    operator_id=operator_id,
+                    parent_count=parents.num_parents,
+                    parent_vectors=tuple(tuple(float(value) for value in vector.tolist()) for vector in parents.vectors),
+                    proposal_vector=tuple(float(value) for value in raw_proposal.tolist()),
+                    metadata={
+                        "neighbor_index": int(neighbor_index),
+                        "proposal_kind": proposal_kind,
+                        "repaired_vector": repaired_proposal.tolist(),
+                    },
+                )
+            )
+            offspring = Population.new(X=np.asarray([repaired_proposal], dtype=np.float64))[0]
+            offspring = yield offspring
+            self.ideal = np.min(np.vstack([self.ideal, offspring.F]), axis=0)
+            self._replace(neighbor_index, offspring)
+
+    def _native_moead_proposal(self, pop: Population, parent_indices: np.ndarray) -> np.ndarray:
+        native_offspring = self.mating.crossover(
+            self.problem,
+            pop,
+            parents=np.asarray([parent_indices], dtype=np.int64),
+            random_state=self.random_state,
+        )
+        native_offspring = self.mating.mutation(
+            self.problem,
+            native_offspring,
+            random_state=self.random_state,
+        )
+        chosen = self.random_state.choice(native_offspring)
+        return np.asarray(chosen.X, dtype=np.float64)
+
+    def _repair_vector(self, vector: np.ndarray) -> np.ndarray:
+        repaired_case = repair_case_from_vector(
+            self.repair_reference_case,
+            self.optimization_spec,
+            np.asarray(vector, dtype=np.float64),
+        )
+        return extract_decision_vector(repaired_case, self.optimization_spec)
+
+
+def build_decomposition_union_algorithm(problem: Any, optimization_spec: Any, algorithm_config: dict[str, Any]) -> DecompositionUnionAdapterArtifacts:
+    spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
+    if algorithm_config["mode"] != "union":
+        raise ValueError(f"Decomposition union adapter requires algorithm.mode='union', got {algorithm_config['mode']!r}.")
+    if algorithm_config["family"] != "decomposition" or algorithm_config["backbone"] != "moead":
+        raise ValueError(
+            "Decomposition union adapter supports only family='decomposition', backbone='moead'. "
+            f"Received family={algorithm_config['family']!r}, backbone={algorithm_config['backbone']!r}."
+        )
+
+    kwargs = build_algorithm_kwargs(problem, algorithm_config)
+    algorithm = UnionConstrainedMOEAD(
+        operator_ids=list(spec_payload["operator_control"]["operator_pool"]),
+        controller_id=str(spec_payload["operator_control"]["controller"]),
+        variable_layout=VariableLayout.from_optimization_spec(spec_payload),
+        repair_reference_case=next(iter(problem.base_cases.values())),
+        optimization_spec=spec_payload,
+        ref_dirs=kwargs["ref_dirs"],
+        n_neighbors=kwargs["n_neighbors"],
+        reference_direction_parameters=kwargs["reference_direction_parameters"],
+    )
+    return DecompositionUnionAdapterArtifacts(
+        algorithm=algorithm,
+        controller_trace=algorithm.controller_trace,
+        operator_trace=algorithm.operator_trace,
+    )

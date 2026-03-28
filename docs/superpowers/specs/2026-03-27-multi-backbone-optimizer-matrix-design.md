@@ -1,18 +1,27 @@
 # Multi-Backbone Optimizer Matrix Design
 
-> Status: approved next-stage optimizer-platform direction after the pure `NSGA-II` reset.
+> Status: approved optimizer-platform direction. The pure `NSGA-II` run remains the active paper-facing classical baseline, and the repository now also includes the first-batch six-backbone raw matrix runtime.
 >
-> This spec supersedes the earlier single-backbone operator-pool planning direction. The currently implemented optimizer mainline remains the pure `pymoo` `NSGA-II` baseline, but all future operator-pool and controller work should target the multi-backbone matrix defined here.
+> This spec supersedes the earlier single-backbone operator-pool planning direction. Future operator-pool and controller work should target the multi-backbone matrix defined here rather than reviving an `NSGA-II`-only branch.
+>
+> Update on 2026-03-28: this spec remains the optimizer-platform and cross-backbone track. The next paper-facing `LLM` controller story is now documented separately in `docs/superpowers/specs/2026-03-28-nsga2-hybrid-union-controller-design.md`.
+>
+> Later implementation update: the repository now includes the raw matrix runtime and an exploratory `union-uniform` matrix runtime across the same six approved backbones. Any older `pool-random` wording below should be read as superseded by the current `union` terminology and runtime shape.
+>
+> Immediate-focus update on 2026-03-28: the matrix track remains available for platform experiments, but the immediate paper-facing next implementation step is the separate `NSGA-II` `L1-union-llm` controller line rather than a broad matrix-`LLM` rollout.
 
 ## 1. Goal
 
 Define the next optimizer-platform architecture for `msfenicsx` so that:
 
 - the paired hot/cold benchmark remains unchanged
-- the current pure `NSGA-II` path remains the active implemented classical baseline
+- the current pure `NSGA-II` path remains the active paper-facing classical baseline
+- the first-batch raw matrix runtime remains compatible with the same benchmark, evaluation, repair, and artifact contract
 - future classical experiments expand into a multi-backbone matrix instead of a single `NSGA-II` hybrid branch
 - one shared domain operator pool can be compared fairly across multiple `pymoo` backbones
 - future `LLM` strategy work becomes a controller-layer replacement on the same action space rather than a special case for one algorithm
+
+This spec now coexists with a separate `NSGA-II` hybrid-union controller line for the paper-facing `LLM` story. The matrix track remains the platform story for cross-backbone infrastructure and matched shared-pool comparisons.
 
 ## 2. Why The Single-Backbone Operator-Pool Direction Is No Longer Enough
 
@@ -45,7 +54,7 @@ The first complete experiment batch should include six backbones:
    - multiobjective swarm baseline
    - satisfies the requirement to include at least one non-evolutionary population method
 
-These six algorithms are the approved first batch for full raw and pool-random comparison.
+These six algorithms are the approved first batch for full raw and union-uniform comparison.
 
 Algorithms such as `SMS-EMOA` and `SPEA2` remain valid future extensions, but they are intentionally deferred so the first implementation wave stays tractable.
 
@@ -70,7 +79,7 @@ Purpose:
 
 - establish the raw classical baseline surface across multiple optimizer families
 
-### B1-Matrix-Pool-Random
+### P1-Matrix-Union-Uniform
 
 Run the same six backbones with:
 
@@ -82,7 +91,7 @@ Purpose:
 
 - measure what the shared operator pool contributes before any `LLM` policy is introduced
 
-### L1-Matrix-Pool-LLM
+### L1-Matrix-Union-LLM
 
 Future phase only:
 
@@ -144,10 +153,10 @@ Future optimizer specs should use a platform-level algorithm contract:
 algorithm:
   family: genetic | decomposition | swarm
   backbone: nsga2 | nsga3 | ctaea | rvea | moead | cmopso
-  mode: raw | pool
+  mode: raw | union
 ```
 
-When `mode: pool`, add:
+When `mode: union`, add:
 
 ```yaml
 operator_control:
@@ -249,7 +258,7 @@ This preserves the swarm identity while letting the same operator space particip
 
 ## 10. Fairness Rules
 
-All raw, pool-random, and future pool-LLM comparisons must keep the following matched unless the experiment is explicitly framed otherwise:
+All raw, union-uniform, and future union-LLM comparisons must keep the following matched unless the experiment is explicitly framed otherwise:
 
 1. benchmark template
 2. benchmark seeds
@@ -263,8 +272,8 @@ All raw, pool-random, and future pool-LLM comparisons must keep the following ma
 
 Comparison rules:
 
-- raw vs pool differs only by whether the operator-pool controller path is enabled
-- pool-random vs pool-LLM differs only by controller decision making
+- raw vs union differs only by whether the shared proposal-layer controller path is enabled
+- union-uniform vs union-LLM differs only by controller decision making
 - algorithm identity comes only from the selected backbone and its family adapter
 
 ## 11. Naming And Artifact Rules
@@ -280,16 +289,16 @@ Raw specs:
 - `panel_four_component_hot_cold_moead_raw_b0.yaml`
 - `panel_four_component_hot_cold_cmopso_raw_b0.yaml`
 
-Pool-random specs:
+Union-uniform specs:
 
-- `panel_four_component_hot_cold_nsga2_pool_random_b1.yaml`
-- `panel_four_component_hot_cold_nsga3_pool_random_b1.yaml`
-- `panel_four_component_hot_cold_ctaea_pool_random_b1.yaml`
-- `panel_four_component_hot_cold_rvea_pool_random_b1.yaml`
-- `panel_four_component_hot_cold_moead_pool_random_b1.yaml`
-- `panel_four_component_hot_cold_cmopso_pool_random_b1.yaml`
+- `panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml`
+- `panel_four_component_hot_cold_nsga3_union_uniform_p1.yaml`
+- `panel_four_component_hot_cold_ctaea_union_uniform_p1.yaml`
+- `panel_four_component_hot_cold_rvea_union_uniform_p1.yaml`
+- `panel_four_component_hot_cold_moead_union_uniform_p1.yaml`
+- `panel_four_component_hot_cold_cmopso_union_uniform_p1.yaml`
 
-Future pool-LLM specs follow the same pattern with `_pool_llm_l1`.
+Future union-LLM specs follow the same pattern with `_union_llm_l1`.
 
 ### 11.2 Artifact Rules
 

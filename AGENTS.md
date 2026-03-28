@@ -6,8 +6,22 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 
 - `main` already contains the Phase 1 clean rebuild baseline.
 - The old demo stack has been removed from active repository structure.
-- The active implemented optimizer mainline is multicase, multiobjective, and centered on a plain `pymoo` `NSGA-II` baseline.
-- The approved next-stage optimizer architecture is a multi-backbone raw/pool matrix rather than an `NSGA-II`-only operator-pool branch.
+- The active paper-facing classical optimizer baseline is multicase, multiobjective, and centered on a plain `pymoo` `NSGA-II` run.
+- The repository now also includes the first implemented raw multi-backbone runtime batch for:
+  - `NSGA-II`
+  - `NSGA-III`
+  - `C-TAEA`
+  - `RVEA`
+  - constrained `MOEA/D`
+  - `CMOPSO`
+- The approved next-stage optimizer architecture is a multi-backbone raw/union matrix rather than an `NSGA-II`-only operator-pool branch.
+- The repository currently keeps the raw multi-backbone matrix runtime, an exploratory multi-backbone `union-uniform` runtime across the same six backbones, and the shared proposal-layer contracts.
+- The paper-facing controller line is now a separate `NSGA-II` hybrid-union ladder:
+  - pure-native `NSGA-II`
+  - union-uniform `NSGA-II`
+  - union-`LLM` `NSGA-II`
+- The paper-facing `union-uniform` rung is now implemented and mechanism-analyzed.
+- The immediate next paper-facing implementation step is `union-LLM` on `NSGA-II`, using the same mixed action registry, repair, evaluation contract, and budget framing.
 - The active platform is organized around:
   - `core/`
   - `evaluation/`
@@ -46,8 +60,12 @@ The only active paper-facing classical optimizer spec is:
 
 `scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml`
 
+The implemented optimizer runtime also supports a first-batch raw matrix and exploratory union-uniform matrix across the six approved backbones, using the same benchmark generation, evaluation, repair, and artifact contract.
+For the paper-facing controller line, `NSGA-II union-uniform` is now implemented and analyzed, and the next implementation focus is `NSGA-II union-LLM` rather than further broadening the exploratory matrix runtime.
+
 The earlier heuristic hybrid `B1` direction is superseded and should not be reintroduced as an active supported baseline without an explicit new plan.
-Future operator-pool work should follow the multi-backbone optimizer-matrix spec and plan.
+Future multi-backbone operator-pool work should follow the multi-backbone optimizer-matrix spec and plan.
+Future paper-facing `LLM` controller work on `NSGA-II` should follow the hybrid-union spec and plan.
 
 ## Architectural Expectations
 
@@ -94,8 +112,13 @@ Future operator-pool work should follow the multi-backbone optimizer-matrix spec
 - Treat `scenario_template`, `thermal_case`, and `thermal_solution` as the active canonical contracts.
 - Keep evaluation criteria in standalone `evaluation_spec` files instead of adding objective or constraint metadata to `thermal_case`.
 - Keep optimizer search settings and design-variable bounds in standalone `optimization_spec` files instead of adding optimizer metadata to `thermal_case`.
+- Keep optimizer hyperparameters and backbone-specific variation settings in optimizer-layer config, not in `core/` contracts and not in hand-tuned wrapper code.
+- Repository-wide backbone defaults belong in `optimizers/algorithm_config.py`.
+- Benchmark-specific optimizer tuning belongs in profile/spec layer inputs such as `scenarios/optimization/profiles/` and `algorithm.parameters`, with effective resolution ordered as `global defaults < benchmark profile < spec inline overrides`.
+- Backbone wrappers and raw drivers should consume resolved `algorithm.parameters` instead of hiding scenario-specific tuning in constructor logic.
 - Active optimization reporting should name operating cases and Pareto outputs instead of implying one scalar best result.
 - The active classical baseline should remain plain `NSGA-II` unless a newer plan explicitly replaces it.
+- The approved multi-backbone comparison track should keep benchmark source, evaluation spec, decision encoding, repair, and artifact bundle contract aligned across backbones unless a document explicitly defines a different experiment class.
 - Any future operator-pool controller comparison must be treated as a separate experimental track rather than silently folded into the mainline.
 - Any future operator-pool controller comparison should be algorithm-agnostic and multi-backbone rather than `NSGA-II`-only.
 - Runtime outputs should go to `scenario_runs/` or another explicit artifact location, not source folders.
@@ -130,6 +153,8 @@ Current Phase 1 test areas are:
 - For multicase optimization claims, identify the operating cases and whether the evidence comes from one representative Pareto point or the Pareto set as a whole.
 - If comparing future controller methods, keep the operator pool, repair, benchmark seeds, evaluation spec, and simulation budget matched unless the comparison is explicitly framed as a different experiment class.
 - If comparing future backbone methods, keep benchmark source, evaluation spec, design-variable encoding, repair, and total expensive-evaluation budget matched unless the comparison is explicitly framed as a different experiment class.
+- In the `NSGA-II` hybrid-union line, keep the mixed native-plus-custom action registry matched between the non-LLM and `LLM` controllers.
+- In the `NSGA-II` hybrid-union line, describe the change as an action-space expansion, not as a change to the eight-variable decision encoding.
 - If something is not validated yet, label it as a hypothesis rather than a confirmed result.
 - Comparative claims should use more than one seed unless the work is explicitly exploratory.
 - Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis instead of hiding them.
@@ -151,11 +176,31 @@ Current Phase 1 test areas are:
 - `docs/superpowers/plans/2026-03-26-msfenicsx-clean-rebuild-phase1.md`
 - `docs/superpowers/specs/2026-03-27-paper-grade-multiobjective-thermal-baseline-design.md`
 - `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
+- `docs/superpowers/specs/2026-03-28-nsga2-hybrid-union-controller-design.md`
 - `docs/superpowers/plans/2026-03-27-paper-grade-multiobjective-thermal-baseline.md`
 - `docs/superpowers/plans/2026-03-27-pure-nsga2-mainline-reset.md`
 - `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`
-- `docs/msgalaxy/R60_msfenicsx_2d_fenicsx_migration_initial_report_20260326.md`
+- `docs/superpowers/plans/2026-03-28-nsga2-hybrid-union-controller.md`
+- `docs/reports/R60_msfenicsx_2d_fenicsx_migration_initial_report_20260326.md`
 - `docs/reports/R63_msfenicsx_multicase_multiobjective_reset_20260327.md`
 - `docs/reports/R64_msfenicsx_paper_grade_b0_rollout_20260327.md`
 - `docs/reports/R66_msfenicsx_pure_nsga2_mainline_reset_20260327.md`
 - `docs/reports/R67_msfenicsx_multi_backbone_optimizer_matrix_doc_reset_20260327.md`
+- `docs/reports/R68_msfenicsx_nsga2_union_mechanism_analysis_20260328.md`
+- `optimizers/algorithm_config.py`
+- `optimizers/drivers/raw_driver.py`
+- `optimizers/validation.py`
+- `scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml`
+- `scenarios/optimization/panel_four_component_hot_cold_nsga2_raw_b0.yaml`
+- `scenarios/optimization/panel_four_component_hot_cold_nsga3_raw_b0.yaml`
+- `scenarios/optimization/panel_four_component_hot_cold_ctaea_raw_b0.yaml`
+- `scenarios/optimization/panel_four_component_hot_cold_rvea_raw_b0.yaml`
+- `scenarios/optimization/panel_four_component_hot_cold_moead_raw_b0.yaml`
+- `scenarios/optimization/panel_four_component_hot_cold_cmopso_raw_b0.yaml`
+- `scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml`
+- `scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml`
+- `scenarios/optimization/profiles/panel_four_component_hot_cold_nsga2_raw.yaml`
+- `scenarios/optimization/profiles/panel_four_component_hot_cold_nsga2_union.yaml`
+- `scenarios/optimization/profiles/panel_four_component_hot_cold_nsga3_raw.yaml`
+- `tests/optimizers/test_raw_driver_matrix.py`
+- `tests/optimizers/test_repair.py`

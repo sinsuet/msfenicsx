@@ -4,19 +4,29 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from core.schema.io import save_case, save_solution
 from evaluation.io import save_multicase_report
-from optimizers.drivers.raw_driver import OptimizationRun
 from optimizers.io import save_optimization_result
 from optimizers.problem import CandidateArtifacts
 
 
-def write_optimization_artifacts(output_root: str | Path, run: OptimizationRun) -> Path:
+def write_optimization_artifacts(output_root: str | Path, run: Any) -> Path:
     resolved_output_root = Path(output_root)
     _initialize_bundle_root(resolved_output_root, include_representatives=True)
     save_optimization_result(run.result, resolved_output_root / "optimization_result.json")
     save_optimization_result({"pareto_front": run.result.pareto_front}, resolved_output_root / "pareto_front.json")
+    snapshots = {
+        "optimization_result": "optimization_result.json",
+        "pareto_front": "pareto_front.json",
+    }
+    if hasattr(run, "controller_trace"):
+        _write_trace_payload(resolved_output_root / "controller_trace.json", getattr(run, "controller_trace"))
+        snapshots["controller_trace"] = "controller_trace.json"
+    if hasattr(run, "operator_trace"):
+        _write_trace_payload(resolved_output_root / "operator_trace.json", getattr(run, "operator_trace"))
+        snapshots["operator_trace"] = "operator_trace.json"
     representatives_root = resolved_output_root / "representatives"
     for name, artifacts in run.representative_artifacts.items():
         _write_representative_bundle(representatives_root / name.replace("_", "-"), artifacts)
@@ -24,10 +34,7 @@ def write_optimization_artifacts(output_root: str | Path, run: OptimizationRun) 
         "run_id": run.result.run_meta["run_id"],
         "optimization_spec_id": run.result.run_meta["optimization_spec_id"],
         "evaluation_spec_id": run.result.run_meta["evaluation_spec_id"],
-        "snapshots": {
-            "optimization_result": "optimization_result.json",
-            "pareto_front": "pareto_front.json",
-        },
+        "snapshots": snapshots,
         "directories": _bundle_directories(include_representatives=True),
     }
     _write_manifest(resolved_output_root / "manifest.json", manifest)
@@ -78,4 +85,9 @@ def _bundle_directories(*, include_representatives: bool = False) -> dict[str, s
 
 
 def _write_manifest(path: Path, payload: dict[str, object]) -> None:
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _write_trace_payload(path: Path, rows: list[Any]) -> None:
+    payload = [row.to_dict() if hasattr(row, "to_dict") else row for row in rows]
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

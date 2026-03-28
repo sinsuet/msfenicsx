@@ -16,7 +16,16 @@ DEFAULT_ALGORITHM_PARAMETERS = {
         "crossover": {"operator": "sbx", "eta": 15, "prob": 0.9},
         "mutation": {"operator": "pm", "eta": 20},
     },
+    ("genetic", "nsga2", "union"): {
+        "crossover": {"operator": "sbx", "eta": 15, "prob": 0.9},
+        "mutation": {"operator": "pm", "eta": 20},
+    },
     ("genetic", "nsga3", "raw"): {
+        "reference_directions": {"scheme": "uniform"},
+        "crossover": {"operator": "sbx", "eta": 15, "prob": 0.9},
+        "mutation": {"operator": "pm", "eta": 20},
+    },
+    ("genetic", "nsga3", "union"): {
         "reference_directions": {"scheme": "uniform"},
         "crossover": {"operator": "sbx", "eta": 15, "prob": 0.9},
         "mutation": {"operator": "pm", "eta": 20},
@@ -26,14 +35,29 @@ DEFAULT_ALGORITHM_PARAMETERS = {
         "crossover": {"operator": "sbx", "eta": 30, "prob": 1.0, "n_offsprings": 1},
         "mutation": {"operator": "pm", "eta": 20},
     },
+    ("genetic", "ctaea", "union"): {
+        "reference_directions": {"scheme": "energy"},
+        "crossover": {"operator": "sbx", "eta": 30, "prob": 1.0, "n_offsprings": 1},
+        "mutation": {"operator": "pm", "eta": 20},
+    },
     ("genetic", "rvea", "raw"): {
+        "reference_directions": {"scheme": "energy"},
+    },
+    ("genetic", "rvea", "union"): {
         "reference_directions": {"scheme": "energy"},
     },
     ("decomposition", "moead", "raw"): {
         "reference_directions": {"scheme": "energy"},
         "neighbors": {"strategy": "half_population", "min_size": 2},
     },
+    ("decomposition", "moead", "union"): {
+        "reference_directions": {"scheme": "energy"},
+        "neighbors": {"strategy": "half_population", "min_size": 2},
+    },
     ("swarm", "cmopso", "raw"): {
+        "elite_archive": {"strategy": "half_population", "min_size": 5},
+    },
+    ("swarm", "cmopso", "union"): {
         "elite_archive": {"strategy": "half_population", "min_size": 5},
     },
 }

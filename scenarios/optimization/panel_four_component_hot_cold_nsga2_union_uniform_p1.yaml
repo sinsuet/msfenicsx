@@ -1,7 +1,7 @@
 schema_version: "1.0"
 spec_meta:
-  spec_id: panel-four-component-hot-cold-nsga2-pool-random-b1
-  description: Shared-operator-pool NSGA-II random-controller matrix baseline.
+  spec_id: panel-four-component-hot-cold-nsga2-union-uniform-p1
+  description: NSGA-II hybrid-union P1 baseline with a uniform controller over native and shared custom actions.
 benchmark_source:
   template_path: scenarios/templates/panel_four_component_hot_cold_benchmark.yaml
   seed: 11
@@ -41,13 +41,15 @@ design_variables:
 algorithm:
   family: genetic
   backbone: nsga2
-  mode: pool
+  mode: union
   population_size: 16
   num_generations: 8
   seed: 7
+  profile_path: scenarios/optimization/profiles/panel_four_component_hot_cold_nsga2_union.yaml
 operator_control:
   controller: random_uniform
   operator_pool:
+    - native_sbx_pm
     - sbx_pm_global
     - local_refine
     - hot_pair_to_sink

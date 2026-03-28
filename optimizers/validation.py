@@ -6,24 +6,19 @@ from collections.abc import Mapping, Sequence
 from numbers import Real
 from typing import Any
 
+from optimizers.operator_pool.operators import (
+    APPROVED_SHARED_OPERATOR_IDS,
+    approved_union_operator_ids_for_backbone,
+)
+
 
 SUPPORTED_BACKBONES_BY_FAMILY = {
     "genetic": ("nsga2", "nsga3", "ctaea", "rvea"),
     "decomposition": ("moead",),
     "swarm": ("cmopso",),
 }
-SUPPORTED_MODES = {"raw", "pool"}
+SUPPORTED_MODES = {"raw", "union"}
 SUPPORTED_CONTROLLERS = {"random_uniform", "llm"}
-SUPPORTED_OPERATOR_POOL = (
-    "sbx_pm_global",
-    "local_refine",
-    "hot_pair_to_sink",
-    "hot_pair_separate",
-    "battery_to_warm_zone",
-    "radiator_align_hot_pair",
-    "radiator_expand",
-    "radiator_contract",
-)
 
 
 class OptimizationValidationError(ValueError):
@@ -49,7 +44,12 @@ def validate_optimization_spec_payload(payload: Mapping[str, Any]) -> None:
     for variable in design_variables:
         _validate_design_variable(variable, seen_variable_ids, seen_paths)
     algorithm = _validate_algorithm(payload["algorithm"])
-    _validate_operator_control(payload.get("operator_control"), mode=algorithm["mode"])
+    _validate_operator_control(
+        payload.get("operator_control"),
+        family=algorithm["family"],
+        backbone=algorithm["backbone"],
+        mode=algorithm["mode"],
+    )
     _validate_evaluation_protocol(payload["evaluation_protocol"])
 
 
@@ -164,14 +164,16 @@ def _validate_algorithm(algorithm: Any) -> dict[str, Any]:
     return {"family": family, "backbone": backbone, "mode": mode}
 
 
-def _validate_operator_control(operator_control: Any, *, mode: str) -> None:
+def _validate_operator_control(operator_control: Any, *, family: str, backbone: str, mode: str) -> None:
     if mode == "raw":
         if operator_control is not None:
-            raise OptimizationValidationError("operator_control is allowed only when algorithm.mode is 'pool'.")
+            raise OptimizationValidationError("operator_control is allowed only when algorithm.mode is 'union'.")
         return
 
+    if mode != "union":
+        raise OptimizationValidationError(f"Unsupported operator-control mode '{mode}'.")
     if operator_control is None:
-        raise OptimizationValidationError("operator_control is required when algorithm.mode is 'pool'.")
+        raise OptimizationValidationError("operator_control is required when algorithm.mode is 'union'.")
 
     required_keys = ("controller", "operator_pool")
     _require_mapping(operator_control, "operator_control")
@@ -182,22 +184,21 @@ def _validate_operator_control(operator_control: Any, *, mode: str) -> None:
             f"operator_control.controller '{controller}' must be one of {sorted(SUPPORTED_CONTROLLERS)}."
         )
 
-    operator_pool = _require_sequence(operator_control["operator_pool"], "operator_control.operator_pool")
-    if not operator_pool:
-        raise OptimizationValidationError("operator_control.operator_pool must contain at least one operator.")
-    seen_operator_ids: set[str] = set()
-    for index, operator_id in enumerate(operator_pool):
-        validated_operator_id = _require_text(operator_id, f"operator_control.operator_pool[{index}]")
-        if validated_operator_id not in SUPPORTED_OPERATOR_POOL:
-            raise OptimizationValidationError(
-                f"operator_control.operator_pool[{index}] '{validated_operator_id}' must be one of "
-                f"{list(SUPPORTED_OPERATOR_POOL)}."
-            )
-        if validated_operator_id in seen_operator_ids:
-            raise OptimizationValidationError(
-                f"operator_control.operator_pool contains duplicate operator '{validated_operator_id}'."
-            )
-        seen_operator_ids.add(validated_operator_id)
+    operator_pool = tuple(
+        _require_text(operator_id, f"operator_control.operator_pool[{index}]")
+        for index, operator_id in enumerate(_require_sequence(operator_control["operator_pool"], "operator_control.operator_pool"))
+    )
+    try:
+        approved_operator_pool = approved_union_operator_ids_for_backbone(family, backbone)
+    except KeyError as exc:
+        raise OptimizationValidationError(
+            f"algorithm.mode 'union' is not approved for family={family!r}, backbone={backbone!r}."
+        ) from exc
+    if operator_pool != approved_operator_pool:
+        raise OptimizationValidationError(
+            "operator_control.operator_pool for algorithm.mode 'union' must exactly match "
+            f"{list(approved_operator_pool)}. Shared custom operators remain {list(APPROVED_SHARED_OPERATOR_IDS)}."
+        )
 
 
 def _validate_evaluation_protocol(protocol: Any) -> None:

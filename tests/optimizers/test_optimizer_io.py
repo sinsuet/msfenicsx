@@ -184,11 +184,86 @@ def test_active_nsga_specs_resolve_benchmark_profiles() -> None:
     assert nsga3_algorithm["parameters"]["mutation"]["eta"] == 15
 
 
-def test_pool_spec_requires_operator_control_block() -> None:
-    with open("scenarios/optimization/panel_four_component_hot_cold_nsga2_pool_random_b1.yaml", "r", encoding="utf-8") as handle:
+def test_union_spec_requires_operator_control_block() -> None:
+    with open("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml", "r", encoding="utf-8") as handle:
         payload = yaml.safe_load(handle)
 
     payload.pop("operator_control")
+
+    with pytest.raises(OptimizationValidationError):
+        OptimizationSpec.from_dict(payload)
+
+
+def test_union_spec_uses_nsga2_union_mode_contract() -> None:
+    spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml")
+
+    assert {key: spec.algorithm[key] for key in ("family", "backbone", "mode")} == {
+        "family": "genetic",
+        "backbone": "nsga2",
+        "mode": "union",
+    }
+
+
+@pytest.mark.parametrize(
+    ("spec_name", "family", "backbone", "native_operator_id"),
+    [
+        ("panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml", "genetic", "nsga2", "native_sbx_pm"),
+        ("panel_four_component_hot_cold_nsga3_union_uniform_p1.yaml", "genetic", "nsga3", "native_sbx_pm"),
+        ("panel_four_component_hot_cold_ctaea_union_uniform_p1.yaml", "genetic", "ctaea", "native_sbx_pm"),
+        ("panel_four_component_hot_cold_rvea_union_uniform_p1.yaml", "genetic", "rvea", "native_sbx_pm"),
+        ("panel_four_component_hot_cold_moead_union_uniform_p1.yaml", "decomposition", "moead", "native_moead"),
+        ("panel_four_component_hot_cold_cmopso_union_uniform_p1.yaml", "swarm", "cmopso", "native_cmopso"),
+    ],
+)
+def test_union_matrix_specs_load_with_backbone_native_action_contract(
+    spec_name: str,
+    family: str,
+    backbone: str,
+    native_operator_id: str,
+) -> None:
+    spec = load_optimization_spec(Path("scenarios/optimization") / spec_name)
+
+    assert {key: spec.algorithm[key] for key in ("family", "backbone", "mode")} == {
+        "family": family,
+        "backbone": backbone,
+        "mode": "union",
+    }
+    assert spec.operator_control is not None
+    assert spec.operator_control["controller"] == "random_uniform"
+    assert spec.operator_control["operator_pool"][0] == native_operator_id
+
+
+def test_union_spec_requires_native_action_in_registry() -> None:
+    payload = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml").to_dict()
+    payload["operator_control"]["operator_pool"] = [
+        operator_id
+        for operator_id in payload["operator_control"]["operator_pool"]
+        if operator_id != "native_sbx_pm"
+    ]
+
+    with pytest.raises(OptimizationValidationError):
+        OptimizationSpec.from_dict(payload)
+
+
+def test_union_specs_share_same_benchmark_source() -> None:
+    uniform_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml")
+    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
+
+    assert uniform_spec.benchmark_source == llm_spec.benchmark_source
+    assert uniform_spec.operator_control is not None
+    assert llm_spec.operator_control is not None
+    assert uniform_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
+    assert uniform_spec.operator_control["controller"] == "random_uniform"
+    assert llm_spec.operator_control["controller"] == "llm"
+
+
+def test_moead_union_spec_requires_native_moead_action() -> None:
+    payload = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_moead_union_uniform_p1.yaml").to_dict()
+    payload["operator_control"]["operator_pool"] = [
+        operator_id
+        for operator_id in payload["operator_control"]["operator_pool"]
+        if operator_id != "native_moead"
+    ]
 
     with pytest.raises(OptimizationValidationError):
         OptimizationSpec.from_dict(payload)

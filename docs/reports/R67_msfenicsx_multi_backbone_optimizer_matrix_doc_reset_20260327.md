@@ -6,7 +6,9 @@ Date: 2026-03-27
 
 This report records a documentation reset only. No optimizer implementation was changed in this step.
 
-The repository's implemented optimizer mainline remains:
+Historical note: this report captures the approval/reset point for the matrix direction. The repository has since implemented the first-batch raw matrix runtime. An exploratory matrix `pool-random` implementation was also tried, but that code/spec path was later removed from the active repository state to keep the platform clean. Further update on 2026-03-28: the matrix direction remains the optimizer-platform line, while the next paper-facing controller story is now documented separately as an `NSGA-II` hybrid-union line.
+
+At the time of this reset, the repository's implemented optimizer mainline remained:
 
 - pure `pymoo` `NSGA-II`
 - paired hot/cold four-component benchmark
@@ -54,9 +56,9 @@ The second story is now the approved one.
 
 Documentation verification executed:
 
-1. `git diff --check -- README.md AGENTS.md RULES.md docs`
+1. `git diff --check -- README.md AGENTS.md docs`
    Result: clean
-2. `git grep -n 'operator_pool_nsga2\|single-backbone operator-pool\|Hybrid-Operator `NSGA-II`' -- README.md AGENTS.md RULES.md docs || true`
+2. `git grep -n 'operator_pool_nsga2\|single-backbone operator-pool\|Hybrid-Operator `NSGA-II`' -- README.md AGENTS.md docs || true`
    Result: no active-document matches after the reset
 
 ## Status
@@ -68,5 +70,7 @@ Implemented truth remains:
 Approved next-stage truth is now:
 
 - multi-backbone raw matrix
-- multi-backbone pool-random matrix
-- later multi-backbone pool-LLM matrix
+- exploratory multi-backbone union-uniform matrix
+- possible later multi-backbone union-LLM matrix as a platform experiment class
+- plus a separate paper-facing `NSGA-II` hybrid-union controller ladder
+- with the immediate next paper-facing implementation step now focused on `NSGA-II union-LLM`

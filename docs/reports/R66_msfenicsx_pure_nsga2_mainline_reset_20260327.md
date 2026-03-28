@@ -6,6 +6,9 @@ Date: 2026-03-27
 
 This reset changes the active paper-facing optimizer mainline.
 
+Historical note: this report captures the pure `NSGA-II` reset point. The repository has since added the first-batch six-backbone raw matrix runtime, but that later implementation does not change the paper-facing baseline established here.
+Further update on 2026-03-28: the paper-facing controller line is now the separate `NSGA-II` hybrid-union track. Its `union-uniform` rung is already implemented and analyzed, and the immediate next paper-facing implementation step is `union-LLM NSGA-II`.
+
 After this reset:
 
 - the active classical baseline is plain `pymoo` `NSGA-II`
@@ -39,7 +42,7 @@ Operator-pool controller comparisons are intentionally deferred to a later dedic
 
 That later phase must compare controllers under a matched setup:
 
-- same operator pool
+- same action registry for the experiment class
 - same repair logic
 - same paired benchmark seeds
 - same evaluation spec
@@ -47,8 +50,9 @@ That later phase must compare controllers under a matched setup:
 
 The intended future comparison is:
 
-- non-LLM random or fixed selector baseline
-- `LLM` selector on the same operator pool
+- pure-native `NSGA-II`
+- later `NSGA-II` hybrid-union uniform controller baseline
+- later `NSGA-II` hybrid-union `LLM` controller comparison
 
 ## Verification
 
@@ -88,7 +92,8 @@ What changed materially:
 - the active optimizer result contract no longer emits operator telemetry
 - the only active classical optimizer spec is `panel_four_component_hot_cold_nsga2_b0.yaml`
 
-What remains for the next phase:
+What happened next:
 
-- design a separate operator-pool fairness study
-- compare a non-LLM selector and an `LLM` selector on the same operator pool under matched simulation budgets
+- the separate `NSGA-II` hybrid-union ladder was defined
+- the `union-uniform` rung was implemented and mechanism-analyzed
+- the immediate next paper-facing implementation step is `union-LLM NSGA-II`

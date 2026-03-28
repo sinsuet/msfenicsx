@@ -1,0 +1,169 @@
+"""Swarm-family union adapter for controller-guided offspring proposals."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+from pymoo.algorithms.moo.cmopso import CMOPSO, cmopso_equation
+from pymoo.core.population import Population
+
+from optimizers.codec import extract_decision_vector
+from optimizers.operator_pool.controllers import build_controller
+from optimizers.operator_pool.layout import VariableLayout
+from optimizers.operator_pool.models import ParentBundle
+from optimizers.operator_pool.operators import get_operator_definition, native_operator_id_for_backbone
+from optimizers.operator_pool.state import ControllerState
+from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
+from optimizers.raw_backbones.cmopso import build_algorithm_kwargs
+from optimizers.repair import repair_case_from_vector
+
+
+@dataclass(slots=True)
+class SwarmUnionAdapterArtifacts:
+    algorithm: Any
+    controller_trace: list[ControllerTraceRow]
+    operator_trace: list[OperatorTraceRow]
+
+
+class UnionAugmentedCMOPSO(CMOPSO):
+    def __init__(
+        self,
+        *,
+        operator_ids: list[str],
+        controller_id: str,
+        variable_layout: VariableLayout,
+        repair_reference_case: Any,
+        optimization_spec: dict[str, Any],
+        pop_size: int,
+        elite_size: int,
+    ) -> None:
+        super().__init__(pop_size=pop_size, elite_size=elite_size)
+        self.union_controller = build_controller(controller_id)
+        self.operator_ids = list(operator_ids)
+        self.variable_layout = variable_layout
+        self.repair_reference_case = repair_reference_case
+        self.optimization_spec = optimization_spec
+        self.native_operator_id = native_operator_id_for_backbone("swarm", "cmopso")
+        self.controller_trace: list[ControllerTraceRow] = []
+        self.operator_trace: list[OperatorTraceRow] = []
+
+    def _infill(self):
+        current_positions, velocities = self.pop.get("X", "V")
+        elite_positions = self.elites.get("X")
+        raw_positions, next_velocities = cmopso_equation(
+            current_positions,
+            elite_positions,
+            velocities,
+            self.V_max,
+            random_state=self.random_state,
+        )
+
+        augmented_positions: list[np.ndarray] = []
+        for particle_index, (current_position, raw_position, velocity) in enumerate(
+            zip(current_positions, raw_positions, next_velocities, strict=True)
+        ):
+            parents = ParentBundle.from_vectors(
+                np.asarray(raw_position, dtype=np.float64),
+                np.asarray(current_position, dtype=np.float64),
+            )
+            evaluation_index = int(self.problem._next_evaluation_index + particle_index)
+            state = ControllerState.from_parent_bundle(
+                parents,
+                family="swarm",
+                backbone="cmopso",
+                generation_index=max(0, int(getattr(self, "n_iter", 0))),
+                evaluation_index=evaluation_index,
+                metadata={"particle_index": int(particle_index)},
+            )
+            operator_id = self.union_controller.select_operator(state, self.operator_ids, self.random_state)
+            if operator_id == self.native_operator_id:
+                raw_proposal = np.asarray(raw_position, dtype=np.float64)
+                proposal_kind = "native"
+            else:
+                raw_proposal = get_operator_definition(operator_id).propose(
+                    parents=parents,
+                    state=state,
+                    variable_layout=self.variable_layout,
+                    rng=self.random_state,
+                )
+                proposal_kind = "custom"
+            repaired_position = self._repair_vector(raw_proposal)
+            augmented_positions.append(repaired_position)
+            self.controller_trace.append(
+                ControllerTraceRow(
+                    generation_index=state.generation_index,
+                    evaluation_index=state.evaluation_index,
+                    family="swarm",
+                    backbone="cmopso",
+                    controller_id=self.union_controller.controller_id,
+                    candidate_operator_ids=tuple(self.operator_ids),
+                    selected_operator_id=operator_id,
+                    metadata={
+                        "particle_index": int(particle_index),
+                        "proposal_kind": proposal_kind,
+                    },
+                )
+            )
+            self.operator_trace.append(
+                OperatorTraceRow(
+                    generation_index=state.generation_index,
+                    evaluation_index=state.evaluation_index,
+                    operator_id=operator_id,
+                    parent_count=parents.num_parents,
+                    parent_vectors=tuple(tuple(float(value) for value in vector.tolist()) for vector in parents.vectors),
+                    proposal_vector=tuple(float(value) for value in raw_proposal.tolist()),
+                    metadata={
+                        "particle_index": int(particle_index),
+                        "proposal_kind": proposal_kind,
+                        "raw_swarm_proposal": np.asarray(raw_position, dtype=np.float64).tolist(),
+                        "velocity": np.asarray(velocity, dtype=np.float64).tolist(),
+                        "repaired_vector": repaired_position.tolist(),
+                    },
+                )
+            )
+
+        off = Population.new(X=np.asarray(augmented_positions, dtype=np.float64), V=next_velocities)
+        off = self.mutation(self.problem, off, random_state=self.random_state)
+        off = self.repair(self.problem, off)
+        off.set(
+            "X",
+            [self._repair_vector(np.asarray(candidate, dtype=np.float64)).tolist() for candidate in off.get("X", to_numpy=False)],
+        )
+        return off
+
+    def _repair_vector(self, vector: np.ndarray) -> np.ndarray:
+        repaired_case = repair_case_from_vector(
+            self.repair_reference_case,
+            self.optimization_spec,
+            np.asarray(vector, dtype=np.float64),
+        )
+        return extract_decision_vector(repaired_case, self.optimization_spec)
+
+
+def build_swarm_union_algorithm(problem: Any, optimization_spec: Any, algorithm_config: dict[str, Any]) -> SwarmUnionAdapterArtifacts:
+    spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
+    if algorithm_config["mode"] != "union":
+        raise ValueError(f"Swarm union adapter requires algorithm.mode='union', got {algorithm_config['mode']!r}.")
+    if algorithm_config["family"] != "swarm" or algorithm_config["backbone"] != "cmopso":
+        raise ValueError(
+            "Swarm union adapter supports only family='swarm', backbone='cmopso'. "
+            f"Received family={algorithm_config['family']!r}, backbone={algorithm_config['backbone']!r}."
+        )
+
+    kwargs = build_algorithm_kwargs(problem, algorithm_config)
+    algorithm = UnionAugmentedCMOPSO(
+        operator_ids=list(spec_payload["operator_control"]["operator_pool"]),
+        controller_id=str(spec_payload["operator_control"]["controller"]),
+        variable_layout=VariableLayout.from_optimization_spec(spec_payload),
+        repair_reference_case=next(iter(problem.base_cases.values())),
+        optimization_spec=spec_payload,
+        pop_size=kwargs["pop_size"],
+        elite_size=kwargs["elite_size"],
+    )
+    return SwarmUnionAdapterArtifacts(
+        algorithm=algorithm,
+        controller_trace=algorithm.controller_trace,
+        operator_trace=algorithm.operator_trace,
+    )

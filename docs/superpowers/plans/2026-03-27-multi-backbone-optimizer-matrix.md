@@ -2,15 +2,28 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement a multi-backbone optimizer matrix for the paired hot/cold benchmark, keeping the current pure `NSGA-II` path as the active implemented baseline while adding a unified raw/pool experiment platform for `NSGA-II`, `NSGA-III`, `C-TAEA`, `RVEA`, constrained `MOEA/D`, and `CMOPSO`.
+> Later implementation update: the raw matrix runtime and exploratory `union-uniform` matrix runtime are now implemented across the first-batch six backbones. Treat any older `pool-random` wording below as superseded by the current `union` terminology and runtime path.
+>
+> Immediate-focus update on 2026-03-28: this plan remains the multi-backbone platform line, but the immediate paper-facing next implementation step is the separate `NSGA-II` `L1-union-llm` controller line rather than a broad matrix-`LLM` rollout.
 
-**Architecture:** Preserve the benchmark, solver, evaluation, decision-vector encoding, and legality repair as shared infrastructure. Introduce algorithm-agnostic operator-pool contracts plus family adapters so genetic, decomposition, and swarm backbones can all participate in the same raw and pool-random experiment matrix without hard-coding `NSGA-II` assumptions into the operator layer.
+**Goal:** Implement a multi-backbone optimizer matrix for the paired hot/cold benchmark, keeping the current pure `NSGA-II` path as the active paper-facing baseline while adding a unified raw/union experiment platform for `NSGA-II`, `NSGA-III`, `C-TAEA`, `RVEA`, constrained `MOEA/D`, and `CMOPSO`.
+
+**Architecture:** Preserve the benchmark, solver, evaluation, decision-vector encoding, and legality repair as shared infrastructure. Introduce algorithm-agnostic operator-pool contracts plus family adapters so genetic, decomposition, and swarm backbones can all participate in the same raw and union experiment matrix without hard-coding `NSGA-II` assumptions into the operator layer.
 
 **Tech Stack:** Python 3.12, PyYAML, NumPy, FEniCSx (`dolfinx`, `ufl`, `mpi4py`, `petsc4py`), `pymoo`, pytest
 
 ---
 
 Spec reference: `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
+
+Status update:
+
+- the first-batch raw matrix runtime is now implemented in the repository
+- the exploratory union-uniform matrix runtime is now implemented across the same six backbones
+- the shared proposal-layer operator contracts are implemented in the repository
+- this plan remains the optimizer-platform track for multi-backbone raw/union work
+- the next paper-facing controller work is now re-scoped into `docs/superpowers/plans/2026-03-28-nsga2-hybrid-union-controller.md`
+- benchmark/profile-based parameter layering is already in place, so remaining optimizer work should keep tuning in defaults/profile/spec inputs rather than wrapper-local hardcoding
 
 User preference override:
 
@@ -23,11 +36,11 @@ User preference override:
 - Modify: `optimizers/models.py`
   Replace single-backbone optimizer mode assumptions with the new `family/backbone/mode` contract.
 - Modify: `optimizers/validation.py`
-  Validate raw and pool forms across the six selected backbones.
+  Validate raw and union forms across the six selected backbones.
 - Modify: `optimizers/io.py`
   Load and save the new spec families while preserving benchmark-source generation.
 - Modify: `optimizers/artifacts.py`
-  Keep the stable result bundle and add optional pool-mode sidecars.
+  Keep the stable result bundle and add optional union-mode sidecars.
 - Modify: `optimizers/cli.py`
   Dispatch through a driver registry rather than a single `NSGA-II` entrypoint.
 
@@ -71,7 +84,7 @@ User preference override:
 - Create: `optimizers/drivers/__init__.py`
 - Create: `optimizers/drivers/registry.py`
 - Create: `optimizers/drivers/raw_driver.py`
-- Create: `optimizers/drivers/pool_driver.py`
+- Create: `optimizers/drivers/union_driver.py`
 
 ### Scenario Specs
 
@@ -81,12 +94,12 @@ User preference override:
 - Create: `scenarios/optimization/panel_four_component_hot_cold_rvea_raw_b0.yaml`
 - Create: `scenarios/optimization/panel_four_component_hot_cold_moead_raw_b0.yaml`
 - Create: `scenarios/optimization/panel_four_component_hot_cold_cmopso_raw_b0.yaml`
-- Create: `scenarios/optimization/panel_four_component_hot_cold_nsga2_pool_random_b1.yaml`
-- Create: `scenarios/optimization/panel_four_component_hot_cold_nsga3_pool_random_b1.yaml`
-- Create: `scenarios/optimization/panel_four_component_hot_cold_ctaea_pool_random_b1.yaml`
-- Create: `scenarios/optimization/panel_four_component_hot_cold_rvea_pool_random_b1.yaml`
-- Create: `scenarios/optimization/panel_four_component_hot_cold_moead_pool_random_b1.yaml`
-- Create: `scenarios/optimization/panel_four_component_hot_cold_cmopso_pool_random_b1.yaml`
+- Create: `scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml`
+- Create: `scenarios/optimization/panel_four_component_hot_cold_nsga3_union_uniform_p1.yaml`
+- Create: `scenarios/optimization/panel_four_component_hot_cold_ctaea_union_uniform_p1.yaml`
+- Create: `scenarios/optimization/panel_four_component_hot_cold_rvea_union_uniform_p1.yaml`
+- Create: `scenarios/optimization/panel_four_component_hot_cold_moead_union_uniform_p1.yaml`
+- Create: `scenarios/optimization/panel_four_component_hot_cold_cmopso_union_uniform_p1.yaml`
 
 ### Tests
 
@@ -429,7 +442,7 @@ Run:
 
 Expected:
 
-- PASS for the genetic-family backbones in pool-random mode
+- PASS for the genetic-family backbones in union-uniform mode
 
 - [ ] **Step 5: Commit**
 
@@ -708,15 +721,15 @@ Expected:
 
 - run completes successfully
 
-- [ ] **Step 4: Run one pool-random smoke optimization**
+- [ ] **Step 4: Run one union-uniform smoke optimization**
 
 Run:
 
 ```bash
 cd /home/hymn/msfenicsx
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_pool_random_b1.yaml \
-  --output-root ./scenario_runs/nsga2_pool_random_b1_smoke
+  --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml \
+  --output-root ./scenario_runs/nsga2_union_uniform_p1_smoke
 ```
 
 Expected:

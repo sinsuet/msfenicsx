@@ -5,6 +5,12 @@
 > This spec replaces the current toy multicase optimizer baseline. No compatibility layer is required. Obsolete baseline specs, examples, and tests may be deleted once the new path is implemented.
 >
 > Update on 2026-03-27: benchmark scene content, operating cases, physics scope, and evaluation targets in this document remain active. The optimizer-platform ladder originally written here as a single-backbone `NSGA-II` sequence is superseded by `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`.
+>
+> Update on 2026-03-28: the next paper-facing `LLM` controller direction is now defined separately in `docs/superpowers/specs/2026-03-28-nsga2-hybrid-union-controller-design.md`. The matrix spec remains the platform line; the hybrid-union spec is the paper and controller line.
+>
+> Later implementation update: the repository keeps the raw multi-backbone matrix runtime and exploratory matrix `union-uniform` runtime. The active controller-facing implementation line is the paper-facing `NSGA-II` hybrid-union track.
+>
+> Further update on 2026-03-28: the paper-facing `P1-union-uniform-nsga2` rung is now implemented and mechanism-analyzed in `docs/reports/R68_msfenicsx_nsga2_union_mechanism_analysis_20260328.md`. The immediate next paper-facing implementation step is `L1-union-llm-nsga2`.
 
 ## 1. Goal
 
@@ -339,9 +345,23 @@ The optimizer ladder for this benchmark is now a multi-backbone matrix rather th
 
 Implemented today:
 
-- pure `NSGA-II` raw baseline
+- paper-facing classical baseline: pure `NSGA-II` raw baseline
+- repository runtime also includes the first-batch `B0-matrix-raw` implementation for `NSGA-II`, `NSGA-III`, `C-TAEA`, `RVEA`, constrained `MOEA/D`, and `CMOPSO`
 
-Approved next-stage matrix:
+Approved paper and `LLM` ladder:
+
+- `P0-native-nsga2`
+  - pure `NSGA-II`
+  - native `SBX + PM` only
+- `P1-union-uniform-nsga2`
+  - `NSGA-II`
+  - union action space of `native_sbx_pm` plus the shared custom operators
+  - `random_uniform` controller
+- `L1-union-llm-nsga2`
+  - same union action space
+  - only the controller changes to `llm`
+
+Approved platform matrix ladder:
 
 - `B0-matrix-raw`
   - `NSGA-II`
@@ -350,18 +370,21 @@ Approved next-stage matrix:
   - `RVEA`
   - constrained `MOEA/D`
   - `CMOPSO`
-- `B1-matrix-pool-random`
+- `P1-matrix-union-uniform`
   - the same six backbones
   - the same domain operator pool
   - the same legality repair
   - `random_uniform` controller
-- `L1-matrix-pool-llm`
+- `L1-matrix-union-llm`
   - future phase only
   - same six backbones
   - same operator pool
   - only the controller changes
 
-The design details for this matrix now live in `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`.
+The design details now live in:
+
+- `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
+- `docs/superpowers/specs/2026-03-28-nsga2-hybrid-union-controller-design.md`
 
 ## 8. Domain Operator Pool
 
@@ -411,7 +434,8 @@ The new baseline is acceptable only if all of the following are true:
 1. The new reference design starts infeasible and violates at least two thermal constraints.
 2. The three objectives all vary over the optimization run.
 3. Raw and pool experiment variants both run on the same benchmark and matched evaluation budgets.
-4. Pool-random and later pool-LLM comparisons differ only by controller choice on the same operator pool.
+4. In the matrix track, union-uniform and later union-LLM comparisons differ only by controller choice on the same shared operator pool.
+5. In the paper-facing `NSGA-II` hybrid-union track, union-uniform and later union-LLM comparisons differ only by controller choice on the same mixed action registry.
 5. The new generator can create paired hot/cold cases from the active benchmark template.
 6. The old toy multicase baseline is no longer presented as the active research path anywhere in docs or scenarios.
 

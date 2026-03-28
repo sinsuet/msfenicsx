@@ -52,6 +52,9 @@ The active multicase optimization spec lives at `scenarios/optimization/panel_fo
 Benchmark-specific optimizer tuning now lives in optimizer-layer profile files under `scenarios/optimization/profiles/`, while repository-wide backbone defaults live under `optimizers/`.
 The active effective algorithm settings are resolved as `global backbone defaults < benchmark profile < spec inline parameter overrides`.
 Future operator-pool controller work is approved only under the newer multi-backbone optimizer-matrix direction. It should not be reintroduced as an `NSGA-II`-only branch.
+The paper-facing `NSGA-II` hybrid-union line is now the separate controller-study track rather than a replacement for the matrix platform track.
+The repository runtime also now includes an exploratory multi-backbone `union-uniform` path across the same six approved backbones for platform-level action-space integration testing.
+The paper-facing `P1-union-uniform-nsga2` rung is now implemented and mechanism-analyzed, and the immediate next paper-facing implementation step is `L1-union-llm-nsga2` on the same mixed action registry.
 
 Current built-in evaluation metric namespaces are:
 
@@ -79,18 +82,29 @@ Text artifacts in the active repository workflows should default to UTF-8 encodi
 
 Implemented today:
 
-- `B0`: plain `pymoo` `NSGA-II` over the eight benchmark design variables
+- paper-facing `B0`: plain `pymoo` `NSGA-II` over the eight benchmark design variables
+- paper-facing `P1-union-uniform-nsga2`: implemented `NSGA-II` hybrid-union run with proposal-level traces and native-parity sanity checks
+- repository runtime also includes `B0-matrix-raw` for `NSGA-II`, `NSGA-III`, `C-TAEA`, `RVEA`, constrained `MOEA/D`, and `CMOPSO`
+- repository runtime also includes exploratory `P1-matrix-union-uniform` runs for the same six backbones
 
-Approved next-stage optimizer architecture:
+Approved paper and `LLM` ladder:
+
+- `P0-native-nsga2`: pure `NSGA-II` using only native `SBX + PM`
+- `P1-union-uniform-nsga2`: `NSGA-II` on a mixed proposal space of `native_sbx_pm` plus the shared custom operators under a `random_uniform` controller
+- `L1-union-llm-nsga2`: the same mixed proposal space with only the controller changed to `llm`
+
+Approved platform matrix ladder:
 
 - `B0-matrix-raw`: raw runs for `NSGA-II`, `NSGA-III`, `C-TAEA`, `RVEA`, constrained `MOEA/D`, and `CMOPSO`
-- `B1-matrix-pool-random`: the same six backbones under one shared operator pool with a `random_uniform` controller
-- `L1-matrix-pool-llm`: future phase only, replacing only the controller on the same operator pool
+- `P1-matrix-union-uniform`: exploratory union-mode runs for the same six backbones using the shared native-plus-custom action registry under `random_uniform`
 
-The repository now includes the first-batch raw matrix runtime for `NSGA-II`, `NSGA-III`, `C-TAEA`, `RVEA`, constrained `MOEA/D`, and `CMOPSO`, together with the matrix spec contract and raw scenario specs. Shared pool adapters, pool-random drivers, and pool-LLM drivers remain to be implemented. The design and plan live in:
+The repository now includes the first-batch raw matrix runtime, the exploratory union-uniform matrix runtime, and the implemented paper-facing `P1-union-uniform-nsga2` line. The immediate next paper-facing controller implementation is `L1-union-llm-nsga2`; broader matrix-union work remains exploratory platform infrastructure rather than the immediate paper-facing focus. The design, plans, and current mechanism analysis live in:
 
 - `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
 - `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`
+- `docs/superpowers/specs/2026-03-28-nsga2-hybrid-union-controller-design.md`
+- `docs/superpowers/plans/2026-03-28-nsga2-hybrid-union-controller.md`
+- `docs/reports/R68_msfenicsx_nsga2_union_mechanism_analysis_20260328.md`
 
 Current optimizer parameter layering:
 

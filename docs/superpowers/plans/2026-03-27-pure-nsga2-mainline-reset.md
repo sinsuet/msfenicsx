@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Reset the paper mainline so the active classical baseline is a plain `pymoo` `NSGA-II` layout optimizer, delete the current heuristic hybrid `B1`, and leave a clean path for a later same-operator-pool random-vs-LLM strategy comparison.
+**Goal:** Reset the paper mainline so the active classical baseline is a plain `pymoo` `NSGA-II` layout optimizer, delete the current heuristic hybrid `B1`, and leave a clean path for later controller studies without contaminating the active baseline.
 
 **Architecture:** Keep the paired hot/cold benchmark, multicase evaluation, and FEniCSx solve loop exactly as they are. Simplify the active optimizer path to one raw-vector `NSGA-II` baseline that uses standard `pymoo` variation plus shared legality repair. Treat domain operators as a future experiment track, not the active classical baseline, and remove the current hand-written heuristic selector from the repository mainline.
 
@@ -18,7 +18,7 @@ Spec context:
 This plan is intentionally split into two scopes:
 
 1. **Now:** reset the active mainline to pure `NSGA-II`
-2. **Later:** build a neutral operator-pool experiment track for `random` vs `LLM` controller comparison
+2. **Later:** preserve room for follow-on controller studies without binding the active baseline to one heuristic branch
 
 Update on 2026-03-27:
 
@@ -26,6 +26,14 @@ Update on 2026-03-27:
 - the later operator-pool direction is now re-scoped by `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
 - future operator-pool work should follow the multi-backbone matrix plan rather than a single-backbone extension
 - later matrix-contract work replaces `algorithm.name` with `algorithm.family/backbone/mode` even though raw `NSGA-II` remains the only active implemented execution path at this stage
+
+Update on 2026-03-28:
+
+- the pure `NSGA-II` reset still remains the active baseline history
+- the next paper-facing controller story is no longer described as a same-pool random-vs-LLM study
+- it is now defined as an `NSGA-II` hybrid-union ladder in `docs/superpowers/specs/2026-03-28-nsga2-hybrid-union-controller-design.md`
+- the paper-facing `union-uniform` rung has since been implemented and analyzed
+- the immediate next paper-facing implementation step is now `L1-union-llm-nsga2`
 
 Do **not** keep the current heuristic `B1` as an active or supported baseline.
 
@@ -73,7 +81,6 @@ Those pieces belong to a later dedicated plan after the pure baseline is stable.
 **Files:**
 - Modify: `README.md`
 - Modify: `AGENTS.md`
-- Modify: `RULES.md`
 - Modify: `docs/superpowers/plans/2026-03-27-paper-grade-multiobjective-thermal-baseline.md`
 - Create: `docs/reports/R66_msfenicsx_pure_nsga2_mainline_reset_20260327.md`
 
@@ -83,7 +90,7 @@ Record the truths that must hold after the reset:
 
 - the active classical baseline is `pure NSGA-II`
 - the active docs do not present heuristic `B1` as a supported baseline
-- the future `LLM` comparison is described as `pure NSGA-II` mainline plus a later same-pool controller experiment
+- the future `LLM` comparison is described as the `NSGA-II` hybrid-union ladder on a matched mixed action registry
 
 - [ ] **Step 2: Update the README baseline narrative**
 
@@ -95,7 +102,7 @@ Rewrite the optimizer section so it says:
 
 - [ ] **Step 3: Update repository guidance docs**
 
-Update `AGENTS.md` and `RULES.md` so they describe:
+Update `AGENTS.md` so it describes:
 
 - `panel_four_component_hot_cold_nsga2_b0.yaml` as the only active classical optimizer spec
 - the hybrid heuristic path as removed
@@ -122,7 +129,7 @@ Run:
 
 ```bash
 cd /home/hymn/msfenicsx
-grep -R "hybrid B1\|hybrid-operator\|panel_four_component_hot_cold_hybrid_nsga2_b1" README.md AGENTS.md RULES.md docs || true
+grep -R "hybrid B1\|hybrid-operator\|panel_four_component_hot_cold_hybrid_nsga2_b1" README.md AGENTS.md docs || true
 ```
 
 Expected:
@@ -133,7 +140,7 @@ Expected:
 
 ```bash
 cd /home/hymn/msfenicsx
-git add README.md AGENTS.md RULES.md \
+git add README.md AGENTS.md \
   docs/superpowers/plans/2026-03-27-paper-grade-multiobjective-thermal-baseline.md \
   docs/superpowers/plans/2026-03-27-pure-nsga2-mainline-reset.md \
   docs/reports/R66_msfenicsx_pure_nsga2_mainline_reset_20260327.md
@@ -393,15 +400,15 @@ git commit -m "chore: verify pure nsga2 mainline reset"
 
 At the end of `R66`, state that the next phase is:
 
-- fixed operator pool
-- non-LLM random selector baseline
-- later LLM selector comparison
+- pure-native `NSGA-II`
+- later `NSGA-II` hybrid-union uniform controller baseline
+- later `NSGA-II` hybrid-union `LLM` controller comparison
 
 - [ ] **Step 2: Record the fairness rule**
 
 Write that all future controller comparisons must share:
 
-- the same operator pool
+- the same action registry for the experiment class
 - the same repair
 - the same paired benchmark seeds
 - the same evaluation spec

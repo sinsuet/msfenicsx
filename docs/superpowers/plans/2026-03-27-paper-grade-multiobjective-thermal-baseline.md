@@ -1,6 +1,6 @@
 # Paper-Grade Multiobjective Thermal Baseline Implementation Plan
 
-> Superseded note: Tasks `1-5` in this plan remain part of the implemented platform history for the paired hot/cold benchmark. The earlier heuristic-hybrid `B1` direction described later in this file is no longer the active paper-facing mainline and is superseded first by `docs/superpowers/plans/2026-03-27-pure-nsga2-mainline-reset.md`, and then for future optimizer-platform work by `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`.
+> Superseded note: Tasks `1-5` in this plan remain part of the implemented platform history for the paired hot/cold benchmark. The earlier heuristic-hybrid `B1` direction described later in this file is no longer the active paper-facing mainline and is superseded first by `docs/superpowers/plans/2026-03-27-pure-nsga2-mainline-reset.md`, then for multi-backbone platform work by `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`, and now for the paper-facing controller line by `docs/superpowers/plans/2026-03-28-nsga2-hybrid-union-controller.md`. The `P1-union-uniform-nsga2` rung has since been implemented, and the immediate next paper-facing implementation step is `L1-union-llm-nsga2`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -118,7 +118,6 @@ This plan is the active implementation plan for the paper-grade baseline. Do not
 - Delete: `scenarios/optimization/reference_hot_cold_nsga2.yaml`
 - Modify: `README.md`
 - Modify: `AGENTS.md`
-- Modify: `RULES.md`
 - Create: `docs/reports/R64_msfenicsx_paper_grade_multiobjective_baseline_rollout_20260327.md`
 
 ## Task 1: Upgrade Canonical Contracts for an Explicit Panel Substrate and Hot/Cold Profiles
@@ -716,7 +715,6 @@ git commit -m "feat: add hybrid operator nsga2 baseline"
 - Delete: `scenarios/optimization/reference_hot_cold_nsga2.yaml`
 - Modify: `README.md`
 - Modify: `AGENTS.md`
-- Modify: `RULES.md`
 - Create: `docs/reports/R64_msfenicsx_paper_grade_multiobjective_baseline_rollout_20260327.md`
 
 - [ ] **Step 1: Write the failing cleanup checklist**
@@ -733,7 +731,7 @@ Delete the old toy benchmark inputs after the new tests and new CLI examples are
 
 - [ ] **Step 3: Rewrite the active docs**
 
-`README.md`, `AGENTS.md`, and `RULES.md` must describe:
+`README.md` and `AGENTS.md` must describe:
 
 - paired benchmark generation from template plus seed
 - `B0` and `B1` as the active classical baseline ladder
@@ -753,8 +751,8 @@ Run:
 
 ```bash
 cd /home/hymn/msfenicsx
-grep -R "panel_radiation_baseline.yaml" README.md AGENTS.md RULES.md docs scenarios tests || true
-grep -R "reference_case_hot.yaml\\|reference_case_cold.yaml" README.md AGENTS.md RULES.md docs scenarios tests || true
+grep -R "panel_radiation_baseline.yaml" README.md AGENTS.md docs scenarios tests || true
+grep -R "reference_case_hot.yaml\\|reference_case_cold.yaml" README.md AGENTS.md docs scenarios tests || true
 ```
 
 Expected: no active references remain outside historical reports or the new plan/spec context.
@@ -763,7 +761,7 @@ Expected: no active references remain outside historical reports or the new plan
 
 ```bash
 cd /home/hymn/msfenicsx
-git add README.md AGENTS.md RULES.md docs/reports/R64_msfenicsx_paper_grade_multiobjective_baseline_rollout_20260327.md
+git add README.md AGENTS.md docs/reports/R64_msfenicsx_paper_grade_multiobjective_baseline_rollout_20260327.md
 git add -u scenarios
 git commit -m "docs: cut over to the paper grade benchmark baseline"
 ```
