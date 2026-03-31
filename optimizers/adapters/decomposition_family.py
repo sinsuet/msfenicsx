@@ -9,11 +9,11 @@ import numpy as np
 from pymoo.core.population import Population
 
 from optimizers.codec import extract_decision_vector
-from optimizers.operator_pool.controllers import build_controller
+from optimizers.operator_pool.controllers import build_controller, select_controller_decision
 from optimizers.operator_pool.layout import VariableLayout
 from optimizers.operator_pool.models import ParentBundle
 from optimizers.operator_pool.operators import get_operator_definition, native_operator_id_for_backbone
-from optimizers.operator_pool.state import ControllerState
+from optimizers.operator_pool.state_builder import build_controller_state
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 from optimizers.raw_backbones.moead import ConstrainedMOEAD, build_algorithm_kwargs
 from optimizers.repair import repair_case_from_vector
@@ -24,6 +24,10 @@ class DecompositionUnionAdapterArtifacts:
     algorithm: Any
     controller_trace: list[ControllerTraceRow]
     operator_trace: list[OperatorTraceRow]
+    llm_request_trace: list[dict[str, Any]] | None = None
+    llm_response_trace: list[dict[str, Any]] | None = None
+    llm_reflection_trace: list[dict[str, Any]] | None = None
+    llm_metrics: dict[str, Any] | None = None
 
 
 class UnionConstrainedMOEAD(ConstrainedMOEAD):
@@ -38,10 +42,11 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
         ref_dirs: np.ndarray,
         n_neighbors: int,
         reference_direction_parameters: dict[str, Any],
+        controller_parameters: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(ref_dirs=ref_dirs, n_neighbors=n_neighbors)
         self.reference_direction_parameters = reference_direction_parameters
-        self.union_controller = build_controller(controller_id)
+        self.union_controller = build_controller(controller_id, controller_parameters)
         self.operator_ids = list(operator_ids)
         self.variable_layout = variable_layout
         self.repair_reference_case = repair_reference_case
@@ -66,15 +71,20 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
             row = np.asarray(parent_indices, dtype=np.int64).reshape(-1)
             parents = ParentBundle.from_vectors(*(np.asarray(pop[index].X, dtype=np.float64) for index in row))
             evaluation_index = int(self.problem._next_evaluation_index)
-            state = ControllerState.from_parent_bundle(
+            state = build_controller_state(
                 parents,
                 family="decomposition",
                 backbone="moead",
                 generation_index=max(0, int(getattr(self, "n_iter", 0))),
                 evaluation_index=evaluation_index,
+                candidate_operator_ids=self.operator_ids,
                 metadata={"neighbor_index": int(neighbor_index), "parent_indices": row.tolist()},
+                controller_trace=self.controller_trace,
+                operator_trace=self.operator_trace,
+                recent_window=32,
             )
-            operator_id = self.union_controller.select_operator(state, self.operator_ids, self.random_state)
+            decision = select_controller_decision(self.union_controller, state, self.operator_ids, self.random_state)
+            operator_id = decision.selected_operator_id
             if operator_id == self.native_operator_id:
                 raw_proposal = self._native_moead_proposal(pop, row)
                 proposal_kind = "native"
@@ -100,10 +110,13 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
                     controller_id=self.union_controller.controller_id,
                     candidate_operator_ids=tuple(self.operator_ids),
                     selected_operator_id=operator_id,
+                    phase=decision.phase,
+                    rationale=decision.rationale,
                     metadata={
                         "neighbor_index": int(neighbor_index),
                         "parent_indices": row.tolist(),
                         "proposal_kind": proposal_kind,
+                        **dict(decision.metadata),
                     },
                 )
             )
@@ -171,9 +184,14 @@ def build_decomposition_union_algorithm(problem: Any, optimization_spec: Any, al
         ref_dirs=kwargs["ref_dirs"],
         n_neighbors=kwargs["n_neighbors"],
         reference_direction_parameters=kwargs["reference_direction_parameters"],
+        controller_parameters=spec_payload["operator_control"].get("controller_parameters"),
     )
     return DecompositionUnionAdapterArtifacts(
         algorithm=algorithm,
         controller_trace=algorithm.controller_trace,
         operator_trace=algorithm.operator_trace,
+        llm_request_trace=getattr(algorithm.union_controller, "request_trace", None),
+        llm_response_trace=getattr(algorithm.union_controller, "response_trace", None),
+        llm_reflection_trace=getattr(algorithm.union_controller, "reflection_trace", None),
+        llm_metrics=getattr(algorithm.union_controller, "metrics", None),
     )

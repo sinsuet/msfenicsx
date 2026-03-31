@@ -27,6 +27,21 @@ def write_optimization_artifacts(output_root: str | Path, run: Any) -> Path:
     if hasattr(run, "operator_trace"):
         _write_trace_payload(resolved_output_root / "operator_trace.json", getattr(run, "operator_trace"))
         snapshots["operator_trace"] = "operator_trace.json"
+    if getattr(run, "llm_request_trace", None):
+        _write_jsonl_payload(resolved_output_root / "llm_request_trace.jsonl", getattr(run, "llm_request_trace"))
+        snapshots["llm_request_trace"] = "llm_request_trace.jsonl"
+    if getattr(run, "llm_response_trace", None):
+        _write_jsonl_payload(resolved_output_root / "llm_response_trace.jsonl", getattr(run, "llm_response_trace"))
+        snapshots["llm_response_trace"] = "llm_response_trace.jsonl"
+    if getattr(run, "llm_reflection_trace", None):
+        _write_jsonl_payload(
+            resolved_output_root / "llm_reflection_trace.jsonl",
+            getattr(run, "llm_reflection_trace"),
+        )
+        snapshots["llm_reflection_trace"] = "llm_reflection_trace.jsonl"
+    if getattr(run, "llm_metrics", None):
+        _write_json_payload(resolved_output_root / "llm_metrics.json", getattr(run, "llm_metrics"))
+        snapshots["llm_metrics"] = "llm_metrics.json"
     representatives_root = resolved_output_root / "representatives"
     for name, artifacts in run.representative_artifacts.items():
         _write_representative_bundle(representatives_root / name.replace("_", "-"), artifacts)
@@ -90,4 +105,13 @@ def _write_manifest(path: Path, payload: dict[str, object]) -> None:
 
 def _write_trace_payload(path: Path, rows: list[Any]) -> None:
     payload = [row.to_dict() if hasattr(row, "to_dict") else row for row in rows]
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _write_jsonl_payload(path: Path, rows: list[Any]) -> None:
+    serialized_rows = [json.dumps(row.to_dict() if hasattr(row, "to_dict") else row) for row in rows]
+    path.write_text("\n".join(serialized_rows) + "\n", encoding="utf-8")
+
+
+def _write_json_payload(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

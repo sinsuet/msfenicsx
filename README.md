@@ -23,7 +23,7 @@ The previous heuristic hybrid `B1` path is no longer part of the active supporte
 - `core/`: canonical schema, geometry, generator, solver, artifact I/O, and CLI
 - `evaluation/`: evaluation specs, report contracts, metric extraction, and standalone evaluation CLI
 - `optimizers/`: optimization specs, decision-vector codecs, `pymoo` baseline search, and standalone optimizer CLI
-- `llm/`: reserved boundary for future strategy-layer integrations
+- `llm/`: OpenAI-compatible client boundary and controller-side strategy integrations for the `L1` union-`LLM` line
 - `visualization/`: reserved boundary for future read-only rendering and reporting
 
 ## Active Flows
@@ -54,7 +54,10 @@ The active effective algorithm settings are resolved as `global backbone default
 Future operator-pool controller work is approved only under the newer multi-backbone optimizer-matrix direction. It should not be reintroduced as an `NSGA-II`-only branch.
 The paper-facing `NSGA-II` hybrid-union line is now the separate controller-study track rather than a replacement for the matrix platform track.
 The repository runtime also now includes an exploratory multi-backbone `union-uniform` path across the same six approved backbones for platform-level action-space integration testing.
-The paper-facing `P1-union-uniform-nsga2` rung is now implemented and mechanism-analyzed, and the immediate next paper-facing implementation step is `L1-union-llm-nsga2` on the same mixed action registry.
+The paper-facing `P1-union-uniform-nsga2` rung is implemented and mechanism-analyzed.
+The repository now also includes the first `L1-union-llm-nsga2` runtime path on the same mixed action registry, with an OpenAI-compatible controller boundary and `LLM` sidecar traces for request/response/metrics analysis.
+The current live `L1` implementation already uses compact domain-grounded controller state, including parent/objective/violation/archive/regime summaries, operator-outcome credit, and traceable anti-collapse safeguards.
+The current next-step direction is to extract a reusable controller-policy kernel that is phase-aware, evidence-aware, family-aware, and progress-aware rather than to keep tuning the controller toward one benchmark seed or one thermal scenario. That kernel is validated first on the paper-facing `NSGA-II` line, but it is intended to remain portable to future multi-scenario and multi-backbone controller studies.
 
 Current built-in evaluation metric namespaces are:
 
@@ -74,9 +77,44 @@ Available commands:
 - `conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/<scenario_id>/<case_id>/case.yaml --solution ./scenario_runs/<scenario_id>/<case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/<scenario_id>/<case_id>`
 - `conda run -n msfenicsx python -m evaluation.cli evaluate-operating-cases --case hot=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<hot_case_id>.yaml --case cold=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<cold_case_id>.yaml --solution hot=./scenario_runs/<scenario_id>/<hot_case_id>/solution.yaml --solution cold=./scenario_runs/<scenario_id>/<cold_case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./scenario_runs/evaluations/panel-four-component-hot-cold-baseline/seed-11/report.yaml`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --output-root ./scenario_runs/optimizations/panel-four-component-b0`
+- `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_live.yaml --request-trace ./scenario_runs/optimizations/<run>/llm_request_trace.jsonl --output ./scenario_runs/optimizations/diagnostics/<summary>.json`
+- `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/optimizations/<run>/controller_trace.json --output ./scenario_runs/optimizations/<run>/controller_trace_summary.json`
 
 For templates with `operating_case_profiles`, use `generate-operating-case-pair`; `generate-case` is intentionally rejected for the active benchmark to avoid unloaded single-case artifacts.
 Text artifacts in the active repository workflows should default to UTF-8 encoding.
+
+## Environment
+
+Canonical execution remains WSL2 Ubuntu with the `msfenicsx` conda environment.
+For verification and runtime commands, prefer:
+
+- `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
+
+The `L1-union-llm-nsga2` path uses the OpenAI-compatible Python SDK boundary implemented under `llm/openai_compatible/`.
+That means the active environment must include the `openai` package declared in `pyproject.toml`; if the local `msfenicsx` environment was created before that dependency was added, sync it before running live `LLM` controller smoke tests or full optimizations:
+
+- `/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m pip install "openai>=1.70"`
+
+The approved paper-facing live route now uses an OpenAI-compatible endpoint with:
+
+- `OPENAI_API_KEY` loaded from process environment or the repository-root `.env`
+- `capability_profile=chat_compatible_json`
+- `model=GPT-5.4`
+
+The paper-facing live and smoke specs for this path are:
+
+- `scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_live.yaml`
+- `scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_smoke.yaml`
+
+For L1 diagnostics, the optimizer CLI now also exposes `replay-llm-trace`, which replays recorded `llm_request_trace.jsonl` rows through the same OpenAI-compatible client boundary and writes aggregate success, retry, fallback-equivalent, and latency summaries without rerunning the thermal optimization loop.
+For cheap local gating before any new live rerun, the optimizer CLI also exposes `analyze-controller-trace`, which summarizes saved `controller_trace.json` artifacts into phase buckets, speculative-family streaks, fallback counts, and forced-reset reason-code counts without contacting any provider or rerunning the thermal optimization loop.
+The current `L1` follow-up plans are documented in:
+
+- `docs/superpowers/plans/2026-03-31-l1-domain-grounded-controller-state-completion.md`
+- `docs/superpowers/plans/2026-03-31-l1-llm-stability-diagnostics-and-repair.md`
+- `docs/superpowers/plans/2026-03-31-l1-reusable-controller-kernel-stabilization.md`
+
+Those plans should now be read with one additional repository-level constraint: controller improvements should be expressed as reusable optimizer-layer framework logic first and only secondarily as domain-context enrichments, not as single-scenario special tuning.
 
 ## Baseline Ladder
 
@@ -98,13 +136,16 @@ Approved platform matrix ladder:
 - `B0-matrix-raw`: raw runs for `NSGA-II`, `NSGA-III`, `C-TAEA`, `RVEA`, constrained `MOEA/D`, and `CMOPSO`
 - `P1-matrix-union-uniform`: exploratory union-mode runs for the same six backbones using the shared native-plus-custom action registry under `random_uniform`
 
-The repository now includes the first-batch raw matrix runtime, the exploratory union-uniform matrix runtime, and the implemented paper-facing `P1-union-uniform-nsga2` line. The immediate next paper-facing controller implementation is `L1-union-llm-nsga2`; broader matrix-union work remains exploratory platform infrastructure rather than the immediate paper-facing focus. The design, plans, and current mechanism analysis live in:
+The repository now includes the first-batch raw matrix runtime, the exploratory union-uniform matrix runtime, the implemented paper-facing `P1-union-uniform-nsga2` line, and the first paper-facing `L1-union-llm-nsga2` implementation. Broader matrix-union work remains exploratory platform infrastructure rather than the immediate paper-facing focus. The design, plans, and current mechanism analysis live in:
 
 - `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
 - `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`
 - `docs/superpowers/specs/2026-03-28-nsga2-hybrid-union-controller-design.md`
+- `docs/superpowers/specs/2026-03-28-openai-union-llm-controller-design.md`
 - `docs/superpowers/plans/2026-03-28-nsga2-hybrid-union-controller.md`
+- `docs/superpowers/plans/2026-03-28-openai-compatible-union-llm-controller.md`
 - `docs/reports/R68_msfenicsx_nsga2_union_mechanism_analysis_20260328.md`
+- `docs/reports/R69_msfenicsx_llm_controller_literature_and_novelty_report_20260328.md`
 
 Current optimizer parameter layering:
 

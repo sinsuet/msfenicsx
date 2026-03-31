@@ -257,6 +257,134 @@ def test_union_specs_share_same_benchmark_source() -> None:
     assert llm_spec.operator_control["controller"] == "llm"
 
 
+def test_llm_union_kimi_live_spec_preserves_l1_contract_and_targets_kimi_k2() -> None:
+    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
+    live_spec = load_optimization_spec(
+        "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_kimi_live.yaml"
+    )
+
+    assert live_spec.benchmark_source == llm_spec.benchmark_source
+    assert live_spec.algorithm == llm_spec.algorithm
+    assert live_spec.evaluation_protocol == llm_spec.evaluation_protocol
+    assert live_spec.operator_control is not None
+    assert llm_spec.operator_control is not None
+    assert live_spec.operator_control["controller"] == "llm"
+    assert live_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
+
+    params = live_spec.operator_control["controller_parameters"]
+    assert params["provider"] == "openai-compatible"
+    assert params["capability_profile"] == "chat_compatible_json"
+    assert params["performance_profile"] == "balanced"
+    assert params["model"] == "Kimi-K2"
+    assert params["api_key_env_var"] == "OPENAI_API_KEY"
+    assert params["base_url"] == "https://llmapi.paratera.com/v1"
+    assert params["max_output_tokens"] > 0
+
+
+def test_llm_union_kimi_smoke_spec_preserves_l1_contract_with_small_budget() -> None:
+    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
+    smoke_spec = load_optimization_spec(
+        "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_kimi_smoke.yaml"
+    )
+
+    assert smoke_spec.benchmark_source == llm_spec.benchmark_source
+    assert smoke_spec.evaluation_protocol == llm_spec.evaluation_protocol
+    assert smoke_spec.operator_control is not None
+    assert llm_spec.operator_control is not None
+    assert smoke_spec.operator_control["controller"] == "llm"
+    assert smoke_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
+
+    assert smoke_spec.algorithm["family"] == llm_spec.algorithm["family"]
+    assert smoke_spec.algorithm["backbone"] == llm_spec.algorithm["backbone"]
+    assert smoke_spec.algorithm["mode"] == llm_spec.algorithm["mode"]
+    assert smoke_spec.algorithm["population_size"] == 4
+    assert smoke_spec.algorithm["num_generations"] == 2
+
+    params = smoke_spec.operator_control["controller_parameters"]
+    assert params["provider"] == "openai-compatible"
+    assert params["capability_profile"] == "chat_compatible_json"
+    assert params["model"] == "Kimi-K2"
+    assert params["api_key_env_var"] == "OPENAI_API_KEY"
+    assert params["base_url"] == "https://llmapi.paratera.com/v1"
+    assert params["max_output_tokens"] == 256
+
+
+def test_llm_union_gpt54_live_spec_preserves_l1_contract_and_targets_gpt54() -> None:
+    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
+    live_spec = load_optimization_spec(
+        "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_live.yaml"
+    )
+
+    assert live_spec.benchmark_source == llm_spec.benchmark_source
+    assert live_spec.algorithm == llm_spec.algorithm
+    assert live_spec.evaluation_protocol == llm_spec.evaluation_protocol
+    assert live_spec.operator_control is not None
+    assert llm_spec.operator_control is not None
+    assert live_spec.operator_control["controller"] == "llm"
+    assert live_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
+
+    params = live_spec.operator_control["controller_parameters"]
+    assert params["provider"] == "openai-compatible"
+    assert params["capability_profile"] == "chat_compatible_json"
+    assert params["performance_profile"] == "balanced"
+    assert params["model"] == "GPT-5.4"
+    assert params["api_key_env_var"] == "OPENAI_API_KEY"
+    assert params["base_url"] == "https://llmapi.paratera.com/v1"
+    assert params["temperature"] == 1.0
+    assert "reasoning" not in params
+    assert params["max_output_tokens"] == 256
+
+
+def test_llm_union_gpt54_smoke_spec_preserves_l1_contract_with_small_budget() -> None:
+    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
+    smoke_spec = load_optimization_spec(
+        "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_smoke.yaml"
+    )
+
+    assert smoke_spec.benchmark_source == llm_spec.benchmark_source
+    assert smoke_spec.evaluation_protocol == llm_spec.evaluation_protocol
+    assert smoke_spec.operator_control is not None
+    assert llm_spec.operator_control is not None
+    assert smoke_spec.operator_control["controller"] == "llm"
+    assert smoke_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
+
+    assert smoke_spec.algorithm["family"] == llm_spec.algorithm["family"]
+    assert smoke_spec.algorithm["backbone"] == llm_spec.algorithm["backbone"]
+    assert smoke_spec.algorithm["mode"] == llm_spec.algorithm["mode"]
+    assert smoke_spec.algorithm["population_size"] == 4
+    assert smoke_spec.algorithm["num_generations"] == 2
+
+    params = smoke_spec.operator_control["controller_parameters"]
+    assert params["provider"] == "openai-compatible"
+    assert params["capability_profile"] == "chat_compatible_json"
+    assert params["model"] == "GPT-5.4"
+    assert params["api_key_env_var"] == "OPENAI_API_KEY"
+    assert params["base_url"] == "https://llmapi.paratera.com/v1"
+    assert params["temperature"] == 1.0
+    assert "reasoning" not in params
+    assert params["max_output_tokens"] == 128
+
+
+def test_llm_union_spec_requires_controller_parameters() -> None:
+    payload = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml").to_dict()
+    payload["operator_control"].pop("controller_parameters", None)
+
+    with pytest.raises(OptimizationValidationError):
+        OptimizationSpec.from_dict(payload)
+
+
+def test_llm_union_spec_round_trips_openai_compatible_runtime_profile() -> None:
+    spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
+
+    assert spec.operator_control is not None
+    params = spec.operator_control["controller_parameters"]
+    assert params["provider"] == "openai"
+    assert params["capability_profile"] == "responses_native"
+    assert params["performance_profile"] == "balanced"
+    assert params["model"]
+    assert params["max_output_tokens"] > 0
+
+
 def test_moead_union_spec_requires_native_moead_action() -> None:
     payload = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_moead_union_uniform_p1.yaml").to_dict()
     payload["operator_control"]["operator_pool"] = [

@@ -31,6 +31,10 @@ class UnionOptimizationRun:
     representative_artifacts: dict[str, CandidateArtifacts]
     controller_trace: list[ControllerTraceRow]
     operator_trace: list[OperatorTraceRow]
+    llm_request_trace: list[dict[str, Any]] | None = None
+    llm_response_trace: list[dict[str, Any]] | None = None
+    llm_reflection_trace: list[dict[str, Any]] | None = None
+    llm_metrics: dict[str, Any] | None = None
 
 
 def run_union_optimization(
@@ -89,6 +93,12 @@ def run_union_optimization(
         representative_artifacts=representative_artifacts,
         controller_trace=list(adapter.controller_trace),
         operator_trace=list(adapter.operator_trace),
+        llm_request_trace=None if getattr(adapter, "llm_request_trace", None) is None else list(adapter.llm_request_trace),
+        llm_response_trace=None if getattr(adapter, "llm_response_trace", None) is None else list(adapter.llm_response_trace),
+        llm_reflection_trace=(
+            None if getattr(adapter, "llm_reflection_trace", None) is None else list(adapter.llm_reflection_trace)
+        ),
+        llm_metrics=None if getattr(adapter, "llm_metrics", None) is None else dict(adapter.llm_metrics),
     )
 
 

@@ -1,7 +1,7 @@
 schema_version: "1.0"
 spec_meta:
-  spec_id: panel-four-component-hot-cold-nsga2-union-llm-l1
-  description: NSGA-II hybrid-union L1 with the same action registry and an OpenAI-compatible llm controller profile.
+  spec_id: panel-four-component-hot-cold-nsga2-union-llm-l1-dashscope-live
+  description: NSGA-II hybrid-union L1 live profile using DashScope OpenAI-compatible chat JSON with glm-5.
 benchmark_source:
   template_path: scenarios/templates/panel_four_component_hot_cold_benchmark.yaml
   seed: 11
@@ -59,11 +59,12 @@ operator_control:
     - radiator_expand
     - radiator_contract
   controller_parameters:
-    provider: openai
-    capability_profile: responses_native
+    provider: dashscope
+    capability_profile: chat_compatible_json
     performance_profile: balanced
-    model: gpt-5.4
-    api_key_env_var: OPENAI_API_KEY
+    model: glm-5
+    api_key_env_var: DASHSCOPE_API_KEY
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
     max_output_tokens: 1024
     temperature: 0.2
     reasoning:

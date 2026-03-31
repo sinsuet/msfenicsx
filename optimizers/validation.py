@@ -19,6 +19,9 @@ SUPPORTED_BACKBONES_BY_FAMILY = {
 }
 SUPPORTED_MODES = {"raw", "union"}
 SUPPORTED_CONTROLLERS = {"random_uniform", "llm"}
+SUPPORTED_LLM_CAPABILITY_PROFILES = {"responses_native", "chat_compatible_json"}
+SUPPORTED_LLM_PERFORMANCE_PROFILES = {"economy", "balanced", "high_reasoning"}
+SUPPORTED_LLM_FALLBACK_CONTROLLERS = {"random_uniform"}
 
 
 class OptimizationValidationError(ValueError):
@@ -199,6 +202,111 @@ def _validate_operator_control(operator_control: Any, *, family: str, backbone: 
             "operator_control.operator_pool for algorithm.mode 'union' must exactly match "
             f"{list(approved_operator_pool)}. Shared custom operators remain {list(APPROVED_SHARED_OPERATOR_IDS)}."
         )
+    if controller == "llm":
+        _validate_llm_controller_parameters(operator_control.get("controller_parameters"))
+
+
+def _validate_llm_controller_parameters(controller_parameters: Any) -> None:
+    required_keys = (
+        "provider",
+        "model",
+        "capability_profile",
+        "performance_profile",
+        "api_key_env_var",
+        "max_output_tokens",
+    )
+    _require_mapping(controller_parameters, "operator_control.controller_parameters")
+    _require_required_keys(controller_parameters, required_keys, "operator_control.controller_parameters")
+
+    provider = _require_text(controller_parameters["provider"], "operator_control.controller_parameters.provider")
+    capability_profile = _require_text(
+        controller_parameters["capability_profile"],
+        "operator_control.controller_parameters.capability_profile",
+    )
+    if capability_profile not in SUPPORTED_LLM_CAPABILITY_PROFILES:
+        raise OptimizationValidationError(
+            "operator_control.controller_parameters.capability_profile must be one of "
+            f"{sorted(SUPPORTED_LLM_CAPABILITY_PROFILES)}."
+        )
+
+    performance_profile = _require_text(
+        controller_parameters["performance_profile"],
+        "operator_control.controller_parameters.performance_profile",
+    )
+    if performance_profile not in SUPPORTED_LLM_PERFORMANCE_PROFILES:
+        raise OptimizationValidationError(
+            "operator_control.controller_parameters.performance_profile must be one of "
+            f"{sorted(SUPPORTED_LLM_PERFORMANCE_PROFILES)}."
+        )
+
+    _require_text(controller_parameters["model"], "operator_control.controller_parameters.model")
+    _require_text(controller_parameters["api_key_env_var"], "operator_control.controller_parameters.api_key_env_var")
+    if _require_integer(
+        controller_parameters["max_output_tokens"],
+        "operator_control.controller_parameters.max_output_tokens",
+    ) <= 0:
+        raise OptimizationValidationError("operator_control.controller_parameters.max_output_tokens must be positive.")
+
+    if provider != "openai" and not any(
+        key in controller_parameters for key in ("base_url", "base_url_env_var")
+    ):
+        raise OptimizationValidationError(
+            "operator_control.controller_parameters for non-openai providers must include "
+            "base_url or base_url_env_var."
+        )
+    if "base_url" in controller_parameters:
+        _require_text(controller_parameters["base_url"], "operator_control.controller_parameters.base_url")
+    if "base_url_env_var" in controller_parameters:
+        _require_text(
+            controller_parameters["base_url_env_var"],
+            "operator_control.controller_parameters.base_url_env_var",
+        )
+    if "temperature" in controller_parameters:
+        _require_real(controller_parameters["temperature"], "operator_control.controller_parameters.temperature")
+    if "reasoning" in controller_parameters:
+        reasoning = _require_mapping(controller_parameters["reasoning"], "operator_control.controller_parameters.reasoning")
+        if "effort" in reasoning:
+            _require_text(reasoning["effort"], "operator_control.controller_parameters.reasoning.effort")
+    if "retry" in controller_parameters:
+        retry = _require_mapping(controller_parameters["retry"], "operator_control.controller_parameters.retry")
+        if "max_attempts" in retry and _require_integer(
+            retry["max_attempts"],
+            "operator_control.controller_parameters.retry.max_attempts",
+        ) <= 0:
+            raise OptimizationValidationError(
+                "operator_control.controller_parameters.retry.max_attempts must be positive."
+            )
+        if "timeout_seconds" in retry:
+            _require_real(
+                retry["timeout_seconds"],
+                "operator_control.controller_parameters.retry.timeout_seconds",
+            )
+    if "memory" in controller_parameters:
+        memory = _require_mapping(controller_parameters["memory"], "operator_control.controller_parameters.memory")
+        if "recent_window" in memory and _require_integer(
+            memory["recent_window"],
+            "operator_control.controller_parameters.memory.recent_window",
+        ) <= 0:
+            raise OptimizationValidationError(
+                "operator_control.controller_parameters.memory.recent_window must be positive."
+            )
+        if "reflection_interval" in memory and _require_integer(
+            memory["reflection_interval"],
+            "operator_control.controller_parameters.memory.reflection_interval",
+        ) <= 0:
+            raise OptimizationValidationError(
+                "operator_control.controller_parameters.memory.reflection_interval must be positive."
+            )
+    if "fallback_controller" in controller_parameters:
+        fallback_controller = _require_text(
+            controller_parameters["fallback_controller"],
+            "operator_control.controller_parameters.fallback_controller",
+        )
+        if fallback_controller not in SUPPORTED_LLM_FALLBACK_CONTROLLERS:
+            raise OptimizationValidationError(
+                "operator_control.controller_parameters.fallback_controller must be one of "
+                f"{sorted(SUPPORTED_LLM_FALLBACK_CONTROLLERS)}."
+            )
 
 
 def _validate_evaluation_protocol(protocol: Any) -> None:

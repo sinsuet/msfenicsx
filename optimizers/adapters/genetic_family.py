@@ -12,11 +12,11 @@ from pymoo.core.infill import InfillCriterion
 from pymoo.core.population import Population
 
 from optimizers.codec import extract_decision_vector
-from optimizers.operator_pool.controllers import build_controller
+from optimizers.operator_pool.controllers import build_controller, select_controller_decision
 from optimizers.operator_pool.layout import VariableLayout
 from optimizers.operator_pool.models import ParentBundle
 from optimizers.operator_pool.operators import get_operator_definition, native_operator_id_for_backbone
-from optimizers.operator_pool.state import ControllerState
+from optimizers.operator_pool.state_builder import build_controller_state
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 from optimizers.raw_backbones.registry import get_raw_backbone_definition
 from optimizers.repair import repair_case_from_vector
@@ -27,6 +27,10 @@ class GeneticUnionAdapterArtifacts:
     algorithm: Any
     controller_trace: list[ControllerTraceRow]
     operator_trace: list[OperatorTraceRow]
+    llm_request_trace: list[dict[str, Any]] | None = None
+    llm_response_trace: list[dict[str, Any]] | None = None
+    llm_reflection_trace: list[dict[str, Any]] | None = None
+    llm_metrics: dict[str, Any] | None = None
 
 
 class GeneticFamilyUnionMating(InfillCriterion):
@@ -43,6 +47,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
         selection: Any,
         raw_mating: Any,
         native_parameters: dict[str, Any],
+        controller_parameters: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(
             repair=raw_mating.repair,
@@ -50,7 +55,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
             n_max_iterations=raw_mating.n_max_iterations,
         )
         self.operator_ids = list(operator_ids)
-        self.controller = build_controller(controller_id)
+        self.controller = build_controller(controller_id, controller_parameters)
         self.variable_layout = variable_layout
         self.repair_reference_case = repair_reference_case
         self.optimization_spec = optimization_spec
@@ -58,6 +63,13 @@ class GeneticFamilyUnionMating(InfillCriterion):
         self.backbone = backbone
         self.selection = selection
         self.raw_mating = raw_mating
+        self.design_variable_ids = [
+            str(item["variable_id"]) for item in self.optimization_spec.get("design_variables", [])
+        ]
+        algorithm_settings = self.optimization_spec.get("algorithm", {})
+        population_size = int(algorithm_settings.get("population_size", 0))
+        num_generations = int(algorithm_settings.get("num_generations", 0))
+        self.total_evaluation_budget = max(0, 1 + population_size * num_generations)
         self.native_parameters = deepcopy(native_parameters)
         self.native_operator_id = native_operator_id_for_backbone(family, backbone)
         self.controller_trace: list[ControllerTraceRow] = []
@@ -207,25 +219,33 @@ class GeneticFamilyUnionMating(InfillCriterion):
         parents = ParentBundle.from_vectors(*parent_vectors)
         decision_index = self._next_decision_index
         self._next_decision_index += 1
-        state = ControllerState.from_parent_bundle(
+        state = build_controller_state(
             parents,
             family=self.family,
             backbone=self.backbone,
             generation_index=generation_index,
             evaluation_index=int(problem._next_evaluation_index + event_index),
+            candidate_operator_ids=self.operator_ids,
             metadata={
                 "parent_indices": row,
                 "native_parameters": deepcopy(self.native_parameters),
                 "decision_index": decision_index,
+                "design_variable_ids": list(self.design_variable_ids),
+                "total_evaluation_budget": int(self.total_evaluation_budget),
             },
+            controller_trace=self.controller_trace,
+            operator_trace=self.operator_trace,
+            history=problem.history,
+            recent_window=32,
         )
-        operator_id = self.controller.select_operator(state, self.operator_ids, rng)
+        decision = select_controller_decision(self.controller, state, self.operator_ids, rng)
         return {
             "decision_index": decision_index,
             "row": list(row),
             "parents": parents,
             "state": state,
-            "operator_id": operator_id,
+            "decision": decision,
+            "operator_id": decision.selected_operator_id,
         }
 
     def _event_proposals(
@@ -279,12 +299,15 @@ class GeneticFamilyUnionMating(InfillCriterion):
                     controller_id=self.controller.controller_id,
                     candidate_operator_ids=tuple(self.operator_ids),
                     selected_operator_id=str(record["operator_id"]),
+                    phase=str(record["decision"].phase),
+                    rationale=str(record["decision"].rationale),
                     metadata={
                         "decision_index": int(record["decision_index"]),
                         "parent_indices": list(record["row"]),
                         "proposal_kind": proposal_kind,
                         "sibling_index": int(sibling_index),
                         "children_per_event": int(children_per_event),
+                        **dict(record["decision"].metadata),
                     },
                 )
             )
@@ -366,6 +389,7 @@ def build_genetic_union_algorithm(problem: Any, optimization_spec: Any, algorith
     mating = GeneticFamilyUnionMating(
         operator_ids=list(operator_control["operator_pool"]),
         controller_id=str(operator_control["controller"]),
+        controller_parameters=deepcopy(operator_control.get("controller_parameters")),
         variable_layout=VariableLayout.from_optimization_spec(spec_payload),
         repair_reference_case=next(iter(problem.base_cases.values())),
         optimization_spec=spec_payload,
@@ -383,4 +407,8 @@ def build_genetic_union_algorithm(problem: Any, optimization_spec: Any, algorith
         algorithm=algorithm,
         controller_trace=mating.controller_trace,
         operator_trace=mating.operator_trace,
+        llm_request_trace=getattr(mating.controller, "request_trace", None),
+        llm_response_trace=getattr(mating.controller, "response_trace", None),
+        llm_reflection_trace=getattr(mating.controller, "reflection_trace", None),
+        llm_metrics=getattr(mating.controller, "metrics", None),
     )

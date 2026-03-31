@@ -44,6 +44,14 @@ class OperatorDefinition:
     propose: ProposalFn
 
 
+@dataclass(frozen=True, slots=True)
+class OperatorBehaviorProfile:
+    operator_id: str
+    family: str
+    role: str
+    exploration_class: str
+
+
 def _copy_primary(parents: ParentBundle) -> np.ndarray:
     return np.array(parents.primary, dtype=np.float64, copy=True)
 
@@ -360,6 +368,74 @@ _REGISTERED_OPERATORS = (
 )
 
 _REGISTERED_OPERATOR_MAP = {definition.operator_id: definition for definition in _REGISTERED_OPERATORS}
+_OPERATOR_BEHAVIOR_PROFILES = {
+    "native_sbx_pm": OperatorBehaviorProfile(
+        operator_id="native_sbx_pm",
+        family="native_baseline",
+        role="native_baseline",
+        exploration_class="stable",
+    ),
+    "native_moead": OperatorBehaviorProfile(
+        operator_id="native_moead",
+        family="native_baseline",
+        role="native_baseline",
+        exploration_class="stable",
+    ),
+    "native_cmopso": OperatorBehaviorProfile(
+        operator_id="native_cmopso",
+        family="native_baseline",
+        role="native_baseline",
+        exploration_class="stable",
+    ),
+    "sbx_pm_global": OperatorBehaviorProfile(
+        operator_id="sbx_pm_global",
+        family="global_explore",
+        role="global_explore",
+        exploration_class="stable",
+    ),
+    "local_refine": OperatorBehaviorProfile(
+        operator_id="local_refine",
+        family="local_refine",
+        role="local_refine",
+        exploration_class="stable",
+    ),
+    "hot_pair_to_sink": OperatorBehaviorProfile(
+        operator_id="hot_pair_to_sink",
+        family="speculative_custom",
+        role="speculative_custom",
+        exploration_class="custom",
+    ),
+    "hot_pair_separate": OperatorBehaviorProfile(
+        operator_id="hot_pair_separate",
+        family="speculative_custom",
+        role="speculative_custom",
+        exploration_class="custom",
+    ),
+    "battery_to_warm_zone": OperatorBehaviorProfile(
+        operator_id="battery_to_warm_zone",
+        family="speculative_custom",
+        role="speculative_custom",
+        exploration_class="custom",
+    ),
+    "radiator_align_hot_pair": OperatorBehaviorProfile(
+        operator_id="radiator_align_hot_pair",
+        family="speculative_custom",
+        role="speculative_custom",
+        exploration_class="custom",
+    ),
+    "radiator_expand": OperatorBehaviorProfile(
+        operator_id="radiator_expand",
+        family="speculative_custom",
+        role="speculative_custom",
+        exploration_class="custom",
+    ),
+    "radiator_contract": OperatorBehaviorProfile(
+        operator_id="radiator_contract",
+        family="speculative_custom",
+        role="speculative_custom",
+        exploration_class="custom",
+    ),
+}
 
 
 def list_registered_operator_ids() -> list[str]:
@@ -381,3 +457,9 @@ def get_operator_definition(operator_id: str) -> OperatorDefinition:
     if operator_id not in _REGISTERED_OPERATOR_MAP:
         raise KeyError(f"Unsupported union operator '{operator_id}'.")
     return _REGISTERED_OPERATOR_MAP[operator_id]
+
+
+def get_operator_behavior_profile(operator_id: str) -> OperatorBehaviorProfile:
+    if operator_id not in _OPERATOR_BEHAVIOR_PROFILES:
+        raise KeyError(f"Unsupported union operator behavior profile '{operator_id}'.")
+    return _OPERATOR_BEHAVIOR_PROFILES[operator_id]

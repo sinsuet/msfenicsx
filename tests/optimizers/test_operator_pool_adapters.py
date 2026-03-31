@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
 from core.generator.paired_pipeline import generate_operating_case_pair
 from evaluation.io import load_multicase_spec
+from llm.openai_compatible.client import OpenAICompatibleDecision
 from optimizers.models import OptimizationSpec
 
 
@@ -61,6 +63,17 @@ def _small_union_spec(backbone: str, *, seed: int = 7) -> OptimizationSpec:
     payload["algorithm"]["population_size"] = 4
     payload["algorithm"]["num_generations"] = 2
     payload["algorithm"]["seed"] = seed
+    return OptimizationSpec.from_dict(payload)
+
+
+def _small_llm_union_spec(*, seed: int = 7) -> OptimizationSpec:
+    from optimizers.io import load_optimization_spec
+
+    payload = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml").to_dict()
+    payload["algorithm"]["population_size"] = 4
+    payload["algorithm"]["num_generations"] = 2
+    payload["algorithm"]["seed"] = seed
+    payload["operator_control"]["controller_parameters"]["api_key_env_var"] = "TEST_OPENAI_API_KEY"
     return OptimizationSpec.from_dict(payload)
 
 
@@ -265,3 +278,77 @@ def test_nsga2_union_native_only_trace_marks_shared_decision_index_for_siblings(
     assert [row.metadata["children_per_event"] for row in run.controller_trace] == [2, 2, 2, 2]
     assert [row.metadata["sibling_index"] for row in run.controller_trace] == [0, 1, 0, 1]
     assert [row.metadata["decision_index"] for row in run.operator_trace] == [0, 0, 1, 1]
+
+
+def test_nsga2_union_llm_trace_captures_controller_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    from llm.openai_compatible.client import OpenAICompatibleClient
+    from optimizers.drivers.union_driver import run_union_optimization
+
+    def _fake_request_operator_decision(self, *, system_prompt, user_prompt, candidate_operator_ids):
+        del self, system_prompt, user_prompt
+        return OpenAICompatibleDecision(
+            selected_operator_id=candidate_operator_ids[1],
+            phase="repair",
+            rationale="bias toward local operator",
+            provider="dashscope-compatible",
+            model="glm-5",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": candidate_operator_ids[1]},
+        )
+
+    monkeypatch.setattr(OpenAICompatibleClient, "request_operator_decision", _fake_request_operator_decision)
+    spec = _small_llm_union_spec()
+    run = run_union_optimization(
+        _base_cases(spec),
+        spec,
+        _evaluation_spec(spec),
+    )
+
+    assert run.result.aggregate_metrics["num_evaluations"] > 0
+    assert run.controller_trace
+    assert {row.controller_id for row in run.controller_trace} == {"llm"}
+    assert {row.selected_operator_id for row in run.controller_trace} == {"sbx_pm_global"}
+    assert {row.phase for row in run.controller_trace} == {"repair"}
+    assert {row.metadata["provider"] for row in run.controller_trace} == {"dashscope-compatible"}
+    assert run.llm_request_trace
+    assert run.llm_response_trace
+    assert run.llm_metrics["request_count"] == len(run.llm_request_trace)
+
+
+def test_nsga2_union_llm_request_trace_includes_domain_grounded_state_blocks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from llm.openai_compatible.client import OpenAICompatibleClient
+    from optimizers.drivers.union_driver import run_union_optimization
+
+    def _fake_request_operator_decision(self, *, system_prompt, user_prompt, candidate_operator_ids):
+        del self, system_prompt, user_prompt
+        return OpenAICompatibleDecision(
+            selected_operator_id=candidate_operator_ids[1],
+            phase="repair",
+            rationale="bias toward local operator",
+            provider="openai-compatible",
+            model="gpt-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": candidate_operator_ids[1]},
+        )
+
+    monkeypatch.setattr(OpenAICompatibleClient, "request_operator_decision", _fake_request_operator_decision)
+    spec = _small_llm_union_spec()
+    run = run_union_optimization(
+        _base_cases(spec),
+        spec,
+        _evaluation_spec(spec),
+    )
+
+    assert run.llm_request_trace
+    payload = json.loads(run.llm_request_trace[0]["user_prompt"])
+    metadata = payload["metadata"]
+    assert metadata["run_state"]["evaluations_used"] >= 0
+    assert metadata["run_state"]["evaluations_remaining"] is not None
+    assert metadata["parent_state"]["parent_indices"]
+    assert metadata["parent_state"]["parents"]
+    assert metadata["archive_state"]["best_near_feasible"] is not None
+    assert metadata["domain_regime"]["phase"] in {"far_infeasible", "near_feasible", "feasible_refine"}

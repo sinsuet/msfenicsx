@@ -1,0 +1,209 @@
+"""Compact reflection summaries for controller-visible operator history."""
+
+from __future__ import annotations
+
+from collections import Counter
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+import numpy as np
+
+from optimizers.operator_pool.domain_state import (
+    build_history_lookup,
+    classify_constraint_family,
+    dominant_violation,
+    objective_score,
+    outcome_regime,
+    total_violation,
+    vector_key,
+)
+from optimizers.operator_pool.operators import get_operator_behavior_profile
+from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
+
+_SUPPORTED_SELECTION_THRESHOLD = 3
+
+
+def _is_fallback_selection(row: ControllerTraceRow) -> bool:
+    return bool(row.metadata.get("fallback_used", False))
+
+
+def _is_llm_valid_selection(row: ControllerTraceRow) -> bool:
+    return row.controller_id == "llm" and not _is_fallback_selection(row)
+
+
+def _evidence_level(summary_row: Mapping[str, Any]) -> str:
+    feasible_entry_count = int(summary_row.get("feasible_entry_count", 0))
+    feasible_preservation_count = int(summary_row.get("feasible_preservation_count", 0))
+    support_count = max(
+        int(summary_row.get("selection_count", 0)),
+        int(summary_row.get("proposal_count", 0)),
+        int(summary_row.get("recent_selection_count", 0)),
+    )
+    if feasible_entry_count > 0 or feasible_preservation_count > 0:
+        return "trusted"
+    if support_count >= _SUPPORTED_SELECTION_THRESHOLD:
+        return "supported"
+    return "speculative"
+
+
+def summarize_operator_history(
+    controller_trace: list[ControllerTraceRow],
+    operator_trace: list[OperatorTraceRow],
+    *,
+    recent_window: int,
+    history: Sequence[Mapping[str, Any]] | None = None,
+    design_variable_ids: Sequence[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    selected_operator_ids = [row.selected_operator_id for row in controller_trace]
+    recent_controller_rows = controller_trace[-recent_window:] if recent_window > 0 else []
+    recent_selected_operator_ids = [row.selected_operator_id for row in recent_controller_rows]
+    fallback_selected_operator_ids = [row.selected_operator_id for row in controller_trace if _is_fallback_selection(row)]
+    llm_valid_selected_operator_ids = [row.selected_operator_id for row in controller_trace if _is_llm_valid_selection(row)]
+    recent_fallback_selected_operator_ids = [
+        row.selected_operator_id for row in recent_controller_rows if _is_fallback_selection(row)
+    ]
+    recent_llm_valid_selected_operator_ids = [
+        row.selected_operator_id for row in recent_controller_rows if _is_llm_valid_selection(row)
+    ]
+    selection_counter = Counter(selected_operator_ids)
+    recent_selection_counter = Counter(recent_selected_operator_ids)
+    fallback_selection_counter = Counter(fallback_selected_operator_ids)
+    llm_valid_selection_counter = Counter(llm_valid_selected_operator_ids)
+    recent_fallback_selection_counter = Counter(recent_fallback_selected_operator_ids)
+    recent_llm_valid_selection_counter = Counter(recent_llm_valid_selected_operator_ids)
+    proposal_counter = Counter(row.operator_id for row in operator_trace)
+
+    operator_ids = sorted(
+        set(selection_counter)
+        | set(recent_selection_counter)
+        | set(fallback_selection_counter)
+        | set(llm_valid_selection_counter)
+        | set(recent_fallback_selection_counter)
+        | set(recent_llm_valid_selection_counter)
+        | set(proposal_counter)
+    )
+    outcome_summary = _summarize_operator_outcomes(
+        operator_trace,
+        history=history,
+        design_variable_ids=design_variable_ids,
+    )
+    summary: dict[str, dict[str, Any]] = {}
+    for operator_id in operator_ids:
+        profile = get_operator_behavior_profile(operator_id)
+        operator_summary = {
+            "selection_count": int(selection_counter.get(operator_id, 0)),
+            "recent_selection_count": int(recent_selection_counter.get(operator_id, 0)),
+            "fallback_selection_count": int(fallback_selection_counter.get(operator_id, 0)),
+            "llm_valid_selection_count": int(llm_valid_selection_counter.get(operator_id, 0)),
+            "recent_fallback_selection_count": int(recent_fallback_selection_counter.get(operator_id, 0)),
+            "recent_llm_valid_selection_count": int(recent_llm_valid_selection_counter.get(operator_id, 0)),
+            "proposal_count": int(proposal_counter.get(operator_id, 0)),
+            **outcome_summary.get(
+                operator_id,
+                {
+                    "feasible_entry_count": 0,
+                    "feasible_preservation_count": 0,
+                    "avg_total_violation_delta": 0.0,
+                    "avg_feasible_objective_delta": 0.0,
+                    "recent_helpful_regimes": [],
+                    "recent_harmful_regimes": [],
+                },
+            ),
+        }
+        operator_summary["operator_family"] = profile.family
+        operator_summary["operator_role"] = profile.role
+        operator_summary["exploration_class"] = profile.exploration_class
+        operator_summary["evidence_level"] = _evidence_level(operator_summary)
+        summary[operator_id] = operator_summary
+    return summary
+
+
+def _summarize_operator_outcomes(
+    operator_trace: Sequence[OperatorTraceRow],
+    *,
+    history: Sequence[Mapping[str, Any]] | None,
+    design_variable_ids: Sequence[str] | None,
+) -> dict[str, dict[str, Any]]:
+    if not history or design_variable_ids is None:
+        return {}
+
+    history_lookup = build_history_lookup(history, design_variable_ids)
+    history_by_evaluation_index = {
+        int(row["evaluation_index"]): dict(row)
+        for row in history
+        if "evaluation_index" in row
+    }
+    per_operator: dict[str, dict[str, Any]] = {}
+
+    for row in operator_trace:
+        operator_summary = per_operator.setdefault(
+            row.operator_id,
+            {
+                "feasible_entry_count": 0,
+                "feasible_preservation_count": 0,
+                "total_violation_deltas": [],
+                "feasible_objective_deltas": [],
+                "recent_helpful_regimes": [],
+                "recent_harmful_regimes": [],
+            },
+        )
+        child_record = history_by_evaluation_index.get(int(row.evaluation_index))
+        if child_record is None:
+            continue
+        parent_records = [
+            history_lookup.get(vector_key(parent_vector))
+            for parent_vector in row.parent_vectors
+        ]
+        parent_records = [record for record in parent_records if record is not None]
+        if not parent_records:
+            continue
+
+        parent_total_violation = float(np.mean([total_violation(record) for record in parent_records]))
+        child_total_violation = total_violation(child_record)
+        violation_delta = float(child_total_violation - parent_total_violation)
+        operator_summary["total_violation_deltas"].append(violation_delta)
+
+        child_feasible = bool(child_record.get("feasible", False))
+        parent_feasible_flags = [bool(record.get("feasible", False)) for record in parent_records]
+        if child_feasible and not any(parent_feasible_flags):
+            operator_summary["feasible_entry_count"] += 1
+        if child_feasible and all(parent_feasible_flags):
+            operator_summary["feasible_preservation_count"] += 1
+
+        if child_feasible and any(parent_feasible_flags):
+            parent_objective_scores = [
+                objective_score(record.get("objective_values"))
+                for record in parent_records
+                if bool(record.get("feasible", False))
+            ]
+            if parent_objective_scores:
+                operator_summary["feasible_objective_deltas"].append(
+                    float(objective_score(child_record.get("objective_values")) - np.mean(parent_objective_scores))
+                )
+
+        regime = outcome_regime(parent_records=parent_records, child_record=child_record)
+        regime_tags = [str(regime.get("phase", "")), str(regime.get("dominant_constraint_family", ""))]
+        target_key = "recent_helpful_regimes" if violation_delta < 0.0 else "recent_harmful_regimes"
+        for regime_tag in regime_tags:
+            if regime_tag and regime_tag not in operator_summary[target_key]:
+                operator_summary[target_key].append(regime_tag)
+
+    return {
+        operator_id: {
+            "feasible_entry_count": int(summary["feasible_entry_count"]),
+            "feasible_preservation_count": int(summary["feasible_preservation_count"]),
+            "avg_total_violation_delta": (
+                0.0
+                if not summary["total_violation_deltas"]
+                else float(np.mean(summary["total_violation_deltas"]))
+            ),
+            "avg_feasible_objective_delta": (
+                0.0
+                if not summary["feasible_objective_deltas"]
+                else float(np.mean(summary["feasible_objective_deltas"]))
+            ),
+            "recent_helpful_regimes": list(summary["recent_helpful_regimes"]),
+            "recent_harmful_regimes": list(summary["recent_harmful_regimes"]),
+        }
+        for operator_id, summary in per_operator.items()
+    }

@@ -21,7 +21,9 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
   - union-uniform `NSGA-II`
   - union-`LLM` `NSGA-II`
 - The paper-facing `union-uniform` rung is now implemented and mechanism-analyzed.
-- The immediate next paper-facing implementation step is `union-LLM` on `NSGA-II`, using the same mixed action registry, repair, evaluation contract, and budget framing.
+- The paper-facing `union-LLM` rung is now implemented for `NSGA-II` under an OpenAI-compatible client boundary, using the same mixed action registry, repair, evaluation contract, and budget framing.
+- The currently validated live `L1` route now uses compact domain-grounded controller state, including parent/objective/violation/archive/regime summaries plus operator-outcome credit and traceable anti-collapse safeguards.
+- The next planned `L1` refinement is not benchmark-specific prompt tuning; it is a reusable controller-policy kernel built around search phase, evidence tier, family-level anti-collapse, and progress-reset logic, validated first on `NSGA-II` but intended to transfer to future multi-scenario and multi-backbone controller studies.
 - The active platform is organized around:
   - `core/`
   - `evaluation/`
@@ -61,11 +63,12 @@ The only active paper-facing classical optimizer spec is:
 `scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml`
 
 The implemented optimizer runtime also supports a first-batch raw matrix and exploratory union-uniform matrix across the six approved backbones, using the same benchmark generation, evaluation, repair, and artifact contract.
-For the paper-facing controller line, `NSGA-II union-uniform` is now implemented and analyzed, and the next implementation focus is `NSGA-II union-LLM` rather than further broadening the exploratory matrix runtime.
+For the paper-facing controller line, both `NSGA-II union-uniform` and `NSGA-II union-LLM` are now implemented. The immediate focus is experimental validation, reusable controller-kernel stabilization, and paper-facing analysis rather than further broadening the exploratory matrix runtime.
 
 The earlier heuristic hybrid `B1` direction is superseded and should not be reintroduced as an active supported baseline without an explicit new plan.
 Future multi-backbone operator-pool work should follow the multi-backbone optimizer-matrix spec and plan.
 Future paper-facing `LLM` controller work on `NSGA-II` should follow the hybrid-union spec and plan.
+Controller-policy repairs validated first on the paper-facing `NSGA-II` line should be written as optimizer-layer kernels that can later transfer to multiple scenarios and backbones rather than as scene-, seed-, or operator-name-specific patches.
 
 ## Architectural Expectations
 
@@ -89,6 +92,8 @@ Future paper-facing `LLM` controller work on `NSGA-II` should follow the hybrid-
 - Use the `msfenicsx` conda environment for Python, CLI, and tests.
 - Prefer running verification with `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...` inside WSL rather than relying on Windows Conda discovery.
 - Avoid Windows-native environment paths such as `D:\...` for repo execution unless the user explicitly requests Windows-side validation.
+- The active `L1` live controller path depends on the `openai` Python package declared in `pyproject.toml`; if the local `msfenicsx` environment predates that dependency, sync it before any live OpenAI-compatible call.
+- The approved paper-facing live `NSGA-II union-LLM` route currently uses an OpenAI-compatible endpoint with `OPENAI_API_KEY` sourced from process environment or repository-root `.env` and `model=GPT-5.4`.
 - Repository text artifacts should default to UTF-8 encoding without BOM, and Python text I/O should explicitly use `encoding="utf-8"` for repository files.
 - Treat terminal-side mojibake from the host or WSL bridge as environment noise unless the same corruption is present in the saved repository artifact itself.
 - Prefer commands like:
@@ -98,6 +103,9 @@ Future paper-facing `LLM` controller work on `NSGA-II` should follow the hybrid-
   - `conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<case_id>.yaml --output-root ./scenario_runs`
   - `conda run -n msfenicsx python -m evaluation.cli evaluate-operating-cases --case hot=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<hot_case_id>.yaml --case cold=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<cold_case_id>.yaml --solution hot=./scenario_runs/<scenario_id>/<hot_case_id>/solution.yaml --solution cold=./scenario_runs/<scenario_id>/<cold_case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./scenario_runs/evaluations/panel-four-component-hot-cold-baseline/seed-11/report.yaml`
   - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --output-root ./scenario_runs/optimizations/panel-four-component-b0`
+  - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_live.yaml --request-trace ./scenario_runs/optimizations/<run>/llm_request_trace.jsonl --output ./scenario_runs/optimizations/diagnostics/<summary>.json`
+  - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/optimizations/<run>/controller_trace.json --output ./scenario_runs/optimizations/<run>/controller_trace_summary.json`
+  - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
 ## Engineering Guardrails
 
@@ -106,6 +114,8 @@ Future paper-facing `LLM` controller work on `NSGA-II` should follow the hybrid-
 - Never hardcode API keys, tokens, or private credentials; load secrets from environment variables or explicit local configuration.
 - Do not silently change important runtime or solver defaults without documenting the change.
 - Fix root causes with physically and architecturally defensible changes instead of fake passes, temporary bypasses, or scientifically invalid shortcuts.
+- Do not repair controller behavior by hardcoding benchmark seeds, scenario IDs, backbone IDs, or operator names as one-off policy exceptions unless an explicit diagnostic document marks them as temporary instrumentation.
+- Prefer phase-aware, evidence-aware, family-aware, and progress-aware controller mechanisms over scene-specific prompt hacks.
 
 ## Data and Artifact Rules
 
@@ -121,6 +131,7 @@ Future paper-facing `LLM` controller work on `NSGA-II` should follow the hybrid-
 - The approved multi-backbone comparison track should keep benchmark source, evaluation spec, decision encoding, repair, and artifact bundle contract aligned across backbones unless a document explicitly defines a different experiment class.
 - Any future operator-pool controller comparison must be treated as a separate experimental track rather than silently folded into the mainline.
 - Any future operator-pool controller comparison should be algorithm-agnostic and multi-backbone rather than `NSGA-II`-only.
+- Domain summaries may be benchmark-specific adapters, but the controller-policy kernel itself should remain scenario-agnostic and portable across future algorithms and scenarios whenever the same action registry contracts are available.
 - Runtime outputs should go to `scenario_runs/` or another explicit artifact location, not source folders.
 - Prefer `scenario_runs/` as the canonical runtime root for generated cases, solved case bundles, evaluation reports, and optimization bundles.
 - Active optimizer runs should write manifest-backed bundles under paths such as `scenario_runs/optimizations/...`.
@@ -155,10 +166,12 @@ Current Phase 1 test areas are:
 - If comparing future backbone methods, keep benchmark source, evaluation spec, design-variable encoding, repair, and total expensive-evaluation budget matched unless the comparison is explicitly framed as a different experiment class.
 - In the `NSGA-II` hybrid-union line, keep the mixed native-plus-custom action registry matched between the non-LLM and `LLM` controllers.
 - In the `NSGA-II` hybrid-union line, describe the change as an action-space expansion, not as a change to the eight-variable decision encoding.
+- If a controller repair has been validated only on one scenario or one backbone, label it as provisional controller-kernel evidence rather than as a repository-wide unified framework result.
 - If something is not validated yet, label it as a hypothesis rather than a confirmed result.
 - Comparative claims should use more than one seed unless the work is explicitly exploratory.
 - Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis instead of hiding them.
 - Failure reasons and dominant violations are valid evidence and should be retained in reports or run artifacts when relevant.
+- For `L1` controller stability work, cheap local `controller_trace` diagnostics are valid pre-live evidence and should be used before any new bounded or full live rerun.
 
 ## Documentation Expectations
 
@@ -177,19 +190,27 @@ Current Phase 1 test areas are:
 - `docs/superpowers/specs/2026-03-27-paper-grade-multiobjective-thermal-baseline-design.md`
 - `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
 - `docs/superpowers/specs/2026-03-28-nsga2-hybrid-union-controller-design.md`
+- `docs/superpowers/specs/2026-03-28-openai-union-llm-controller-design.md`
 - `docs/superpowers/plans/2026-03-27-paper-grade-multiobjective-thermal-baseline.md`
 - `docs/superpowers/plans/2026-03-27-pure-nsga2-mainline-reset.md`
 - `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`
 - `docs/superpowers/plans/2026-03-28-nsga2-hybrid-union-controller.md`
+- `docs/superpowers/plans/2026-03-28-openai-compatible-union-llm-controller.md`
+- `docs/superpowers/plans/2026-03-31-l1-domain-grounded-controller-state-completion.md`
+- `docs/superpowers/plans/2026-03-31-l1-llm-stability-diagnostics-and-repair.md`
+- `docs/superpowers/plans/2026-03-31-l1-reusable-controller-kernel-stabilization.md`
 - `docs/reports/R60_msfenicsx_2d_fenicsx_migration_initial_report_20260326.md`
 - `docs/reports/R63_msfenicsx_multicase_multiobjective_reset_20260327.md`
 - `docs/reports/R64_msfenicsx_paper_grade_b0_rollout_20260327.md`
 - `docs/reports/R66_msfenicsx_pure_nsga2_mainline_reset_20260327.md`
 - `docs/reports/R67_msfenicsx_multi_backbone_optimizer_matrix_doc_reset_20260327.md`
 - `docs/reports/R68_msfenicsx_nsga2_union_mechanism_analysis_20260328.md`
+- `docs/reports/R69_msfenicsx_llm_controller_literature_and_novelty_report_20260328.md`
 - `optimizers/algorithm_config.py`
 - `optimizers/drivers/raw_driver.py`
+- `optimizers/drivers/union_driver.py`
 - `optimizers/validation.py`
+- `llm/openai_compatible/client.py`
 - `scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml`
 - `scenarios/optimization/panel_four_component_hot_cold_nsga2_raw_b0.yaml`
 - `scenarios/optimization/panel_four_component_hot_cold_nsga3_raw_b0.yaml`

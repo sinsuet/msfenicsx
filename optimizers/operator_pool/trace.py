@@ -23,6 +23,8 @@ class ControllerTraceRow:
     controller_id: str
     candidate_operator_ids: tuple[str, ...]
     selected_operator_id: str
+    phase: str = ""
+    rationale: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -38,6 +40,8 @@ class ControllerTraceRow:
             "controller_id": self.controller_id,
             "candidate_operator_ids": list(self.candidate_operator_ids),
             "selected_operator_id": self.selected_operator_id,
+            "phase": self.phase,
+            "rationale": self.rationale,
             "metadata": dict(self.metadata),
         }
 
@@ -51,6 +55,8 @@ class ControllerTraceRow:
             controller_id=str(payload["controller_id"]),
             candidate_operator_ids=tuple(str(value) for value in payload["candidate_operator_ids"]),
             selected_operator_id=str(payload["selected_operator_id"]),
+            phase=str(payload.get("phase", "")),
+            rationale=str(payload.get("rationale", "")),
             metadata=dict(payload.get("metadata", {})),
         )
 
@@ -92,4 +98,3 @@ class OperatorTraceRow:
             proposal_vector=_coerce_float_tuple(payload["proposal_vector"]),
             metadata=dict(payload.get("metadata", {})),
         )
-

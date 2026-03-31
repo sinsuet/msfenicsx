@@ -1,7 +1,7 @@
 schema_version: "1.0"
 spec_meta:
-  spec_id: panel-four-component-hot-cold-nsga2-union-llm-l1
-  description: NSGA-II hybrid-union L1 with the same action registry and an OpenAI-compatible llm controller profile.
+  spec_id: panel-four-component-hot-cold-nsga2-union-llm-l1-gpt54-smoke
+  description: NSGA-II hybrid-union L1 smoke profile using an OpenAI-compatible endpoint with GPT-5.4 and a minimal live budget.
 benchmark_source:
   template_path: scenarios/templates/panel_four_component_hot_cold_benchmark.yaml
   seed: 11
@@ -42,8 +42,8 @@ algorithm:
   family: genetic
   backbone: nsga2
   mode: union
-  population_size: 16
-  num_generations: 8
+  population_size: 4
+  num_generations: 2
   seed: 7
   profile_path: scenarios/optimization/profiles/panel_four_component_hot_cold_nsga2_union.yaml
 operator_control:
@@ -59,15 +59,14 @@ operator_control:
     - radiator_expand
     - radiator_contract
   controller_parameters:
-    provider: openai
-    capability_profile: responses_native
+    provider: openai-compatible
+    capability_profile: chat_compatible_json
     performance_profile: balanced
-    model: gpt-5.4
+    model: GPT-5.4
     api_key_env_var: OPENAI_API_KEY
-    max_output_tokens: 1024
-    temperature: 0.2
-    reasoning:
-      effort: medium
+    base_url: https://llmapi.paratera.com/v1
+    max_output_tokens: 128
+    temperature: 1.0
     retry:
       max_attempts: 2
       timeout_seconds: 45

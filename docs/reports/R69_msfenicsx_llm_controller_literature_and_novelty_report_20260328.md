@@ -39,6 +39,28 @@ The headline innovation is better described as:
 - for expensive, constrained, multicase engineering optimization
 - with matched repair, evaluation, and survival rules across the comparison ladder
 
+## Implemented Contract Note
+
+As of 2026-03-28, the repository now includes the first implemented `L1-union-llm-nsga2` runtime path aligned to this report's framing.
+
+Implemented today:
+
+- `controller=llm` spec validation with OpenAI-compatible `controller_parameters`
+- an OpenAI-compatible client boundary under `llm/openai_compatible/`
+- structured controller-state building from recent controller/operator traces as a compact live subset of the fuller domain-grounded state proposed in this report
+- an `LLM` controller that selects only from the fixed union action registry and falls back to `random_uniform` on provider failure
+- `NSGA-II` union-runtime integration with preserved repair, evaluation, and survival semantics
+- sidecar artifacts for `LLM` request trace, response trace, and run metrics
+
+Not yet validated by this implementation note:
+
+- multi-seed comparative paper results
+- full provider/model benchmarking across OpenAI-compatible ecosystems
+- live-provider performance claims on the engineering benchmark
+- the fuller parent/objective/violation/archive-grounded controller state described later in this report, which remains follow-up implementation work beyond the compact live subset
+
+So the implementation status is now "code-complete for the first `L1` runtime path, experiment-complete still pending."
+
 ## Anchor Papers
 
 The following papers are the main anchor set for this line.
@@ -440,3 +462,25 @@ So the right answer is:
 - do sell the work as a new `LLM` controller framework for engineering optimization, where memory is one specialized mechanism inside a carefully matched and scientifically fair design
 
 That framing is much more likely to survive reviewer scrutiny.
+
+## 2026-04-01 Validation Update
+
+The follow-up reusable controller-kernel validation has now been run under matched full-budget `11/17/23` seeds and is documented in `docs/reports/R70_msfenicsx_l1_reusable_controller_kernel_validation_20260331.md`.
+
+That validation matters for the novelty claim in this report because it tests the approved next-step direction:
+
+- reusable optimizer-layer policy logic
+- phase-aware, evidence-aware, family-aware, and progress-aware control
+- no benchmark-seed-specific or operator-name-specific permanent patches
+
+The current evidence supports the framing in this report more strongly than the original compact `L1` note did:
+
+- the current kernel now beats the old compact `GPT-5.4` `L1` line on average across `11/17/23` for feasible rate, time-to-first-feasible, and Pareto size
+- it also beats the plain `NSGA-II` raw baseline on average across the same seeds
+- it does not yet cleanly dominate `union-uniform`, because it improves average feasible rate and time-to-first-feasible but still trails slightly on mean Pareto size
+
+So the updated scientific position is:
+
+- the repository now has evidence for a reusable controller-kernel contribution, not only for a one-off compact live controller
+- the strongest paper-facing claim is still not "the `LLM` controller wins everywhere"
+- the stronger claim is "a reusable policy kernel can materially stabilize and improve the `LLM` controller line under matched optimizer contracts, while preserving a fair controller-only comparison"

@@ -1,9 +1,8 @@
-"""LLM package boundary for optimizer-side controller integrations."""
+"""OpenAI-compatible client boundary for union-LLM controller integrations."""
 
-from llm.openai_compatible import (
-    OpenAICompatibleClient,
-    OpenAICompatibleConfig,
-    OpenAICompatibleDecision,
+from llm.openai_compatible.client import OpenAICompatibleClient, OpenAICompatibleDecision
+from llm.openai_compatible.config import OpenAICompatibleConfig
+from llm.openai_compatible.replay import (
     load_request_trace,
     replay_request_trace_file,
     replay_request_trace_rows,

@@ -78,6 +78,17 @@ def test_operator_pool_registry_matches_union_action_contract() -> None:
     assert list_registered_operator_ids() == APPROVED_UNION_OPERATOR_IDS
 
 
+def test_behavior_profiles_cover_matrix_native_operator_ids() -> None:
+    from optimizers.operator_pool.operators import get_operator_behavior_profile, native_operator_id_for_backbone
+
+    for family, backbone in (("decomposition", "moead"), ("swarm", "cmopso")):
+        operator_id = native_operator_id_for_backbone(family, backbone)
+        profile = get_operator_behavior_profile(operator_id)
+        assert profile.operator_id == operator_id
+        assert profile.family == "native_baseline"
+        assert profile.exploration_class == "stable"
+
+
 def test_variable_layout_maps_active_benchmark_variables_in_order() -> None:
     layout = _layout()
 
