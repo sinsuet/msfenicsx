@@ -232,8 +232,10 @@ class OpenAICompatibleClient:
                 normalized_prompt = f"{normalized_prompt}{suffix}"
         return (
             f"{normalized_prompt.rstrip()} "
-            "Return exactly one JSON object with the key selected_operator_id. "
-            f"The selected_operator_id value must exactly equal one of {list(candidate_operator_ids)}."
+            "Return exactly one JSON object with the keys selected_operator_id, phase, and rationale. "
+            f"The selected_operator_id value must exactly equal one of {list(candidate_operator_ids)}. "
+            "Set phase to a short search-phase label when available. "
+            "Set rationale to a brief explanation of the operator choice."
         )
 
     @staticmethod
@@ -253,7 +255,8 @@ class OpenAICompatibleClient:
         return (
             f"{system_prompt.rstrip()} "
             "Previous response was invalid. "
-            f"It must return JSON only with selected_operator_id exactly equal to one of {list(operator_ids)}. "
+            "It must return JSON only with the keys selected_operator_id, phase, and rationale. "
+            f"The selected_operator_id value must exactly equal one of {list(operator_ids)}. "
             f"Invalid reason: {error_message}"
         )
 

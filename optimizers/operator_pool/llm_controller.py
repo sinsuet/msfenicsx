@@ -118,6 +118,7 @@ class LLMOperatorController:
                 "performance_profile": self.config.performance_profile,
                 "candidate_operator_ids": list(candidate_operator_ids),
                 "policy_phase": policy_snapshot.phase,
+                "phase_source": "policy_kernel",
                 "policy_reason_codes": list(policy_snapshot.reason_codes),
                 "policy_reset_active": policy_snapshot.reset_active,
                 "original_candidate_operator_ids": list(original_candidate_operator_ids),
@@ -146,6 +147,9 @@ class LLMOperatorController:
                     "model": self.config.model,
                     "candidate_operator_ids": list(candidate_operator_ids),
                     "policy_phase": policy_snapshot.phase,
+                    "phase_source": "policy_kernel",
+                    "model_phase": "",
+                    "model_rationale_present": False,
                     "policy_reason_codes": list(policy_snapshot.reason_codes),
                     "policy_reset_active": policy_snapshot.reset_active,
                     "guardrail": None if guardrail is None else dict(guardrail),
@@ -162,14 +166,18 @@ class LLMOperatorController:
                     "fallback_controller": self.fallback_controller_id,
                     "fallback_reason": str(exc),
                     "elapsed_seconds": elapsed_seconds,
-                    "policy_phase": policy_snapshot.phase,
+                    **self._decision_phase_metadata(
+                        policy_phase=policy_snapshot.phase,
+                        model_phase="",
+                        model_rationale_present=False,
+                    ),
                     "guardrail_reason_codes": list(policy_snapshot.reason_codes),
                 }
             )
             metadata.update(self._decision_guardrail_metadata(guardrail))
             return ControllerDecision(
                 selected_operator_id=fallback_decision.selected_operator_id,
-                phase=fallback_decision.phase,
+                phase=policy_snapshot.phase,
                 rationale=fallback_decision.rationale,
                 metadata=metadata,
             )
@@ -186,7 +194,10 @@ class LLMOperatorController:
                 "capability_profile": response.capability_profile,
                 "performance_profile": response.performance_profile,
                 "selected_operator_id": response.selected_operator_id,
-                "phase": response.phase,
+                "phase": policy_snapshot.phase,
+                "phase_source": "policy_kernel",
+                "model_phase": response.phase,
+                "model_rationale_present": bool(response.rationale.strip()),
                 "rationale": response.rationale,
                 "raw_payload": dict(response.raw_payload),
                 "candidate_operator_ids": list(candidate_operator_ids),
@@ -206,13 +217,17 @@ class LLMOperatorController:
             "raw_payload": dict(response.raw_payload),
             "fallback_used": False,
             "elapsed_seconds": elapsed_seconds,
-            "policy_phase": policy_snapshot.phase,
+            **self._decision_phase_metadata(
+                policy_phase=policy_snapshot.phase,
+                model_phase=response.phase,
+                model_rationale_present=bool(response.rationale.strip()),
+            ),
             "guardrail_reason_codes": list(policy_snapshot.reason_codes),
         }
         response_metadata.update(self._decision_guardrail_metadata(guardrail))
         return ControllerDecision(
             selected_operator_id=response.selected_operator_id,
-            phase=response.phase,
+            phase=policy_snapshot.phase,
             rationale=response.rationale,
             metadata=response_metadata,
         )
@@ -527,6 +542,20 @@ class LLMOperatorController:
             "guardrail_recent_window_size": int(guardrail.get("recent_window_size", 0)),
             "guardrail_policy_phase": str(guardrail.get("policy_phase", "")),
             "guardrail_policy_reset_active": bool(guardrail.get("policy_reset_active", False)),
+        }
+
+    @staticmethod
+    def _decision_phase_metadata(
+        *,
+        policy_phase: str,
+        model_phase: str,
+        model_rationale_present: bool,
+    ) -> dict[str, Any]:
+        return {
+            "policy_phase": str(policy_phase),
+            "phase_source": "policy_kernel",
+            "model_phase": str(model_phase),
+            "model_rationale_present": bool(model_rationale_present),
         }
 
     @staticmethod

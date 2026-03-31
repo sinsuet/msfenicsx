@@ -723,10 +723,13 @@ def test_llm_controller_returns_structured_decision_from_client() -> None:
 
     assert isinstance(decision, ControllerDecision)
     assert decision.selected_operator_id == "local_refine"
-    assert decision.phase == "repair"
+    assert decision.phase == "post_feasible"
     assert decision.rationale == "bias toward local cleanup"
     assert decision.metadata["provider"] == "openai"
     assert decision.metadata["model"] == "gpt-5.4"
+    assert decision.metadata["policy_phase"] == "post_feasible"
+    assert decision.metadata["phase_source"] == "policy_kernel"
+    assert decision.metadata["model_phase"] == "repair"
     assert client.last_kwargs is not None
     assert "candidate_operator_ids" in client.last_kwargs["user_prompt"]
 
