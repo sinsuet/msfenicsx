@@ -107,6 +107,8 @@ def _resolve_summary_metric(
 ) -> float:
     if field in {"temperature_min", "temperature_mean", "temperature_max"}:
         return _require_numeric(solution_payload["summary_metrics"].get(field), metric_key)
+    if field == "temperature_gradient_rms":
+        return _require_numeric(solution_payload["summary_metrics"].get(field), metric_key)
     if field == "temperature_span":
         return _require_numeric(solution_payload["summary_metrics"].get("temperature_max"), metric_key) - _require_numeric(
             solution_payload["summary_metrics"].get("temperature_min"), metric_key

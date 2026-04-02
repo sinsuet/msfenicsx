@@ -80,6 +80,7 @@ def _solution() -> ThermalSolution:
                 "temperature_min": 285.1,
                 "temperature_mean": 301.2,
                 "temperature_max": 322.4,
+                "temperature_gradient_rms": 12.5,
             },
             "component_summaries": [
                 {
@@ -143,6 +144,12 @@ def test_evaluation_cli_writes_report_and_bundle_snapshot(tmp_path: Path) -> Non
                         "metric": "component.rf-power-amp-001.temperature_max",
                         "relation": "<=",
                         "limit": 325.0,
+                    },
+                    {
+                        "constraint_id": "gradient_rms_limit",
+                        "metric": "summary.temperature_gradient_rms",
+                        "relation": "<=",
+                        "limit": 20.0,
                     }
                 ],
             },
@@ -168,7 +175,8 @@ def test_evaluation_cli_writes_report_and_bundle_snapshot(tmp_path: Path) -> Non
     )
 
     assert exit_code == 0
-    assert report_path.exists()
+    report_payload = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+    assert report_payload["metric_values"]["summary.temperature_gradient_rms"] == 12.5
     assert (bundle_root / "evaluation.yaml").exists()
 
 

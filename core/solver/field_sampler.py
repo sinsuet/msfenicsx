@@ -7,11 +7,18 @@ from typing import Any
 import numpy as np
 from shapely import covers, points
 
+from core.solver.gradient_metrics import compute_temperature_gradient_rms
 
-def sample_solution_fields(temperature_function: Any, components: list[dict[str, Any]]) -> dict[str, Any]:
+
+def sample_solution_fields(
+    temperature_function: Any,
+    components: list[dict[str, Any]],
+    panel_area: float,
+) -> dict[str, Any]:
     coordinates = temperature_function.function_space.tabulate_dof_coordinates()
     xy_coordinates = coordinates[:, :2]
     values = np.asarray(temperature_function.x.array, dtype=np.float64)
+    temperature_gradient_rms = compute_temperature_gradient_rms(temperature_function, panel_area=panel_area)
     component_summaries = []
     query_points = points(xy_coordinates[:, 0], xy_coordinates[:, 1])
     for component in components:
@@ -40,6 +47,7 @@ def sample_solution_fields(temperature_function: Any, components: list[dict[str,
             "temperature_min": float(np.min(values)),
             "temperature_mean": float(np.mean(values)),
             "temperature_max": float(np.max(values)),
+            "temperature_gradient_rms": float(temperature_gradient_rms),
         },
         "component_summaries": component_summaries,
     }
