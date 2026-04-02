@@ -8,8 +8,8 @@ def _template_payload() -> dict:
     return {
         "schema_version": "1.0",
         "template_meta": {
-            "template_id": "panel-radiation-baseline",
-            "description": "Baseline 2D satellite panel scenario template.",
+            "template_id": "s1_typical",
+            "description": "Single-case s1_typical template.",
         },
         "coordinate_system": {"plane": "panel_xy"},
         "panel_domain": {"width": 1.0, "height": 0.8},
@@ -19,14 +19,6 @@ def _template_payload() -> dict:
         "boundary_feature_families": [],
         "load_rules": [],
         "material_rules": [],
-        "operating_case_profiles": [
-            {
-                "operating_case_id": "hot",
-                "ambient_temperature": 300.0,
-                "component_power_overrides": {"processor": 24.0},
-                "boundary_feature_overrides": {"radiator-top": {"sink_temperature": 292.0}},
-            }
-        ],
         "mesh_profile": {"nx": 32, "ny": 24},
         "solver_profile": {"nonlinear_solver": "snes"},
         "generation_rules": {"seed_policy": "external"},

@@ -9,7 +9,7 @@ def test_s1_typical_template_has_expected_shape() -> None:
 
     assert payload["template_meta"]["template_id"] == "s1_typical"
     assert len(payload["component_families"]) == 15
-    assert payload["operating_case_profiles"] == []
+    assert "operating_case_profiles" not in payload
 
     boundary_feature_families = payload["boundary_feature_families"]
     assert len(boundary_feature_families) == 1

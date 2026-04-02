@@ -1,5 +1,3 @@
-import pytest
-
 from core.contracts.case_contracts import assert_case_geometry_contracts
 from core.generator.pipeline import generate_case
 
@@ -22,6 +20,10 @@ def test_generate_case_returns_single_case_for_mainline_template() -> None:
     assert_case_geometry_contracts(case)
 
 
-def test_generate_case_rejects_templates_with_operating_case_profiles() -> None:
-    with pytest.raises(ValueError, match="generate-operating-case-pair"):
-        generate_case("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml", seed=11)
+def test_generate_case_keeps_single_sink_feature_for_mainline_template() -> None:
+    case = generate_case("scenarios/templates/s1_typical.yaml", seed=11)
+
+    assert len(case.boundary_features) == 1
+    sink = case.boundary_features[0]
+    assert sink["edge"] == "top"
+    assert 0.0 <= sink["start"] < sink["end"] <= 1.0

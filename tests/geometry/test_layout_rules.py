@@ -1,7 +1,7 @@
 import pytest
 
 from core.contracts.case_contracts import CaseContractError, assert_case_geometry_contracts
-from core.generator.paired_pipeline import generate_operating_case_pair
+from core.generator.pipeline import generate_case
 from core.geometry.layout_rules import (
     component_respects_keep_out_regions,
     component_within_domain,
@@ -50,13 +50,13 @@ def test_component_respects_keep_out_regions_rejects_intersection() -> None:
 
 
 def test_assert_case_geometry_contracts_accepts_reference_case() -> None:
-    case = generate_operating_case_pair("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml", seed=11)["hot"]
+    case = generate_case("scenarios/templates/s1_typical.yaml", seed=11)
 
     assert_case_geometry_contracts(case)
 
 
 def test_assert_case_geometry_contracts_rejects_overlapping_components() -> None:
-    case = generate_operating_case_pair("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml", seed=11)["hot"].to_dict()
+    case = generate_case("scenarios/templates/s1_typical.yaml", seed=11).to_dict()
     case["components"].append(_rect_component("comp-002", x=0.3, y=0.35, width=0.16, height=0.09))
 
     with pytest.raises(CaseContractError, match="overlap"):

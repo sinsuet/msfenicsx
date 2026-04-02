@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from core.cli.main import build_parser, main
 from evaluation.cli import build_parser as build_evaluation_parser
@@ -49,19 +50,10 @@ def test_generate_case_is_the_only_mainline_generation_command() -> None:
     assert "generate-operating-case-pair" not in command_names
 
 
-def test_generate_case_cli_rejects_paired_benchmark_template(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="generate-operating-case-pair"):
-        main(
-            [
-                "generate-case",
-                "--template",
-                "scenarios/templates/panel_four_component_hot_cold_benchmark.yaml",
-                "--seed",
-                "11",
-                "--output-root",
-                str(tmp_path / "generated_case"),
-            ]
-        )
+def test_s1_typical_template_has_no_legacy_operating_case_profiles() -> None:
+    payload = yaml.safe_load(Path("scenarios/templates/s1_typical.yaml").read_text(encoding="utf-8"))
+
+    assert "operating_case_profiles" not in payload
 
 
 def test_evaluate_case_is_the_only_public_evaluation_command() -> None:

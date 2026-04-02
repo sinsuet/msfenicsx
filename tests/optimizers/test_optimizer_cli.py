@@ -61,11 +61,6 @@ def _write_small_union_spec(tmp_path: Path, *, controller: str = "random_uniform
     payload["algorithm"]["num_generations"] = 2
     payload["algorithm"]["mode"] = "union"
     payload["algorithm"]["profile_path"] = "scenarios/optimization/profiles/s1_typical_union.yaml"
-    for variable in payload["design_variables"]:
-        if variable["variable_id"] == "sink_start":
-            variable["variable_id"] = "radiator_start"
-        elif variable["variable_id"] == "sink_end":
-            variable["variable_id"] = "radiator_end"
     payload["operator_control"] = {
         "controller": controller,
         "operator_pool": list(approved_union_operator_ids_for_backbone("genetic", "nsga2")),
@@ -125,7 +120,7 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
                 family="genetic",
                 backbone="nsga2",
                 controller_id="llm",
-                candidate_operator_ids=("native_sbx_pm", "local_refine", "radiator_expand", "hot_pair_to_sink"),
+                candidate_operator_ids=("native_sbx_pm", "local_refine", "slide_sink", "move_hottest_cluster_toward_sink"),
                 selected_operator_id=operator_id,
                 phase="",
                 rationale="",
@@ -133,10 +128,10 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
             )
             for index, operator_id in enumerate(
                 (
-                    "hot_pair_to_sink",
+                    "move_hottest_cluster_toward_sink",
                     "local_refine",
-                    "radiator_expand",
-                    "hot_pair_to_sink",
+                    "slide_sink",
+                    "move_hottest_cluster_toward_sink",
                     "native_sbx_pm",
                 )
             )
@@ -156,10 +151,10 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
             )
             for index, operator_id in enumerate(
                 (
-                    "hot_pair_to_sink",
+                    "move_hottest_cluster_toward_sink",
                     "local_refine",
-                    "radiator_expand",
-                    "hot_pair_to_sink",
+                    "slide_sink",
+                    "move_hottest_cluster_toward_sink",
                     "native_sbx_pm",
                 )
             )
@@ -179,19 +174,19 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
                         "evaluation_index": 58,
                         "feasible": True,
                         "objective_values": {
-                            "minimize_hot_pa_peak": 10.0,
-                            "maximize_cold_battery_min": 5.0,
+                            "minimize_peak_temperature": 10.0,
+                            "minimize_temperature_gradient_rms": 5.0,
                         },
-                        "constraint_values": {"cold_battery_floor": 0.0},
+                        "constraint_values": {"c01_peak_temperature_limit": 0.0},
                     },
                     {
                         "evaluation_index": 59,
                         "feasible": True,
                         "objective_values": {
-                            "minimize_hot_pa_peak": 9.5,
-                            "maximize_cold_battery_min": 5.2,
+                            "minimize_peak_temperature": 9.5,
+                            "minimize_temperature_gradient_rms": 5.2,
                         },
-                        "constraint_values": {"cold_battery_floor": 0.0},
+                        "constraint_values": {"c01_peak_temperature_limit": 0.0},
                     },
                 ],
                 "history": [
@@ -199,46 +194,46 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
                         "evaluation_index": 57,
                         "feasible": False,
                         "objective_values": {
-                            "minimize_hot_pa_peak": 10.8,
-                            "maximize_cold_battery_min": 4.7,
+                            "minimize_peak_temperature": 10.8,
+                            "minimize_temperature_gradient_rms": 4.7,
                         },
-                        "constraint_values": {"cold_battery_floor": 0.4},
+                        "constraint_values": {"c01_peak_temperature_limit": 0.4},
                     },
                     {
                         "evaluation_index": 58,
                         "feasible": True,
                         "objective_values": {
-                            "minimize_hot_pa_peak": 10.0,
-                            "maximize_cold_battery_min": 5.0,
+                            "minimize_peak_temperature": 10.0,
+                            "minimize_temperature_gradient_rms": 5.0,
                         },
-                        "constraint_values": {"cold_battery_floor": 0.0},
+                        "constraint_values": {"c01_peak_temperature_limit": 0.0},
                     },
                     {
                         "evaluation_index": 59,
                         "feasible": True,
                         "objective_values": {
-                            "minimize_hot_pa_peak": 9.5,
-                            "maximize_cold_battery_min": 5.2,
+                            "minimize_peak_temperature": 9.5,
+                            "minimize_temperature_gradient_rms": 5.2,
                         },
-                        "constraint_values": {"cold_battery_floor": 0.0},
+                        "constraint_values": {"c01_peak_temperature_limit": 0.0},
                     },
                     {
                         "evaluation_index": 60,
                         "feasible": False,
                         "objective_values": {
-                            "minimize_hot_pa_peak": 9.4,
-                            "maximize_cold_battery_min": 4.8,
+                            "minimize_peak_temperature": 9.4,
+                            "minimize_temperature_gradient_rms": 4.8,
                         },
-                        "constraint_values": {"cold_battery_floor": 0.3},
+                        "constraint_values": {"c01_peak_temperature_limit": 0.3},
                     },
                     {
                         "evaluation_index": 61,
                         "feasible": True,
                         "objective_values": {
-                            "minimize_hot_pa_peak": 9.7,
-                            "maximize_cold_battery_min": 5.1,
+                            "minimize_peak_temperature": 9.7,
+                            "minimize_temperature_gradient_rms": 5.1,
                         },
-                        "constraint_values": {"cold_battery_floor": 0.0},
+                        "constraint_values": {"c01_peak_temperature_limit": 0.0},
                     },
                 ],
             },
@@ -250,15 +245,15 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
     _write_jsonl(
         request_trace_path,
         [
-            {"evaluation_index": 58, "candidate_operator_ids": ["local_refine", "radiator_expand"]},
-            {"evaluation_index": 59, "candidate_operator_ids": ["radiator_expand", "native_sbx_pm"]},
+            {"evaluation_index": 58, "candidate_operator_ids": ["local_refine", "slide_sink"]},
+            {"evaluation_index": 59, "candidate_operator_ids": ["slide_sink", "native_sbx_pm"]},
         ],
     )
     _write_jsonl(
         response_trace_path,
         [
             {"evaluation_index": 58, "selected_operator_id": "local_refine", "elapsed_seconds": 1.2},
-            {"evaluation_index": 59, "selected_operator_id": "radiator_expand", "elapsed_seconds": 1.4},
+            {"evaluation_index": 59, "selected_operator_id": "slide_sink", "elapsed_seconds": 1.4},
         ],
     )
     return {
@@ -679,8 +674,8 @@ def test_analyze_controller_trace_reports_speculative_family_collapse(tmp_path: 
                 candidate_operator_ids=(
                     "native_sbx_pm",
                     "local_refine",
-                    "battery_to_warm_zone",
-                    "hot_pair_separate",
+                    "rebalance_layout",
+                    "reduce_local_congestion",
                 ),
                 selected_operator_id=operator_id,
                 metadata={
@@ -690,11 +685,11 @@ def test_analyze_controller_trace_reports_speculative_family_collapse(tmp_path: 
             )
             for index, operator_id in enumerate(
                 (
-                    "battery_to_warm_zone",
-                    "hot_pair_separate",
-                    "battery_to_warm_zone",
-                    "hot_pair_separate",
-                    "battery_to_warm_zone",
+                    "rebalance_layout",
+                    "reduce_local_congestion",
+                    "rebalance_layout",
+                    "reduce_local_congestion",
+                    "rebalance_layout",
                 )
             )
         ]
@@ -739,7 +734,7 @@ def test_analyze_controller_trace_reports_prefeasible_stable_family_monopoly_met
                 family="genetic",
                 backbone="nsga2",
                 controller_id="llm",
-                candidate_operator_ids=("native_sbx_pm", "sbx_pm_global", "local_refine"),
+                candidate_operator_ids=("native_sbx_pm", "global_explore", "local_refine"),
                 selected_operator_id=operator_id,
                 metadata={
                     "fallback_used": False,
@@ -783,13 +778,13 @@ def test_analyze_controller_trace_reports_near_feasible_conversion_metrics(tmp_p
                 family="genetic",
                 backbone="nsga2",
                 controller_id="llm",
-                candidate_operator_ids=("native_sbx_pm", "sbx_pm_global", "local_refine"),
+                candidate_operator_ids=("native_sbx_pm", "global_explore", "local_refine"),
                 selected_operator_id=operator_id,
                 metadata={
                     "fallback_used": False,
                     "policy_phase": "prefeasible_convert",
                     "entry_convert_active": True,
-                    "dominant_violation_family": "cold_dominant",
+                    "dominant_violation_family": "thermal_limit",
                     "near_feasible_relief": operator_id == "local_refine",
                 },
             )
@@ -798,7 +793,7 @@ def test_analyze_controller_trace_reports_near_feasible_conversion_metrics(tmp_p
                     "native_sbx_pm",
                     "local_refine",
                     "native_sbx_pm",
-                    "sbx_pm_global",
+                    "global_explore",
                 )
             )
         ],
@@ -822,7 +817,7 @@ def test_analyze_controller_trace_prefers_local_policy_phase_over_empty_provider
                 family="genetic",
                 backbone="nsga2",
                 controller_id="llm",
-                candidate_operator_ids=("native_sbx_pm", "local_refine", "radiator_expand"),
+                candidate_operator_ids=("native_sbx_pm", "local_refine", "slide_sink"),
                 selected_operator_id=operator_id,
                 phase="",
                 metadata={
@@ -834,7 +829,7 @@ def test_analyze_controller_trace_prefers_local_policy_phase_over_empty_provider
                 (
                     "native_sbx_pm",
                     "local_refine",
-                    "radiator_expand",
+                    "slide_sink",
                 )
             )
         ],
@@ -871,9 +866,9 @@ def test_analyze_controller_trace_reports_frontier_and_regression_metrics(tmp_pa
         operator_trace_path=paths["operator_trace"],
     )
 
-    assert summary["post_feasible"]["frontier_add_count"] == 2
+    assert summary["post_feasible"]["frontier_add_count"] == 3
     assert summary["post_feasible"]["feasible_regression_count"] == 1
-    assert summary["post_feasible"]["feasible_preservation_count"] == 1
+    assert summary["post_feasible"]["feasible_preservation_count"] == 0
     assert summary["post_feasible"]["family_mix"]["local_refine"] == 1
 
 
@@ -888,8 +883,8 @@ def test_optimizer_cli_analyze_controller_trace_writes_summary_artifact(tmp_path
                 family="genetic",
                 backbone="nsga2",
                 controller_id="llm",
-                candidate_operator_ids=("native_sbx_pm", "local_refine", "hot_pair_to_sink"),
-                selected_operator_id="hot_pair_to_sink",
+                candidate_operator_ids=("native_sbx_pm", "local_refine", "move_hottest_cluster_toward_sink"),
+                selected_operator_id="move_hottest_cluster_toward_sink",
                 metadata={
                     "fallback_used": False,
                     "guardrail_policy_phase": "prefeasible_progress",

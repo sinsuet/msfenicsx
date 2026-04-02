@@ -32,12 +32,10 @@ class ScenarioTemplate:
     mesh_profile: dict[str, Any]
     solver_profile: dict[str, Any]
     generation_rules: dict[str, Any]
-    operating_case_profiles: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Self:
         copied = deepcopy(payload)
-        copied.setdefault("operating_case_profiles", [])
         validate_scenario_template_payload(copied)
         return cls(**copied)
 

@@ -45,13 +45,14 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
     _require_mapping(payload["mesh_profile"], "mesh_profile")
     _require_mapping(payload["solver_profile"], "solver_profile")
     _require_mapping(payload["generation_rules"], "generation_rules")
+    if "operating_case_profiles" in payload:
+        raise SchemaValidationError(
+            "ScenarioTemplate.operating_case_profiles has been retired; use single-case templates only."
+        )
     for family in payload["component_families"]:
         _validate_component_family(family)
     for family in payload["boundary_feature_families"]:
         _validate_boundary_feature_family(family)
-    operating_case_profiles = payload.get("operating_case_profiles", [])
-    _require_sequence(operating_case_profiles, "operating_case_profiles")
-    _validate_operating_case_profiles(operating_case_profiles)
 
 
 def validate_thermal_case_payload(payload: Mapping[str, Any]) -> None:
@@ -134,23 +135,6 @@ def _validate_boundary_feature_family(family: Any) -> None:
     kind = family.get("kind")
     if kind is not None and kind != "line_sink":
         raise SchemaValidationError(f"Unsupported boundary feature kind '{kind}'.")
-
-
-def _validate_operating_case_profiles(profiles: Sequence[Any]) -> None:
-    operating_case_ids: set[str] = set()
-    for profile in profiles:
-        _require_mapping(profile, "operating_case_profile")
-        operating_case_id = profile.get("operating_case_id")
-        if not isinstance(operating_case_id, str) or not operating_case_id:
-            raise SchemaValidationError("operating_case_profile.operating_case_id must be a non-empty string.")
-        if operating_case_id in operating_case_ids:
-            raise SchemaValidationError(f"Duplicate operating_case_id '{operating_case_id}' in operating_case_profiles.")
-        operating_case_ids.add(operating_case_id)
-        _require_positive_real(profile.get("ambient_temperature"), f"ambient_temperature for {operating_case_id}")
-        component_power_overrides = profile.get("component_power_overrides")
-        boundary_feature_overrides = profile.get("boundary_feature_overrides")
-        _require_mapping(component_power_overrides, f"component_power_overrides for {operating_case_id}")
-        _require_mapping(boundary_feature_overrides, f"boundary_feature_overrides for {operating_case_id}")
 
 
 def _validate_component(component: Any) -> None:

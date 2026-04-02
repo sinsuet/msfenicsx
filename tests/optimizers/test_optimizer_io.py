@@ -6,6 +6,7 @@ import yaml
 from optimizers.algorithm_config import resolve_algorithm_config
 from optimizers.io import load_optimization_result, load_optimization_spec, save_optimization_result, save_optimization_spec
 from optimizers.models import OptimizationResult, OptimizationSpec
+from optimizers.operator_pool.operators import approved_union_operator_ids_for_backbone
 from optimizers.validation import OptimizationValidationError
 
 
@@ -13,25 +14,37 @@ def _spec_payload() -> dict:
     return {
         "schema_version": "1.0",
         "spec_meta": {
-            "spec_id": "panel-four-component-hot-cold-nsga2-benchmark-source",
-            "description": "Benchmark-sourced multicase NSGA-II baseline over payload position.",
+            "spec_id": "s1_typical_nsga2_raw_fixture",
+            "description": "Single-case s1_typical raw fixture.",
         },
         "benchmark_source": {
-            "template_path": "scenarios/templates/panel_four_component_hot_cold_benchmark.yaml",
+            "template_path": "scenarios/templates/s1_typical.yaml",
             "seed": 11,
         },
         "design_variables": [
             {
-                "variable_id": "payload_x",
+                "variable_id": "c01_x",
                 "path": "components[0].pose.x",
-                "lower_bound": 0.08,
-                "upper_bound": 0.92,
+                "lower_bound": 0.1,
+                "upper_bound": 0.9,
             },
             {
-                "variable_id": "payload_y",
+                "variable_id": "c01_y",
                 "path": "components[0].pose.y",
-                "lower_bound": 0.045,
-                "upper_bound": 0.755,
+                "lower_bound": 0.1,
+                "upper_bound": 0.68,
+            },
+            {
+                "variable_id": "sink_start",
+                "path": "boundary_features[0].start",
+                "lower_bound": 0.05,
+                "upper_bound": 0.7,
+            },
+            {
+                "variable_id": "sink_end",
+                "path": "boundary_features[0].end",
+                "lower_bound": 0.2,
+                "upper_bound": 0.95,
             },
         ],
         "algorithm": {
@@ -43,7 +56,7 @@ def _spec_payload() -> dict:
             "seed": 7,
         },
         "evaluation_protocol": {
-            "evaluation_spec_path": "scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml",
+            "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
         },
     }
 
@@ -52,26 +65,35 @@ def _result_payload() -> dict:
     return {
         "schema_version": "1.0",
         "run_meta": {
-            "run_id": "reference-hot-cold-nsga2-run",
-            "base_case_ids": {"hot": "reference-case-hot-001", "cold": "reference-case-cold-001"},
-            "optimization_spec_id": "reference-hot-cold-nsga2",
-            "evaluation_spec_id": "panel-hot-cold-multiobjective-baseline",
+            "run_id": "s1_typical_nsga2_raw_seed11",
+            "base_case_id": "s1_typical-seed-0011",
+            "optimization_spec_id": "s1_typical_nsga2_raw_fixture",
+            "evaluation_spec_id": "s1_typical_eval",
         },
         "baseline_candidates": [
             {
                 "evaluation_index": 1,
                 "source": "baseline",
-                "feasible": True,
-                "decision_vector": {"payload_x": 0.3, "payload_y": 0.35},
+                "feasible": False,
+                "decision_vector": {
+                    "c01_x": 0.2,
+                    "c01_y": 0.3,
+                    "sink_start": 0.2,
+                    "sink_end": 0.7,
+                },
                 "objective_values": {
-                    "minimize_hot_peak_temperature": 297.9,
-                    "minimize_cold_radiator_span": 0.6,
+                    "minimize_peak_temperature": 320.0,
+                    "minimize_temperature_gradient_rms": 10.5,
                 },
                 "constraint_values": {
-                    "hot_peak_limit": -52.1,
-                    "cold_minimum_temperature": -10.6,
+                    "radiator_span_budget": 0.05,
+                    "c01_peak_temperature_limit": 1.2,
                 },
-                "case_reports": {"hot": {"feasible": True}, "cold": {"feasible": True}},
+                "evaluation_report": {
+                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "metric_values": {"summary.temperature_max": 320.0},
+                    "feasible": False,
+                },
             }
         ],
         "pareto_front": [
@@ -79,62 +101,114 @@ def _result_payload() -> dict:
                 "evaluation_index": 2,
                 "source": "optimizer",
                 "feasible": True,
-                "decision_vector": {"payload_x": 0.3, "payload_y": 0.62},
+                "decision_vector": {
+                    "c01_x": 0.25,
+                    "c01_y": 0.35,
+                    "sink_start": 0.18,
+                    "sink_end": 0.58,
+                },
                 "objective_values": {
-                    "minimize_hot_peak_temperature": 296.9,
-                    "minimize_cold_radiator_span": 0.55,
+                    "minimize_peak_temperature": 302.0,
+                    "minimize_temperature_gradient_rms": 8.1,
                 },
                 "constraint_values": {
-                    "hot_peak_limit": -53.1,
-                    "cold_minimum_temperature": -10.2,
+                    "radiator_span_budget": 0.0,
+                    "c01_peak_temperature_limit": 0.0,
                 },
-                "case_reports": {"hot": {"feasible": True}, "cold": {"feasible": True}},
+                "evaluation_report": {
+                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "metric_values": {"summary.temperature_max": 302.0},
+                    "feasible": True,
+                },
             }
         ],
         "representative_candidates": {
-            "min_hot_peak": {
+            "min-peak-temperature": {
                 "evaluation_index": 2,
                 "source": "optimizer",
                 "feasible": True,
-                "decision_vector": {"payload_x": 0.3, "payload_y": 0.62},
+                "decision_vector": {
+                    "c01_x": 0.25,
+                    "c01_y": 0.35,
+                    "sink_start": 0.18,
+                    "sink_end": 0.58,
+                },
                 "objective_values": {
-                    "minimize_hot_peak_temperature": 296.9,
-                    "minimize_cold_radiator_span": 0.55,
+                    "minimize_peak_temperature": 302.0,
+                    "minimize_temperature_gradient_rms": 8.1,
                 },
                 "constraint_values": {
-                    "hot_peak_limit": -53.1,
-                    "cold_minimum_temperature": -10.2,
+                    "radiator_span_budget": 0.0,
+                    "c01_peak_temperature_limit": 0.0,
                 },
-                "case_reports": {"hot": {"feasible": True}, "cold": {"feasible": True}},
+                "evaluation_report": {
+                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "metric_values": {"summary.temperature_max": 302.0},
+                    "feasible": True,
+                },
             }
         },
         "aggregate_metrics": {
-            "num_evaluations": 5,
-            "feasible_rate": 1.0,
-            "first_feasible_eval": 1,
+            "num_evaluations": 2,
+            "feasible_rate": 0.5,
+            "first_feasible_eval": 2,
             "pareto_size": 1,
         },
         "history": [
             {
                 "evaluation_index": 1,
                 "source": "baseline",
-                "feasible": True,
-                "decision_vector": {"payload_x": 0.3, "payload_y": 0.35},
+                "feasible": False,
+                "decision_vector": {
+                    "c01_x": 0.2,
+                    "c01_y": 0.3,
+                    "sink_start": 0.2,
+                    "sink_end": 0.7,
+                },
                 "objective_values": {
-                    "minimize_hot_peak_temperature": 297.9,
-                    "minimize_cold_radiator_span": 0.6,
+                    "minimize_peak_temperature": 320.0,
+                    "minimize_temperature_gradient_rms": 10.5,
                 },
                 "constraint_values": {
-                    "hot_peak_limit": -52.1,
-                    "cold_minimum_temperature": -10.6,
+                    "radiator_span_budget": 0.05,
+                    "c01_peak_temperature_limit": 1.2,
                 },
-                "case_reports": {"hot": {"feasible": True}, "cold": {"feasible": True}},
-            }
+                "evaluation_report": {
+                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "metric_values": {"summary.temperature_max": 320.0},
+                    "feasible": False,
+                },
+            },
+            {
+                "evaluation_index": 2,
+                "source": "optimizer",
+                "feasible": True,
+                "decision_vector": {
+                    "c01_x": 0.25,
+                    "c01_y": 0.35,
+                    "sink_start": 0.18,
+                    "sink_end": 0.58,
+                },
+                "objective_values": {
+                    "minimize_peak_temperature": 302.0,
+                    "minimize_temperature_gradient_rms": 8.1,
+                },
+                "constraint_values": {
+                    "radiator_span_budget": 0.0,
+                    "c01_peak_temperature_limit": 0.0,
+                },
+                "evaluation_report": {
+                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "metric_values": {"summary.temperature_max": 302.0},
+                    "feasible": True,
+                },
+            },
         ],
         "provenance": {
-            "source_case_ids": {"hot": "reference-case-hot-001", "cold": "reference-case-cold-001"},
-            "source_optimization_spec_id": "reference-hot-cold-nsga2",
-            "source_evaluation_spec_id": "panel-hot-cold-multiobjective-baseline",
+            "benchmark_source": {"template_path": "scenarios/templates/s1_typical.yaml", "seed": 11},
+            "source_case_id": "s1_typical-seed-0011",
+            "source_optimization_spec_id": "s1_typical_nsga2_raw_fixture",
+            "source_evaluation_spec_id": "s1_typical_eval",
         },
     }
 
@@ -148,44 +222,32 @@ def test_save_and_load_yaml_round_trip(tmp_path: Path) -> None:
 
     loaded_spec = load_optimization_spec(spec_path)
     assert loaded_spec.to_dict() == _spec_payload()
-    assert loaded_spec.benchmark_source["seed"] == 11
     assert loaded_spec.algorithm["family"] == "genetic"
     assert loaded_spec.algorithm["backbone"] == "nsga2"
     assert loaded_spec.algorithm["mode"] == "raw"
-    assert load_optimization_result(result_path).to_dict() == _result_payload()
+
+    loaded_result = load_optimization_result(result_path).to_dict()
+    assert loaded_result == _result_payload()
+    assert all("evaluation_report" in entry for entry in loaded_result["history"])
+    assert all("case_reports" not in entry for entry in loaded_result["history"])
 
 
-def test_matrix_spec_uses_family_backbone_mode_contract() -> None:
-    spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga3_raw_b0.yaml")
+def test_active_raw_spec_resolves_s1_typical_profile_parameters() -> None:
+    spec = load_optimization_spec("scenarios/optimization/s1_typical_raw.yaml")
+    algorithm = resolve_algorithm_config("scenarios/optimization/s1_typical_raw.yaml", spec)
 
     assert {key: spec.algorithm[key] for key in ("family", "backbone", "mode")} == {
         "family": "genetic",
-        "backbone": "nsga3",
+        "backbone": "nsga2",
         "mode": "raw",
     }
-
-
-def test_active_nsga_specs_resolve_benchmark_profiles() -> None:
-    nsga2_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_raw_b0.yaml")
-    nsga3_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga3_raw_b0.yaml")
-
-    nsga2_algorithm = resolve_algorithm_config(
-        "scenarios/optimization/panel_four_component_hot_cold_nsga2_raw_b0.yaml",
-        nsga2_spec,
-    )
-    nsga3_algorithm = resolve_algorithm_config(
-        "scenarios/optimization/panel_four_component_hot_cold_nsga3_raw_b0.yaml",
-        nsga3_spec,
-    )
-
-    assert nsga2_algorithm["parameters"]["crossover"]["eta"] == 10
-    assert nsga2_algorithm["parameters"]["mutation"]["eta"] == 15
-    assert nsga3_algorithm["parameters"]["crossover"]["eta"] == 10
-    assert nsga3_algorithm["parameters"]["mutation"]["eta"] == 15
+    assert len(spec.design_variables) == 32
+    assert algorithm["parameters"]["crossover"]["eta"] == 10
+    assert algorithm["parameters"]["mutation"]["eta"] == 15
 
 
 def test_union_spec_requires_operator_control_block() -> None:
-    with open("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml", "r", encoding="utf-8") as handle:
+    with open("scenarios/optimization/s1_typical_union.yaml", "r", encoding="utf-8") as handle:
         payload = yaml.safe_load(handle)
 
     payload.pop("operator_control")
@@ -194,207 +256,55 @@ def test_union_spec_requires_operator_control_block() -> None:
         OptimizationSpec.from_dict(payload)
 
 
-def test_union_spec_uses_nsga2_union_mode_contract() -> None:
-    spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml")
+def test_union_spec_uses_exact_semantic_operator_pool() -> None:
+    spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
 
     assert {key: spec.algorithm[key] for key in ("family", "backbone", "mode")} == {
         "family": "genetic",
         "backbone": "nsga2",
         "mode": "union",
     }
-
-
-@pytest.mark.parametrize(
-    ("spec_name", "family", "backbone", "native_operator_id"),
-    [
-        ("panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml", "genetic", "nsga2", "native_sbx_pm"),
-        ("panel_four_component_hot_cold_nsga3_union_uniform_p1.yaml", "genetic", "nsga3", "native_sbx_pm"),
-        ("panel_four_component_hot_cold_ctaea_union_uniform_p1.yaml", "genetic", "ctaea", "native_sbx_pm"),
-        ("panel_four_component_hot_cold_rvea_union_uniform_p1.yaml", "genetic", "rvea", "native_sbx_pm"),
-        ("panel_four_component_hot_cold_moead_union_uniform_p1.yaml", "decomposition", "moead", "native_moead"),
-        ("panel_four_component_hot_cold_cmopso_union_uniform_p1.yaml", "swarm", "cmopso", "native_cmopso"),
-    ],
-)
-def test_union_matrix_specs_load_with_backbone_native_action_contract(
-    spec_name: str,
-    family: str,
-    backbone: str,
-    native_operator_id: str,
-) -> None:
-    spec = load_optimization_spec(Path("scenarios/optimization") / spec_name)
-
-    assert {key: spec.algorithm[key] for key in ("family", "backbone", "mode")} == {
-        "family": family,
-        "backbone": backbone,
-        "mode": "union",
-    }
     assert spec.operator_control is not None
     assert spec.operator_control["controller"] == "random_uniform"
-    assert spec.operator_control["operator_pool"][0] == native_operator_id
+    assert tuple(spec.operator_control["operator_pool"]) == approved_union_operator_ids_for_backbone("genetic", "nsga2")
 
 
-def test_union_spec_requires_native_action_in_registry() -> None:
-    payload = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml").to_dict()
+def test_union_spec_rejects_modified_semantic_operator_pool() -> None:
+    payload = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml").to_dict()
     payload["operator_control"]["operator_pool"] = [
         operator_id
         for operator_id in payload["operator_control"]["operator_pool"]
-        if operator_id != "native_sbx_pm"
+        if operator_id != "slide_sink"
     ]
 
     with pytest.raises(OptimizationValidationError):
         OptimizationSpec.from_dict(payload)
 
 
-def test_union_specs_share_same_benchmark_source() -> None:
-    uniform_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml")
-    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
+def test_llm_spec_shares_benchmark_source_and_operator_pool_with_union_spec() -> None:
+    union_spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
+    llm_spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
 
-    assert uniform_spec.benchmark_source == llm_spec.benchmark_source
-    assert uniform_spec.operator_control is not None
+    assert union_spec.benchmark_source == llm_spec.benchmark_source
+    assert union_spec.operator_control is not None
     assert llm_spec.operator_control is not None
-    assert uniform_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
-    assert uniform_spec.operator_control["controller"] == "random_uniform"
+    assert union_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
+    assert union_spec.operator_control["controller"] == "random_uniform"
     assert llm_spec.operator_control["controller"] == "llm"
 
 
-def test_llm_union_kimi_live_spec_preserves_l1_contract_and_targets_kimi_k2() -> None:
-    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
-    live_spec = load_optimization_spec(
-        "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_kimi_live.yaml"
-    )
-
-    assert live_spec.benchmark_source == llm_spec.benchmark_source
-    assert live_spec.algorithm == llm_spec.algorithm
-    assert live_spec.evaluation_protocol == llm_spec.evaluation_protocol
-    assert live_spec.operator_control is not None
-    assert llm_spec.operator_control is not None
-    assert live_spec.operator_control["controller"] == "llm"
-    assert live_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
-
-    params = live_spec.operator_control["controller_parameters"]
-    assert params["provider"] == "openai-compatible"
-    assert params["capability_profile"] == "chat_compatible_json"
-    assert params["performance_profile"] == "balanced"
-    assert params["model"] == "Kimi-K2"
-    assert params["api_key_env_var"] == "OPENAI_API_KEY"
-    assert params["base_url"] == "https://llmapi.paratera.com/v1"
-    assert params["max_output_tokens"] > 0
-
-
-def test_llm_union_kimi_smoke_spec_preserves_l1_contract_with_small_budget() -> None:
-    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
-    smoke_spec = load_optimization_spec(
-        "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_kimi_smoke.yaml"
-    )
-
-    assert smoke_spec.benchmark_source == llm_spec.benchmark_source
-    assert smoke_spec.evaluation_protocol == llm_spec.evaluation_protocol
-    assert smoke_spec.operator_control is not None
-    assert llm_spec.operator_control is not None
-    assert smoke_spec.operator_control["controller"] == "llm"
-    assert smoke_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
-
-    assert smoke_spec.algorithm["family"] == llm_spec.algorithm["family"]
-    assert smoke_spec.algorithm["backbone"] == llm_spec.algorithm["backbone"]
-    assert smoke_spec.algorithm["mode"] == llm_spec.algorithm["mode"]
-    assert smoke_spec.algorithm["population_size"] == 4
-    assert smoke_spec.algorithm["num_generations"] == 2
-
-    params = smoke_spec.operator_control["controller_parameters"]
-    assert params["provider"] == "openai-compatible"
-    assert params["capability_profile"] == "chat_compatible_json"
-    assert params["model"] == "Kimi-K2"
-    assert params["api_key_env_var"] == "OPENAI_API_KEY"
-    assert params["base_url"] == "https://llmapi.paratera.com/v1"
-    assert params["max_output_tokens"] == 256
-
-
-def test_llm_union_gpt54_live_spec_preserves_l1_contract_and_targets_gpt54() -> None:
-    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
-    live_spec = load_optimization_spec(
-        "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_live.yaml"
-    )
-
-    assert live_spec.benchmark_source == llm_spec.benchmark_source
-    assert live_spec.algorithm == llm_spec.algorithm
-    assert live_spec.evaluation_protocol == llm_spec.evaluation_protocol
-    assert live_spec.operator_control is not None
-    assert llm_spec.operator_control is not None
-    assert live_spec.operator_control["controller"] == "llm"
-    assert live_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
-
-    params = live_spec.operator_control["controller_parameters"]
-    assert params["provider"] == "openai-compatible"
-    assert params["capability_profile"] == "chat_compatible_json"
-    assert params["performance_profile"] == "balanced"
-    assert params["model"] == "GPT-5.4"
-    assert params["api_key_env_var"] == "OPENAI_API_KEY"
-    assert params["base_url"] == "https://llmapi.paratera.com/v1"
-    assert params["temperature"] == 1.0
-    assert "reasoning" not in params
-    assert params["max_output_tokens"] == 256
-
-
-def test_llm_union_gpt54_smoke_spec_preserves_l1_contract_with_small_budget() -> None:
-    llm_spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
-    smoke_spec = load_optimization_spec(
-        "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_smoke.yaml"
-    )
-
-    assert smoke_spec.benchmark_source == llm_spec.benchmark_source
-    assert smoke_spec.evaluation_protocol == llm_spec.evaluation_protocol
-    assert smoke_spec.operator_control is not None
-    assert llm_spec.operator_control is not None
-    assert smoke_spec.operator_control["controller"] == "llm"
-    assert smoke_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
-
-    assert smoke_spec.algorithm["family"] == llm_spec.algorithm["family"]
-    assert smoke_spec.algorithm["backbone"] == llm_spec.algorithm["backbone"]
-    assert smoke_spec.algorithm["mode"] == llm_spec.algorithm["mode"]
-    assert smoke_spec.algorithm["population_size"] == 4
-    assert smoke_spec.algorithm["num_generations"] == 2
-
-    params = smoke_spec.operator_control["controller_parameters"]
-    assert params["provider"] == "openai-compatible"
-    assert params["capability_profile"] == "chat_compatible_json"
-    assert params["model"] == "GPT-5.4"
-    assert params["api_key_env_var"] == "OPENAI_API_KEY"
-    assert params["base_url"] == "https://llmapi.paratera.com/v1"
-    assert params["temperature"] == 1.0
-    assert "reasoning" not in params
-    assert params["max_output_tokens"] == 128
-
-
-def test_llm_union_spec_requires_controller_parameters() -> None:
-    payload = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml").to_dict()
-    payload["operator_control"].pop("controller_parameters", None)
-
-    with pytest.raises(OptimizationValidationError):
-        OptimizationSpec.from_dict(payload)
-
-
-def test_llm_union_spec_round_trips_openai_compatible_runtime_profile() -> None:
-    spec = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml")
+def test_llm_spec_round_trips_openai_controller_profile() -> None:
+    spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
 
     assert spec.operator_control is not None
     params = spec.operator_control["controller_parameters"]
     assert params["provider"] == "openai"
     assert params["capability_profile"] == "responses_native"
     assert params["performance_profile"] == "balanced"
-    assert params["model"]
-    assert params["max_output_tokens"] > 0
-
-
-def test_moead_union_spec_requires_native_moead_action() -> None:
-    payload = load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_moead_union_uniform_p1.yaml").to_dict()
-    payload["operator_control"]["operator_pool"] = [
-        operator_id
-        for operator_id in payload["operator_control"]["operator_pool"]
-        if operator_id != "native_moead"
-    ]
-
-    with pytest.raises(OptimizationValidationError):
-        OptimizationSpec.from_dict(payload)
+    assert params["model"] == "gpt-5.4"
+    assert params["api_key_env_var"] == "OPENAI_API_KEY"
+    assert params["max_output_tokens"] == 1024
+    assert params["reasoning"] == {"effort": "medium"}
 
 
 def test_resolve_algorithm_config_merges_global_defaults_profile_and_inline_overrides(tmp_path: Path) -> None:
@@ -404,7 +314,7 @@ def test_resolve_algorithm_config_merges_global_defaults_profile_and_inline_over
             {
                 "schema_version": "1.0",
                 "profile_meta": {
-                    "profile_id": "panel-four-component-hot-cold-nsga2-raw-profile",
+                    "profile_id": "s1_typical_nsga2_raw_profile_override",
                     "description": "Test profile for algorithm parameter resolution.",
                 },
                 "family": "genetic",
@@ -419,44 +329,16 @@ def test_resolve_algorithm_config_merges_global_defaults_profile_and_inline_over
         ),
         encoding="utf-8",
     )
-    spec_payload = _spec_payload()
-    spec_payload["algorithm"]["profile_path"] = str(profile_path)
-    spec_payload["algorithm"]["parameters"] = {
-        "mutation": {"eta": 13},
-    }
-    spec = OptimizationSpec.from_dict(spec_payload)
 
-    resolved = resolve_algorithm_config(tmp_path / "optimization_spec.yaml", spec)
+    payload = _spec_payload()
+    payload["algorithm"]["profile_path"] = str(profile_path)
+    payload["algorithm"]["parameters"] = {"mutation": {"eta": 23}}
+    spec = OptimizationSpec.from_dict(payload)
 
-    assert resolved["family"] == "genetic"
-    assert resolved["backbone"] == "nsga2"
-    assert resolved["mode"] == "raw"
-    assert resolved["parameters"]["crossover"] == {"operator": "sbx", "eta": 11, "prob": 0.9}
-    assert resolved["parameters"]["mutation"] == {"operator": "pm", "eta": 13}
+    resolved = resolve_algorithm_config(None, spec)
 
-
-def test_resolve_algorithm_config_rejects_mismatched_profile_identity(tmp_path: Path) -> None:
-    profile_path = tmp_path / "wrong_profile.yaml"
-    profile_path.write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": "1.0",
-                "profile_meta": {
-                    "profile_id": "panel-four-component-hot-cold-nsga3-raw-profile",
-                    "description": "Mismatched profile fixture.",
-                },
-                "family": "genetic",
-                "backbone": "nsga3",
-                "mode": "raw",
-                "parameters": {},
-            },
-            sort_keys=False,
-        ),
-        encoding="utf-8",
-    )
-    spec_payload = _spec_payload()
-    spec_payload["algorithm"]["profile_path"] = str(profile_path)
-    spec = OptimizationSpec.from_dict(spec_payload)
-
-    with pytest.raises(OptimizationValidationError):
-        resolve_algorithm_config(tmp_path / "optimization_spec.yaml", spec)
+    assert resolved["parameters"]["crossover"]["operator"] == "sbx"
+    assert resolved["parameters"]["crossover"]["eta"] == 11
+    assert resolved["parameters"]["crossover"]["prob"] == 0.9
+    assert resolved["parameters"]["mutation"]["operator"] == "pm"
+    assert resolved["parameters"]["mutation"]["eta"] == 23

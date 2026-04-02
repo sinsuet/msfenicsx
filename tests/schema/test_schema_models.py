@@ -53,8 +53,8 @@ def test_scenario_template_round_trips_to_dict() -> None:
     payload = {
         "schema_version": "1.0",
         "template_meta": {
-            "template_id": "panel-radiation-baseline",
-            "description": "Baseline 2D satellite panel scenario template.",
+            "template_id": "s1_typical",
+            "description": "Single-case s1_typical scenario template.",
         },
         "coordinate_system": {"plane": "panel_xy"},
         "panel_domain": {"width": 1.0, "height": 0.8},
@@ -64,14 +64,6 @@ def test_scenario_template_round_trips_to_dict() -> None:
         "boundary_feature_families": [],
         "load_rules": [],
         "material_rules": [],
-        "operating_case_profiles": [
-            {
-                "operating_case_id": "hot",
-                "ambient_temperature": 300.0,
-                "component_power_overrides": {"processor": 24.0},
-                "boundary_feature_overrides": {"radiator-top": {"sink_temperature": 292.0}},
-            }
-        ],
         "mesh_profile": {"nx": 32, "ny": 24},
         "solver_profile": {"nonlinear_solver": "snes"},
         "generation_rules": {"seed_policy": "external"},
@@ -79,8 +71,7 @@ def test_scenario_template_round_trips_to_dict() -> None:
 
     template = ScenarioTemplate.from_dict(payload)
 
-    assert template.template_meta["template_id"] == "panel-radiation-baseline"
-    assert template.operating_case_profiles[0]["operating_case_id"] == "hot"
+    assert template.template_meta["template_id"] == "s1_typical"
     assert template.to_dict() == payload
 
 
@@ -88,7 +79,7 @@ def test_scenario_template_accepts_single_case_templates_without_operating_case_
     template = ScenarioTemplate.from_dict(_single_case_template_payload())
 
     assert template.template_meta["template_id"] == "s1-typical"
-    assert template.operating_case_profiles == []
+    assert template.to_dict() == _single_case_template_payload()
 
 
 def test_thermal_solution_round_trips_to_dict() -> None:

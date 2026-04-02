@@ -4,7 +4,7 @@ from dolfinx import fem
 from mpi4py import MPI
 from shapely.geometry import box
 
-from core.generator.paired_pipeline import generate_operating_case_pair
+from core.generator.pipeline import generate_case
 from core.solver import solve_case
 from core.solver.field_sampler import sample_solution_fields
 from core.solver.gradient_metrics import compute_temperature_gradient_rms
@@ -48,7 +48,7 @@ def test_sample_solution_fields_reports_temperature_gradient_rms_in_summary_metr
 
 
 def test_solve_case_surfaces_temperature_gradient_rms_for_evaluation() -> None:
-    case = generate_operating_case_pair("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml", seed=11)["hot"]
+    case = generate_case("scenarios/templates/s1_typical.yaml", seed=11)
 
     solution = solve_case(case)
 

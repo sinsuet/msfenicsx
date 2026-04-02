@@ -12,16 +12,16 @@ def _spec_payload(*, family: str = "genetic", backbone: str = "nsga2", mode: str
     return {
         "schema_version": "1.0",
         "spec_meta": {
-            "spec_id": f"panel-four-component-hot-cold-{backbone}-{mode}",
+            "spec_id": f"s1-typical-{backbone}-{mode}",
             "description": "Matrix contract validation fixture.",
         },
         "benchmark_source": {
-            "template_path": "scenarios/templates/panel_four_component_hot_cold_benchmark.yaml",
+            "template_path": "scenarios/templates/s1_typical.yaml",
             "seed": 11,
         },
         "design_variables": [
             {
-                "variable_id": "processor_x",
+                "variable_id": "c01_x",
                 "path": "components[0].pose.x",
                 "lower_bound": 0.12,
                 "upper_bound": 0.88,
@@ -36,7 +36,7 @@ def _spec_payload(*, family: str = "genetic", backbone: str = "nsga2", mode: str
             "seed": 7,
         },
         "evaluation_protocol": {
-            "evaluation_spec_path": "scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml",
+            "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
         },
     }
 
