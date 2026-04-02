@@ -256,6 +256,123 @@ def render_line_panel(
     return "".join(parts)
 
 
+def dashboard_style() -> str:
+    return """
+    :root {
+      --bg: #f4efe7;
+      --paper: #fffaf3;
+      --ink: #1f2933;
+      --muted: #5c6b73;
+      --accent: #b55438;
+      --accent-soft: #eec9bd;
+      --border: #d7c8b3;
+    }
+    body {
+      margin: 0;
+      font-family: "Georgia", "Times New Roman", serif;
+      background: radial-gradient(circle at top left, #fff7ea 0%, var(--bg) 60%, #eadcc9 100%);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 36px 28px 48px;
+    }
+    h1, h2, h3 { margin: 0 0 14px; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    section {
+      background: rgba(255, 250, 243, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px 24px;
+      margin: 0 0 20px;
+      box-shadow: 0 14px 40px rgba(65, 49, 33, 0.08);
+    }
+    .hero {
+      background: linear-gradient(135deg, #fff4de 0%, #f5ddd1 100%);
+      border-color: #d2af97;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .metric-card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .metric-card strong {
+      display: block;
+      font-size: 1.15rem;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5d8c6;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-size: 0.92rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    ul {
+      margin: 10px 0 0;
+      padding-left: 20px;
+    }
+    code {
+      background: #f0e5d8;
+      border-radius: 6px;
+      padding: 1px 6px;
+    }
+    """.strip()
+
+
+def html_section(title: str, body: str, *, hero: bool = False) -> str:
+    class_name = "hero" if hero else ""
+    return f"<section class='{class_name}'><h2>{html.escape(title)}</h2>{body}</section>"
+
+
+def html_metric_grid(items: list[tuple[str, str]]) -> str:
+    cards = [
+        "<div class='metric-card'>"
+        f"<span>{html.escape(label)}</span><strong>{html.escape(value)}</strong>"
+        "</div>"
+        for label, value in items
+    ]
+    return "<div class='metric-grid'>" + "".join(cards) + "</div>"
+
+
+def html_table(headers: list[str], rows: list[list[str]]) -> str:
+    head = "<tr>" + "".join(f"<th>{html.escape(header)}</th>" for header in headers) + "</tr>"
+    body = "".join(
+        "<tr>" + "".join(f"<td>{html.escape(value)}</td>" for value in row) + "</tr>"
+        for row in rows
+    )
+    return f"<table><thead>{head}</thead><tbody>{body}</tbody></table>"
+
+
+def html_list(items: list[str]) -> str:
+    return "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in items) + "</ul>"
+
+
 def render_text_panel(
     *,
     title: str,
