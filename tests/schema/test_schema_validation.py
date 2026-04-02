@@ -38,6 +38,16 @@ def _base_template_payload() -> dict:
     }
 
 
+def _single_case_template_payload() -> dict:
+    payload = _base_template_payload()
+    payload["template_meta"] = {
+        "template_id": "s1-typical",
+        "description": "Single-case baseline template.",
+    }
+    payload.pop("operating_case_profiles")
+    return payload
+
+
 def _base_case_payload() -> dict:
     return {
         "schema_version": "1.0",
@@ -171,6 +181,10 @@ def test_validate_scenario_template_accepts_operating_case_profiles() -> None:
     payload = _base_template_payload()
 
     validate_scenario_template_payload(payload)
+
+
+def test_validate_scenario_template_accepts_single_case_templates_without_operating_case_profiles() -> None:
+    validate_scenario_template_payload(_single_case_template_payload())
 
 
 def test_validate_scenario_template_rejects_duplicate_operating_case_ids() -> None:

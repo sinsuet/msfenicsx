@@ -27,7 +27,6 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
         "boundary_feature_families",
         "load_rules",
         "material_rules",
-        "operating_case_profiles",
         "mesh_profile",
         "solver_profile",
         "generation_rules",
@@ -43,7 +42,6 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
     _require_sequence(payload["boundary_feature_families"], "boundary_feature_families")
     _require_sequence(payload["load_rules"], "load_rules")
     _require_sequence(payload["material_rules"], "material_rules")
-    _require_sequence(payload["operating_case_profiles"], "operating_case_profiles")
     _require_mapping(payload["mesh_profile"], "mesh_profile")
     _require_mapping(payload["solver_profile"], "solver_profile")
     _require_mapping(payload["generation_rules"], "generation_rules")
@@ -51,7 +49,9 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
         _validate_component_family(family)
     for family in payload["boundary_feature_families"]:
         _validate_boundary_feature_family(family)
-    _validate_operating_case_profiles(payload["operating_case_profiles"])
+    operating_case_profiles = payload.get("operating_case_profiles", [])
+    _require_sequence(operating_case_profiles, "operating_case_profiles")
+    _validate_operating_case_profiles(operating_case_profiles)
 
 
 def validate_thermal_case_payload(payload: Mapping[str, Any]) -> None:

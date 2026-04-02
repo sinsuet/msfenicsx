@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from evaluation.models import EvaluationReport, EvaluationSpec, MultiCaseEvaluationReport, MultiCaseEvaluationSpec
+from evaluation.models import EvaluationReport, EvaluationSpec
 
 
 def load_spec(path: str | Path) -> EvaluationSpec:
@@ -19,14 +19,6 @@ def load_report(path: str | Path) -> EvaluationReport:
     return EvaluationReport.from_dict(_load_payload(path))
 
 
-def load_multicase_spec(path: str | Path) -> MultiCaseEvaluationSpec:
-    return MultiCaseEvaluationSpec.from_dict(_load_payload(path))
-
-
-def load_multicase_report(path: str | Path) -> MultiCaseEvaluationReport:
-    return MultiCaseEvaluationReport.from_dict(_load_payload(path))
-
-
 def save_spec(spec: EvaluationSpec | dict[str, Any], path: str | Path) -> Path:
     return _save_payload(_coerce_payload(spec), path)
 
@@ -35,17 +27,7 @@ def save_report(report: EvaluationReport | dict[str, Any], path: str | Path) -> 
     return _save_payload(_coerce_payload(report), path)
 
 
-def save_multicase_spec(spec: MultiCaseEvaluationSpec | dict[str, Any], path: str | Path) -> Path:
-    return _save_payload(_coerce_payload(spec), path)
-
-
-def save_multicase_report(report: MultiCaseEvaluationReport | dict[str, Any], path: str | Path) -> Path:
-    return _save_payload(_coerce_payload(report), path)
-
-
-def _coerce_payload(
-    value: EvaluationSpec | EvaluationReport | MultiCaseEvaluationSpec | MultiCaseEvaluationReport | dict[str, Any]
-) -> dict[str, Any]:
+def _coerce_payload(value: EvaluationSpec | EvaluationReport | dict[str, Any]) -> dict[str, Any]:
     if hasattr(value, "to_dict"):
         return value.to_dict()
     if isinstance(value, dict):

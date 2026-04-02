@@ -1,6 +1,27 @@
 from core.schema.models import ScenarioTemplate, ThermalCase, ThermalSolution
 
 
+def _single_case_template_payload() -> dict:
+    return {
+        "schema_version": "1.0",
+        "template_meta": {
+            "template_id": "s1-typical",
+            "description": "Single-case baseline template.",
+        },
+        "coordinate_system": {"plane": "panel_xy"},
+        "panel_domain": {"width": 1.0, "height": 0.8},
+        "placement_regions": [],
+        "keep_out_regions": [],
+        "component_families": [],
+        "boundary_feature_families": [],
+        "load_rules": [],
+        "material_rules": [],
+        "mesh_profile": {"nx": 32, "ny": 24},
+        "solver_profile": {"nonlinear_solver": "snes"},
+        "generation_rules": {"seed_policy": "external"},
+    }
+
+
 def test_thermal_case_requires_case_meta_and_components() -> None:
     payload = {
         "schema_version": "1.0",
@@ -61,6 +82,13 @@ def test_scenario_template_round_trips_to_dict() -> None:
     assert template.template_meta["template_id"] == "panel-radiation-baseline"
     assert template.operating_case_profiles[0]["operating_case_id"] == "hot"
     assert template.to_dict() == payload
+
+
+def test_scenario_template_accepts_single_case_templates_without_operating_case_profiles() -> None:
+    template = ScenarioTemplate.from_dict(_single_case_template_payload())
+
+    assert template.template_meta["template_id"] == "s1-typical"
+    assert template.operating_case_profiles == []
 
 
 def test_thermal_solution_round_trips_to_dict() -> None:

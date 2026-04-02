@@ -7,8 +7,6 @@ from dataclasses import dataclass, fields
 from typing import Any, Self
 
 from evaluation.validation import (
-    validate_multicase_report_payload,
-    validate_multicase_spec_payload,
     validate_report_payload,
     validate_spec_payload,
 )
@@ -51,47 +49,6 @@ class EvaluationReport:
     def from_dict(cls, payload: dict[str, Any]) -> Self:
         copied = deepcopy(payload)
         validate_report_payload(copied)
-        return cls(**copied)
-
-    def to_dict(self) -> dict[str, Any]:
-        return _deepcopy_field_dict(self)
-
-
-@dataclass(slots=True)
-class MultiCaseEvaluationSpec:
-    schema_version: str
-    spec_meta: dict[str, Any]
-    operating_cases: list[dict[str, Any]]
-    objectives: list[dict[str, Any]]
-    constraints: list[dict[str, Any]]
-
-    @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> Self:
-        copied = deepcopy(payload)
-        validate_multicase_spec_payload(copied)
-        return cls(**copied)
-
-    def to_dict(self) -> dict[str, Any]:
-        return _deepcopy_field_dict(self)
-
-
-@dataclass(slots=True)
-class MultiCaseEvaluationReport:
-    schema_version: str
-    evaluation_meta: dict[str, Any]
-    feasible: bool
-    case_reports: dict[str, dict[str, Any]]
-    objective_summary: list[dict[str, Any]]
-    constraint_reports: list[dict[str, Any]]
-    violations: list[dict[str, Any]]
-    derived_signals: dict[str, Any]
-    worst_case_signals: dict[str, Any]
-    provenance: dict[str, Any]
-
-    @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> Self:
-        copied = deepcopy(payload)
-        validate_multicase_report_payload(copied)
         return cls(**copied)
 
     def to_dict(self) -> dict[str, Any]:

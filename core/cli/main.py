@@ -6,7 +6,6 @@ import argparse
 from pathlib import Path
 from collections.abc import Sequence
 
-from core.generator.paired_pipeline import generate_operating_case_pair
 from core.generator.pipeline import generate_case
 from core.io.scenario_runs import write_case_solution_bundle
 from core.schema.io import load_case, load_template, save_case
@@ -24,11 +23,6 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument("--template", required=True)
     generate_parser.add_argument("--seed", type=int, required=True)
     generate_parser.add_argument("--output-root", required=True)
-
-    pair_parser = subparsers.add_parser("generate-operating-case-pair")
-    pair_parser.add_argument("--template", required=True)
-    pair_parser.add_argument("--seed", type=int, required=True)
-    pair_parser.add_argument("--output-root", required=True)
 
     solve_parser = subparsers.add_parser("solve-case")
     solve_parser.add_argument("--case", required=True)
@@ -51,13 +45,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         output_root = Path(args.output_root)
         output_root.mkdir(parents=True, exist_ok=True)
         save_case(case, output_root / f"{case.case_meta['case_id']}.yaml")
-        return 0
-    if args.command == "generate-operating-case-pair":
-        cases = generate_operating_case_pair(args.template, seed=args.seed)
-        output_root = Path(args.output_root)
-        output_root.mkdir(parents=True, exist_ok=True)
-        for case in cases.values():
-            save_case(case, output_root / f"{case.case_meta['case_id']}.yaml")
         return 0
     if args.command == "solve-case":
         case = load_case(args.case)
