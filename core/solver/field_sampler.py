@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 from shapely import covers, points
 
+from core.solver.field_export import export_field_views
 from core.solver.gradient_metrics import compute_temperature_gradient_rms
 
 
@@ -14,6 +15,9 @@ def sample_solution_fields(
     temperature_function: Any,
     components: list[dict[str, Any]],
     panel_area: float,
+    *,
+    panel_domain: dict[str, float] | None = None,
+    line_sinks: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     coordinates = temperature_function.function_space.tabulate_dof_coordinates()
     xy_coordinates = coordinates[:, :2]
@@ -36,13 +40,29 @@ def sample_solution_fields(
                 "temperature_max": float(np.max(component_values)),
             }
         )
+    field_records = {
+        "temperature": {
+            "kind": "cg1_dofs",
+            "num_dofs": int(values.size),
+        }
+    }
+    field_exports = None
+    if panel_domain is not None:
+        field_exports = export_field_views(
+            temperature_function,
+            panel_domain=panel_domain,
+            components=components,
+            line_sinks=line_sinks or [],
+        )
+        field_records["temperature"]["page_view"] = {
+            "grid_shape": field_exports["field_view"]["temperature"]["grid_shape"],
+        }
+        field_records["gradient_magnitude"] = {
+            "kind": "regular_grid",
+            "grid_shape": field_exports["field_view"]["gradient_magnitude"]["grid_shape"],
+        }
     return {
-        "field_records": {
-            "temperature": {
-                "kind": "cg1_dofs",
-                "num_dofs": int(values.size),
-            }
-        },
+        "field_records": field_records,
         "summary_metrics": {
             "temperature_min": float(np.min(values)),
             "temperature_mean": float(np.mean(values)),
@@ -50,4 +70,5 @@ def sample_solution_fields(
             "temperature_gradient_rms": float(temperature_gradient_rms),
         },
         "component_summaries": component_summaries,
+        "field_exports": field_exports,
     }

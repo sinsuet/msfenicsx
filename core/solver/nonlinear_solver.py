@@ -12,10 +12,14 @@ from core.solver.case_to_geometry import interpret_case
 from core.solver.field_sampler import sample_solution_fields
 from core.solver.mesh_builder import build_panel_mesh
 from core.solver.physics_builder import build_thermal_problem
-from core.solver.solution_builder import build_solution
+from core.solver.solution_builder import build_solution_artifacts
 
 
 def solve_case(case: Any) -> ThermalSolution:
+    return solve_case_artifacts(case)["solution"]
+
+
+def solve_case_artifacts(case: Any) -> dict[str, Any]:
     assert_case_geometry_contracts(case)
     solver_inputs = interpret_case(case)
     domain = build_panel_mesh(solver_inputs["panel_domain"], solver_inputs["mesh_profile"])
@@ -45,10 +49,12 @@ def solve_case(case: Any) -> ThermalSolution:
         problem_data["temperature"],
         solver_inputs["components"],
         panel_area=panel_area,
+        panel_domain=panel_domain,
+        line_sinks=solver_inputs["line_sinks"],
     )
     diagnostics = {
         "converged": bool(converged),
         "iterations": int(iterations),
         "solver": "dolfinx_snes",
     }
-    return build_solution(case, sampled_fields, diagnostics)
+    return build_solution_artifacts(case, sampled_fields, diagnostics)

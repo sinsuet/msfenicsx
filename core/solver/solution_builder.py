@@ -25,3 +25,10 @@ def build_solution(case: Any, sampled_fields: dict[str, Any], diagnostics: dict[
         },
     }
     return ThermalSolution.from_dict(payload)
+
+
+def build_solution_artifacts(case: Any, sampled_fields: dict[str, Any], diagnostics: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "solution": build_solution(case, sampled_fields, diagnostics),
+        "field_exports": sampled_fields.get("field_exports"),
+    }
