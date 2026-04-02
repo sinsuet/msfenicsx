@@ -47,6 +47,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
         selection: Any,
         raw_mating: Any,
         native_parameters: dict[str, Any],
+        radiator_span_max: float | None = None,
         controller_parameters: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(
@@ -63,6 +64,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
         self.backbone = backbone
         self.selection = selection
         self.raw_mating = raw_mating
+        self.radiator_span_max = radiator_span_max
         self.design_variable_ids = [
             str(item["variable_id"]) for item in self.optimization_spec.get("design_variables", [])
         ]
@@ -366,6 +368,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
             self.repair_reference_case,
             self.optimization_spec,
             np.asarray(vector, dtype=np.float64),
+            radiator_span_max=self.radiator_span_max,
         )
         return extract_decision_vector(repaired_case, self.optimization_spec)
 
@@ -401,6 +404,7 @@ def build_genetic_union_algorithm(problem: Any, optimization_spec: Any, algorith
             "crossover": deepcopy(algorithm_config.get("parameters", {}).get("crossover", {})),
             "mutation": deepcopy(algorithm_config.get("parameters", {}).get("mutation", {})),
         },
+        radiator_span_max=getattr(problem, "radiator_span_max", None),
     )
     algorithm.mating = mating
     return GeneticUnionAdapterArtifacts(

@@ -42,6 +42,7 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
         ref_dirs: np.ndarray,
         n_neighbors: int,
         reference_direction_parameters: dict[str, Any],
+        radiator_span_max: float | None = None,
         controller_parameters: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(ref_dirs=ref_dirs, n_neighbors=n_neighbors)
@@ -51,6 +52,7 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
         self.variable_layout = variable_layout
         self.repair_reference_case = repair_reference_case
         self.optimization_spec = optimization_spec
+        self.radiator_span_max = radiator_span_max
         self.native_operator_id = native_operator_id_for_backbone("decomposition", "moead")
         self.controller_trace: list[ControllerTraceRow] = []
         self.operator_trace: list[OperatorTraceRow] = []
@@ -160,6 +162,7 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
             self.repair_reference_case,
             self.optimization_spec,
             np.asarray(vector, dtype=np.float64),
+            radiator_span_max=self.radiator_span_max,
         )
         return extract_decision_vector(repaired_case, self.optimization_spec)
 
@@ -184,6 +187,7 @@ def build_decomposition_union_algorithm(problem: Any, optimization_spec: Any, al
         ref_dirs=kwargs["ref_dirs"],
         n_neighbors=kwargs["n_neighbors"],
         reference_direction_parameters=kwargs["reference_direction_parameters"],
+        radiator_span_max=getattr(problem, "radiator_span_max", None),
         controller_parameters=spec_payload["operator_control"].get("controller_parameters"),
     )
     return DecompositionUnionAdapterArtifacts(

@@ -10,10 +10,12 @@ import numpy as np
 from pymoo.core.problem import ElementwiseProblem
 
 from core.contracts.case_contracts import assert_case_geometry_contracts
+from core.schema.models import ThermalCase
 from core.solver.nonlinear_solver import solve_case
 from evaluation.engine import evaluate_case_solution
 from optimizers.codec import extract_decision_vector
-from optimizers.repair import repair_case_from_vector
+from optimizers.cheap_constraints import evaluate_cheap_constraints, resolve_radiator_span_max
+from optimizers.repair import repair_case_payload_from_vector
 
 
 PENALTY_VALUE = 1.0e12
@@ -41,6 +43,7 @@ class ThermalOptimizationProblem(ElementwiseProblem):
         self.base_case = base_case
         self.optimization_spec = optimization_payload
         self.evaluation_spec = evaluation_payload
+        self.radiator_span_max = resolve_radiator_span_max(evaluation_payload)
         self.history: list[dict[str, Any]] = []
         self.artifacts_by_index: dict[int, CandidateArtifacts] = {}
         self._next_evaluation_index = 1
@@ -68,33 +71,55 @@ class ThermalOptimizationProblem(ElementwiseProblem):
         evaluation_report = {}
         feasible = False
         failure_reason = None
+        solver_skipped = False
+        cheap_constraint_issues: list[str] = []
         try:
-            candidate_case = repair_case_from_vector(self.base_case, self.optimization_spec, vector)
-            assert_case_geometry_contracts(candidate_case)
-            solution = solve_case(candidate_case)
-            evaluation = evaluate_case_solution(candidate_case, solution, self.evaluation_spec)
-            evaluation_payload = evaluation.to_dict()
-            objective_values = {
-                item["objective_id"]: float(item["value"]) for item in evaluation_payload["objective_summary"]
-            }
-            constraint_values = {
-                item["constraint_id"]: _constraint_violation(item) for item in evaluation_payload["constraint_reports"]
-            }
-            evaluation_report = evaluation_payload
-            feasible = bool(evaluation_payload["feasible"])
-            self.artifacts_by_index[evaluation_index] = CandidateArtifacts(
-                case=deepcopy(candidate_case),
-                solution=deepcopy(solution),
-                evaluation=evaluation,
+            candidate_payload = repair_case_payload_from_vector(
+                self.base_case,
+                self.optimization_spec,
+                vector,
+                radiator_span_max=self.radiator_span_max,
             )
+            cheap_result = evaluate_cheap_constraints(candidate_payload, self.evaluation_spec)
+            if not cheap_result.feasible:
+                solver_skipped = True
+                cheap_constraint_issues = list(cheap_result.geometry_issues)
+                failure_reason = "cheap_constraint_violation"
+                objective_values = {
+                    objective["objective_id"]: PENALTY_VALUE for objective in self.evaluation_spec["objectives"]
+                }
+                constraint_values = {
+                    constraint["constraint_id"]: cheap_result.constraint_values.get(constraint["constraint_id"], PENALTY_VALUE)
+                    for constraint in self.evaluation_spec["constraints"]
+                }
+            else:
+                candidate_case = ThermalCase.from_dict(candidate_payload)
+                assert_case_geometry_contracts(candidate_case)
+                solution = solve_case(candidate_case)
+                evaluation = evaluate_case_solution(candidate_case, solution, self.evaluation_spec)
+                evaluation_payload = evaluation.to_dict()
+                objective_values = {
+                    item["objective_id"]: float(item["value"]) for item in evaluation_payload["objective_summary"]
+                }
+                constraint_values = {
+                    item["constraint_id"]: _constraint_violation(item) for item in evaluation_payload["constraint_reports"]
+                }
+                evaluation_report = evaluation_payload
+                feasible = bool(evaluation_payload["feasible"])
+                self.artifacts_by_index[evaluation_index] = CandidateArtifacts(
+                    case=deepcopy(candidate_case),
+                    solution=deepcopy(solution),
+                    evaluation=evaluation,
+                )
         except Exception as exc:
-            failure_reason = f"{type(exc).__name__}: {exc}"
-            objective_values = {
-                objective["objective_id"]: PENALTY_VALUE for objective in self.evaluation_spec["objectives"]
-            }
-            constraint_values = {
-                constraint["constraint_id"]: PENALTY_VALUE for constraint in self.evaluation_spec["constraints"]
-            }
+            if failure_reason is None:
+                failure_reason = f"{type(exc).__name__}: {exc}"
+                objective_values = {
+                    objective["objective_id"]: PENALTY_VALUE for objective in self.evaluation_spec["objectives"]
+                }
+                constraint_values = {
+                    constraint["constraint_id"]: PENALTY_VALUE for constraint in self.evaluation_spec["constraints"]
+                }
 
         record = {
             "evaluation_index": evaluation_index,
@@ -109,6 +134,10 @@ class ThermalOptimizationProblem(ElementwiseProblem):
             record.update(metadata)
         if failure_reason is not None:
             record["failure_reason"] = failure_reason
+        if solver_skipped:
+            record["solver_skipped"] = True
+        if cheap_constraint_issues:
+            record["cheap_constraint_issues"] = cheap_constraint_issues
         self.history.append(record)
 
         objective_vector = np.asarray(

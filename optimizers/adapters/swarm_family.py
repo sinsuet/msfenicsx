@@ -42,6 +42,7 @@ class UnionAugmentedCMOPSO(CMOPSO):
         optimization_spec: dict[str, Any],
         pop_size: int,
         elite_size: int,
+        radiator_span_max: float | None = None,
         controller_parameters: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(pop_size=pop_size, elite_size=elite_size)
@@ -50,6 +51,7 @@ class UnionAugmentedCMOPSO(CMOPSO):
         self.variable_layout = variable_layout
         self.repair_reference_case = repair_reference_case
         self.optimization_spec = optimization_spec
+        self.radiator_span_max = radiator_span_max
         self.native_operator_id = native_operator_id_for_backbone("swarm", "cmopso")
         self.controller_trace: list[ControllerTraceRow] = []
         self.operator_trace: list[OperatorTraceRow] = []
@@ -151,6 +153,7 @@ class UnionAugmentedCMOPSO(CMOPSO):
             self.repair_reference_case,
             self.optimization_spec,
             np.asarray(vector, dtype=np.float64),
+            radiator_span_max=self.radiator_span_max,
         )
         return extract_decision_vector(repaired_case, self.optimization_spec)
 
@@ -174,6 +177,7 @@ def build_swarm_union_algorithm(problem: Any, optimization_spec: Any, algorithm_
         optimization_spec=spec_payload,
         pop_size=kwargs["pop_size"],
         elite_size=kwargs["elite_size"],
+        radiator_span_max=getattr(problem, "radiator_span_max", None),
         controller_parameters=spec_payload["operator_control"].get("controller_parameters"),
     )
     return SwarmUnionAdapterArtifacts(
