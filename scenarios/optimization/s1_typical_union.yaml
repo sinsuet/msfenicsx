@@ -146,12 +146,14 @@ operator_control:
   controller: random_uniform
   operator_pool:
     - native_sbx_pm
-    - sbx_pm_global
+    - global_explore
     - local_refine
-    - move_component_toward_sink
-    - spread_overlapping_components
-    - cool_hot_component_pair
-    - widen_sink_window
-    - narrow_sink_window
+    - move_hottest_cluster_toward_sink
+    - spread_hottest_cluster
+    - smooth_high_gradient_band
+    - reduce_local_congestion
+    - repair_sink_budget
+    - slide_sink
+    - rebalance_layout
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/s1_typical_eval.yaml

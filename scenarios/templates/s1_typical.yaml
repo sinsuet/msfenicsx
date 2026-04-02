@@ -170,7 +170,37 @@ boundary_feature_families:
     transfer_coefficient:
       min: 10.0
       max: 10.0
-load_rules: []
+load_rules:
+  - target_family: c01
+    total_power: 12.0
+  - target_family: c02
+    total_power: 11.0
+  - target_family: c03
+    total_power: 10.0
+  - target_family: c04
+    total_power: 9.5
+  - target_family: c05
+    total_power: 9.0
+  - target_family: c06
+    total_power: 8.5
+  - target_family: c07
+    total_power: 8.0
+  - target_family: c08
+    total_power: 7.5
+  - target_family: c09
+    total_power: 7.0
+  - target_family: c10
+    total_power: 6.5
+  - target_family: c11
+    total_power: 6.0
+  - target_family: c12
+    total_power: 5.5
+  - target_family: c13
+    total_power: 5.0
+  - target_family: c14
+    total_power: 4.5
+  - target_family: c15
+    total_power: 4.0
 material_rules:
   - material_id: panel_substrate
     conductivity: 25.0
