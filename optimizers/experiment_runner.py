@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from evaluation.io import load_multicase_spec
+from evaluation.io import load_spec
 from optimizers.artifacts import write_optimization_artifacts
 from optimizers.experiment_layout import (
     allocate_experiment_root,
@@ -20,7 +20,7 @@ from optimizers.experiment_layout import (
 )
 from optimizers.experiment_summary import build_experiment_summaries
 from optimizers.io import (
-    generate_benchmark_cases,
+    generate_benchmark_case,
     load_optimization_spec,
     resolve_benchmark_template_path,
     resolve_evaluation_spec_path,
@@ -71,9 +71,9 @@ def run_mode_experiment(
 
     for seed in effective_seeds:
         seeded_spec = _with_benchmark_seed(optimization_spec, seed)
-        base_cases = generate_benchmark_cases(optimization_spec_path, seeded_spec)
-        evaluation_spec = load_multicase_spec(resolve_evaluation_spec_path(optimization_spec_path, seeded_spec))
-        run = _dispatch_run(base_cases, seeded_spec, evaluation_spec, optimization_spec_path)
+        base_case = generate_benchmark_case(optimization_spec_path, seeded_spec)
+        evaluation_spec = load_spec(resolve_evaluation_spec_path(optimization_spec_path, seeded_spec))
+        run = _dispatch_run(base_case, seeded_spec, evaluation_spec, optimization_spec_path)
         evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
         write_optimization_artifacts(
             experiment_root / "runs" / f"seed-{seed}",
@@ -89,20 +89,20 @@ def run_mode_experiment(
 
 
 def _dispatch_run(
-    base_cases: dict[str, Any],
+    base_case: Any,
     optimization_spec: OptimizationSpec,
     evaluation_spec: Any,
     optimization_spec_path: Path,
 ) -> Any:
     if optimization_spec.algorithm["mode"] == "raw":
         return run_raw_optimization(
-            base_cases,
+            base_case,
             optimization_spec,
             evaluation_spec,
             spec_path=optimization_spec_path,
         )
     return run_union_optimization(
-        base_cases,
+        base_case,
         optimization_spec,
         evaluation_spec,
         spec_path=optimization_spec_path,

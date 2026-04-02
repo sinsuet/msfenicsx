@@ -39,7 +39,13 @@ def solve_case(case: Any) -> ThermalSolution:
     problem_data["temperature"].x.scatter_forward()
     iterations = problem.solver.getIterationNumber()
     converged = problem.solver.getConvergedReason() > 0
-    sampled_fields = sample_solution_fields(problem_data["temperature"], solver_inputs["components"])
+    panel_domain = solver_inputs["panel_domain"]
+    panel_area = float(panel_domain["width"]) * float(panel_domain["height"])
+    sampled_fields = sample_solution_fields(
+        problem_data["temperature"],
+        solver_inputs["components"],
+        panel_area=panel_area,
+    )
     diagnostics = {
         "converged": bool(converged),
         "iterations": int(iterations),

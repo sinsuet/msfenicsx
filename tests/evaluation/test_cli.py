@@ -80,6 +80,7 @@ def _solution() -> ThermalSolution:
                 "temperature_min": 285.1,
                 "temperature_mean": 301.2,
                 "temperature_max": 322.4,
+                "temperature_gradient_rms": 12.5,
             },
             "component_summaries": [
                 {
@@ -143,6 +144,12 @@ def test_evaluation_cli_writes_report_and_bundle_snapshot(tmp_path: Path) -> Non
                         "metric": "component.rf-power-amp-001.temperature_max",
                         "relation": "<=",
                         "limit": 325.0,
+                    },
+                    {
+                        "constraint_id": "gradient_rms_limit",
+                        "metric": "summary.temperature_gradient_rms",
+                        "relation": "<=",
+                        "limit": 20.0,
                     }
                 ],
             },
@@ -168,150 +175,6 @@ def test_evaluation_cli_writes_report_and_bundle_snapshot(tmp_path: Path) -> Non
     )
 
     assert exit_code == 0
-    assert report_path.exists()
-    assert (bundle_root / "evaluation.yaml").exists()
-
-
-def test_multicase_evaluation_cli_writes_report(tmp_path: Path) -> None:
-    hot_case_path = tmp_path / "hot_case.yaml"
-    cold_case_path = tmp_path / "cold_case.yaml"
-    hot_solution_path = tmp_path / "hot_solution.yaml"
-    cold_solution_path = tmp_path / "cold_solution.yaml"
-    spec_path = tmp_path / "multicase_spec.yaml"
-    report_path = tmp_path / "multicase_report.yaml"
-
-    hot_case = _case()
-    cold_case = ThermalCase.from_dict(
-        hot_case.to_dict()
-        | {
-            "case_meta": {"case_id": "case-002", "scenario_id": "panel-baseline"},
-            "loads": [
-                {"load_id": "load-processor", "target_component_id": "processor-001", "total_power": 8.0},
-                {"load_id": "load-rf", "target_component_id": "rf-power-amp-001", "total_power": 6.0},
-                {"load_id": "load-obc", "target_component_id": "obc-001", "total_power": 4.0},
-                {"load_id": "load-battery", "target_component_id": "battery-001", "total_power": 0.5},
-            ],
-            "boundary_features": [
-                {
-                    "feature_id": "radiator-top-001",
-                    "kind": "line_sink",
-                    "edge": "top",
-                    "start": 0.25,
-                    "end": 0.75,
-                    "sink_temperature": 270.0,
-                    "transfer_coefficient": 16.0,
-                }
-            ],
-            "physics": {
-                "kind": "steady_heat_radiation",
-                "ambient_temperature": 275.0,
-                "stefan_boltzmann": 5.670374419e-8,
-            },
-        }
-    )
-    hot_solution = _solution()
-    cold_solution = ThermalSolution.from_dict(
-        _solution().to_dict()
-        | {
-            "solution_meta": {"solution_id": "sol-002", "case_id": "case-002"},
-            "summary_metrics": {
-                "temperature_min": 266.0,
-                "temperature_mean": 272.0,
-                "temperature_max": 279.0,
-            },
-            "component_summaries": [
-                {
-                    "component_id": "processor-001",
-                    "temperature_min": 271.0,
-                    "temperature_mean": 276.0,
-                    "temperature_max": 282.0,
-                },
-                {
-                    "component_id": "rf-power-amp-001",
-                    "temperature_min": 272.0,
-                    "temperature_mean": 277.0,
-                    "temperature_max": 283.0,
-                },
-                {
-                    "component_id": "obc-001",
-                    "temperature_min": 269.0,
-                    "temperature_mean": 274.0,
-                    "temperature_max": 280.0,
-                },
-                {
-                    "component_id": "battery-001",
-                    "temperature_min": 267.0,
-                    "temperature_mean": 272.5,
-                    "temperature_max": 278.0,
-                },
-            ],
-        }
-    )
-
-    save_case(hot_case, hot_case_path)
-    save_case(cold_case, cold_case_path)
-    save_solution(hot_solution, hot_solution_path)
-    save_solution(cold_solution, cold_solution_path)
-    spec_path.write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": "1.0",
-                "spec_meta": {
-                    "spec_id": "panel-four-component-hot-cold-baseline",
-                    "description": "Paper-grade hot/cold multicase evaluation baseline.",
-                },
-                "operating_cases": [
-                    {"operating_case_id": "hot", "description": "Hot operating case"},
-                    {"operating_case_id": "cold", "description": "Cold operating case"},
-                ],
-                "objectives": [
-                    {
-                        "objective_id": "minimize_hot_pa_peak",
-                        "operating_case": "hot",
-                        "metric": "component.rf_power_amp.temperature_max",
-                        "sense": "minimize",
-                    },
-                    {
-                        "objective_id": "maximize_cold_battery_min",
-                        "operating_case": "cold",
-                        "metric": "component.battery_pack.temperature_min",
-                        "sense": "maximize",
-                    },
-                ],
-                "constraints": [
-                    {
-                        "constraint_id": "hot_pa_limit",
-                        "operating_case": "hot",
-                        "metric": "component.rf_power_amp.temperature_max",
-                        "relation": "<=",
-                        "limit": 355.0,
-                    }
-                ],
-            },
-            sort_keys=False,
-        ),
-        encoding="utf-8",
-    )
-
-    exit_code = main(
-        [
-            "evaluate-operating-cases",
-            "--case",
-            f"hot={hot_case_path}",
-            "--case",
-            f"cold={cold_case_path}",
-            "--solution",
-            f"hot={hot_solution_path}",
-            "--solution",
-            f"cold={cold_solution_path}",
-            "--spec",
-            str(spec_path),
-            "--output",
-            str(report_path),
-        ]
-    )
-
-    assert exit_code == 0
     report_payload = yaml.safe_load(report_path.read_text(encoding="utf-8"))
-    assert set(report_payload["case_reports"]) == {"hot", "cold"}
-    assert report_payload["worst_case_signals"]["highest_temperature_case_id"] == "hot"
+    assert report_payload["metric_values"]["summary.temperature_gradient_rms"] == 12.5
+    assert (bundle_root / "evaluation.yaml").exists()

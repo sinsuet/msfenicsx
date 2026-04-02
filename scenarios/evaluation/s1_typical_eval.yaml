@@ -1,0 +1,28 @@
+schema_version: "1.0"
+spec_meta:
+  spec_id: s1_typical_eval
+  description: Single-case evaluation spec for the S1 typical paper-facing baseline.
+objectives:
+  - objective_id: minimize_peak_temperature
+    metric: summary.temperature_max
+    sense: minimize
+  - objective_id: minimize_temperature_gradient_rms
+    metric: summary.temperature_gradient_rms
+    sense: minimize
+constraints:
+  - constraint_id: radiator_span_budget
+    metric: case.total_radiator_span
+    relation: "<="
+    limit: 0.48
+  - constraint_id: c01_peak_temperature_limit
+    metric: component.c01-001.temperature_max
+    relation: "<="
+    limit: 356.0
+  - constraint_id: c08_peak_temperature_limit
+    metric: component.c08-001.temperature_max
+    relation: "<="
+    limit: 352.0
+  - constraint_id: panel_temperature_spread_limit
+    metric: components.max_temperature_spread
+    relation: "<="
+    limit: 95.0

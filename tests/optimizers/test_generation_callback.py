@@ -27,9 +27,8 @@ class _FakePopulation:
 def test_generation_callback_records_generation_boundaries() -> None:
     callback = GenerationSummaryCallback(
         objective_ids=(
-            "minimize_hot_pa_peak",
-            "maximize_cold_battery_min",
-            "minimize_radiator_resource",
+            "minimize_peak_temperature",
+            "minimize_temperature_gradient_rms",
         )
     )
     algorithm = SimpleNamespace(
@@ -37,15 +36,15 @@ def test_generation_callback_records_generation_boundaries() -> None:
         pop=_FakePopulation(
             F=np.asarray(
                 [
-                    [301.0, -258.0, 0.48],
-                    [299.0, -257.5, 0.45],
+                    [301.0, 10.2],
+                    [299.0, 8.4],
                 ],
                 dtype=np.float64,
             ),
             G=np.asarray(
                 [
-                    [0.0, 0.0, 0.0],
-                    [0.0, 0.1, 0.0],
+                    [0.0, 0.0],
+                    [0.0, 0.1],
                 ],
                 dtype=np.float64,
             ),
@@ -65,6 +64,7 @@ def test_generation_callback_records_generation_boundaries() -> None:
     assert callback.rows[-1]["num_evaluations_so_far"] == 3
     assert callback.rows[-1]["feasible_fraction"] == pytest.approx(0.5)
     assert callback.rows[-1]["best_total_constraint_violation"] == pytest.approx(0.0)
-    assert callback.rows[-1]["best_hot_pa_peak"] == pytest.approx(299.0)
-    assert callback.rows[-1]["best_cold_battery_min"] == pytest.approx(258.0)
+    assert callback.rows[-1]["best_minimize_peak_temperature"] == pytest.approx(299.0)
+    assert callback.rows[-1]["best_minimize_temperature_gradient_rms"] == pytest.approx(8.4)
+    assert "best_hot_pa_peak" not in callback.rows[-1]
     assert callback.rows[-1]["pareto_size"] >= 1

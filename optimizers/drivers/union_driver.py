@@ -8,7 +8,7 @@ from typing import Any
 
 from pymoo.optimize import minimize
 
-from evaluation.io import load_multicase_spec
+from evaluation.io import load_spec
 from optimizers.adapters.decomposition_family import build_decomposition_union_algorithm
 from optimizers.adapters.genetic_family import build_genetic_union_algorithm
 from optimizers.adapters.swarm_family import build_swarm_union_algorithm
@@ -17,10 +17,10 @@ from optimizers.drivers.raw_driver import (
     _build_representative_candidates,
     _build_result_payload,
     _extract_pareto_front,
-    _load_base_cases,
+    _initialize_single_case_problem,
 )
 from optimizers.generation_callback import GenerationSummaryCallback
-from optimizers.io import generate_benchmark_cases, load_optimization_spec, resolve_evaluation_spec_path
+from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.models import OptimizationResult
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 from optimizers.problem import CandidateArtifacts, ThermalOptimizationProblem
@@ -40,7 +40,7 @@ class UnionOptimizationRun:
 
 
 def run_union_optimization(
-    base_cases: dict[str, Any],
+    base_case: Any,
     optimization_spec: Any,
     evaluation_spec: Any,
     *,
@@ -52,9 +52,7 @@ def run_union_optimization(
     if algorithm_config["mode"] != "union":
         raise ValueError(f"run_union_optimization only supports algorithm.mode='union', got {algorithm_config['mode']!r}.")
 
-    loaded_cases = _load_base_cases(base_cases)
-    problem = ThermalOptimizationProblem(loaded_cases, spec_payload, evaluation_payload)
-    baseline_record = problem.evaluate_baseline()
+    loaded_case, problem, baseline_record = _initialize_single_case_problem(base_case, spec_payload, evaluation_payload)
 
     family = str(algorithm_config["family"])
     if family == "genetic":
@@ -79,7 +77,7 @@ def run_union_optimization(
     pareto_front = _extract_pareto_front(problem.history, evaluation_payload["objectives"])
     representative_candidates = _build_representative_candidates(pareto_front, evaluation_payload["objectives"])
     result_payload = _build_result_payload(
-        loaded_cases=loaded_cases,
+        loaded_case=loaded_case,
         spec_payload=spec_payload,
         evaluation_payload=evaluation_payload,
         baseline_record=baseline_record,
@@ -109,6 +107,6 @@ def run_union_optimization(
 
 def run_union_optimization_from_spec(spec_path: str | Path) -> UnionOptimizationRun:
     optimization_spec = load_optimization_spec(spec_path)
-    base_cases = generate_benchmark_cases(spec_path, optimization_spec)
-    evaluation_spec = load_multicase_spec(resolve_evaluation_spec_path(spec_path, optimization_spec))
-    return run_union_optimization(base_cases, optimization_spec, evaluation_spec, spec_path=spec_path)
+    base_case = generate_benchmark_case(spec_path, optimization_spec)
+    evaluation_spec = load_spec(resolve_evaluation_spec_path(spec_path, optimization_spec))
+    return run_union_optimization(base_case, optimization_spec, evaluation_spec, spec_path=spec_path)

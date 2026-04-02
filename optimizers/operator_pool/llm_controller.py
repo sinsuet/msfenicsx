@@ -20,14 +20,15 @@ from optimizers.operator_pool.state import ControllerState
 
 _OPERATOR_ROLE_SUMMARIES: dict[str, str] = {
     "native_sbx_pm": "native NSGA-II SBX plus polynomial mutation baseline proposal.",
-    "sbx_pm_global": "more aggressive global SBX plus mutation exploration across the full vector.",
-    "local_refine": "small local cleanup around the current layout, especially near the hot zone.",
-    "hot_pair_to_sink": "move the processor and RF hot pair upward toward the sink boundary.",
-    "hot_pair_separate": "increase spacing between the processor and RF hot pair.",
-    "battery_to_warm_zone": "move the battery partway toward the warmer hot-pair region.",
-    "radiator_align_hot_pair": "shift the radiator span to align better with the hot-pair center.",
-    "radiator_expand": "expand radiator coverage outward to use more available span.",
-    "radiator_contract": "contract radiator coverage inward to reduce span.",
+    "global_explore": "more aggressive full-vector SBX plus mutation exploration across the complete layout.",
+    "local_refine": "small local cleanup around the current cluster arrangement and sink placement.",
+    "move_hottest_cluster_toward_sink": "pull the currently hottest or most crowded component cluster toward the sink corridor.",
+    "spread_hottest_cluster": "separate the hottest cluster to reduce crowding while keeping it sink-aware.",
+    "smooth_high_gradient_band": "blend a high-gradient band toward a smoother neighborhood arrangement.",
+    "reduce_local_congestion": "push the most congested local component pair apart.",
+    "repair_sink_budget": "project the sink interval back inside the approved span budget while keeping it targeted.",
+    "slide_sink": "slide the current sink window toward the active heat cluster without changing its span much.",
+    "rebalance_layout": "rebalance the overall component distribution toward a more even panel layout.",
 }
 _RECENT_DOMINANCE_MIN_WINDOW = 6
 _RECENT_DOMINANCE_MIN_COUNT = 5

@@ -15,14 +15,14 @@ def create_experiment_root(
     mode_id: str,
     seeds: tuple[int, ...] = (11, 17),
 ) -> Path:
-    root = tmp_path / "panel-four-component-hot-cold-benchmark" / "experiments" / f"{mode_id}__0401_1430"
+    root = tmp_path / "s1_typical" / "experiments" / f"{mode_id}__0401_1430"
     for directory_name in ("spec_snapshot", "runs", "summaries", "figures", "dashboards", "logs", "representatives"):
         (root / directory_name).mkdir(parents=True, exist_ok=True)
 
     _write_json(
         root / "manifest.json",
         {
-            "scenario_template_id": "panel-four-component-hot-cold-benchmark",
+            "scenario_template_id": "s1_typical",
             "mode_id": mode_id,
             "benchmark_seeds": list(seeds),
             "directories": {
@@ -42,8 +42,8 @@ def create_experiment_root(
                 "schema_version": "1.0",
                 "spec_meta": {"spec_id": f"{mode_id}-spec"},
                 "design_variables": [
-                    {"variable_id": "processor_x"},
-                    {"variable_id": "processor_y"},
+                    {"variable_id": "c01_x"},
+                    {"variable_id": "c01_y"},
                 ],
             },
             sort_keys=False,
@@ -58,7 +58,7 @@ def create_experiment_root(
 def create_template_root_with_modes(tmp_path: Path) -> Path:
     from optimizers.experiment_summary import build_experiment_summaries
 
-    template_root = tmp_path / "panel-four-component-hot-cold-benchmark"
+    template_root = tmp_path / "s1_typical"
     build_experiment_summaries(create_experiment_root(tmp_path, mode_id="nsga2_raw"))
     build_experiment_summaries(create_experiment_root(tmp_path, mode_id="nsga2_union"))
     build_experiment_summaries(create_experiment_root(tmp_path, mode_id="nsga2_llm"))
@@ -70,37 +70,34 @@ def _create_run_bundle(run_root: Path, *, mode_id: str, seed: int) -> None:
     history = [
         _record(
             1,
-            {"processor_x": 0.2, "processor_y": 0.3},
+            {"c01_x": 0.2, "c01_y": 0.3},
             feasible=False,
             objective_values={
-                "minimize_hot_pa_peak": 303.0,
-                "maximize_cold_battery_min": 255.0,
-                "minimize_radiator_resource": 0.5,
+                "minimize_peak_temperature": 303.0,
+                "minimize_temperature_gradient_rms": 10.6,
             },
-            constraint_values={"cold_battery_floor": 0.5, "hot_pa_limit": 0.2},
+            constraint_values={"radiator_span_budget": 0.5},
             source="baseline",
         ),
         _record(
             2,
-            {"processor_x": 0.25, "processor_y": 0.35},
+            {"c01_x": 0.25, "c01_y": 0.35},
             feasible=False,
             objective_values={
-                "minimize_hot_pa_peak": 301.0,
-                "maximize_cold_battery_min": 256.0,
-                "minimize_radiator_resource": 0.47,
+                "minimize_peak_temperature": 301.0,
+                "minimize_temperature_gradient_rms": 9.4,
             },
-            constraint_values={"cold_battery_floor": 0.2, "hot_pa_limit": 0.1},
+            constraint_values={"radiator_span_budget": 0.2},
         ),
         _record(
             3,
-            {"processor_x": 0.4, "processor_y": 0.5},
+            {"c01_x": 0.4, "c01_y": 0.5},
             feasible=True,
             objective_values={
-                "minimize_hot_pa_peak": 299.0,
-                "maximize_cold_battery_min": 259.0,
-                "minimize_radiator_resource": 0.44,
+                "minimize_peak_temperature": 299.0,
+                "minimize_temperature_gradient_rms": 8.4,
             },
-            constraint_values={"cold_battery_floor": 0.0, "hot_pa_limit": 0.0},
+            constraint_values={"radiator_span_budget": 0.0},
         ),
     ]
     _write_json(
@@ -110,8 +107,8 @@ def _create_run_bundle(run_root: Path, *, mode_id: str, seed: int) -> None:
             "run_meta": {
                 "run_id": f"{mode_id}-seed-{seed}-run",
                 "optimization_spec_id": f"{mode_id}-spec",
-                "evaluation_spec_id": "panel-four-component-hot-cold-baseline",
-                "base_case_ids": {"hot": f"hot-{seed}", "cold": f"cold-{seed}"},
+                "evaluation_spec_id": "s1_typical_eval",
+                "base_case_id": f"s1_typical-case-{seed:03d}",
             },
             "baseline_candidates": [history[0]],
             "pareto_front": [history[-1]],
@@ -125,9 +122,9 @@ def _create_run_bundle(run_root: Path, *, mode_id: str, seed: int) -> None:
             "history": history,
             "provenance": {
                 "benchmark_source": {"seed": seed},
-                "source_case_ids": {"hot": f"hot-{seed}", "cold": f"cold-{seed}"},
+                "source_case_id": f"s1_typical-case-{seed:03d}",
                 "source_optimization_spec_id": f"{mode_id}-spec",
-                "source_evaluation_spec_id": "panel-four-component-hot-cold-baseline",
+                "source_evaluation_spec_id": "s1_typical_eval",
             },
         },
     )
@@ -145,10 +142,10 @@ def _create_run_bundle(run_root: Path, *, mode_id: str, seed: int) -> None:
                 "objective_values": history[0]["objective_values"],
                 "constraint_values": history[0]["constraint_values"],
                 "feasible": False,
-                "total_constraint_violation": 0.7,
-                "dominant_violation_constraint_id": "cold_battery_floor",
-                "dominant_violation_constraint_family": "cold_dominant",
-                "violation_count": 2,
+                "total_constraint_violation": 0.5,
+                "dominant_violation_constraint_id": "radiator_span_budget",
+                "dominant_violation_constraint_family": "geometry_dominant",
+                "violation_count": 1,
                 "entered_feasible_region": False,
                 "preserved_feasibility": False,
                 "pareto_membership_after_eval": False,
@@ -166,10 +163,10 @@ def _create_run_bundle(run_root: Path, *, mode_id: str, seed: int) -> None:
                 "objective_values": history[1]["objective_values"],
                 "constraint_values": history[1]["constraint_values"],
                 "feasible": False,
-                "total_constraint_violation": 0.3,
-                "dominant_violation_constraint_id": "cold_battery_floor",
-                "dominant_violation_constraint_family": "cold_dominant",
-                "violation_count": 2,
+                "total_constraint_violation": 0.2,
+                "dominant_violation_constraint_id": "radiator_span_budget",
+                "dominant_violation_constraint_family": "geometry_dominant",
+                "violation_count": 1,
                 "entered_feasible_region": False,
                 "preserved_feasibility": False,
                 "pareto_membership_after_eval": False,
@@ -210,9 +207,8 @@ def _create_run_bundle(run_root: Path, *, mode_id: str, seed: int) -> None:
                 "num_evaluations_so_far": 3,
                 "feasible_fraction": 1.0 / 3.0,
                 "best_total_constraint_violation": 0.0,
-                "best_hot_pa_peak": 299.0,
-                "best_cold_battery_min": 259.0,
-                "best_radiator_resource": 0.44,
+                "best_minimize_peak_temperature": 299.0,
+                "best_minimize_temperature_gradient_rms": 8.4,
                 "pareto_size": 1,
                 "new_feasible_entries": 1,
                 "new_pareto_entries": 1,
@@ -327,7 +323,7 @@ def _record(
         "decision_vector": decision_vector,
         "objective_values": objective_values,
         "constraint_values": constraint_values,
-        "case_reports": {},
+        "evaluation_report": {"evaluation_meta": {"case_id": "fixture-case"}, "feasible": feasible},
     }
 
 

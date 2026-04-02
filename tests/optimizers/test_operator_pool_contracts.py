@@ -3,52 +3,47 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from core.generator.paired_pipeline import generate_operating_case_pair
 from optimizers.codec import extract_decision_vector
-from optimizers.io import load_optimization_spec
+from optimizers.io import generate_benchmark_case, load_optimization_spec
 
 
-APPROVED_SHARED_OPERATOR_IDS = [
-    "sbx_pm_global",
+APPROVED_SHARED_OPERATOR_IDS = (
+    "global_explore",
     "local_refine",
-    "hot_pair_to_sink",
-    "hot_pair_separate",
-    "battery_to_warm_zone",
-    "radiator_align_hot_pair",
-    "radiator_expand",
-    "radiator_contract",
-]
+    "move_hottest_cluster_toward_sink",
+    "spread_hottest_cluster",
+    "smooth_high_gradient_band",
+    "reduce_local_congestion",
+    "repair_sink_budget",
+    "slide_sink",
+    "rebalance_layout",
+)
 
-APPROVED_UNION_OPERATOR_IDS = [
+APPROVED_UNION_OPERATOR_IDS = (
     "native_sbx_pm",
     *APPROVED_SHARED_OPERATOR_IDS,
-]
+)
 
 
-def _baseline_spec():
-    return load_optimization_spec("scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml")
+def _union_spec():
+    return load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
 
 
 def _layout():
     from optimizers.operator_pool.layout import VariableLayout
 
-    return VariableLayout.from_optimization_spec(_baseline_spec())
+    return VariableLayout.from_optimization_spec(_union_spec())
 
 
 def _parent_bundle():
     from optimizers.operator_pool.models import ParentBundle
 
-    spec = _baseline_spec()
-    case = generate_operating_case_pair(spec.benchmark_source["template_path"], seed=int(spec.benchmark_source["seed"]))["hot"]
+    spec = _union_spec()
     layout = _layout()
+    case = generate_benchmark_case("scenarios/optimization/s1_typical_union.yaml", spec)
     primary = extract_decision_vector(case, spec)
-    secondary = layout.clip(
-        primary
-        + np.asarray(
-            [0.08, 0.06, -0.09, 0.07, -0.12, -0.1, 0.04, -0.03],
-            dtype=np.float64,
-        )
-    )
+    offsets = np.linspace(-0.025, 0.025, num=layout.vector_size, dtype=np.float64)
+    secondary = layout.clip(primary + offsets)
     return ParentBundle.from_vectors(primary, secondary)
 
 
@@ -58,24 +53,33 @@ def _controller_state():
     return ControllerState(
         family="genetic",
         backbone="nsga2",
-        generation_index=2,
-        evaluation_index=9,
+        generation_index=3,
+        evaluation_index=17,
         parent_count=2,
-        vector_size=8,
+        vector_size=32,
         metadata={
-            "scenario": "panel-four-component-hot-cold",
+            "scenario": "s1_typical",
             "native_parameters": {
-                "crossover": {"eta": 10.0, "prob": 0.9},
-                "mutation": {"eta": 15.0},
+                "crossover": {"eta": 12.0, "prob": 0.9},
+                "mutation": {"eta": 18.0},
+            },
+            "radiator_span_max": 0.48,
+            "run_state": {
+                "peak_temperature": 344.8,
+                "temperature_gradient_rms": 8.9,
             },
         },
     )
 
 
-def test_operator_pool_registry_matches_union_action_contract() -> None:
-    from optimizers.operator_pool.operators import list_registered_operator_ids
+def test_operator_registry_exposes_semantic_s1_typical_actions() -> None:
+    from optimizers.operator_pool.operators import (
+        approved_union_operator_ids_for_backbone,
+        list_registered_operator_ids,
+    )
 
-    assert list_registered_operator_ids() == APPROVED_UNION_OPERATOR_IDS
+    assert approved_union_operator_ids_for_backbone("genetic", "nsga2") == APPROVED_UNION_OPERATOR_IDS
+    assert tuple(list_registered_operator_ids()) == APPROVED_UNION_OPERATOR_IDS
 
 
 def test_behavior_profiles_cover_matrix_native_operator_ids() -> None:
@@ -88,25 +92,30 @@ def test_behavior_profiles_cover_matrix_native_operator_ids() -> None:
         assert profile.family == "native_baseline"
         assert profile.exploration_class == "stable"
 
+    semantic_profile = get_operator_behavior_profile("move_hottest_cluster_toward_sink")
+    assert semantic_profile.exploration_class == "custom"
 
-def test_variable_layout_maps_active_benchmark_variables_in_order() -> None:
+
+def test_variable_layout_maps_s1_typical_variables_in_order() -> None:
     layout = _layout()
 
-    assert layout.variable_ids == [
-        "processor_x",
-        "processor_y",
-        "rf_power_amp_x",
-        "rf_power_amp_y",
-        "battery_pack_x",
-        "battery_pack_y",
-        "radiator_start",
-        "radiator_end",
+    assert layout.variable_ids[:4] == [
+        "c01_x",
+        "c01_y",
+        "c02_x",
+        "c02_y",
     ]
-    assert layout.vector_size == 8
-    assert layout.index_of("battery_pack_y") == 5
-    assert layout.slot_for("radiator_end").path == "boundary_features[0].end"
-    assert layout.slot_for("radiator_end").lower_bound == pytest.approx(0.2)
-    assert layout.slot_for("radiator_end").upper_bound == pytest.approx(0.95)
+    assert layout.variable_ids[-4:] == [
+        "c15_x",
+        "c15_y",
+        "sink_start",
+        "sink_end",
+    ]
+    assert layout.vector_size == 32
+    assert layout.index_of("c15_y") == 29
+    assert layout.slot_for("sink_end").path == "boundary_features[0].end"
+    assert layout.slot_for("sink_end").lower_bound == pytest.approx(0.2)
+    assert layout.slot_for("sink_end").upper_bound == pytest.approx(0.95)
 
 
 def test_parent_bundle_copies_numeric_vectors_and_preserves_shape() -> None:
@@ -137,7 +146,7 @@ def test_random_controller_is_algorithm_agnostic() -> None:
         generation_index=2,
         evaluation_index=9,
         parent_count=2,
-        vector_size=8,
+        vector_size=32,
     )
     swarm_state = ControllerState(
         family="swarm",
@@ -145,7 +154,7 @@ def test_random_controller_is_algorithm_agnostic() -> None:
         generation_index=2,
         evaluation_index=9,
         parent_count=2,
-        vector_size=8,
+        vector_size=32,
     )
 
     genetic_selection = controller.select_operator(
@@ -200,14 +209,14 @@ def test_trace_rows_round_trip_through_dict_payloads() -> None:
         family="genetic",
         backbone="nsga2",
         controller_id="random_uniform",
-        candidate_operator_ids=tuple(APPROVED_UNION_OPERATOR_IDS),
-        selected_operator_id="local_refine",
+        candidate_operator_ids=APPROVED_UNION_OPERATOR_IDS,
+        selected_operator_id="reduce_local_congestion",
         metadata={"seed": 7},
     )
     operator_row = OperatorTraceRow(
         generation_index=2,
         evaluation_index=9,
-        operator_id="local_refine",
+        operator_id="reduce_local_congestion",
         parent_count=2,
         parent_vectors=((0.1, 0.2), (0.3, 0.4)),
         proposal_vector=(0.2, 0.25),

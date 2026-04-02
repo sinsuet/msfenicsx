@@ -1,0 +1,221 @@
+schema_version: "1.0"
+template_meta:
+  template_id: s1_typical
+  description: Single-case S1 typical paper-facing template with fifteen fixed component families and one top-edge radiator window.
+coordinate_system:
+  plane: panel_xy
+panel_domain:
+  width: 1.0
+  height: 0.8
+placement_regions:
+  - region_id: main-deck
+    kind: rect
+    x_min: 0.05
+    x_max: 0.95
+    y_min: 0.05
+    y_max: 0.72
+keep_out_regions:
+  - region_id: top-edge-harness-strip
+    kind: rect
+    x_min: 0.0
+    x_max: 1.0
+    y_min: 0.74
+    y_max: 0.8
+component_families:
+  - family_id: c01
+    role: payload_01
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.08, max: 0.08}
+      height: {min: 0.06, max: 0.06}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c02
+    role: payload_02
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.09, max: 0.09}
+      height: {min: 0.06, max: 0.06}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c03
+    role: payload_03
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.1, max: 0.1}
+      height: {min: 0.06, max: 0.06}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c04
+    role: payload_04
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.08, max: 0.08}
+      height: {min: 0.07, max: 0.07}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c05
+    role: payload_05
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.09, max: 0.09}
+      height: {min: 0.07, max: 0.07}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c06
+    role: payload_06
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.1, max: 0.1}
+      height: {min: 0.07, max: 0.07}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c07
+    role: payload_07
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.08, max: 0.08}
+      height: {min: 0.08, max: 0.08}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c08
+    role: payload_08
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.09, max: 0.09}
+      height: {min: 0.08, max: 0.08}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c09
+    role: payload_09
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.1, max: 0.1}
+      height: {min: 0.08, max: 0.08}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c10
+    role: payload_10
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.08, max: 0.08}
+      height: {min: 0.09, max: 0.09}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c11
+    role: payload_11
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.09, max: 0.09}
+      height: {min: 0.09, max: 0.09}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c12
+    role: payload_12
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.1, max: 0.1}
+      height: {min: 0.09, max: 0.09}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c13
+    role: payload_13
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.08, max: 0.08}
+      height: {min: 0.1, max: 0.1}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c14
+    role: payload_14
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.09, max: 0.09}
+      height: {min: 0.1, max: 0.1}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+  - family_id: c15
+    role: payload_15
+    shape: rect
+    count_range: {min: 1, max: 1}
+    geometry:
+      width: {min: 0.1, max: 0.1}
+      height: {min: 0.1, max: 0.1}
+    material_ref: electronics_housing
+    thermal_tags: [payload]
+boundary_feature_families:
+  - family_id: sink-top-window
+    kind: line_sink
+    edge: top
+    span:
+      min: 0.25
+      max: 0.75
+    sink_temperature:
+      min: 286.0
+      max: 286.0
+    transfer_coefficient:
+      min: 10.0
+      max: 10.0
+load_rules:
+  - target_family: c01
+    total_power: 12.0
+  - target_family: c02
+    total_power: 11.0
+  - target_family: c03
+    total_power: 10.0
+  - target_family: c04
+    total_power: 9.5
+  - target_family: c05
+    total_power: 9.0
+  - target_family: c06
+    total_power: 8.5
+  - target_family: c07
+    total_power: 8.0
+  - target_family: c08
+    total_power: 7.5
+  - target_family: c09
+    total_power: 7.0
+  - target_family: c10
+    total_power: 6.5
+  - target_family: c11
+    total_power: 6.0
+  - target_family: c12
+    total_power: 5.5
+  - target_family: c13
+    total_power: 5.0
+  - target_family: c14
+    total_power: 4.5
+  - target_family: c15
+    total_power: 4.0
+material_rules:
+  - material_id: panel_substrate
+    conductivity: 25.0
+    emissivity: 0.78
+  - material_id: electronics_housing
+    conductivity: 160.0
+    emissivity: 0.82
+mesh_profile:
+  nx: 48
+  ny: 40
+solver_profile:
+  nonlinear_solver: snes
+  absolute_tolerance: 1.0e-8
+  relative_tolerance: 1.0e-8
+  max_iterations: 50
+generation_rules:
+  seed_policy: external
+  max_placement_attempts: 300

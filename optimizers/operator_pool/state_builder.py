@@ -90,6 +90,11 @@ def build_controller_state(
     state_metadata["operator_summary"] = operator_summary
     state_metadata["recent_operator_counts"] = _build_recent_operator_counts(operator_summary)
     if history_rows:
+        sink_budget_limit = (
+            None
+            if state_metadata.get("radiator_span_max") is None
+            else float(state_metadata["radiator_span_max"])
+        )
         run_state = build_run_state(
             generation_index=generation_index,
             evaluation_index=evaluation_index,
@@ -100,6 +105,7 @@ def build_controller_state(
                 if state_metadata.get("total_evaluation_budget") is None
                 else int(state_metadata["total_evaluation_budget"])
             ),
+            sink_budget_limit=sink_budget_limit,
         )
         history_lookup = build_history_lookup(history_rows, design_variable_ids)
         parent_state = build_parent_state(
@@ -109,7 +115,11 @@ def build_controller_state(
             parent_indices=state_metadata.get("parent_indices"),
         )
         archive_state = build_archive_state(history_rows)
-        domain_regime = build_domain_regime(parent_state=parent_state, archive_state=archive_state)
+        domain_regime = build_domain_regime(
+            parent_state=parent_state,
+            archive_state=archive_state,
+            sink_budget_limit=sink_budget_limit,
+        )
         progress_state = build_progress_state(history=history_rows)
         progress_state.update(
             build_prefeasible_reset_summary([_policy_recent_decision(row) for row in recent_rows])

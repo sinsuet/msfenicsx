@@ -1,4 +1,4 @@
-"""Artifact writers for multicase Pareto optimizer runs."""
+"""Artifact writers for single-case Pareto optimizer runs."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from core.schema.io import save_case, save_solution
-from evaluation.io import save_multicase_report
+from evaluation.io import save_report
 from optimizers.io import save_optimization_result
 from optimizers.problem import CandidateArtifacts
 from optimizers.run_telemetry import build_evaluation_events, build_generation_summary_rows
@@ -86,21 +86,15 @@ def write_optimization_artifacts(
 
 def _write_representative_bundle(bundle_root: Path, artifacts: CandidateArtifacts) -> None:
     _initialize_bundle_root(bundle_root)
-    cases_root = bundle_root / "cases"
-    solutions_root = bundle_root / "solutions"
-    case_snapshots: dict[str, str] = {}
-    solution_snapshots: dict[str, str] = {}
-    for operating_case_id, case in artifacts.cases.items():
-        save_case(case, cases_root / f"{operating_case_id}.yaml")
-        case_snapshots[operating_case_id] = f"cases/{operating_case_id}.yaml"
-    for operating_case_id, solution in artifacts.solutions.items():
-        save_solution(solution, solutions_root / f"{operating_case_id}.yaml")
-        solution_snapshots[operating_case_id] = f"solutions/{operating_case_id}.yaml"
+    case_snapshot = "case.yaml"
+    solution_snapshot = "solution.yaml"
+    save_case(artifacts.case, bundle_root / "case.yaml")
+    save_solution(artifacts.solution, bundle_root / "solution.yaml")
     if artifacts.evaluation is not None:
-        save_multicase_report(artifacts.evaluation, bundle_root / "evaluation.yaml")
+        save_report(artifacts.evaluation, bundle_root / "evaluation.yaml")
     manifest = {
-        "case_snapshots": case_snapshots,
-        "solution_snapshots": solution_snapshots,
+        "case_snapshot": case_snapshot,
+        "solution_snapshot": solution_snapshot,
         "evaluation_snapshot": "evaluation.yaml" if artifacts.evaluation is not None else None,
         "directories": _bundle_directories(),
     }
@@ -111,8 +105,6 @@ def _initialize_bundle_root(bundle_root: Path, *, include_representatives: bool 
     bundle_root.mkdir(parents=True, exist_ok=True)
     for directory_name in _bundle_directories(include_representatives=include_representatives).values():
         (bundle_root / directory_name).mkdir(parents=True, exist_ok=True)
-    (bundle_root / "cases").mkdir(parents=True, exist_ok=True)
-    (bundle_root / "solutions").mkdir(parents=True, exist_ok=True)
 
 
 def _bundle_directories(*, include_representatives: bool = False) -> dict[str, str]:

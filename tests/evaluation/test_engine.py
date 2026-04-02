@@ -78,6 +78,15 @@ def _solution() -> ThermalSolution:
     )
 
 
+def _solution_with_gradient_rms(gradient_rms: float) -> ThermalSolution:
+    return ThermalSolution.from_dict(
+        _solution().to_dict()
+        | {
+            "summary_metrics": _solution().summary_metrics | {"temperature_gradient_rms": gradient_rms},
+        }
+    )
+
+
 def _spec(limit: float = 325.0, metric: str = "component.comp-001.temperature_max") -> EvaluationSpec:
     return EvaluationSpec.from_dict(
         {
@@ -134,3 +143,13 @@ def test_evaluate_case_solution_reports_negative_margin_when_constraint_fails() 
 def test_evaluate_case_solution_rejects_unknown_metric_keys() -> None:
     with pytest.raises(MetricResolutionError):
         evaluate_case_solution(_case(), _solution(), _spec(metric="summary.temperature_median"))
+
+
+def test_evaluate_case_solution_supports_summary_temperature_gradient_rms() -> None:
+    report = evaluate_case_solution(
+        _case(),
+        _solution_with_gradient_rms(12.5),
+        _spec(metric="summary.temperature_gradient_rms"),
+    )
+
+    assert report.metric_values["summary.temperature_gradient_rms"] == pytest.approx(12.5)

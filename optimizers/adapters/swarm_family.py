@@ -42,6 +42,7 @@ class UnionAugmentedCMOPSO(CMOPSO):
         optimization_spec: dict[str, Any],
         pop_size: int,
         elite_size: int,
+        radiator_span_max: float | None = None,
         controller_parameters: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(pop_size=pop_size, elite_size=elite_size)
@@ -50,6 +51,8 @@ class UnionAugmentedCMOPSO(CMOPSO):
         self.variable_layout = variable_layout
         self.repair_reference_case = repair_reference_case
         self.optimization_spec = optimization_spec
+        self.radiator_span_max = radiator_span_max
+        self.design_variable_ids = [str(item["variable_id"]) for item in self.optimization_spec.get("design_variables", [])]
         self.native_operator_id = native_operator_id_for_backbone("swarm", "cmopso")
         self.controller_trace: list[ControllerTraceRow] = []
         self.operator_trace: list[OperatorTraceRow] = []
@@ -81,9 +84,14 @@ class UnionAugmentedCMOPSO(CMOPSO):
                 generation_index=max(0, int(getattr(self, "n_iter", 0))),
                 evaluation_index=evaluation_index,
                 candidate_operator_ids=self.operator_ids,
-                metadata={"particle_index": int(particle_index)},
+                metadata={
+                    "particle_index": int(particle_index),
+                    "design_variable_ids": list(self.design_variable_ids),
+                    "radiator_span_max": self.radiator_span_max,
+                },
                 controller_trace=self.controller_trace,
                 operator_trace=self.operator_trace,
+                history=self.problem.history,
                 recent_window=32,
             )
             decision = select_controller_decision(self.union_controller, state, self.operator_ids, self.random_state)
@@ -151,6 +159,7 @@ class UnionAugmentedCMOPSO(CMOPSO):
             self.repair_reference_case,
             self.optimization_spec,
             np.asarray(vector, dtype=np.float64),
+            radiator_span_max=self.radiator_span_max,
         )
         return extract_decision_vector(repaired_case, self.optimization_spec)
 
@@ -170,10 +179,11 @@ def build_swarm_union_algorithm(problem: Any, optimization_spec: Any, algorithm_
         operator_ids=list(spec_payload["operator_control"]["operator_pool"]),
         controller_id=str(spec_payload["operator_control"]["controller"]),
         variable_layout=VariableLayout.from_optimization_spec(spec_payload),
-        repair_reference_case=next(iter(problem.base_cases.values())),
+        repair_reference_case=problem.base_case,
         optimization_spec=spec_payload,
         pop_size=kwargs["pop_size"],
         elite_size=kwargs["elite_size"],
+        radiator_span_max=getattr(problem, "radiator_span_max", None),
         controller_parameters=spec_payload["operator_control"].get("controller_parameters"),
     )
     return SwarmUnionAdapterArtifacts(

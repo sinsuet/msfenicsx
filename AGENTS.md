@@ -4,26 +4,14 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 
 ## Repository Status
 
-- `main` already contains the Phase 1 clean rebuild baseline.
-- The old demo stack has been removed from active repository structure.
-- The active paper-facing classical optimizer baseline is multicase, multiobjective, and centered on a plain `pymoo` `NSGA-II` run.
-- The repository now also includes the first implemented raw multi-backbone runtime batch for:
-  - `NSGA-II`
-  - `NSGA-III`
-  - `C-TAEA`
-  - `RVEA`
-  - constrained `MOEA/D`
-  - `CMOPSO`
-- The approved next-stage optimizer architecture is a multi-backbone raw/union matrix rather than an `NSGA-II`-only operator-pool branch.
-- The repository currently keeps the raw multi-backbone matrix runtime, an exploratory multi-backbone `union-uniform` runtime across the same six backbones, and the shared proposal-layer contracts.
-- The paper-facing controller line is now a separate `NSGA-II` hybrid-union ladder:
-  - pure-native `NSGA-II`
-  - union-uniform `NSGA-II`
-  - union-`LLM` `NSGA-II`
-- The paper-facing `union-uniform` rung is now implemented and mechanism-analyzed.
-- The paper-facing `union-LLM` rung is now implemented for `NSGA-II` under an OpenAI-compatible client boundary, using the same mixed action registry, repair, evaluation contract, and budget framing.
-- The currently validated live `L1` route now uses compact domain-grounded controller state, including parent/objective/violation/archive/regime summaries plus operator-outcome credit and traceable anti-collapse safeguards.
-- The next planned `L1` refinement is not benchmark-specific prompt tuning; it is a reusable controller-policy kernel built around search phase, evidence tier, family-level anti-collapse, and progress-reset logic, validated first on `NSGA-II` but intended to transfer to future multi-scenario and multi-backbone controller studies.
+- `main` already contains the clean rebuild baseline.
+- The only active paper-facing mainline is `s1_typical`.
+- The retired four-component hot/cold benchmark is no longer an active supported workflow.
+- The active paper-facing optimizer ladder is:
+  - `nsga2_raw`
+  - `nsga2_union`
+  - `nsga2_llm`
+- The current controller line uses the semantic shared operator registry implemented for `s1_typical`.
 - The active platform is organized around:
   - `core/`
   - `evaluation/`
@@ -36,11 +24,12 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 
 ## Current Platform Identity
 
-`msfenicsx` is now a clean research platform for:
+`msfenicsx` is a clean research platform for:
 
 - 2D thermal dataset generation
 - steady conduction with nonlinear radiation-style sink boundaries
 - canonical case generation and official FEniCSx baseline solving
+- single-case thermal layout optimization
 
 The active canonical object flow is:
 
@@ -50,25 +39,34 @@ The active derived evaluation flow is:
 
 `thermal_case + thermal_solution + evaluation_spec -> evaluation_report`
 
-The active multicase evaluation flow is:
-
-`{hot,cold} thermal_case + {hot,cold} thermal_solution + multicase evaluation_report`
-
 The active optimizer mainline is:
 
-`base design -> hot/cold operating cases -> multicase evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
+`s1_typical case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
 
-The only active paper-facing classical optimizer spec is:
+The only active paper-facing inputs are:
 
-`scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml`
+- `scenarios/templates/s1_typical.yaml`
+- `scenarios/evaluation/s1_typical_eval.yaml`
+- `scenarios/optimization/s1_typical_raw.yaml`
+- `scenarios/optimization/s1_typical_union.yaml`
+- `scenarios/optimization/s1_typical_llm.yaml`
 
-The implemented optimizer runtime also supports a first-batch raw matrix and exploratory union-uniform matrix across the six approved backbones, using the same benchmark generation, evaluation, repair, and artifact contract.
-For the paper-facing controller line, both `NSGA-II union-uniform` and `NSGA-II union-LLM` are now implemented. The immediate focus is experimental validation, reusable controller-kernel stabilization, and paper-facing analysis rather than further broadening the exploratory matrix runtime.
+The fixed benchmark decisions are:
 
-The earlier heuristic hybrid `B1` direction is superseded and should not be reintroduced as an active supported baseline without an explicit new plan.
-Future multi-backbone operator-pool work should follow the multi-backbone optimizer-matrix spec and plan.
-Future paper-facing `LLM` controller work on `NSGA-II` should follow the hybrid-union spec and plan.
-Controller-policy repairs validated first on the paper-facing `NSGA-II` line should be written as optimizer-layer kernels that can later transfer to multiple scenarios and backbones rather than as scene-, seed-, or operator-name-specific patches.
+- one operating case
+- fifteen named components
+- all fifteen optimize `x/y` only
+- no optimized rotation
+- 32 decision variables
+- objectives:
+  - `summary.temperature_max`
+  - `summary.temperature_gradient_rms`
+- hard sink-budget constraint:
+  - `case.total_radiator_span <= radiator_span_max`
+- cheap constraints must run before PDE
+- repair must use projection plus local legality restoration
+
+Additional backbone adapters may still exist as shared optimizer infrastructure, but they must not reintroduce retired hot/cold benchmark assets, alternate paper-facing specs, or benchmark-specific controller semantics.
 
 ## Architectural Expectations
 
@@ -80,90 +78,76 @@ Controller-policy repairs validated first on the paper-facing `NSGA-II` line sho
   - artifact I/O
   - contracts
   - CLI
-- Keep `evaluation/`, `optimizers/`, `llm/`, and `visualization/` as separate top-level layers that consume `core/` rather than contaminating it.
-- Do not add business logic to `scenarios/`; it is for hand-authored data inputs.
-- Do not recreate legacy runtime folders such as `src/`, `radiation_gen/`, `examples/`, or `states/` as active architecture without explicit approval.
+- Keep `evaluation/`, `optimizers/`, `llm/`, and `visualization/` as separate top-level layers that consume `core/`.
+- Do not add business logic to `scenarios/`; it is for hand-authored inputs.
+- Do not recreate legacy runtime folders such as `src/`, `radiation_gen/`, `examples/`, or `states/`.
 
-## Environment and Execution
+## Environment And Execution
 
-- Canonical execution context for this repository is WSL2 Ubuntu.
-- Even if the workspace is opened from Windows through a UNC path such as `\\wsl$\Ubuntu\home\hymn\msfenicsx`, agents should treat the repo as Linux-first and use `/home/hymn/msfenicsx` as the working path.
-- Use explicit repository-relative paths with forward slashes (`/`) whenever practical.
+- Canonical execution context is WSL2 Ubuntu.
+- Even if the workspace is opened through `\\wsl$\\Ubuntu\\home\\hymn\\msfenicsx`, agents should treat the repo as Linux-first and use `/home/hymn/msfenicsx`.
 - Use the `msfenicsx` conda environment for Python, CLI, and tests.
-- Prefer running verification with `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...` inside WSL rather than relying on Windows Conda discovery.
-- Avoid Windows-native environment paths such as `D:\...` for repo execution unless the user explicitly requests Windows-side validation.
-- The active `L1` live controller path depends on the `openai` Python package declared in `pyproject.toml`; if the local `msfenicsx` environment predates that dependency, sync it before any live OpenAI-compatible call.
-- The approved paper-facing live `NSGA-II union-LLM` route currently uses an OpenAI-compatible endpoint with `OPENAI_API_KEY` sourced from process environment or repository-root `.env` and `model=GPT-5.4`.
-- Repository text artifacts should default to UTF-8 encoding without BOM, and Python text I/O should explicitly use `encoding="utf-8"` for repository files.
-- Treat terminal-side mojibake from the host or WSL bridge as environment noise unless the same corruption is present in the saved repository artifact itself.
-- Prefer commands like:
-  - `conda run -n msfenicsx pytest -v`
-  - `conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/panel_four_component_hot_cold_benchmark.yaml`
-  - `conda run -n msfenicsx python -m core.cli.main generate-operating-case-pair --template scenarios/templates/panel_four_component_hot_cold_benchmark.yaml --seed 11 --output-root ./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11`
-  - `conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<case_id>.yaml --output-root ./scenario_runs`
-  - `conda run -n msfenicsx python -m evaluation.cli evaluate-operating-cases --case hot=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<hot_case_id>.yaml --case cold=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<cold_case_id>.yaml --solution hot=./scenario_runs/<scenario_id>/<hot_case_id>/solution.yaml --solution cold=./scenario_runs/<scenario_id>/<cold_case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./scenario_runs/evaluations/panel-four-component-hot-cold-baseline/seed-11/report.yaml`
-  - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --output-root ./scenario_runs/optimizations/panel-four-component-b0`
-  - `conda run -n msfenicsx python -m optimizers.cli run-mode-experiment --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --scenario-runs-root ./scenario_runs`
-  - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_live.yaml --request-trace ./scenario_runs/optimizations/<run>/llm_request_trace.jsonl --output ./scenario_runs/optimizations/diagnostics/<summary>.json`
-  - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/optimizations/<run>/controller_trace.json --output ./scenario_runs/optimizations/<run>/controller_trace_summary.json`
-  - `conda run -n msfenicsx python -m optimizers.cli render-template-comparison --template-root ./scenario_runs/panel-four-component-hot-cold-benchmark`
-  - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
+- Prefer:
+  - `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
+- Repository text artifacts should use UTF-8 without BOM.
+- Treat terminal-side mojibake from the host bridge as environment noise unless the saved file itself is corrupted.
+
+Preferred commands:
+
+- `conda run -n msfenicsx pytest -v`
+- `conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s1_typical.yaml`
+- `conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s1_typical.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s1_typical/seed-11`
+- `conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/s1_typical/seed-11/s1_typical-seed-0011.yaml --output-root ./scenario_runs`
+- `conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/s1_typical/s1_typical-seed-0011/case.yaml --solution ./scenario_runs/s1_typical/s1_typical-seed-0011/solution.yaml --spec scenarios/evaluation/s1_typical_eval.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/s1_typical/s1_typical-seed-0011`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --output-root ./scenario_runs/optimizations/s1_typical/raw-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --output-root ./scenario_runs/optimizations/s1_typical/union-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --output-root ./scenario_runs/optimizations/s1_typical/llm-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli run-mode-experiment --optimization-spec scenarios/optimization/s1_typical_raw.yaml --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s1_typical_llm.yaml --request-trace ./scenario_runs/optimizations/<run>/llm_request_trace.jsonl --output ./scenario_runs/optimizations/diagnostics/<summary>.json`
+- `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/optimizations/<run>/controller_trace.json --output ./scenario_runs/optimizations/<run>/controller_trace_summary.json`
+- `conda run -n msfenicsx python -m pip install "openai>=1.70"`
+
+The active `nsga2_llm` route currently uses:
+
+- `OPENAI_API_KEY` from process environment or repository-root `.env`
+- `model=GPT-5.4`
 
 ## Engineering Guardrails
 
 - Read the exact source before editing and preserve precise edit context.
 - If a write looks risky because of locking, permissions, or unclear ownership, stop and notify first.
-- Never hardcode API keys, tokens, or private credentials; load secrets from environment variables or explicit local configuration.
+- Never hardcode API keys, tokens, or private credentials.
 - Do not silently change important runtime or solver defaults without documenting the change.
-- Fix root causes with physically and architecturally defensible changes instead of fake passes, temporary bypasses, or scientifically invalid shortcuts.
-- Do not repair controller behavior by hardcoding benchmark seeds, scenario IDs, backbone IDs, or operator names as one-off policy exceptions unless an explicit diagnostic document marks them as temporary instrumentation.
-- Prefer phase-aware, evidence-aware, family-aware, and progress-aware controller mechanisms over scene-specific prompt hacks.
+- Fix root causes with physically and architecturally defensible changes instead of fake passes or invalid shortcuts.
+- Do not repair controller behavior by hardcoding benchmark seeds, scenario IDs, or operator names as one-off policy exceptions.
+- Prefer portable optimizer-layer policy mechanisms over benchmark-specific prompt hacks.
 
-## Data and Artifact Rules
+## Data And Artifact Rules
 
 - Treat `scenario_template`, `thermal_case`, and `thermal_solution` as the active canonical contracts.
-- Keep evaluation criteria in standalone `evaluation_spec` files instead of adding objective or constraint metadata to `thermal_case`.
-- Keep optimizer search settings and design-variable bounds in standalone `optimization_spec` files instead of adding optimizer metadata to `thermal_case`.
-- Keep optimizer hyperparameters and backbone-specific variation settings in optimizer-layer config, not in `core/` contracts and not in hand-tuned wrapper code.
+- `s1_typical` is single-case only and must not define `operating_case_profiles`.
+- Keep evaluation criteria in standalone `evaluation_spec` files instead of adding optimizer metadata to `thermal_case`.
+- Keep optimizer search settings and design-variable bounds in standalone `optimization_spec` files.
 - Repository-wide backbone defaults belong in `optimizers/algorithm_config.py`.
-- Benchmark-specific optimizer tuning belongs in profile/spec layer inputs such as `scenarios/optimization/profiles/` and `algorithm.parameters`, with effective resolution ordered as `global defaults < benchmark profile < spec inline overrides`.
-- Backbone wrappers and raw drivers should consume resolved `algorithm.parameters` instead of hiding scenario-specific tuning in constructor logic.
-- Active optimization reporting should name operating cases and Pareto outputs instead of implying one scalar best result.
-- The active classical baseline should remain plain `NSGA-II` unless a newer plan explicitly replaces it.
-- The approved multi-backbone comparison track should keep benchmark source, evaluation spec, decision encoding, repair, and artifact bundle contract aligned across backbones unless a document explicitly defines a different experiment class.
-- Any future operator-pool controller comparison must be treated as a separate experimental track rather than silently folded into the mainline.
-- Any future operator-pool controller comparison should be algorithm-agnostic and multi-backbone rather than `NSGA-II`-only.
-- Domain summaries may be benchmark-specific adapters, but the controller-policy kernel itself should remain scenario-agnostic and portable across future algorithms and scenarios whenever the same action registry contracts are available.
-- Runtime outputs should go to `scenario_runs/` or another explicit artifact location, not source folders.
-- Prefer `scenario_runs/` as the canonical runtime root for generated cases, solved case bundles, evaluation reports, and optimization bundles.
-- Active optimizer runs should write manifest-backed bundles under paths such as `scenario_runs/optimizations/...`.
-- The canonical paper-facing experiment layout is now template-first and single-mode:
-  - `scenario_runs/<scenario_template_id>/experiments/<mode>__<MMDD_HHMM>[__NN]/`
+- Benchmark-specific tuning belongs in `scenarios/optimization/profiles/` and `algorithm.parameters`.
+- Active runtime outputs should go to `scenario_runs/`, not source folders.
+- Active optimizer runs should write manifest-backed bundles under `scenario_runs/optimizations/...`.
+- The canonical paper-facing experiment layout is:
+  - `scenario_runs/s1_typical/experiments/<mode>__<MMDD_HHMM>[__NN]/`
 - One experiment container must represent exactly one mode:
   - `nsga2_raw`
   - `nsga2_union`
   - `nsga2_llm`
-- Seed runs for that container belong under:
-  - `runs/seed-*/`
-- Experiment-level summaries, figures, and dashboards belong under the same experiment root:
-  - `summaries/`
-  - `figures/`
-  - `dashboards/`
-- Do not mix raw/union/llm comparison outputs into a single-mode experiment directory.
-- Template-level comparisons should instead be rendered under:
-  - `scenario_runs/<scenario_template_id>/comparisons/`
-- Keep the existing canonical raw mechanism logs for controller-guided modes:
+- Experiment-level summaries, figures, and dashboards belong under the same experiment root.
+- Keep controller-guided raw traces:
   - `controller_trace.json`
   - `operator_trace.json`
   - `llm_request_trace.jsonl`
   - `llm_response_trace.jsonl`
-- Add shared compact sidecars above those raw artifacts instead of inventing conflicting parallel raw names:
+- Keep shared compact sidecars:
   - `evaluation_events.jsonl`
   - `generation_summary.jsonl`
-- Templates with `operating_case_profiles` should be generated through `generate-operating-case-pair`, not `generate-case`.
-- Remove temporary scripts, debug files, caches, and one-off intermediate outputs after validation when they are not part of the intended repository state.
-- Human-authored source and docs stay in source and docs paths.
-- Update `.gitignore` when new generated artifact classes appear.
+- Remove temporary scripts, debug files, caches, and one-off intermediate outputs after validation when they are not intended repository state.
 - Do not manually edit generated artifacts to change conclusions.
 
 ## Testing Expectations
@@ -172,7 +156,7 @@ Controller-policy repairs validated first on the paper-facing `NSGA-II` line sho
 - Add or update focused tests for new behavior.
 - Run fresh relevant verification before claiming completion.
 
-Current Phase 1 test areas are:
+Current maintained test areas are:
 
 - `tests/schema/`
 - `tests/geometry/`
@@ -183,20 +167,16 @@ Current Phase 1 test areas are:
 - `tests/evaluation/`
 - `tests/optimizers/`
 
-## Evidence and Reporting Expectations
+## Evidence And Reporting Expectations
 
 - Scientific or performance claims must identify the relevant template, case, solver profile, seed, and runtime path or artifact bundle.
-- For multicase optimization claims, identify the operating cases and whether the evidence comes from one representative Pareto point or the Pareto set as a whole.
-- If comparing future controller methods, keep the operator pool, repair, benchmark seeds, evaluation spec, and simulation budget matched unless the comparison is explicitly framed as a different experiment class.
-- If comparing future backbone methods, keep benchmark source, evaluation spec, design-variable encoding, repair, and total expensive-evaluation budget matched unless the comparison is explicitly framed as a different experiment class.
-- In the `NSGA-II` hybrid-union line, keep the mixed native-plus-custom action registry matched between the non-LLM and `LLM` controllers.
-- In the `NSGA-II` hybrid-union line, describe the change as an action-space expansion, not as a change to the eight-variable decision encoding.
-- If a controller repair has been validated only on one scenario or one backbone, label it as provisional controller-kernel evidence rather than as a repository-wide unified framework result.
+- For optimization claims, identify whether evidence comes from one representative point or the Pareto set.
+- Keep the decision encoding, evaluation spec, repair, and expensive-evaluation budget matched across comparisons unless a document explicitly defines a different experiment class.
+- Describe `nsga2_union` and `nsga2_llm` as using the same mixed action registry with only the controller changed.
 - If something is not validated yet, label it as a hypothesis rather than a confirmed result.
-- Comparative claims should use more than one seed unless the work is explicitly exploratory.
-- Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis instead of hiding them.
-- Failure reasons and dominant violations are valid evidence and should be retained in reports or run artifacts when relevant.
-- For `L1` controller stability work, cheap local `controller_trace` diagnostics are valid pre-live evidence and should be used before any new bounded or full live rerun.
+- Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis.
+- Failure reasons and dominant violations are valid evidence and should remain visible in artifacts when relevant.
+- Cheap local `controller_trace` diagnostics are valid pre-live evidence before any new live rerun.
 
 ## Documentation Expectations
 
@@ -210,43 +190,26 @@ Current Phase 1 test areas are:
 ## Useful References
 
 - `README.md`
+- `AGENTS.md`
 - `docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md`
 - `docs/superpowers/plans/2026-03-26-msfenicsx-clean-rebuild-phase1.md`
-- `docs/superpowers/specs/2026-03-27-paper-grade-multiobjective-thermal-baseline-design.md`
-- `docs/superpowers/specs/2026-03-27-multi-backbone-optimizer-matrix-design.md`
-- `docs/superpowers/specs/2026-03-28-nsga2-hybrid-union-controller-design.md`
-- `docs/superpowers/specs/2026-03-28-openai-union-llm-controller-design.md`
-- `docs/superpowers/plans/2026-03-27-paper-grade-multiobjective-thermal-baseline.md`
-- `docs/superpowers/plans/2026-03-27-pure-nsga2-mainline-reset.md`
-- `docs/superpowers/plans/2026-03-27-multi-backbone-optimizer-matrix.md`
-- `docs/superpowers/plans/2026-03-28-nsga2-hybrid-union-controller.md`
-- `docs/superpowers/plans/2026-03-28-openai-compatible-union-llm-controller.md`
-- `docs/superpowers/plans/2026-03-31-l1-domain-grounded-controller-state-completion.md`
-- `docs/superpowers/plans/2026-03-31-l1-llm-stability-diagnostics-and-repair.md`
-- `docs/superpowers/plans/2026-03-31-l1-reusable-controller-kernel-stabilization.md`
-- `docs/reports/R60_msfenicsx_2d_fenicsx_migration_initial_report_20260326.md`
-- `docs/reports/R63_msfenicsx_multicase_multiobjective_reset_20260327.md`
-- `docs/reports/R64_msfenicsx_paper_grade_b0_rollout_20260327.md`
-- `docs/reports/R66_msfenicsx_pure_nsga2_mainline_reset_20260327.md`
-- `docs/reports/R67_msfenicsx_multi_backbone_optimizer_matrix_doc_reset_20260327.md`
-- `docs/reports/R68_msfenicsx_nsga2_union_mechanism_analysis_20260328.md`
-- `docs/reports/R69_msfenicsx_llm_controller_literature_and_novelty_report_20260328.md`
+- `docs/superpowers/specs/2026-04-02-s1-typical-mainline-reset-design.md`
+- `docs/superpowers/plans/2026-04-02-s1-typical-mainline-reset.md`
+- `scenarios/templates/s1_typical.yaml`
+- `scenarios/evaluation/s1_typical_eval.yaml`
+- `scenarios/optimization/s1_typical_raw.yaml`
+- `scenarios/optimization/s1_typical_union.yaml`
+- `scenarios/optimization/s1_typical_llm.yaml`
+- `scenarios/optimization/profiles/s1_typical_raw.yaml`
+- `scenarios/optimization/profiles/s1_typical_union.yaml`
 - `optimizers/algorithm_config.py`
 - `optimizers/drivers/raw_driver.py`
 - `optimizers/drivers/union_driver.py`
-- `optimizers/validation.py`
+- `optimizers/problem.py`
+- `optimizers/repair.py`
+- `optimizers/cheap_constraints.py`
+- `optimizers/operator_pool/operators.py`
+- `optimizers/operator_pool/domain_state.py`
 - `llm/openai_compatible/client.py`
-- `scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml`
-- `scenarios/optimization/panel_four_component_hot_cold_nsga2_raw_b0.yaml`
-- `scenarios/optimization/panel_four_component_hot_cold_nsga3_raw_b0.yaml`
-- `scenarios/optimization/panel_four_component_hot_cold_ctaea_raw_b0.yaml`
-- `scenarios/optimization/panel_four_component_hot_cold_rvea_raw_b0.yaml`
-- `scenarios/optimization/panel_four_component_hot_cold_moead_raw_b0.yaml`
-- `scenarios/optimization/panel_four_component_hot_cold_cmopso_raw_b0.yaml`
-- `scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml`
-- `scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml`
-- `scenarios/optimization/profiles/panel_four_component_hot_cold_nsga2_raw.yaml`
-- `scenarios/optimization/profiles/panel_four_component_hot_cold_nsga2_union.yaml`
-- `scenarios/optimization/profiles/panel_four_component_hot_cold_nsga3_raw.yaml`
 - `tests/optimizers/test_raw_driver_matrix.py`
 - `tests/optimizers/test_repair.py`

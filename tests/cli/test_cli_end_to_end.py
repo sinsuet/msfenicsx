@@ -1,19 +1,21 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
-from core.cli.main import main
+from core.cli.main import build_parser, main
+from evaluation.cli import build_parser as build_evaluation_parser
 
 
-def test_generate_operating_case_pair_then_solve_cli_smoke(tmp_path: Path) -> None:
-    generated_cases = tmp_path / "generated_cases"
+def test_generate_case_then_solve_cli_smoke(tmp_path: Path) -> None:
+    generated_cases = tmp_path / "generated_case"
     run_root = tmp_path / "scenario_runs"
 
     generate_code = main(
         [
-            "generate-operating-case-pair",
+            "generate-case",
             "--template",
-            "scenarios/templates/panel_four_component_hot_cold_benchmark.yaml",
+            "scenarios/templates/s1_typical.yaml",
             "--seed",
             "11",
             "--output-root",
@@ -23,7 +25,7 @@ def test_generate_operating_case_pair_then_solve_cli_smoke(tmp_path: Path) -> No
 
     assert generate_code == 0
     case_files = sorted(generated_cases.glob("*.yaml"))
-    assert len(case_files) == 2
+    assert len(case_files) == 1
 
     solve_code = main(
         [
@@ -41,38 +43,21 @@ def test_generate_operating_case_pair_then_solve_cli_smoke(tmp_path: Path) -> No
     assert any(run_root.rglob("manifest.json"))
 
 
-def test_generate_case_cli_rejects_paired_benchmark_template(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="generate-operating-case-pair"):
-        main(
-            [
-                "generate-case",
-                "--template",
-                "scenarios/templates/panel_four_component_hot_cold_benchmark.yaml",
-                "--seed",
-                "3",
-                "--output-root",
-                str(tmp_path / "generated_cases"),
-            ]
-        )
+def test_generate_case_is_the_only_mainline_generation_command() -> None:
+    parser = build_parser()
+    command_names = set(parser._subparsers._group_actions[0].choices)
+
+    assert "generate-operating-case-pair" not in command_names
 
 
-def test_generate_operating_case_pair_cli_writes_hot_and_cold_cases(tmp_path: Path) -> None:
-    generated_cases = tmp_path / "paired_cases"
+def test_s1_typical_template_has_no_legacy_operating_case_profiles() -> None:
+    payload = yaml.safe_load(Path("scenarios/templates/s1_typical.yaml").read_text(encoding="utf-8"))
 
-    generate_code = main(
-        [
-            "generate-operating-case-pair",
-            "--template",
-            "scenarios/templates/panel_four_component_hot_cold_benchmark.yaml",
-            "--seed",
-            "11",
-            "--output-root",
-            str(generated_cases),
-        ]
-    )
+    assert "operating_case_profiles" not in payload
 
-    assert generate_code == 0
-    case_files = sorted(generated_cases.glob("*.yaml"))
-    assert len(case_files) == 2
-    assert any(path.name.endswith("-hot.yaml") for path in case_files)
-    assert any(path.name.endswith("-cold.yaml") for path in case_files)
+
+def test_evaluate_case_is_the_only_public_evaluation_command() -> None:
+    parser = build_evaluation_parser()
+    command_names = set(parser._subparsers._group_actions[0].choices)
+
+    assert "evaluate-operating-cases" not in command_names

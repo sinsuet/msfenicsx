@@ -95,7 +95,7 @@ def test_chat_compatible_json_client_normalizes_openai_compatible_json_payload(
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
     chat_api = _FakeChatCompletionsAPI(
-        '{"selected_operator_id": "sbx_pm_global", "phase": "explore", "rationale": "widen search"}'
+        '{"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}'
     )
     client = OpenAICompatibleClient(
         _build_config(capability_profile="chat_compatible_json"),
@@ -105,10 +105,10 @@ def test_chat_compatible_json_client_normalizes_openai_compatible_json_payload(
     response = client.request_operator_decision(
         system_prompt="system prompt",
         user_prompt="user prompt",
-        candidate_operator_ids=("native_sbx_pm", "sbx_pm_global"),
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
     )
 
-    assert response.selected_operator_id == "sbx_pm_global"
+    assert response.selected_operator_id == "global_explore"
     assert response.phase == "explore"
     assert response.rationale == "widen search"
     assert chat_api.last_kwargs is not None
@@ -125,7 +125,7 @@ def test_chat_compatible_json_client_injects_json_instruction_when_missing(
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
     chat_api = _FakeChatCompletionsAPI(
-        '{"selected_operator_id": "sbx_pm_global", "phase": "explore", "rationale": "widen search"}'
+        '{"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}'
     )
     client = OpenAICompatibleClient(
         _build_config(capability_profile="chat_compatible_json"),
@@ -135,7 +135,7 @@ def test_chat_compatible_json_client_injects_json_instruction_when_missing(
     client.request_operator_decision(
         system_prompt="select one operator",
         user_prompt="candidate set only",
-        candidate_operator_ids=("native_sbx_pm", "sbx_pm_global"),
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
     )
 
     assert chat_api.last_kwargs is not None
@@ -149,7 +149,7 @@ def test_chat_compatible_json_client_initial_prompt_includes_exact_operator_regi
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
-    chat_api = _FakeChatCompletionsAPI('{"selected_operator_id": "sbx_pm_global"}')
+    chat_api = _FakeChatCompletionsAPI('{"selected_operator_id": "global_explore"}')
     client = OpenAICompatibleClient(
         _build_config(capability_profile="chat_compatible_json"),
         sdk_client=_FakeSDK(chat_api=chat_api),
@@ -158,14 +158,14 @@ def test_chat_compatible_json_client_initial_prompt_includes_exact_operator_regi
     client.request_operator_decision(
         system_prompt="system prompt",
         user_prompt="user prompt",
-        candidate_operator_ids=("native_sbx_pm", "sbx_pm_global"),
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
     )
 
     assert chat_api.last_kwargs is not None
     system_message = str(chat_api.last_kwargs["messages"][0]["content"])
     assert "selected_operator_id" in system_message
     assert "native_sbx_pm" in system_message
-    assert "sbx_pm_global" in system_message
+    assert "global_explore" in system_message
     assert "exactly" in system_message.lower()
 
 
@@ -174,7 +174,7 @@ def test_chat_compatible_json_prompt_demands_phase_and_rationale_fields(
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
     chat_api = _FakeChatCompletionsAPI(
-        '{"selected_operator_id": "sbx_pm_global", "phase": "explore", "rationale": "widen search"}'
+        '{"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}'
     )
     client = OpenAICompatibleClient(
         _build_config(capability_profile="chat_compatible_json"),
@@ -184,7 +184,7 @@ def test_chat_compatible_json_prompt_demands_phase_and_rationale_fields(
     client.request_operator_decision(
         system_prompt="system prompt",
         user_prompt="user prompt",
-        candidate_operator_ids=("native_sbx_pm", "sbx_pm_global"),
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
     )
 
     assert chat_api.last_kwargs is not None
@@ -198,7 +198,7 @@ def test_chat_compatible_json_client_accepts_operator_id_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
-    chat_api = _FakeChatCompletionsAPI('{"operator_id": "sbx_pm_global"}')
+    chat_api = _FakeChatCompletionsAPI('{"operator_id": "global_explore"}')
     client = OpenAICompatibleClient(
         _build_config(capability_profile="chat_compatible_json"),
         sdk_client=_FakeSDK(chat_api=chat_api),
@@ -207,11 +207,11 @@ def test_chat_compatible_json_client_accepts_operator_id_alias(
     response = client.request_operator_decision(
         system_prompt="system prompt",
         user_prompt="user prompt",
-        candidate_operator_ids=("native_sbx_pm", "sbx_pm_global"),
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
     )
 
-    assert response.selected_operator_id == "sbx_pm_global"
-    assert response.raw_payload["selected_operator_id"] == "sbx_pm_global"
+    assert response.selected_operator_id == "global_explore"
+    assert response.raw_payload["selected_operator_id"] == "global_explore"
 
 
 def test_chat_compatible_json_client_recovers_operator_id_from_rationale_text(
@@ -219,7 +219,7 @@ def test_chat_compatible_json_client_recovers_operator_id_from_rationale_text(
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
     chat_api = _FakeChatCompletionsAPI(
-        '{"selected_operator_id": ":", "rationale": "choose hot_pair_to_sink for immediate thermal relief"}'
+        '{"selected_operator_id": ":", "rationale": "choose move_hottest_cluster_toward_sink for immediate thermal relief"}'
     )
     client = OpenAICompatibleClient(
         _build_config(capability_profile="chat_compatible_json"),
@@ -229,11 +229,11 @@ def test_chat_compatible_json_client_recovers_operator_id_from_rationale_text(
     response = client.request_operator_decision(
         system_prompt="system prompt",
         user_prompt="user prompt",
-        candidate_operator_ids=("native_sbx_pm", "hot_pair_to_sink", "radiator_expand"),
+        candidate_operator_ids=("native_sbx_pm", "move_hottest_cluster_toward_sink", "slide_sink"),
     )
 
-    assert response.selected_operator_id == "hot_pair_to_sink"
-    assert response.raw_payload["selected_operator_id"] == "hot_pair_to_sink"
+    assert response.selected_operator_id == "move_hottest_cluster_toward_sink"
+    assert response.raw_payload["selected_operator_id"] == "move_hottest_cluster_toward_sink"
 
 
 def test_chat_compatible_json_client_retries_invalid_operator_id_before_failing(
@@ -243,7 +243,7 @@ def test_chat_compatible_json_client_retries_invalid_operator_id_before_failing(
     chat_api = _FakeChatCompletionsAPI(
         [
             '{"selected_operator_id": ":"}',
-            '{"selected_operator_id": "radiator_expand"}',
+            '{"selected_operator_id": "slide_sink"}',
         ]
     )
     client = OpenAICompatibleClient(
@@ -264,10 +264,10 @@ def test_chat_compatible_json_client_retries_invalid_operator_id_before_failing(
     response = client.request_operator_decision(
         system_prompt="system prompt",
         user_prompt="user prompt",
-        candidate_operator_ids=("native_sbx_pm", "radiator_expand"),
+        candidate_operator_ids=("native_sbx_pm", "slide_sink"),
     )
 
-    assert response.selected_operator_id == "radiator_expand"
+    assert response.selected_operator_id == "slide_sink"
     assert chat_api.call_count == 2
 
 
@@ -278,7 +278,7 @@ def test_request_operator_decision_records_attempt_trace_for_retry_then_success(
     chat_api = _FakeChatCompletionsAPI(
         [
             '{"selected_operator_id": ":"}',
-            '{"selected_operator_id": "radiator_expand"}',
+            '{"selected_operator_id": "slide_sink"}',
         ]
     )
     client = OpenAICompatibleClient(
@@ -300,16 +300,16 @@ def test_request_operator_decision_records_attempt_trace_for_retry_then_success(
     response = client.request_operator_decision(
         system_prompt="system prompt",
         user_prompt="user prompt",
-        candidate_operator_ids=("native_sbx_pm", "radiator_expand"),
+        candidate_operator_ids=("native_sbx_pm", "slide_sink"),
         attempt_trace=attempt_trace,
     )
 
-    assert response.selected_operator_id == "radiator_expand"
+    assert response.selected_operator_id == "slide_sink"
     assert len(attempt_trace) == 2
     assert attempt_trace[0]["valid"] is False
     assert "outside the requested operator registry" in str(attempt_trace[0]["error"])
     assert attempt_trace[1]["valid"] is True
-    assert attempt_trace[1]["selected_operator_id"] == "radiator_expand"
+    assert attempt_trace[1]["selected_operator_id"] == "slide_sink"
 
 
 def test_chat_compatible_json_client_raises_after_retry_budget_is_exhausted(
@@ -341,7 +341,7 @@ def test_chat_compatible_json_client_raises_after_retry_budget_is_exhausted(
         client.request_operator_decision(
             system_prompt="system prompt",
             user_prompt="user prompt",
-            candidate_operator_ids=("native_sbx_pm", "radiator_expand"),
+            candidate_operator_ids=("native_sbx_pm", "slide_sink"),
         )
 
     assert chat_api.call_count == 2
@@ -354,7 +354,7 @@ def test_chat_compatible_json_client_strengthens_retry_prompt_after_invalid_oper
     chat_api = _FakeChatCompletionsAPI(
         [
             '{"selected_operator_id": ""}',
-            '{"selected_operator_id": "radiator_expand"}',
+            '{"selected_operator_id": "slide_sink"}',
         ]
     )
     client = OpenAICompatibleClient(
@@ -375,13 +375,13 @@ def test_chat_compatible_json_client_strengthens_retry_prompt_after_invalid_oper
     client.request_operator_decision(
         system_prompt="system prompt",
         user_prompt="user prompt",
-        candidate_operator_ids=("native_sbx_pm", "radiator_expand"),
+        candidate_operator_ids=("native_sbx_pm", "slide_sink"),
     )
 
     assert chat_api.last_kwargs is not None
     retry_system_prompt = str(chat_api.last_kwargs["messages"][0]["content"])
     assert "previous response was invalid" in retry_system_prompt.lower()
-    assert "radiator_expand" in retry_system_prompt
+    assert "slide_sink" in retry_system_prompt
 
 
 def test_client_rejects_operator_ids_outside_requested_registry(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -11,8 +11,8 @@ def _base_template_payload() -> dict:
     return {
         "schema_version": "1.0",
         "template_meta": {
-            "template_id": "panel-four-component-hot-cold-benchmark",
-            "description": "Four-component paired hot/cold benchmark.",
+            "template_id": "s1_typical",
+            "description": "Single-case s1_typical template.",
         },
         "coordinate_system": {"plane": "panel_xy"},
         "panel_domain": {"width": 1.0, "height": 0.8},
@@ -24,18 +24,14 @@ def _base_template_payload() -> dict:
         "material_rules": [
             {"material_id": "panel_substrate", "conductivity": 205.0, "emissivity": 0.78},
         ],
-        "operating_case_profiles": [
-            {
-                "operating_case_id": "hot",
-                "ambient_temperature": 300.0,
-                "component_power_overrides": {"processor": 24.0},
-                "boundary_feature_overrides": {"radiator-top": {"sink_temperature": 292.0}},
-            }
-        ],
         "mesh_profile": {"nx": 32, "ny": 24},
         "solver_profile": {"nonlinear_solver": "snes"},
         "generation_rules": {"seed_policy": "external"},
     }
+
+
+def _single_case_template_payload() -> dict:
+    return _base_template_payload()
 
 
 def _base_case_payload() -> dict:
@@ -167,22 +163,15 @@ def test_validate_thermal_case_rejects_invalid_line_sink_support() -> None:
         validate_thermal_case_payload(payload)
 
 
-def test_validate_scenario_template_accepts_operating_case_profiles() -> None:
+def test_validate_scenario_template_accepts_single_case_templates_without_operating_case_profiles() -> None:
     payload = _base_template_payload()
 
     validate_scenario_template_payload(payload)
 
 
-def test_validate_scenario_template_rejects_duplicate_operating_case_ids() -> None:
+def test_validate_scenario_template_rejects_legacy_operating_case_profiles() -> None:
     payload = _base_template_payload()
-    payload["operating_case_profiles"].append(
-        {
-            "operating_case_id": "hot",
-            "ambient_temperature": 280.0,
-            "component_power_overrides": {},
-            "boundary_feature_overrides": {},
-        }
-    )
+    payload["operating_case_profiles"] = []
 
-    with pytest.raises(SchemaValidationError, match="operating_case_id"):
+    with pytest.raises(SchemaValidationError, match="operating_case_profiles"):
         validate_scenario_template_payload(payload)

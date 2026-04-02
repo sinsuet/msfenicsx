@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from typing import Any, Self
 
 from core.schema.validation import (
@@ -29,7 +29,6 @@ class ScenarioTemplate:
     boundary_feature_families: list[dict[str, Any]]
     load_rules: list[dict[str, Any]]
     material_rules: list[dict[str, Any]]
-    operating_case_profiles: list[dict[str, Any]]
     mesh_profile: dict[str, Any]
     solver_profile: dict[str, Any]
     generation_rules: dict[str, Any]
