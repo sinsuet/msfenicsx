@@ -99,12 +99,12 @@ Preferred commands:
 - `conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s1_typical.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s1_typical/seed-11`
 - `conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/s1_typical/seed-11/s1_typical-seed-0011.yaml --output-root ./scenario_runs`
 - `conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/s1_typical/s1_typical-seed-0011/case.yaml --solution ./scenario_runs/s1_typical/s1_typical-seed-0011/solution.yaml --spec scenarios/evaluation/s1_typical_eval.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/s1_typical/s1_typical-seed-0011`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --output-root ./scenario_runs/optimizations/s1_typical/raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --output-root ./scenario_runs/optimizations/s1_typical/union-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --output-root ./scenario_runs/optimizations/s1_typical/llm-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli run-mode-experiment --optimization-spec scenarios/optimization/s1_typical_raw.yaml --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --scenario-runs-root ./scenario_runs`
-- `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s1_typical_llm.yaml --request-trace ./scenario_runs/optimizations/<run>/llm_request_trace.jsonl --output ./scenario_runs/optimizations/diagnostics/<summary>.json`
-- `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/optimizations/<run>/controller_trace.json --output ./scenario_runs/optimizations/<run>/controller_trace_summary.json`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --output-root ./scenario_runs/s1_typical/raw-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --output-root ./scenario_runs/s1_typical/union-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --output-root ./scenario_runs/s1_typical/llm-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s1_typical_llm.yaml --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/llm_request_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
+- `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s1_typical/<run_id>/union/seeds/seed-11/controller_trace.json --output ./scenario_runs/s1_typical/<run_id>/union/reports/<summary>.json`
 - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
 The active `nsga2_llm` route currently uses:
@@ -131,14 +131,20 @@ The active `nsga2_llm` route currently uses:
 - Repository-wide backbone defaults belong in `optimizers/algorithm_config.py`.
 - Benchmark-specific tuning belongs in `scenarios/optimization/profiles/` and `algorithm.parameters`.
 - Active runtime outputs should go to `scenario_runs/`, not source folders.
-- Active optimizer runs should write manifest-backed bundles under `scenario_runs/optimizations/...`.
-- The canonical paper-facing experiment layout is:
-  - `scenario_runs/s1_typical/experiments/<mode>__<MMDD_HHMM>[__NN]/`
-- One experiment container must represent exactly one mode:
-  - `nsga2_raw`
-  - `nsga2_union`
-  - `nsga2_llm`
-- Experiment-level summaries, figures, and dashboards belong under the same experiment root.
+- Active optimizer runs should write under `scenario_runs/s1_typical/<run_id>/`.
+- The canonical paper-facing run layout is:
+  - `scenario_runs/s1_typical/<MMDD_HHMM>__<mode_slug>/`
+- `mode_slug` must use the stable order:
+  - `raw`
+  - `union`
+  - `llm`
+- Mixed-mode runs keep sibling mode directories plus optional `comparison/`.
+- Representative solved-case bundles live under:
+  - `<mode>/seeds/seed-<n>/representatives/<representative_id>/`
+- Representative bundles must preserve:
+  - `fields/*.npz`
+  - `summaries/field_view.json`
+  - `pages/index.html`
 - Keep controller-guided raw traces:
   - `controller_trace.json`
   - `operator_trace.json`

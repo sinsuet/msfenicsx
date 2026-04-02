@@ -2,10 +2,57 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
+from optimizers.run_telemetry import load_jsonl_rows
+
+
+def build_mode_llm_summaries(mode_root: str | Path) -> dict[str, str]:
+    root = Path(mode_root)
+    summaries_root = root / "summaries"
+    summaries_root.mkdir(parents=True, exist_ok=True)
+    metrics_rows: list[dict[str, Any]] = []
+    request_rows: list[dict[str, Any]] = []
+    response_rows: list[dict[str, Any]] = []
+    reflection_rows: list[dict[str, Any]] = []
+    controller_rows: list[dict[str, Any]] = []
+
+    for seed_root in _iter_seed_roots(root):
+        if (seed_root / "llm_metrics.json").exists():
+            metrics_rows.append(_load_json(seed_root / "llm_metrics.json"))
+        if (seed_root / "llm_request_trace.jsonl").exists():
+            request_rows.extend(load_jsonl_rows(seed_root / "llm_request_trace.jsonl"))
+        if (seed_root / "llm_response_trace.jsonl").exists():
+            response_rows.extend(load_jsonl_rows(seed_root / "llm_response_trace.jsonl"))
+        if (seed_root / "llm_reflection_trace.jsonl").exists():
+            reflection_rows.extend(load_jsonl_rows(seed_root / "llm_reflection_trace.jsonl"))
+        if (seed_root / "controller_trace.json").exists():
+            controller_rows.extend(_load_json(seed_root / "controller_trace.json"))
+
+    payloads = {
+        "llm_runtime_summary": build_llm_runtime_summary(
+            metrics_rows=metrics_rows,
+            request_rows=request_rows,
+            response_rows=response_rows,
+            reflection_rows=reflection_rows,
+        ),
+        "llm_prompt_summary": build_llm_prompt_summary(request_rows=request_rows),
+        "llm_decision_summary": build_llm_decision_summary(
+            controller_rows=controller_rows,
+            response_rows=response_rows,
+        ),
+        "llm_reflection_summary": build_llm_reflection_summary(reflection_rows=reflection_rows),
+    }
+    written: dict[str, str] = {}
+    for summary_name, payload in payloads.items():
+        output_path = summaries_root / f"{summary_name}.json"
+        output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        written[summary_name] = str(output_path.relative_to(root).as_posix())
+    return written
 
 def build_llm_runtime_summary(
     *,
@@ -172,3 +219,17 @@ def _values(rows: Sequence[Mapping[str, Any]], key: str) -> list[str]:
 
 def _sorted_unique(values: Sequence[str]) -> list[str]:
     return sorted(dict.fromkeys(str(value) for value in values if str(value).strip()))
+
+
+def _iter_seed_roots(mode_root: Path) -> list[Path]:
+    seeds_root = mode_root / "seeds"
+    if not seeds_root.exists():
+        return []
+    return sorted(
+        [path for path in seeds_root.iterdir() if path.is_dir() and path.name.startswith("seed-")],
+        key=lambda path: int(path.name.removeprefix("seed-")),
+    )
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))

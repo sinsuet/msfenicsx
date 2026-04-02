@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import yaml
 
 from llm.openai_compatible.client import OpenAICompatibleDecision
-from optimizers.cli import main
+from optimizers.cli import build_parser, main
 from optimizers.io import save_optimization_spec
 from optimizers.models import OptimizationResult
 from optimizers.operator_pool.operators import approved_union_operator_ids_for_backbone
@@ -964,6 +964,8 @@ def test_optimizer_cli_run_benchmark_suite_single_mode_writes_run_root(tmp_path:
     assert run_root.name.endswith("__raw")
     assert (run_root / "shared").is_dir()
     assert (run_root / "raw").is_dir()
+    assert (run_root / "raw" / "summaries" / "mode_summary.json").exists()
+    assert (run_root / "raw" / "pages" / "index.html").exists()
     assert not (run_root / "comparison").exists()
 
 
@@ -997,6 +999,47 @@ def test_optimizer_cli_run_benchmark_suite_mixed_mode_writes_comparison_root(tmp
     assert (run_root / "raw").is_dir()
     assert (run_root / "union").is_dir()
     assert (run_root / "comparison").is_dir()
+    assert (run_root / "comparison" / "summaries" / "seed_delta_table.json").exists()
+    assert (run_root / "comparison" / "pages" / "progress.html").exists()
+
+
+def test_optimizer_cli_run_benchmark_suite_llm_mode_writes_llm_pages_and_reports(tmp_path: Path, monkeypatch) -> None:
+    import optimizers.run_suite as run_suite_module
+
+    llm_spec_path = _write_small_llm_spec(tmp_path)
+    scenario_runs_root = tmp_path / "scenario_runs"
+    monkeypatch.setattr(
+        run_suite_module,
+        "run_union_optimization",
+        lambda *args, **kwargs: _fake_union_run(include_llm_sidecars=True),
+    )
+
+    exit_code = main(
+        [
+            "run-benchmark-suite",
+            "--optimization-spec",
+            str(llm_spec_path),
+            "--mode",
+            "llm",
+            "--benchmark-seed",
+            "11",
+            "--scenario-runs-root",
+            str(scenario_runs_root),
+        ]
+    )
+
+    assert exit_code == 0
+    run_root = next((scenario_runs_root / "s1_typical").iterdir())
+    assert (run_root / "llm" / "summaries" / "llm_decision_log.jsonl").exists()
+    assert (run_root / "llm" / "pages" / "llm_decisions.html").exists()
+    assert (run_root / "llm" / "reports" / "llm_experiment_summary.md").exists()
+
+
+def test_optimizer_cli_does_not_expose_legacy_template_comparison_command() -> None:
+    parser = build_parser()
+    command_names = set(parser._subparsers._group_actions[0].choices)
+
+    assert "render-template-comparison" not in command_names
 
 
 def test_optimizer_cli_analyze_controller_trace_accepts_optional_operator_and_request_sidecars(

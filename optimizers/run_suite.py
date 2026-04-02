@@ -9,6 +9,7 @@ from typing import Any, Sequence
 
 from evaluation.io import load_spec
 from optimizers.artifacts import write_optimization_artifacts
+from optimizers.comparison_summary import build_comparison_summaries
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
 from optimizers.io import (
@@ -17,6 +18,8 @@ from optimizers.io import (
     resolve_benchmark_template_path,
     resolve_evaluation_spec_path,
 )
+from optimizers.llm_decision_summary import build_llm_decision_summaries
+from optimizers.mode_summary import build_mode_summaries
 from optimizers.models import OptimizationSpec
 from optimizers.run_layout import (
     build_run_id,
@@ -25,6 +28,10 @@ from optimizers.run_layout import (
     initialize_run_root,
     write_manifest,
 )
+from visualization.comparison_pages import render_comparison_pages
+from visualization.llm_pages import render_llm_pages
+from visualization.llm_reports import render_llm_reports
+from visualization.mode_pages import render_mode_pages
 
 
 def run_benchmark_suite(
@@ -115,6 +122,18 @@ def run_benchmark_suite(
                 seed=seed,
                 objective_definitions=list(evaluation_payload["objectives"]),
             )
+        build_mode_summaries(mode_root)
+        render_mode_pages(mode_root)
+        if mode == "llm":
+            build_llm_decision_summaries(mode_root)
+            render_llm_pages(mode_root)
+            render_llm_reports(
+                mode_root,
+                comparison_root=(run_root / "comparison") if len(selected_modes) > 1 else None,
+            )
+    if len(selected_modes) > 1:
+        build_comparison_summaries(run_root)
+        render_comparison_pages(run_root)
     return run_root
 
 

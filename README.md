@@ -46,9 +46,9 @@ The retired four-component hot/cold mainline is no longer part of the active rep
 
 - `core/`: schema, geometry, generator, solver, artifact I/O, and CLI
 - `evaluation/`: single-case evaluation specs, metrics, reports, and CLI
-- `optimizers/`: decision encoding, repair, cheap constraints, raw/union drivers, experiment layout, and optimizer CLI
+- `optimizers/`: decision encoding, repair, cheap constraints, raw/union/llm drivers, run-suite orchestration, summaries, and optimizer CLI
 - `llm/`: OpenAI-compatible controller client boundary
-- `visualization/`: read-only reporting and experiment dashboards
+- `visualization/`: single-case pages, mode indexes, mixed-mode comparisons, and LLM reports
 - `scenarios/`: hand-authored scenario, evaluation, and optimization inputs
 - `tests/`: maintained automated verification
 - `docs/`: active specs, plans, and reports
@@ -67,31 +67,32 @@ Active optimizer flow:
 
 `s1_typical benchmark case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle`
 
-## Experiment Layout
+## Run Layout
 
-Paper-facing experiment roots are template-first and single-mode:
+Paper-facing optimization and visualization outputs now live under:
 
 ```text
-scenario_runs/s1_typical/experiments/<mode>__<MMDD_HHMM>[__NN]/
+scenario_runs/s1_typical/<MMDD_HHMM>__<mode_slug>/
 ```
 
-Each experiment container represents exactly one mode:
+`mode_slug` always follows the stable order `raw`, `union`, `llm`.
 
-- `nsga2_raw`
-- `nsga2_union`
-- `nsga2_llm`
-
-Common contents:
+Representative physical-field bundles live under:
 
 ```text
-manifest.json
-spec_snapshot/
-runs/seed-*/
-summaries/
-figures/
-dashboards/
-logs/
-representatives/
+<mode>/seeds/seed-<n>/representatives/<representative_id>/
+```
+
+and include:
+
+```text
+case.yaml
+solution.yaml
+evaluation.yaml
+fields/temperature_grid.npz
+fields/gradient_magnitude_grid.npz
+summaries/field_view.json
+pages/index.html
 ```
 
 ## CLI
@@ -120,10 +121,13 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
-  --output-root ./scenario_runs/optimizations/s1_typical/raw-smoke
+  --output-root ./scenario_runs/s1_typical/raw-smoke
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-mode-experiment \
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
+  --optimization-spec scenarios/optimization/s1_typical_union.yaml \
+  --mode raw \
+  --mode union \
   --benchmark-seed 11 \
   --benchmark-seed 17 \
   --benchmark-seed 23 \
@@ -131,12 +135,12 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli replay-llm-trace \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
-  --request-trace ./scenario_runs/optimizations/<run>/llm_request_trace.jsonl \
-  --output ./scenario_runs/optimizations/diagnostics/<summary>.json
+  --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/llm_request_trace.jsonl \
+  --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace \
-  --controller-trace ./scenario_runs/optimizations/<run>/controller_trace.json \
-  --output ./scenario_runs/optimizations/<run>/controller_trace_summary.json
+  --controller-trace ./scenario_runs/s1_typical/<run_id>/union/seeds/seed-11/controller_trace.json \
+  --output ./scenario_runs/s1_typical/<run_id>/union/reports/controller_trace_summary.json
 ```
 
 ## Environment

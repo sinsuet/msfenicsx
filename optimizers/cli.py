@@ -11,11 +11,9 @@ from llm.openai_compatible.replay import replay_request_trace_file, save_replay_
 from optimizers.artifacts import write_optimization_artifacts
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
-from optimizers.experiment_layout import resolve_experiment_mode_id
 from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
-from optimizers.run_suite import run_benchmark_suite
-from visualization.template_comparison import render_template_comparisons
+from optimizers.run_suite import resolve_suite_mode_id, run_benchmark_suite
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,9 +44,6 @@ def build_parser() -> argparse.ArgumentParser:
     diagnostics_parser.add_argument("--llm-response-trace", required=False)
     diagnostics_parser.add_argument("--output", required=True)
 
-    comparison_parser = subparsers.add_parser("render-template-comparison")
-    comparison_parser.add_argument("--template-root", required=True)
-
     return parser
 
 
@@ -74,7 +69,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_optimization_artifacts(
             args.output_root,
             run,
-            mode_id=resolve_experiment_mode_id(optimization_spec, strict_nsga2=False),
+            mode_id=resolve_suite_mode_id(optimization_spec),
             seed=int(optimization_spec.benchmark_source["seed"]),
             objective_definitions=list(evaluation_payload["objectives"]),
         )
@@ -108,9 +103,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             llm_response_trace_path=None if args.llm_response_trace is None else Path(args.llm_response_trace),
         )
         save_controller_trace_summary(args.output, summary)
-        return 0
-    if args.command == "render-template-comparison":
-        render_template_comparisons(Path(args.template_root))
         return 0
     parser.error(f"Unsupported command: {args.command}")
     return 0
