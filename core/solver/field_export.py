@@ -96,6 +96,10 @@ def _serialize_component(component: dict[str, Any]) -> dict[str, Any]:
     min_x, min_y, max_x, max_y = polygon.bounds
     return {
         "component_id": str(component["component_id"]),
+        "outline": [
+            [float(x_coord), float(y_coord)]
+            for x_coord, y_coord in list(polygon.exterior.coords)[:-1]
+        ],
         "bounds": {
             "x_min": float(min_x),
             "y_min": float(min_y),

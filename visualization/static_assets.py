@@ -31,6 +31,12 @@ def write_dashboard(path: Path, title: str, body: str, *, style: str) -> Path:
     return path
 
 
+def write_svg(path: Path, payload: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(payload, encoding="utf-8")
+    return path
+
+
 def svg_document(*, title: str, width: int, height: int, body: str, background: str) -> str:
     return (
         f"<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='{height}' viewBox='0 0 {width} {height}'"
@@ -73,6 +79,22 @@ def svg_line(
     return (
         f"<line x1='{x1:.2f}' y1='{y1:.2f}' x2='{x2:.2f}' y2='{y2:.2f}'"
         f" stroke='{stroke}' stroke-width='{stroke_width:.2f}'{dash}/>"
+    )
+
+
+def svg_polygon(
+    points: list[tuple[float, float]],
+    *,
+    fill: str,
+    stroke: str = "none",
+    stroke_width: float = 0.0,
+) -> str:
+    if not points:
+        return ""
+    serialized = " ".join(f"{x:.2f},{y:.2f}" for x, y in points)
+    return (
+        f"<polygon points='{serialized}' fill='{fill}' stroke='{stroke}'"
+        f" stroke-width='{stroke_width:.2f}' stroke-linejoin='round'/>"
     )
 
 

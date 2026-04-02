@@ -522,7 +522,13 @@ def _create_representative_bundle(
                 "max": gradient_value,
             },
             "layout": {
-                "components": [{"component_id": "comp-001", "bounds": {"x_min": 0.2, "y_min": 0.2, "x_max": 0.4, "y_max": 0.4}}],
+                "components": [
+                    {
+                        "component_id": "comp-001",
+                        "bounds": {"x_min": 0.2, "y_min": 0.2, "x_max": 0.4, "y_max": 0.4},
+                        "outline": [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.4]],
+                    }
+                ],
                 "line_sinks": [{"feature_id": "sink-top-window", "edge": "top", "start_x": 0.25, "end_x": 0.55}],
             },
         },
