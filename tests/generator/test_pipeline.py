@@ -1,3 +1,5 @@
+import pytest
+
 from core.contracts.case_contracts import assert_case_geometry_contracts
 from core.generator.pipeline import generate_case
 
@@ -18,3 +20,8 @@ def test_generate_case_returns_single_case_for_mainline_template() -> None:
     assert len(case.loads) == 15
     assert case.physics["kind"] == "steady_heat_radiation"
     assert_case_geometry_contracts(case)
+
+
+def test_generate_case_rejects_templates_with_operating_case_profiles() -> None:
+    with pytest.raises(ValueError, match="generate-operating-case-pair"):
+        generate_case("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml", seed=11)
