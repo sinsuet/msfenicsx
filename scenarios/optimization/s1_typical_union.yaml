@@ -101,7 +101,7 @@ design_variables:
   - variable_id: c12_y
     path: components[11].pose.y
     lower_bound: 0.1
-    upper_bound: 0.68
+    upper_bound: 0.72
   - variable_id: c13_x
     path: components[12].pose.x
     lower_bound: 0.1

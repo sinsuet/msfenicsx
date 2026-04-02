@@ -19,6 +19,7 @@ from optimizers.repair import repair_case_payload_from_vector
 
 
 PENALTY_VALUE = 1.0e12
+solve_case = solve_case_artifacts
 
 
 @dataclass(slots=True)
@@ -96,7 +97,7 @@ class ThermalOptimizationProblem(ElementwiseProblem):
             else:
                 candidate_case = ThermalCase.from_dict(candidate_payload)
                 assert_case_geometry_contracts(candidate_case)
-                solve_outputs = solve_case_artifacts(candidate_case)
+                solve_outputs = solve_case(candidate_case)
                 solution = solve_outputs["solution"]
                 evaluation = evaluate_case_solution(candidate_case, solution, self.evaluation_spec)
                 evaluation_payload = evaluation.to_dict()
