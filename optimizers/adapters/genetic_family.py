@@ -234,6 +234,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 "decision_index": decision_index,
                 "design_variable_ids": list(self.design_variable_ids),
                 "total_evaluation_budget": int(self.total_evaluation_budget),
+                "radiator_span_max": self.radiator_span_max,
             },
             controller_trace=self.controller_trace,
             operator_trace=self.operator_trace,

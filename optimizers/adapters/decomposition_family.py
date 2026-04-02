@@ -53,6 +53,7 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
         self.repair_reference_case = repair_reference_case
         self.optimization_spec = optimization_spec
         self.radiator_span_max = radiator_span_max
+        self.design_variable_ids = [str(item["variable_id"]) for item in self.optimization_spec.get("design_variables", [])]
         self.native_operator_id = native_operator_id_for_backbone("decomposition", "moead")
         self.controller_trace: list[ControllerTraceRow] = []
         self.operator_trace: list[OperatorTraceRow] = []
@@ -80,9 +81,15 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
                 generation_index=max(0, int(getattr(self, "n_iter", 0))),
                 evaluation_index=evaluation_index,
                 candidate_operator_ids=self.operator_ids,
-                metadata={"neighbor_index": int(neighbor_index), "parent_indices": row.tolist()},
+                metadata={
+                    "neighbor_index": int(neighbor_index),
+                    "parent_indices": row.tolist(),
+                    "design_variable_ids": list(self.design_variable_ids),
+                    "radiator_span_max": self.radiator_span_max,
+                },
                 controller_trace=self.controller_trace,
                 operator_trace=self.operator_trace,
+                history=self.problem.history,
                 recent_window=32,
             )
             decision = select_controller_decision(self.union_controller, state, self.operator_ids, self.random_state)

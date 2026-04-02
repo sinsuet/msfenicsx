@@ -48,6 +48,66 @@ def build_history_lookup(
     return lookup
 
 
+def _metric_from_record(record: Mapping[str, Any] | None, metric_key: str) -> float | None:
+    if record is None:
+        return None
+    evaluation_report = record.get("evaluation_report", {})
+    if isinstance(evaluation_report, Mapping):
+        metric_values = evaluation_report.get("metric_values", {})
+        if isinstance(metric_values, Mapping) and metric_key in metric_values:
+            return float(metric_values[metric_key])
+    objective_values = record.get("objective_values", {})
+    if not isinstance(objective_values, Mapping):
+        objective_values = {}
+    metric_name = metric_key.lower()
+    if metric_name == "summary.temperature_max":
+        for objective_id, value in objective_values.items():
+            normalized = str(objective_id).lower()
+            if "peak_temperature" in normalized or "temperature_max" in normalized:
+                return float(value)
+    if metric_name == "summary.temperature_gradient_rms":
+        for objective_id, value in objective_values.items():
+            normalized = str(objective_id).lower()
+            if "temperature_gradient_rms" in normalized or "gradient_rms" in normalized:
+                return float(value)
+    if metric_name == "case.total_radiator_span":
+        return _sink_span_from_record(record)
+    return None
+
+
+def _sink_span_from_decision_vector(decision_vector: Mapping[str, Any] | None) -> float | None:
+    if not isinstance(decision_vector, Mapping):
+        return None
+    if "sink_start" in decision_vector and "sink_end" in decision_vector:
+        return float(decision_vector["sink_end"]) - float(decision_vector["sink_start"])
+    start_key = None
+    end_key = None
+    for key in decision_vector:
+        normalized = str(key).lower()
+        if start_key is None and normalized.endswith("start"):
+            start_key = str(key)
+        if end_key is None and normalized.endswith("end"):
+            end_key = str(key)
+    if start_key is None or end_key is None:
+        return None
+    return float(decision_vector[end_key]) - float(decision_vector[start_key])
+
+
+def _sink_span_from_record(record: Mapping[str, Any] | None) -> float | None:
+    if record is None:
+        return None
+    return _sink_span_from_decision_vector(record.get("decision_vector"))
+
+
+def _reference_record_for_run_state(history: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    feasible_rows = [row for row in history if bool(row.get("feasible", False))]
+    if feasible_rows:
+        return min(feasible_rows, key=lambda row: objective_score(row.get("objective_values")))
+    if history:
+        return min(history, key=total_violation)
+    return None
+
+
 def total_violation(record: Mapping[str, Any] | None) -> float:
     if record is None:
         return 0.0
@@ -89,12 +149,12 @@ def dominant_violation_family(record: Mapping[str, Any] | None) -> str | None:
 
 def classify_constraint_family(constraint_id: str | None) -> str:
     normalized = "" if constraint_id is None else str(constraint_id).lower()
-    if any(token in normalized for token in ("spread", "overlap", "spacing", "radiator", "geometry")):
-        return "geometry_dominant"
-    if any(token in normalized for token in ("cold", "battery")):
-        return "cold_dominant"
-    if any(token in normalized for token in ("hot", "processor", "pa")):
-        return "hot_dominant"
+    if any(token in normalized for token in ("sink", "radiator", "span", "budget")):
+        return "sink_budget"
+    if any(token in normalized for token in ("temperature", "thermal", "peak", "gradient", "hotspot")):
+        return "thermal_limit"
+    if any(token in normalized for token in ("overlap", "spacing", "geometry", "layout")):
+        return "layout_spacing"
     return "mixed"
 
 
@@ -273,6 +333,9 @@ def summarize_record(record: Mapping[str, Any] | None) -> dict[str, Any] | None:
         "total_violation": total_violation(record),
         "dominant_violation": dominant_violation(record),
     }
+    sink_span = _sink_span_from_record(record)
+    if sink_span is not None:
+        summary["sink_span"] = float(sink_span)
     objective_values = record.get("objective_values", {})
     if summary["feasible"] and isinstance(objective_values, Mapping):
         summary["objective_summary"] = {
@@ -289,10 +352,11 @@ def build_run_state(
     history: Sequence[Mapping[str, Any]],
     decision_index: int | None,
     total_evaluation_budget: int | None,
+    sink_budget_limit: float | None = None,
 ) -> dict[str, Any]:
     feasible_evaluations = [row for row in history if bool(row.get("feasible", False))]
     evaluations_used = max(0, int(evaluation_index) - 1)
-    return {
+    run_state = {
         "generation_index": int(generation_index),
         "decision_index": None if decision_index is None else int(decision_index),
         "evaluations_used": evaluations_used,
@@ -308,6 +372,19 @@ def build_run_state(
             else int(min(int(row.get("evaluation_index", 0)) for row in feasible_evaluations))
         ),
     }
+    reference_record = _reference_record_for_run_state(history)
+    peak_temperature = _metric_from_record(reference_record, "summary.temperature_max")
+    if peak_temperature is not None:
+        run_state["peak_temperature"] = float(peak_temperature)
+    temperature_gradient_rms = _metric_from_record(reference_record, "summary.temperature_gradient_rms")
+    if temperature_gradient_rms is not None:
+        run_state["temperature_gradient_rms"] = float(temperature_gradient_rms)
+    sink_span = _metric_from_record(reference_record, "case.total_radiator_span")
+    if sink_span is not None:
+        run_state["sink_span"] = float(sink_span)
+        if sink_budget_limit is not None and float(sink_budget_limit) > 0.0:
+            run_state["sink_budget_utilization"] = float(sink_span) / float(sink_budget_limit)
+    return run_state
 
 
 def build_progress_state(
@@ -514,7 +591,8 @@ def build_domain_regime(
     *,
     parent_state: Mapping[str, Any],
     archive_state: Mapping[str, Any],
-) -> dict[str, str]:
+    sink_budget_limit: float | None = None,
+) -> dict[str, Any]:
     parents = list(parent_state.get("parents", []))
     parent_feasible = [bool(parent.get("feasible", False)) for parent in parents if parent.get("feasible") is not None]
     parent_violations = [
@@ -545,17 +623,31 @@ def build_domain_regime(
             dominant = best_near_feasible.get("dominant_violation")
             if isinstance(dominant, Mapping) and dominant.get("constraint_id"):
                 dominant_constraint_id = str(dominant["constraint_id"])
-    return {
+    sink_span = None
+    for archive_key in ("best_feasible", "best_near_feasible"):
+        candidate = archive_state.get(archive_key)
+        if isinstance(candidate, Mapping) and candidate.get("sink_span") is not None:
+            sink_span = float(candidate["sink_span"])
+            break
+    if sink_span is None:
+        for parent in parents:
+            sink_span = _sink_span_from_decision_vector(parent.get("decision_vector"))
+            if sink_span is not None:
+                break
+    domain_regime = {
         "phase": phase,
         "dominant_constraint_family": classify_constraint_family(dominant_constraint_id),
     }
+    if sink_span is not None and sink_budget_limit is not None and float(sink_budget_limit) > 0.0:
+        domain_regime["sink_budget_utilization"] = float(sink_span) / float(sink_budget_limit)
+    return domain_regime
 
 
 def outcome_regime(
     *,
     parent_records: Sequence[Mapping[str, Any]],
     child_record: Mapping[str, Any] | None,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     parent_state = {
         "parents": [
             {
