@@ -12,9 +12,9 @@ from optimizers.artifacts import write_optimization_artifacts
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
 from optimizers.experiment_layout import resolve_experiment_mode_id
-from optimizers.experiment_runner import run_mode_experiment
 from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
+from optimizers.run_suite import run_benchmark_suite
 from visualization.template_comparison import render_template_comparisons
 
 
@@ -26,10 +26,11 @@ def build_parser() -> argparse.ArgumentParser:
     optimize_parser.add_argument("--optimization-spec", required=True)
     optimize_parser.add_argument("--output-root", required=True)
 
-    experiment_parser = subparsers.add_parser("run-mode-experiment")
-    experiment_parser.add_argument("--optimization-spec", required=True)
-    experiment_parser.add_argument("--scenario-runs-root", required=True)
-    experiment_parser.add_argument("--benchmark-seed", type=int, action="append", default=[])
+    suite_parser = subparsers.add_parser("run-benchmark-suite")
+    suite_parser.add_argument("--optimization-spec", required=True, action="append")
+    suite_parser.add_argument("--mode", action="append", default=[])
+    suite_parser.add_argument("--scenario-runs-root", required=True)
+    suite_parser.add_argument("--benchmark-seed", type=int, action="append", default=[])
 
     replay_parser = subparsers.add_parser("replay-llm-trace")
     replay_parser.add_argument("--optimization-spec", required=True)
@@ -78,11 +79,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             objective_definitions=list(evaluation_payload["objectives"]),
         )
         return 0
-    if args.command == "run-mode-experiment":
-        run_mode_experiment(
-            optimization_spec_path=Path(args.optimization_spec),
+    if args.command == "run-benchmark-suite":
+        run_benchmark_suite(
+            optimization_spec_paths=[Path(path) for path in args.optimization_spec],
             benchmark_seeds=list(args.benchmark_seed),
             scenario_runs_root=Path(args.scenario_runs_root),
+            modes=list(args.mode),
         )
         return 0
     if args.command == "replay-llm-trace":

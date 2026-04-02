@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Sequence
@@ -31,3 +32,24 @@ def initialize_run_root(
         if mode in {str(item) for item in modes}:
             (root / mode).mkdir(parents=True, exist_ok=True)
     return root
+
+
+def initialize_mode_root(run_root: str | Path, *, mode: str) -> Path:
+    root = Path(run_root) / mode
+    for directory_name in ("logs", "summaries", "pages", "figures", "reports", "seeds"):
+        (root / directory_name).mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def initialize_comparison_root(run_root: str | Path) -> Path:
+    root = Path(run_root) / "comparison"
+    for directory_name in ("summaries", "pages", "figures", "reports"):
+        (root / directory_name).mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def write_manifest(path: str | Path, payload: dict[str, object]) -> Path:
+    manifest_path = Path(path)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return manifest_path

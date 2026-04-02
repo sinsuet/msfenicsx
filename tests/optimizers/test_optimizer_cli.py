@@ -83,6 +83,12 @@ def _write_small_llm_spec(tmp_path: Path) -> Path:
     return _write_small_union_spec(tmp_path, controller="llm")
 
 
+def _write_small_raw_spec(tmp_path: Path) -> Path:
+    spec_path = tmp_path / "nsga2_raw.yaml"
+    save_optimization_spec(_optimization_spec_payload(), spec_path)
+    return spec_path
+
+
 def _write_controller_trace(path: Path, rows: list[ControllerTraceRow]) -> None:
     path.write_text(
         json.dumps([row.to_dict() for row in rows], ensure_ascii=True, indent=2),
@@ -927,99 +933,62 @@ def test_optimizer_cli_analyze_controller_trace_writes_summary_artifact(tmp_path
     assert summary["prefeasible"]["forced_reset_count"] == 1
 
 
-def test_optimizer_cli_run_mode_experiment_writes_template_first_experiment_root(tmp_path: Path, monkeypatch) -> None:
-    from tests.optimizers.test_experiment_runner import _write_spec_bundle
-    import optimizers.experiment_runner as experiment_runner_module
-
-    optimization_spec_path = _write_spec_bundle(tmp_path)
-
-    def _fake_generate_benchmark_case(*args, **kwargs):
-        del args, kwargs
-        return object()
-
-    def _fake_load_spec(path):
-        del path
-        return {
-            "spec_meta": {"spec_id": "s1_typical_eval"},
-            "objectives": [
-                {"objective_id": "minimize_peak_temperature", "sense": "minimize"},
-                {"objective_id": "minimize_temperature_gradient_rms", "sense": "minimize"},
-            ],
-            "constraints": [
-                {"constraint_id": "radiator_span_budget"},
-            ],
-        }
-
-    def _fake_run_raw_optimization(base_case, optimization_spec, evaluation_spec, *, spec_path=None):
-        del base_case, evaluation_spec, spec_path
-        from tests.optimizers.test_experiment_runner import _fake_result
-
-        seed = int(optimization_spec.benchmark_source["seed"])
-        return type(
-            "FakeRun",
-            (),
-            {
-                "result": _fake_result(optimization_spec, seed),
-                "representative_artifacts": {},
-                "generation_summary_rows": [
-                    {
-                        "generation_index": 1,
-                        "num_evaluations_so_far": 2,
-                        "feasible_fraction": 0.5,
-                        "best_total_constraint_violation": 0.0,
-                        "best_minimize_peak_temperature": 299.0,
-                        "best_minimize_temperature_gradient_rms": 8.4,
-                        "pareto_size": 1,
-                        "new_feasible_entries": 1,
-                        "new_pareto_entries": 1,
-                    }
-                ],
-            },
-        )()
-
-    monkeypatch.setattr(experiment_runner_module, "generate_benchmark_case", _fake_generate_benchmark_case)
-    monkeypatch.setattr(experiment_runner_module, "load_spec", _fake_load_spec)
-    monkeypatch.setattr(experiment_runner_module, "run_raw_optimization", _fake_run_raw_optimization)
-
+def test_optimizer_cli_run_benchmark_suite_single_mode_writes_run_root(tmp_path: Path) -> None:
+    optimization_spec_path = _write_small_raw_spec(tmp_path)
     scenario_runs_root = tmp_path / "scenario_runs"
+
     exit_code = main(
         [
-            "run-mode-experiment",
+            "run-benchmark-suite",
             "--optimization-spec",
             str(optimization_spec_path),
+            "--mode",
+            "raw",
             "--benchmark-seed",
             "11",
-            "--benchmark-seed",
-            "17",
             "--scenario-runs-root",
             str(scenario_runs_root),
         ]
     )
 
     assert exit_code == 0
-    experiment_root = next((scenario_runs_root / "s1_typical" / "experiments").iterdir())
-    assert (experiment_root / "runs" / "seed-11" / "optimization_result.json").exists()
-    assert (experiment_root / "summaries" / "run_index.json").exists()
-    assert (experiment_root / "figures" / "overview.svg").exists()
-    assert (experiment_root / "figures" / "overview.json").exists()
-    assert (experiment_root / "logs" / "experiment_index.json").exists()
+    run_root = next((scenario_runs_root / "s1_typical").iterdir())
+    assert run_root.name.endswith("__raw")
+    assert (run_root / "shared").is_dir()
+    assert (run_root / "raw").is_dir()
+    assert not (run_root / "comparison").exists()
 
 
-def test_optimizer_cli_render_template_comparison_writes_overview(tmp_path: Path) -> None:
-    from tests.optimizers.experiment_fixtures import create_template_root_with_modes
-
-    template_root = create_template_root_with_modes(tmp_path)
+def test_optimizer_cli_run_benchmark_suite_mixed_mode_writes_comparison_root(tmp_path: Path) -> None:
+    raw_spec_path = _write_small_raw_spec(tmp_path)
+    union_spec_path = _write_small_union_spec(tmp_path, controller="random_uniform")
+    scenario_runs_root = tmp_path / "scenario_runs"
 
     exit_code = main(
         [
-            "render-template-comparison",
-            "--template-root",
-            str(template_root),
+            "run-benchmark-suite",
+            "--optimization-spec",
+            str(raw_spec_path),
+            "--optimization-spec",
+            str(union_spec_path),
+            "--mode",
+            "raw",
+            "--mode",
+            "union",
+            "--benchmark-seed",
+            "11",
+            "--scenario-runs-root",
+            str(scenario_runs_root),
         ]
     )
 
     assert exit_code == 0
-    assert (template_root / "comparisons" / "raw-vs-union-vs-llm" / "overview.html").exists()
+    run_root = next((scenario_runs_root / "s1_typical").iterdir())
+    assert run_root.name.endswith("__raw_union")
+    assert (run_root / "shared").is_dir()
+    assert (run_root / "raw").is_dir()
+    assert (run_root / "union").is_dir()
+    assert (run_root / "comparison").is_dir()
 
 
 def test_optimizer_cli_analyze_controller_trace_accepts_optional_operator_and_request_sidecars(
