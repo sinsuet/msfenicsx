@@ -6,7 +6,46 @@ from typing import Any
 
 import yaml
 
+from optimizers.run_layout import initialize_run_root
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
+
+
+def create_run_root(
+    tmp_path: Path,
+    *,
+    run_id: str = "0401_1430__raw",
+    modes: tuple[str, ...] = ("raw",),
+    include_comparison: bool = False,
+) -> Path:
+    root = initialize_run_root(
+        tmp_path / "scenario_runs",
+        scenario_template_id="s1_typical",
+        run_id=run_id,
+        modes=modes,
+    )
+    if include_comparison:
+        (root / "comparison").mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def create_mode_root(
+    tmp_path: Path,
+    *,
+    mode: str = "raw",
+    run_id: str | None = None,
+    include_comparison: bool = False,
+) -> Path:
+    effective_run_id = run_id or f"0401_1430__{mode}"
+    run_root = create_run_root(
+        tmp_path,
+        run_id=effective_run_id,
+        modes=(mode,),
+        include_comparison=include_comparison,
+    )
+    mode_root = run_root / mode
+    for directory_name in ("logs", "summaries", "pages", "figures", "reports", "seeds"):
+        (mode_root / directory_name).mkdir(parents=True, exist_ok=True)
+    return mode_root
 
 
 def create_experiment_root(
