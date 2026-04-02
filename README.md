@@ -97,7 +97,14 @@ summaries/field_view.json
 pages/index.html
 ```
 
-Representative layout pages render real component footprints from exported outlines instead of rectangle bounds only.
+Scientific figure exports under each representative, mode, and comparison page now follow these rules:
+
+- representative layout figures render real component footprints from exported outlines instead of rectangle bounds only
+- `figures/layout.svg`, `temperature-field.svg`, `temperature-contours.svg`, and `gradient-field.svg` are white-background single-case scientific figures
+- `figures/mode-summary.svg` is a progress-first mode figure with evaluation-index panels for best peak, best gradient, feasible rate, and Pareto size
+- `comparison/figures/progress.svg` compares the same four progress metrics across `raw`, `union`, and `llm`
+- `comparison/figures/fields.svg` renders actual temperature and gradient field panels with shared color scales instead of hotspot-only surrogate charts
+- long interpretation prose belongs in HTML tables and reports, not inside the SVG figure body
 
 ## CLI
 

@@ -82,6 +82,21 @@ def svg_line(
     )
 
 
+def svg_circle(
+    cx: float,
+    cy: float,
+    radius: float,
+    *,
+    fill: str,
+    stroke: str = "none",
+    stroke_width: float = 0.0,
+) -> str:
+    return (
+        f"<circle cx='{cx:.2f}' cy='{cy:.2f}' r='{radius:.2f}'"
+        f" fill='{fill}' stroke='{stroke}' stroke-width='{stroke_width:.2f}'/>"
+    )
+
+
 def svg_polygon(
     points: list[tuple[float, float]],
     *,
@@ -107,10 +122,12 @@ def svg_text(
     size: int = 16,
     weight: str = "400",
     anchor: str = "start",
+    font_family: str = "Georgia, serif",
 ) -> str:
     return (
-        f"<text x='{x:.2f}' y='{y:.2f}' fill='{fill}' font-size='{size}'"
-        f" font-family='Georgia, serif' font-weight='{weight}' text-anchor='{anchor}'>"
+        f'<text x="{x:.2f}" y="{y:.2f}" fill="{html.escape(fill, quote=True)}" font-size="{size}"'
+        f' font-family="{html.escape(font_family, quote=True)}" font-weight="{html.escape(weight, quote=True)}"'
+        f' text-anchor="{html.escape(anchor, quote=True)}">'
         f"{html.escape(value)}</text>"
     )
 
@@ -363,6 +380,45 @@ def dashboard_style() -> str:
       background: #f0e5d8;
       border-radius: 6px;
       padding: 1px 6px;
+    }
+    .figure-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 14px;
+    }
+    .figure-card {
+      background: rgba(255, 250, 243, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .figure-card img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 12px;
+      border: 1px solid #dac7b3;
+      background: #fffdf9;
+    }
+    .figure-card figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.96rem;
+    }
+    .inline-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      margin-top: 12px;
+    }
+    .inline-links a {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255, 250, 243, 0.92);
     }
     """.strip()
 

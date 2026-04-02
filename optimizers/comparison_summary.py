@@ -62,15 +62,32 @@ def build_comparison_summaries(run_root: str | Path) -> dict[str, str]:
                     "pareto_size": seed_row.get("pareto_size"),
                 }
             )
-            knee_root = mode_root / "seeds" / f"seed-{seed}" / "representatives" / "knee"
-            if (knee_root / "summaries" / "field_view.json").exists():
-                field_view = _load_json(knee_root / "summaries" / "field_view.json")
+            representative_root = _resolve_field_representative_root(
+                mode_root / "seeds" / f"seed-{seed}" / "representatives"
+            )
+            if representative_root is not None and (representative_root / "summaries" / "field_view.json").exists():
+                field_view = _load_json(representative_root / "summaries" / "field_view.json")
                 field_rows.append(
                     {
                         "mode_id": mode,
                         "seed": seed,
+                        "representative_id": representative_root.name,
+                        "representative_root": str(representative_root.relative_to(root).as_posix()),
+                        "field_view_path": str((representative_root / "summaries" / "field_view.json").relative_to(root).as_posix()),
+                        "temperature_grid_path": str(
+                            (representative_root / "fields" / "temperature_grid.npz").relative_to(root).as_posix()
+                        ),
+                        "gradient_grid_path": str(
+                            (representative_root / "fields" / "gradient_magnitude_grid.npz").relative_to(root).as_posix()
+                        ),
+                        "panel_domain": field_view.get("panel_domain", {}),
+                        "layout": field_view.get("layout", {}),
                         "temperature_grid_shape": field_view.get("temperature", {}).get("grid_shape"),
                         "gradient_grid_shape": field_view.get("gradient_magnitude", {}).get("grid_shape"),
+                        "temperature_min": field_view.get("temperature", {}).get("min"),
+                        "temperature_max": field_view.get("temperature", {}).get("max"),
+                        "gradient_min": field_view.get("gradient_magnitude", {}).get("min"),
+                        "gradient_max": field_view.get("gradient_magnitude", {}).get("max"),
                         "hotspot": field_view.get("temperature", {}).get("hotspot"),
                     }
                 )
@@ -110,3 +127,27 @@ def build_comparison_summaries(run_root: str | Path) -> dict[str, str]:
 
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _resolve_field_representative_root(representatives_root: Path) -> Path | None:
+    if not representatives_root.exists():
+        return None
+    representatives = sorted(path for path in representatives_root.iterdir() if path.is_dir())
+    if not representatives:
+        return None
+    search_orders = (
+        ("knee", "candidate"),
+        ("knee",),
+        ("min", "peak"),
+        ("best", "peak"),
+        ("min", "gradient"),
+        ("best", "gradient"),
+        ("first", "feasible"),
+        ("baseline",),
+    )
+    lowered = [(path, path.name.lower()) for path in representatives]
+    for search_tokens in search_orders:
+        for path, lowered_name in lowered:
+            if all(token in lowered_name for token in search_tokens):
+                return path
+    return representatives[0]

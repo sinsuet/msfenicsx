@@ -3,6 +3,8 @@
 > Status: approved direction for replacing the current visualization and logging stack around the `s1_typical` mainline.
 >
 > This spec resets the active reporting surface around single-case physical-field pages, mixed-mode comparison views, and full LLM decision evidence. The previous `scenario_runs/optimizations/...` structure, template-comparison entrypoints, and retired four-component hot/cold visualization assets should be removed rather than preserved behind compatibility shims.
+>
+> Scientific-figure styling and white-background export rules are refined further in `docs/superpowers/specs/2026-04-02-s1-typical-scientific-figure-refinement-design.md`, which should be treated as the active figure-rendering companion spec for this reset.
 
 ## 1. Goal
 
