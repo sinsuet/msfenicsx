@@ -211,7 +211,7 @@ component_families:
     shape: circle
     count_range: {min: 1, max: 1}
     geometry:
-      radius: {min: 0.065, max: 0.065}
+      radius: {min: 0.067, max: 0.067}
     material_ref: electronics_housing
     thermal_tags: [payload, sensor]
     layout_tags: [rounded_housing, sensor_sensitive]
