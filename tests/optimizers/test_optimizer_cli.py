@@ -413,8 +413,9 @@ def test_optimizer_cli_optimize_benchmark_writes_result_and_pareto_artifacts(tmp
     assert (output_root / "evaluation_events.jsonl").exists()
     assert (output_root / "generation_summary.jsonl").exists()
     assert (output_root / "manifest.json").exists()
-    for directory_name in ("logs", "fields", "tensors", "figures", "representatives"):
+    for directory_name in ("logs", "summaries", "representatives"):
         assert (output_root / directory_name).is_dir()
+    assert not (output_root / "tensors").exists()
 
     result_payload = json.loads((output_root / "optimization_result.json").read_text(encoding="utf-8"))
     generation_summary_rows = [
@@ -460,11 +461,18 @@ def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_
         assert manifest_payload["evaluation_snapshot"] == "evaluation.yaml"
         assert (representative_root / "case.yaml").exists()
         assert (representative_root / "solution.yaml").exists()
+        assert (representative_root / "fields" / "temperature_grid.npz").exists()
+        assert (representative_root / "fields" / "gradient_magnitude_grid.npz").exists()
+        assert (representative_root / "summaries" / "field_view.json").exists()
+        assert (representative_root / "pages").is_dir()
+        assert not (representative_root / "pages" / "index.html").exists()
+        assert not (representative_root / "tensors").exists()
     manifest_payload = json.loads(
         (output_root / "representatives" / "min-peak-temperature" / "manifest.json").read_text(encoding="utf-8")
     )
     assert manifest_payload["case_snapshot"] == "case.yaml"
     assert manifest_payload["evaluation_snapshot"] == "evaluation.yaml"
+    assert manifest_payload["field_exports"]["field_view"] == "summaries/field_view.json"
 
 
 def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(tmp_path: Path, monkeypatch) -> None:

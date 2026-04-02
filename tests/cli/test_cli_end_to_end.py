@@ -41,6 +41,8 @@ def test_generate_case_then_solve_cli_smoke(tmp_path: Path) -> None:
     assert any(run_root.rglob("case.yaml"))
     assert any(run_root.rglob("solution.yaml"))
     assert any(run_root.rglob("manifest.json"))
+    assert any(run_root.rglob("summaries/field_view.json"))
+    assert any(run_root.rglob("fields/temperature_grid.npz"))
 
 
 def test_generate_case_is_the_only_mainline_generation_command() -> None:

@@ -11,7 +11,7 @@ from pymoo.core.problem import ElementwiseProblem
 
 from core.contracts.case_contracts import assert_case_geometry_contracts
 from core.schema.models import ThermalCase
-from core.solver.nonlinear_solver import solve_case
+from core.solver.nonlinear_solver import solve_case_artifacts
 from evaluation.engine import evaluate_case_solution
 from optimizers.codec import extract_decision_vector
 from optimizers.cheap_constraints import evaluate_cheap_constraints, resolve_radiator_span_max
@@ -26,6 +26,7 @@ class CandidateArtifacts:
     case: Any
     solution: Any
     evaluation: Any | None
+    field_exports: dict[str, Any] | None = None
 
 
 class ThermalOptimizationProblem(ElementwiseProblem):
@@ -95,7 +96,8 @@ class ThermalOptimizationProblem(ElementwiseProblem):
             else:
                 candidate_case = ThermalCase.from_dict(candidate_payload)
                 assert_case_geometry_contracts(candidate_case)
-                solution = solve_case(candidate_case)
+                solve_outputs = solve_case_artifacts(candidate_case)
+                solution = solve_outputs["solution"]
                 evaluation = evaluate_case_solution(candidate_case, solution, self.evaluation_spec)
                 evaluation_payload = evaluation.to_dict()
                 objective_values = {
@@ -110,6 +112,7 @@ class ThermalOptimizationProblem(ElementwiseProblem):
                     case=deepcopy(candidate_case),
                     solution=deepcopy(solution),
                     evaluation=evaluation,
+                    field_exports=deepcopy(solve_outputs.get("field_exports")),
                 )
         except Exception as exc:
             if failure_reason is None:

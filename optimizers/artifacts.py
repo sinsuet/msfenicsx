@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.io.scenario_runs import write_field_export_artifacts
 from core.schema.io import save_case, save_solution
 from evaluation.io import save_report
 from optimizers.io import save_optimization_result
@@ -22,7 +23,7 @@ def write_optimization_artifacts(
     objective_definitions: list[dict[str, Any]] | tuple[dict[str, Any], ...],
 ) -> Path:
     resolved_output_root = Path(output_root)
-    _initialize_bundle_root(resolved_output_root, include_representatives=True)
+    _initialize_seed_bundle_root(resolved_output_root)
     save_optimization_result(run.result, resolved_output_root / "optimization_result.json")
     save_optimization_result({"pareto_front": run.result.pareto_front}, resolved_output_root / "pareto_front.json")
     evaluation_rows = build_evaluation_events(
@@ -78,45 +79,62 @@ def write_optimization_artifacts(
         "mode_id": mode_id,
         "benchmark_seed": int(seed),
         "snapshots": snapshots,
-        "directories": _bundle_directories(include_representatives=True),
+        "directories": _seed_bundle_directories(),
     }
     _write_manifest(resolved_output_root / "manifest.json", manifest)
     return resolved_output_root
 
 
 def _write_representative_bundle(bundle_root: Path, artifacts: CandidateArtifacts) -> None:
-    _initialize_bundle_root(bundle_root)
+    _initialize_representative_bundle_root(bundle_root)
     case_snapshot = "case.yaml"
     solution_snapshot = "solution.yaml"
     save_case(artifacts.case, bundle_root / "case.yaml")
     save_solution(artifacts.solution, bundle_root / "solution.yaml")
     if artifacts.evaluation is not None:
         save_report(artifacts.evaluation, bundle_root / "evaluation.yaml")
+    exported_fields = None
+    if artifacts.field_exports is not None:
+        exported_fields = write_field_export_artifacts(bundle_root, artifacts.field_exports)
     manifest = {
         "case_snapshot": case_snapshot,
         "solution_snapshot": solution_snapshot,
         "evaluation_snapshot": "evaluation.yaml" if artifacts.evaluation is not None else None,
-        "directories": _bundle_directories(),
+        "directories": _representative_bundle_directories(),
     }
+    if exported_fields is not None:
+        manifest["field_exports"] = exported_fields
     _write_manifest(bundle_root / "manifest.json", manifest)
 
 
-def _initialize_bundle_root(bundle_root: Path, *, include_representatives: bool = False) -> None:
+def _initialize_seed_bundle_root(bundle_root: Path) -> None:
     bundle_root.mkdir(parents=True, exist_ok=True)
-    for directory_name in _bundle_directories(include_representatives=include_representatives).values():
+    for directory_name in _seed_bundle_directories().values():
         (bundle_root / directory_name).mkdir(parents=True, exist_ok=True)
 
 
-def _bundle_directories(*, include_representatives: bool = False) -> dict[str, str]:
-    directories = {
+def _initialize_representative_bundle_root(bundle_root: Path) -> None:
+    bundle_root.mkdir(parents=True, exist_ok=True)
+    for directory_name in _representative_bundle_directories().values():
+        (bundle_root / directory_name).mkdir(parents=True, exist_ok=True)
+
+
+def _seed_bundle_directories() -> dict[str, str]:
+    return {
+        "logs": "logs",
+        "summaries": "summaries",
+        "representatives": "representatives",
+    }
+
+
+def _representative_bundle_directories() -> dict[str, str]:
+    return {
         "logs": "logs",
         "fields": "fields",
-        "tensors": "tensors",
+        "summaries": "summaries",
         "figures": "figures",
+        "pages": "pages",
     }
-    if include_representatives:
-        directories["representatives"] = "representatives"
-    return directories
 
 
 def _write_manifest(path: Path, payload: dict[str, object]) -> None:

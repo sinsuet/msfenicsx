@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from core.generator.pipeline import generate_case
 from core.io.scenario_runs import write_case_solution_bundle
 from core.schema.io import load_case, load_template, save_case
-from core.solver.nonlinear_solver import solve_case
+from core.solver.nonlinear_solver import solve_case_artifacts
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,8 +48,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "solve-case":
         case = load_case(args.case)
-        solution = solve_case(case)
-        write_case_solution_bundle(args.output_root, case, solution)
+        solved = solve_case_artifacts(case)
+        write_case_solution_bundle(
+            args.output_root,
+            case,
+            solved["solution"],
+            field_exports=solved["field_exports"],
+        )
         return 0
     parser.error(f"Unsupported command: {args.command}")
     return 0
