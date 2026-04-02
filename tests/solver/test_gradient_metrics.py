@@ -4,9 +4,13 @@ from dolfinx import fem
 from mpi4py import MPI
 from shapely.geometry import box
 
+from core.generator.paired_pipeline import generate_operating_case_pair
+from core.solver import solve_case
 from core.solver.field_sampler import sample_solution_fields
 from core.solver.gradient_metrics import compute_temperature_gradient_rms
 from core.solver.mesh_builder import build_panel_mesh
+from evaluation.engine import evaluate_case_solution
+from evaluation.models import EvaluationSpec
 
 
 def test_compute_temperature_gradient_rms_returns_zero_for_constant_field() -> None:
@@ -41,3 +45,35 @@ def test_sample_solution_fields_reports_temperature_gradient_rms_in_summary_metr
 
     assert sampled_fields["summary_metrics"]["temperature_gradient_rms"] == pytest.approx(1.0)
     assert sampled_fields["component_summaries"]
+
+
+def test_solve_case_surfaces_temperature_gradient_rms_for_evaluation() -> None:
+    case = generate_operating_case_pair("scenarios/templates/panel_four_component_hot_cold_benchmark.yaml", seed=11)["hot"]
+
+    solution = solve_case(case)
+
+    assert "temperature_gradient_rms" in solution.summary_metrics
+
+    spec = EvaluationSpec.from_dict(
+        {
+            "schema_version": "1.0",
+            "spec_meta": {
+                "spec_id": "gradient-rms-check",
+                "description": "Verify gradient RMS is evaluable from solver output.",
+            },
+            "objectives": [
+                {
+                    "objective_id": "minimize_temperature_gradient_rms",
+                    "metric": "summary.temperature_gradient_rms",
+                    "sense": "minimize",
+                }
+            ],
+            "constraints": [],
+        }
+    )
+
+    report = evaluate_case_solution(case, solution, spec)
+
+    assert report.metric_values["summary.temperature_gradient_rms"] == pytest.approx(
+        solution.summary_metrics["temperature_gradient_rms"]
+    )
