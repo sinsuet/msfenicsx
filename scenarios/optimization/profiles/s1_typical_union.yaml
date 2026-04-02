@@ -1,0 +1,13 @@
+schema_version: "1.0"
+profile_meta:
+  profile_id: s1_typical_nsga2_union_profile
+  description: Active S1 typical tuning for NSGA-II union variation.
+family: genetic
+backbone: nsga2
+mode: union
+parameters:
+  crossover:
+    eta: 10
+    prob: 0.9
+  mutation:
+    eta: 15
