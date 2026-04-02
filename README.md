@@ -13,6 +13,7 @@ The only active paper-facing mainline is `s1_typical`.
 
 - one operating case
 - fifteen fixed named components
+- mixed-shape component families with semantic placement hints
 - all fifteen components optimize `x/y` only
 - no optimized rotation
 - one top-edge sink window with movable `start/end`
@@ -23,8 +24,9 @@ The only active paper-facing mainline is `s1_typical`.
 - hard constraints:
   - geometry legality
   - `case.total_radiator_span <= radiator_span_max`
+- generator uses semantic band and edge hints before falling back to generic legal placement
 - cheap legality checks run before any expensive PDE solve
-- repair uses projection plus local legality restoration
+- repair uses projection plus local legality restoration with shape-aware overlap handling
 - active optimizer modes:
   - `nsga2_raw`
   - `nsga2_union`
@@ -94,6 +96,8 @@ fields/gradient_magnitude_grid.npz
 summaries/field_view.json
 pages/index.html
 ```
+
+Representative layout pages render real component footprints from exported outlines instead of rectangle bounds only.
 
 ## CLI
 
