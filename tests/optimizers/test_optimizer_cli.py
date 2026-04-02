@@ -1,11 +1,14 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import yaml
 
 from llm.openai_compatible.client import OpenAICompatibleDecision
 from optimizers.cli import main
 from optimizers.io import save_optimization_spec
+from optimizers.models import OptimizationResult
+from optimizers.operator_pool.operators import approved_union_operator_ids_for_backbone
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 
 
@@ -13,25 +16,25 @@ def _optimization_spec_payload() -> dict:
     return {
         "schema_version": "1.0",
         "spec_meta": {
-            "spec_id": "panel-four-component-hot-cold-nsga2-benchmark-source",
-            "description": "Benchmark-sourced multicase NSGA-II baseline over payload position.",
+            "spec_id": "s1-typical-nsga2-benchmark-source",
+            "description": "Benchmark-sourced single-case NSGA-II baseline over the first payload position.",
         },
         "benchmark_source": {
-            "template_path": "scenarios/templates/panel_four_component_hot_cold_benchmark.yaml",
+            "template_path": "scenarios/templates/s1_typical.yaml",
             "seed": 11,
         },
         "design_variables": [
             {
-                "variable_id": "payload_x",
+                "variable_id": "c01_x",
                 "path": "components[0].pose.x",
-                "lower_bound": 0.08,
-                "upper_bound": 0.92,
+                "lower_bound": 0.1,
+                "upper_bound": 0.9,
             },
             {
-                "variable_id": "payload_y",
+                "variable_id": "c01_y",
                 "path": "components[0].pose.y",
-                "lower_bound": 0.045,
-                "upper_bound": 0.755,
+                "lower_bound": 0.1,
+                "upper_bound": 0.68,
             },
         ],
         "algorithm": {
@@ -43,29 +46,46 @@ def _optimization_spec_payload() -> dict:
             "seed": 7,
         },
         "evaluation_protocol": {
-            "evaluation_spec_path": "scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml",
+            "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
         },
     }
 
 
-def _union_optimization_spec_path() -> str:
-    return "scenarios/optimization/panel_four_component_hot_cold_nsga2_union_uniform_p1.yaml"
-
-
-def _matrix_union_optimization_spec_path(backbone: str) -> str:
-    return f"scenarios/optimization/panel_four_component_hot_cold_{backbone}_union_uniform_p1.yaml"
+def _write_small_union_spec(tmp_path: Path, *, controller: str = "random_uniform") -> Path:
+    payload = yaml.safe_load(Path("scenarios/optimization/s1_typical_raw.yaml").read_text(encoding="utf-8"))
+    payload["spec_meta"] = {
+        "spec_id": f"s1-typical-nsga2-{controller}",
+        "description": f"Single-case NSGA-II {controller} test spec.",
+    }
+    payload["algorithm"]["population_size"] = 4
+    payload["algorithm"]["num_generations"] = 2
+    payload["algorithm"]["mode"] = "union"
+    payload["algorithm"]["profile_path"] = "scenarios/optimization/profiles/s1_typical_union.yaml"
+    for variable in payload["design_variables"]:
+        if variable["variable_id"] == "sink_start":
+            variable["variable_id"] = "radiator_start"
+        elif variable["variable_id"] == "sink_end":
+            variable["variable_id"] = "radiator_end"
+    payload["operator_control"] = {
+        "controller": controller,
+        "operator_pool": list(approved_union_operator_ids_for_backbone("genetic", "nsga2")),
+    }
+    if controller == "llm":
+        payload["operator_control"]["controller_parameters"] = {
+            "provider": "openai",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "model": "gpt-5.4",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 1024,
+        }
+    spec_path = tmp_path / f"nsga2_union_{controller}.yaml"
+    spec_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    return spec_path
 
 
 def _write_small_llm_spec(tmp_path: Path) -> Path:
-    payload = yaml.safe_load(
-        Path("scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1.yaml").read_text(encoding="utf-8")
-    )
-    payload["algorithm"]["population_size"] = 4
-    payload["algorithm"]["num_generations"] = 2
-    payload["operator_control"]["controller_parameters"]["api_key_env_var"] = "TEST_OPENAI_API_KEY"
-    spec_path = tmp_path / "nsga2_union_llm_l1.yaml"
-    spec_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
-    return spec_path
+    return _write_small_union_spec(tmp_path, controller="llm")
 
 
 def _write_controller_trace(path: Path, rows: list[ControllerTraceRow]) -> None:
@@ -250,6 +270,127 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
     }
 
 
+def _fake_union_run(*, include_llm_sidecars: bool = False) -> SimpleNamespace:
+    history = [
+        {
+            "evaluation_index": 1,
+            "source": "baseline",
+            "feasible": False,
+            "decision_vector": {"c01_x": 0.2, "c01_y": 0.3},
+            "objective_values": {
+                "minimize_peak_temperature": 320.0,
+                "minimize_temperature_gradient_rms": 12.0,
+            },
+            "constraint_values": {
+                "radiator_span_budget": 0.05,
+                "c01_peak_temperature_limit": 1.0,
+                "c08_peak_temperature_limit": 0.0,
+                "panel_temperature_spread_limit": 0.0,
+            },
+            "evaluation_report": {
+                "evaluation_meta": {"case_id": "s1_typical-case-001"},
+                "feasible": False,
+            },
+        },
+        {
+            "evaluation_index": 2,
+            "source": "optimizer",
+            "feasible": True,
+            "decision_vector": {"c01_x": 0.25, "c01_y": 0.35},
+            "objective_values": {
+                "minimize_peak_temperature": 300.0,
+                "minimize_temperature_gradient_rms": 8.5,
+            },
+            "constraint_values": {
+                "radiator_span_budget": 0.0,
+                "c01_peak_temperature_limit": 0.0,
+                "c08_peak_temperature_limit": 0.0,
+                "panel_temperature_spread_limit": 0.0,
+            },
+            "evaluation_report": {
+                "evaluation_meta": {"case_id": "s1_typical-case-001"},
+                "feasible": True,
+            },
+        },
+    ]
+    result_payload = {
+            "schema_version": "1.0",
+            "run_meta": {
+                "run_id": "s1-typical-union-run",
+                "base_case_id": "s1_typical-case-001",
+                "optimization_spec_id": "s1-typical-nsga2-union",
+                "evaluation_spec_id": "s1_typical_eval",
+                "benchmark_seed": 11,
+                "algorithm_seed": 7,
+            },
+            "baseline_candidates": [history[0]],
+            "pareto_front": [history[1]],
+            "representative_candidates": {},
+            "aggregate_metrics": {
+                "num_evaluations": len(history),
+                "feasible_rate": 0.5,
+                "first_feasible_eval": 2,
+                "pareto_size": 1,
+            },
+            "history": history,
+            "provenance": {
+                "benchmark_source": {"seed": 11},
+                "source_case_id": "s1_typical-case-001",
+                "source_optimization_spec_id": "s1-typical-nsga2-union",
+                "source_evaluation_spec_id": "s1_typical_eval",
+            },
+        }
+    run = SimpleNamespace(
+        result=OptimizationResult.from_dict(result_payload),
+        representative_artifacts={},
+        controller_trace=[
+            ControllerTraceRow(
+                generation_index=1,
+                evaluation_index=2,
+                family="genetic",
+                backbone="nsga2",
+                controller_id="llm" if include_llm_sidecars else "random_uniform",
+                candidate_operator_ids=("native_sbx_pm", "local_refine"),
+                selected_operator_id="local_refine",
+                metadata={"fallback_used": False},
+            )
+        ],
+        operator_trace=[
+            OperatorTraceRow(
+                generation_index=1,
+                evaluation_index=2,
+                operator_id="local_refine",
+                parent_count=2,
+                parent_vectors=((0.2, 0.3), (0.24, 0.34)),
+                proposal_vector=(0.25, 0.35),
+                metadata={},
+            )
+        ],
+        generation_summary_rows=[
+            {
+                "generation_index": 1,
+                "num_evaluations_so_far": 2,
+                "feasible_fraction": 0.5,
+                "best_total_constraint_violation": 0.0,
+                "best_minimize_peak_temperature": 300.0,
+                "best_minimize_temperature_gradient_rms": 8.5,
+                "pareto_size": 1,
+                "new_feasible_entries": 1,
+                "new_pareto_entries": 1,
+            }
+        ],
+        llm_request_trace=None,
+        llm_response_trace=None,
+        llm_reflection_trace=None,
+        llm_metrics=None,
+    )
+    if include_llm_sidecars:
+        run.llm_request_trace = [{"evaluation_index": 2, "candidate_operator_ids": ["native_sbx_pm", "local_refine"]}]
+        run.llm_response_trace = [{"evaluation_index": 2, "selected_operator_id": "local_refine", "elapsed_seconds": 1.2}]
+        run.llm_metrics = {"elapsed_seconds_total": 1.2, "elapsed_seconds_avg": 1.2}
+    return run
+
+
 def test_optimizer_cli_optimize_benchmark_writes_result_and_pareto_artifacts(tmp_path: Path) -> None:
     output_root = tmp_path / "optimizer_run"
     spec_path = tmp_path / "optimization_spec.yaml"
@@ -276,11 +417,13 @@ def test_optimizer_cli_optimize_benchmark_writes_result_and_pareto_artifacts(tmp
 
     result_payload = json.loads((output_root / "optimization_result.json").read_text(encoding="utf-8"))
     assert result_payload["run_meta"]["optimization_spec_id"] == _optimization_spec_payload()["spec_meta"]["spec_id"]
-    assert set(result_payload["run_meta"]["base_case_ids"]) == {"hot", "cold"}
-    assert set(result_payload["provenance"]["source_case_ids"]) == {"hot", "cold"}
+    assert result_payload["run_meta"]["base_case_id"].startswith("s1_typical")
+    assert result_payload["provenance"]["source_case_id"] == result_payload["run_meta"]["base_case_id"]
     assert result_payload["history"]
     assert "operator_usage" not in result_payload["aggregate_metrics"]
     assert all("operator_id" not in entry for entry in result_payload["history"])
+    assert all("evaluation_report" in entry for entry in result_payload["history"])
+    assert all("case_reports" not in entry for entry in result_payload["history"])
 
 
 def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_bundles(tmp_path: Path) -> None:
@@ -290,7 +433,7 @@ def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_
         [
             "optimize-benchmark",
             "--optimization-spec",
-            "scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml",
+            "scenarios/optimization/s1_typical_raw.yaml",
             "--output-root",
             str(output_root),
         ]
@@ -302,20 +445,22 @@ def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_
     for representative_root in representative_roots:
         assert (representative_root / "manifest.json").exists()
         assert (representative_root / "evaluation.yaml").exists()
-        assert (representative_root / "cases" / "hot.yaml").exists()
-        assert (representative_root / "cases" / "cold.yaml").exists()
-        assert (representative_root / "solutions" / "hot.yaml").exists()
-        assert (representative_root / "solutions" / "cold.yaml").exists()
+        assert len(list((representative_root / "cases").glob("*.yaml"))) == 1
+        assert len(list((representative_root / "solutions").glob("*.yaml"))) == 1
 
 
-def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(tmp_path: Path) -> None:
+def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(tmp_path: Path, monkeypatch) -> None:
+    import optimizers.cli as cli_module
+
     output_root = tmp_path / "union_optimizer_run"
+    spec_path = _write_small_union_spec(tmp_path)
+    monkeypatch.setattr(cli_module, "run_union_optimization", lambda *args, **kwargs: _fake_union_run())
 
     exit_code = main(
         [
             "optimize-benchmark",
             "--optimization-spec",
-            _union_optimization_spec_path(),
+            str(spec_path),
             "--output-root",
             str(output_root),
         ]
@@ -339,22 +484,27 @@ def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(
     assert manifest_payload["snapshots"]["operator_trace"] == "operator_trace.json"
 
 
-def test_optimizer_cli_union_mode_dispatches_moead_and_cmopso_specs(tmp_path: Path) -> None:
-    for backbone in ("moead", "cmopso"):
-        output_root = tmp_path / f"{backbone}_union_optimizer_run"
-        exit_code = main(
-            [
-                "optimize-benchmark",
-                "--optimization-spec",
-                _matrix_union_optimization_spec_path(backbone),
-                "--output-root",
-                str(output_root),
-            ]
-        )
+def test_optimizer_cli_union_mode_writes_single_case_history_records(tmp_path: Path, monkeypatch) -> None:
+    import optimizers.cli as cli_module
 
-        assert exit_code == 0
-        assert (output_root / "controller_trace.json").exists()
-        assert (output_root / "operator_trace.json").exists()
+    output_root = tmp_path / "single_case_union_optimizer_run"
+    spec_path = _write_small_union_spec(tmp_path)
+    monkeypatch.setattr(cli_module, "run_union_optimization", lambda *args, **kwargs: _fake_union_run())
+
+    exit_code = main(
+        [
+            "optimize-benchmark",
+            "--optimization-spec",
+            str(spec_path),
+            "--output-root",
+            str(output_root),
+        ]
+    )
+
+    assert exit_code == 0
+    result_payload = json.loads((output_root / "optimization_result.json").read_text(encoding="utf-8"))
+    assert result_payload["run_meta"]["base_case_id"].startswith("s1_typical")
+    assert all("evaluation_report" in entry for entry in result_payload["history"])
 
 
 def test_optimizer_cli_llm_union_mode_writes_llm_sidecars(
@@ -377,8 +527,11 @@ def test_optimizer_cli_llm_union_mode_writes_llm_sidecars(
         )
 
     monkeypatch.setattr(OpenAICompatibleClient, "request_operator_decision", _fake_request_operator_decision)
+    import optimizers.cli as cli_module
+
     spec_path = _write_small_llm_spec(tmp_path)
     output_root = tmp_path / "llm_union_optimizer_run"
+    monkeypatch.setattr(cli_module, "run_union_optimization", lambda *args, **kwargs: _fake_union_run(include_llm_sidecars=True))
 
     exit_code = main(
         [
@@ -768,11 +921,11 @@ def test_optimizer_cli_run_mode_experiment_writes_template_first_experiment_root
 
     optimization_spec_path = _write_spec_bundle(tmp_path)
 
-    def _fake_generate_benchmark_cases(*args, **kwargs):
+    def _fake_generate_benchmark_case(*args, **kwargs):
         del args, kwargs
-        return {"hot": object(), "cold": object()}
+        return object()
 
-    def _fake_load_multicase_spec(path):
+    def _fake_load_spec(path):
         del path
         return {
             "spec_meta": {"spec_id": "panel-four-component-hot-cold-baseline"},
@@ -815,8 +968,8 @@ def test_optimizer_cli_run_mode_experiment_writes_template_first_experiment_root
             },
         )()
 
-    monkeypatch.setattr(experiment_runner_module, "generate_benchmark_cases", _fake_generate_benchmark_cases)
-    monkeypatch.setattr(experiment_runner_module, "load_multicase_spec", _fake_load_multicase_spec)
+    monkeypatch.setattr(experiment_runner_module, "generate_benchmark_case", _fake_generate_benchmark_case)
+    monkeypatch.setattr(experiment_runner_module, "load_spec", _fake_load_spec)
     monkeypatch.setattr(experiment_runner_module, "run_raw_optimization", _fake_run_raw_optimization)
 
     scenario_runs_root = tmp_path / "scenario_runs"

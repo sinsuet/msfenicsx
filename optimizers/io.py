@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from core.generator.paired_pipeline import generate_operating_case_pair
+from core.generator.pipeline import generate_case
 from optimizers.models import OptimizationResult, OptimizationSpec
 
 
@@ -38,10 +38,16 @@ def resolve_benchmark_template_path(spec_path: str | Path, optimization_spec: Op
     return _resolve_path(spec_path, spec_payload["benchmark_source"]["template_path"])
 
 
-def generate_benchmark_cases(spec_path: str | Path, optimization_spec: OptimizationSpec | dict[str, Any]) -> dict[str, Any]:
+def generate_benchmark_case(spec_path: str | Path, optimization_spec: OptimizationSpec | dict[str, Any]) -> Any:
     spec_payload = _coerce_payload(optimization_spec)
     template_path = resolve_benchmark_template_path(spec_path, spec_payload)
-    return generate_operating_case_pair(template_path, seed=int(spec_payload["benchmark_source"]["seed"]))
+    return generate_case(template_path, seed=int(spec_payload["benchmark_source"]["seed"]))
+
+
+def generate_benchmark_cases(spec_path: str | Path, optimization_spec: OptimizationSpec | dict[str, Any]) -> Any:
+    """Compatibility alias for older call sites; returns a single benchmark case."""
+
+    return generate_benchmark_case(spec_path, optimization_spec)
 
 
 def _coerce_payload(value: OptimizationSpec | OptimizationResult | dict[str, Any]) -> dict[str, Any]:

@@ -6,14 +6,14 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from evaluation.io import load_multicase_spec
+from evaluation.io import load_spec
 from llm.openai_compatible.replay import replay_request_trace_file, save_replay_summary
 from optimizers.artifacts import write_optimization_artifacts
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
 from optimizers.experiment_layout import resolve_experiment_mode_id
 from optimizers.experiment_runner import run_mode_experiment
-from optimizers.io import generate_benchmark_cases, load_optimization_spec, resolve_evaluation_spec_path
+from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
 from visualization.template_comparison import render_template_comparisons
 
@@ -59,14 +59,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "optimize-benchmark":
         optimization_spec = load_optimization_spec(args.optimization_spec)
-        cases = generate_benchmark_cases(args.optimization_spec, optimization_spec)
+        base_case = generate_benchmark_case(args.optimization_spec, optimization_spec)
         evaluation_spec_path = resolve_evaluation_spec_path(args.optimization_spec, optimization_spec)
-        evaluation_spec = load_multicase_spec(evaluation_spec_path)
+        evaluation_spec = load_spec(evaluation_spec_path)
         mode = optimization_spec.algorithm["mode"]
         if mode == "raw":
-            run = run_raw_optimization(cases, optimization_spec, evaluation_spec, spec_path=args.optimization_spec)
+            run = run_raw_optimization(base_case, optimization_spec, evaluation_spec, spec_path=args.optimization_spec)
         elif mode == "union":
-            run = run_union_optimization(cases, optimization_spec, evaluation_spec, spec_path=args.optimization_spec)
+            run = run_union_optimization(base_case, optimization_spec, evaluation_spec, spec_path=args.optimization_spec)
         else:
             raise ValueError(f"Unsupported optimizer mode {mode!r}.")
         evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)

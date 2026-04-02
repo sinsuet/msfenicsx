@@ -330,7 +330,6 @@ def _validate_candidate_record(record: Any, label: str) -> None:
         "decision_vector",
         "objective_values",
         "constraint_values",
-        "case_reports",
     )
     _require_mapping(record, label)
     _require_required_keys(record, required_keys, label)
@@ -341,7 +340,15 @@ def _validate_candidate_record(record: Any, label: str) -> None:
     decision_vector = _require_mapping(record["decision_vector"], f"{label}.decision_vector")
     objective_values = _require_mapping(record["objective_values"], f"{label}.objective_values")
     constraint_values = _require_mapping(record["constraint_values"], f"{label}.constraint_values")
-    case_reports = _require_mapping(record["case_reports"], f"{label}.case_reports")
+    if "evaluation_report" in record:
+        _require_mapping(record["evaluation_report"], f"{label}.evaluation_report")
+    elif "case_reports" in record:
+        case_reports = _require_mapping(record["case_reports"], f"{label}.case_reports")
+        for name, report in case_reports.items():
+            _require_text(name, f"{label}.case_reports key")
+            _require_mapping(report, f"{label}.case_reports['{name}']")
+    else:
+        raise OptimizationValidationError(f"{label} must include evaluation_report or case_reports.")
     for name, value in decision_vector.items():
         _require_text(name, f"{label}.decision_vector key")
         _require_real(value, f"{label}.decision_vector['{name}']")
@@ -351,9 +358,6 @@ def _validate_candidate_record(record: Any, label: str) -> None:
     for name, value in constraint_values.items():
         _require_text(name, f"{label}.constraint_values key")
         _require_real(value, f"{label}.constraint_values['{name}']")
-    for name, report in case_reports.items():
-        _require_text(name, f"{label}.case_reports key")
-        _require_mapping(report, f"{label}.case_reports['{name}']")
 
 
 def _require_required_keys(payload: Mapping[str, Any], required_keys: Sequence[str], label: str) -> None:

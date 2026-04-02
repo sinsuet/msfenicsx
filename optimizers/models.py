@@ -1,4 +1,4 @@
-"""Canonical contracts for multicase optimizer-layer specs and results."""
+"""Canonical contracts for single-case optimizer-layer specs and results."""
 
 from __future__ import annotations
 

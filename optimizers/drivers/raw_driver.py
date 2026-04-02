@@ -10,10 +10,10 @@ import numpy as np
 from pymoo.optimize import minimize
 
 from core.schema.io import load_case
-from evaluation.io import load_multicase_spec
+from evaluation.io import load_spec
 from optimizers.algorithm_config import resolve_algorithm_config
 from optimizers.generation_callback import GenerationSummaryCallback
-from optimizers.io import generate_benchmark_cases, load_optimization_spec, resolve_evaluation_spec_path
+from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.models import OptimizationResult
 from optimizers.problem import CandidateArtifacts, ThermalOptimizationProblem, objective_to_minimization
 from optimizers.raw_backbones.registry import build_raw_algorithm
@@ -27,7 +27,7 @@ class OptimizationRun:
 
 
 def run_raw_optimization(
-    base_cases: dict[str, Any],
+    base_case: Any,
     optimization_spec: Any,
     evaluation_spec: Any,
     *,
@@ -39,9 +39,7 @@ def run_raw_optimization(
     if algorithm_config["mode"] != "raw":
         raise ValueError(f"run_raw_optimization only supports algorithm.mode='raw', got {algorithm_config['mode']!r}.")
 
-    loaded_cases = _load_base_cases(base_cases)
-    problem = ThermalOptimizationProblem(loaded_cases, spec_payload, evaluation_payload)
-    baseline_record = problem.evaluate_baseline()
+    loaded_case, problem, baseline_record = _initialize_single_case_problem(base_case, spec_payload, evaluation_payload)
 
     algorithm = build_raw_algorithm(problem, algorithm_config)
     generation_callback = GenerationSummaryCallback(objective_definitions=evaluation_payload["objectives"])
@@ -58,7 +56,7 @@ def run_raw_optimization(
     pareto_front = _extract_pareto_front(problem.history, evaluation_payload["objectives"])
     representative_candidates = _build_representative_candidates(pareto_front, evaluation_payload["objectives"])
     result_payload = _build_result_payload(
-        loaded_cases=loaded_cases,
+        loaded_case=loaded_case,
         spec_payload=spec_payload,
         evaluation_payload=evaluation_payload,
         baseline_record=baseline_record,
@@ -80,23 +78,30 @@ def run_raw_optimization(
 
 def run_raw_optimization_from_spec(spec_path: str | Path) -> OptimizationRun:
     optimization_spec = load_optimization_spec(spec_path)
-    base_cases = generate_benchmark_cases(spec_path, optimization_spec)
-    evaluation_spec = load_multicase_spec(resolve_evaluation_spec_path(spec_path, optimization_spec))
-    return run_raw_optimization(base_cases, optimization_spec, evaluation_spec, spec_path=spec_path)
+    base_case = generate_benchmark_case(spec_path, optimization_spec)
+    evaluation_spec = load_spec(resolve_evaluation_spec_path(spec_path, optimization_spec))
+    return run_raw_optimization(base_case, optimization_spec, evaluation_spec, spec_path=spec_path)
 
 
-def _load_base_cases(base_cases: dict[str, Any]) -> dict[str, Any]:
-    loaded_cases: dict[str, Any] = {}
-    for operating_case_id, case in base_cases.items():
-        if isinstance(case, (str, Path)):
-            loaded_cases[operating_case_id] = load_case(case)
-        else:
-            loaded_cases[operating_case_id] = case
-    return loaded_cases
+def _load_base_case(base_case: Any) -> Any:
+    if isinstance(base_case, (str, Path)):
+        return load_case(base_case)
+    return base_case
+
+
+def _initialize_single_case_problem(
+    base_case: Any,
+    spec_payload: dict[str, Any],
+    evaluation_payload: dict[str, Any],
+) -> tuple[Any, ThermalOptimizationProblem, dict[str, Any]]:
+    loaded_case = _load_base_case(base_case)
+    problem = ThermalOptimizationProblem(loaded_case, spec_payload, evaluation_payload)
+    baseline_record = problem.evaluate_baseline()
+    return loaded_case, problem, baseline_record
 
 
 def _build_result_payload(
-    loaded_cases: dict[str, Any],
+    loaded_case: Any,
     spec_payload: dict[str, Any],
     evaluation_payload: dict[str, Any],
     baseline_record: dict[str, Any],
@@ -115,10 +120,9 @@ def _build_result_payload(
                 f"-a{int(spec_payload['algorithm']['seed'])}"
                 "-run"
             ),
-            "base_case_ids": {
-                operating_case_id: case.to_dict()["case_meta"]["case_id"] if hasattr(case, "to_dict") else case["case_meta"]["case_id"]
-                for operating_case_id, case in loaded_cases.items()
-            },
+            "base_case_id": loaded_case.to_dict()["case_meta"]["case_id"]
+            if hasattr(loaded_case, "to_dict")
+            else loaded_case["case_meta"]["case_id"],
             "optimization_spec_id": spec_payload["spec_meta"]["spec_id"],
             "evaluation_spec_id": evaluation_payload["spec_meta"]["spec_id"],
             "benchmark_seed": int(spec_payload["benchmark_source"]["seed"]),
@@ -136,10 +140,9 @@ def _build_result_payload(
         "history": history,
         "provenance": {
             "benchmark_source": spec_payload.get("benchmark_source"),
-            "source_case_ids": {
-                operating_case_id: case.to_dict()["case_meta"]["case_id"] if hasattr(case, "to_dict") else case["case_meta"]["case_id"]
-                for operating_case_id, case in loaded_cases.items()
-            },
+            "source_case_id": loaded_case.to_dict()["case_meta"]["case_id"]
+            if hasattr(loaded_case, "to_dict")
+            else loaded_case["case_meta"]["case_id"],
             "source_optimization_spec_id": spec_payload["spec_meta"]["spec_id"],
             "source_evaluation_spec_id": evaluation_payload["spec_meta"]["spec_id"],
         },

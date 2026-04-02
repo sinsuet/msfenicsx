@@ -391,7 +391,11 @@ def build_genetic_union_algorithm(problem: Any, optimization_spec: Any, algorith
         controller_id=str(operator_control["controller"]),
         controller_parameters=deepcopy(operator_control.get("controller_parameters")),
         variable_layout=VariableLayout.from_optimization_spec(spec_payload),
-        repair_reference_case=next(iter(problem.base_cases.values())),
+        repair_reference_case=(
+            problem.base_case
+            if hasattr(problem, "base_case")
+            else next(iter(problem.base_cases.values()))
+        ),
         optimization_spec=spec_payload,
         family=str(algorithm_config["family"]),
         backbone=str(algorithm_config["backbone"]),
