@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from core.geometry.layout_rules import component_within_domain, components_overlap
+from core.geometry.layout_rules import component_polygon, component_within_domain, components_overlap
 from core.schema.models import ThermalCase
 from optimizers.codec import DecisionVectorError, _set_path_value
 from optimizers.cheap_constraints import project_sink_interval
@@ -313,17 +313,23 @@ def _axis_overlap(center_a: float, size_a: float, center_b: float, size_b: float
 
 
 def _component_overlap_deltas(left: dict[str, Any], right: dict[str, Any]) -> tuple[float, float]:
+    left_min_x, left_min_y, left_max_x, left_max_y = component_polygon(left).bounds
+    right_min_x, right_min_y, right_max_x, right_max_y = component_polygon(right).bounds
+    left_width = float(left_max_x) - float(left_min_x)
+    left_height = float(left_max_y) - float(left_min_y)
+    right_width = float(right_max_x) - float(right_min_x)
+    right_height = float(right_max_y) - float(right_min_y)
     overlap_x = _axis_overlap(
-        float(left["pose"]["x"]),
-        float(left["geometry"]["width"]),
-        float(right["pose"]["x"]),
-        float(right["geometry"]["width"]),
+        0.5 * (float(left_min_x) + float(left_max_x)),
+        left_width,
+        0.5 * (float(right_min_x) + float(right_max_x)),
+        right_width,
     )
     overlap_y = _axis_overlap(
-        float(left["pose"]["y"]),
-        float(left["geometry"]["height"]),
-        float(right["pose"]["y"]),
-        float(right["geometry"]["height"]),
+        0.5 * (float(left_min_y) + float(left_max_y)),
+        left_height,
+        0.5 * (float(right_min_y) + float(right_max_y)),
+        right_height,
     )
     return overlap_x, overlap_y
 

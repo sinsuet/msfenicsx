@@ -26,6 +26,8 @@ def test_generate_case_then_solve_cli_smoke(tmp_path: Path) -> None:
     assert generate_code == 0
     case_files = sorted(generated_cases.glob("*.yaml"))
     assert len(case_files) == 1
+    generated_case_payload = yaml.safe_load(case_files[0].read_text(encoding="utf-8"))
+    assert len({component["shape"] for component in generated_case_payload["components"]}) > 1
 
     solve_code = main(
         [

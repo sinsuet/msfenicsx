@@ -25,6 +25,7 @@ def _case():
 def test_repair_case_from_vector_projects_sink_budget_and_restores_case_geometry() -> None:
     case = _case()
     spec = _spec()
+    assert len({component["shape"] for component in case.components}) > 1
     vector = extract_decision_vector(case, spec)
     dense_cluster = (0.18, 0.18)
     for component_index in range(5):
@@ -44,3 +45,23 @@ def test_repair_case_from_vector_projects_sink_budget_and_restores_case_geometry
     assert_case_geometry_contracts(repaired)
     assert feature["start"] < feature["end"]
     assert feature["end"] - feature["start"] == pytest.approx(RADIATOR_SPAN_MAX)
+
+
+def test_repair_case_from_vector_restores_mixed_shape_geometry() -> None:
+    case = _case()
+    spec = _spec()
+    vector = extract_decision_vector(case, spec)
+
+    for component_index in range(4):
+        vector[component_index * 2] = 0.18
+        vector[component_index * 2 + 1] = 0.18
+
+    repaired = repair_case_from_vector(
+        case,
+        spec,
+        np.asarray(vector, dtype=np.float64),
+        radiator_span_max=RADIATOR_SPAN_MAX,
+    )
+
+    assert len({component["shape"] for component in repaired.components}) > 1
+    assert_case_geometry_contracts(repaired)
