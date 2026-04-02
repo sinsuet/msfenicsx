@@ -416,6 +416,11 @@ def test_optimizer_cli_optimize_benchmark_writes_result_and_pareto_artifacts(tmp
         assert (output_root / directory_name).is_dir()
 
     result_payload = json.loads((output_root / "optimization_result.json").read_text(encoding="utf-8"))
+    generation_summary_rows = [
+        json.loads(line)
+        for line in (output_root / "generation_summary.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert result_payload["run_meta"]["optimization_spec_id"] == _optimization_spec_payload()["spec_meta"]["spec_id"]
     assert result_payload["run_meta"]["base_case_id"].startswith("s1_typical")
     assert result_payload["provenance"]["source_case_id"] == result_payload["run_meta"]["base_case_id"]
@@ -424,6 +429,10 @@ def test_optimizer_cli_optimize_benchmark_writes_result_and_pareto_artifacts(tmp
     assert all("operator_id" not in entry for entry in result_payload["history"])
     assert all("evaluation_report" in entry for entry in result_payload["history"])
     assert all("case_reports" not in entry for entry in result_payload["history"])
+    assert generation_summary_rows
+    assert "best_minimize_peak_temperature" in generation_summary_rows[0]
+    assert "best_minimize_temperature_gradient_rms" in generation_summary_rows[0]
+    assert "best_hot_pa_peak" not in generation_summary_rows[0]
 
 
 def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_bundles(tmp_path: Path) -> None:
@@ -443,10 +452,18 @@ def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_
     representative_roots = sorted(path for path in (output_root / "representatives").iterdir() if path.is_dir())
     assert representative_roots
     for representative_root in representative_roots:
-        assert (representative_root / "manifest.json").exists()
+        manifest_payload = json.loads((representative_root / "manifest.json").read_text(encoding="utf-8"))
         assert (representative_root / "evaluation.yaml").exists()
-        assert len(list((representative_root / "cases").glob("*.yaml"))) == 1
-        assert len(list((representative_root / "solutions").glob("*.yaml"))) == 1
+        assert manifest_payload["case_snapshot"] == "case.yaml"
+        assert manifest_payload["solution_snapshot"] == "solution.yaml"
+        assert manifest_payload["evaluation_snapshot"] == "evaluation.yaml"
+        assert (representative_root / "case.yaml").exists()
+        assert (representative_root / "solution.yaml").exists()
+    manifest_payload = json.loads(
+        (output_root / "representatives" / "min-peak-temperature" / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest_payload["case_snapshot"] == "case.yaml"
+    assert manifest_payload["evaluation_snapshot"] == "evaluation.yaml"
 
 
 def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(tmp_path: Path, monkeypatch) -> None:

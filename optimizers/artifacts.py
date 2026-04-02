@@ -86,12 +86,10 @@ def write_optimization_artifacts(
 
 def _write_representative_bundle(bundle_root: Path, artifacts: CandidateArtifacts) -> None:
     _initialize_bundle_root(bundle_root)
-    cases_root = bundle_root / "cases"
-    solutions_root = bundle_root / "solutions"
-    case_snapshot = "cases/case.yaml"
-    solution_snapshot = "solutions/solution.yaml"
-    save_case(artifacts.case, cases_root / "case.yaml")
-    save_solution(artifacts.solution, solutions_root / "solution.yaml")
+    case_snapshot = "case.yaml"
+    solution_snapshot = "solution.yaml"
+    save_case(artifacts.case, bundle_root / "case.yaml")
+    save_solution(artifacts.solution, bundle_root / "solution.yaml")
     if artifacts.evaluation is not None:
         save_report(artifacts.evaluation, bundle_root / "evaluation.yaml")
     manifest = {
@@ -107,8 +105,6 @@ def _initialize_bundle_root(bundle_root: Path, *, include_representatives: bool 
     bundle_root.mkdir(parents=True, exist_ok=True)
     for directory_name in _bundle_directories(include_representatives=include_representatives).values():
         (bundle_root / directory_name).mkdir(parents=True, exist_ok=True)
-    (bundle_root / "cases").mkdir(parents=True, exist_ok=True)
-    (bundle_root / "solutions").mkdir(parents=True, exist_ok=True)
 
 
 def _bundle_directories(*, include_representatives: bool = False) -> dict[str, str]:

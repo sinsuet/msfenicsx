@@ -83,6 +83,7 @@ def build_run_index(experiment_root: str | Path) -> list[dict[str, Any]]:
     for run_root in _iter_run_roots(root):
         result_payload = _load_json(run_root / "optimization_result.json")
         history = list(result_payload.get("history", []))
+        objective_definitions = _objective_definitions_from_history(history)
         evaluation_rows = (
             load_jsonl_rows(run_root / "evaluation_events.jsonl")
             if (run_root / "evaluation_events.jsonl").exists()
@@ -99,9 +100,6 @@ def build_run_index(experiment_root: str | Path) -> list[dict[str, Any]]:
                 "feasible_rate": float(result_payload["aggregate_metrics"].get("feasible_rate", 0.0)),
                 "first_feasible_eval": result_payload["aggregate_metrics"].get("first_feasible_eval"),
                 "pareto_size": int(result_payload["aggregate_metrics"].get("pareto_size", 0)),
-                "best_hot_pa_peak": _best_objective_value(history, "minimize_hot_pa_peak", "minimize"),
-                "best_cold_battery_min": _best_objective_value(history, "maximize_cold_battery_min", "maximize"),
-                "best_radiator_resource": _best_objective_value(history, "minimize_radiator_resource", "minimize"),
                 "best_total_cv_among_infeasible": _best_total_cv_among_infeasible(history),
                 "controller_trace": (run_root / "controller_trace.json").exists(),
                 "operator_trace": (run_root / "operator_trace.json").exists(),
@@ -110,20 +108,32 @@ def build_run_index(experiment_root: str | Path) -> list[dict[str, Any]]:
                 "failure_count": int(sum(1 for row in evaluation_rows if row.get("failure_reason"))),
             }
         )
+        rows[-1].update(
+            {
+                f"best_{objective_id}": _best_objective_value(history, objective_id, sense)
+                for objective_id, sense in objective_definitions
+            }
+        )
     rows.sort(key=lambda row: int(row["seed"]))
     return rows
 
 
 def build_aggregate_summary(run_rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    dynamic_best_keys = sorted(
+        {
+            str(key)
+            for row in run_rows
+            for key in row.keys()
+            if str(key).startswith("best_") and str(key) != "best_total_cv_among_infeasible"
+        }
+    )
     numeric_keys = (
         "num_evaluations",
         "feasible_rate",
         "first_feasible_eval",
         "pareto_size",
-        "best_hot_pa_peak",
-        "best_cold_battery_min",
-        "best_radiator_resource",
         "best_total_cv_among_infeasible",
+        *dynamic_best_keys,
     )
     return {
         "num_runs": int(len(run_rows)),
@@ -215,6 +225,14 @@ def build_generation_summary(experiment_root: str | Path) -> dict[str, Any]:
         path = run_root / "generation_summary.jsonl"
         if path.exists():
             generation_rows.extend(load_jsonl_rows(path))
+    dynamic_best_keys = sorted(
+        {
+            str(key)
+            for row in generation_rows
+            for key in row.keys()
+            if str(key).startswith("best_") and str(key) != "best_total_constraint_violation"
+        }
+    )
     grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for row in generation_rows:
         grouped[int(row["generation_index"])].append(row)
@@ -225,9 +243,10 @@ def build_generation_summary(experiment_root: str | Path) -> dict[str, Any]:
                 "generation_index": generation_index,
                 "mean_feasible_fraction": _mean_of(group_rows, "feasible_fraction"),
                 "mean_best_total_constraint_violation": _mean_of(group_rows, "best_total_constraint_violation"),
-                "mean_best_hot_pa_peak": _mean_of(group_rows, "best_hot_pa_peak"),
-                "mean_best_cold_battery_min": _mean_of(group_rows, "best_cold_battery_min"),
-                "mean_best_radiator_resource": _mean_of(group_rows, "best_radiator_resource"),
+                **{
+                    f"mean_{best_key}": _mean_of(group_rows, best_key)
+                    for best_key in dynamic_best_keys
+                },
                 "mean_pareto_size": _mean_of(group_rows, "pareto_size"),
             }
             for generation_index, group_rows in sorted(grouped.items())
@@ -513,6 +532,22 @@ def _best_objective_value(history: Sequence[Mapping[str, Any]], objective_id: st
     if not feasible_values:
         return None
     return float(max(feasible_values) if sense == "maximize" else min(feasible_values))
+
+
+def _objective_definitions_from_history(history: Sequence[Mapping[str, Any]]) -> list[tuple[str, str]]:
+    for row in history:
+        objective_values = row.get("objective_values", {})
+        if not isinstance(objective_values, Mapping) or not objective_values:
+            continue
+        return [
+            (str(objective_id), _objective_sense(str(objective_id)))
+            for objective_id in objective_values.keys()
+        ]
+    return []
+
+
+def _objective_sense(objective_id: str) -> str:
+    return "maximize" if objective_id.startswith("maximize_") else "minimize"
 
 
 def _best_total_cv_among_infeasible(history: Sequence[Mapping[str, Any]]) -> float | None:

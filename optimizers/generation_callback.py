@@ -74,9 +74,6 @@ class GenerationSummaryCallback(Callback):
             "best_total_constraint_violation": (
                 0.0 if len(total_constraint_violation) <= 0 else float(np.min(total_constraint_violation))
             ),
-            "best_hot_pa_peak": self._best_objective_value(objective_matrix, "minimize_hot_pa_peak"),
-            "best_cold_battery_min": self._best_objective_value(objective_matrix, "maximize_cold_battery_min"),
-            "best_radiator_resource": self._best_objective_value(objective_matrix, "minimize_radiator_resource"),
             "pareto_size": self._pareto_size(objective_matrix, feasible_mask),
             "new_feasible_entries": int(sum(1 for record in new_history if bool(record.get("feasible", False)))),
             "new_pareto_entries": int(
@@ -87,6 +84,9 @@ class GenerationSummaryCallback(Callback):
                 )
             ),
         }
+        for definition in self.objective_definitions:
+            objective_id = str(definition["objective_id"])
+            row[f"best_{objective_id}"] = self._best_objective_value(objective_matrix, objective_id)
         self.rows.append(row)
 
     def _best_objective_value(self, objective_matrix: np.ndarray, objective_id: str) -> float | None:
