@@ -11,8 +11,11 @@ from llm.openai_compatible.replay import replay_request_trace_file, save_replay_
 from optimizers.artifacts import write_optimization_artifacts
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
+from optimizers.experiment_layout import resolve_experiment_mode_id
+from optimizers.experiment_runner import run_mode_experiment
 from optimizers.io import generate_benchmark_cases, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
+from visualization.template_comparison import render_template_comparisons
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,6 +26,11 @@ def build_parser() -> argparse.ArgumentParser:
     optimize_parser.add_argument("--optimization-spec", required=True)
     optimize_parser.add_argument("--output-root", required=True)
 
+    experiment_parser = subparsers.add_parser("run-mode-experiment")
+    experiment_parser.add_argument("--optimization-spec", required=True)
+    experiment_parser.add_argument("--scenario-runs-root", required=True)
+    experiment_parser.add_argument("--benchmark-seed", type=int, action="append", default=[])
+
     replay_parser = subparsers.add_parser("replay-llm-trace")
     replay_parser.add_argument("--optimization-spec", required=True)
     replay_parser.add_argument("--request-trace", required=True)
@@ -31,7 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     diagnostics_parser = subparsers.add_parser("analyze-controller-trace")
     diagnostics_parser.add_argument("--controller-trace", required=True)
+    diagnostics_parser.add_argument("--optimization-result", required=False)
+    diagnostics_parser.add_argument("--operator-trace", required=False)
+    diagnostics_parser.add_argument("--llm-request-trace", required=False)
+    diagnostics_parser.add_argument("--llm-response-trace", required=False)
     diagnostics_parser.add_argument("--output", required=True)
+
+    comparison_parser = subparsers.add_parser("render-template-comparison")
+    comparison_parser.add_argument("--template-root", required=True)
 
     return parser
 
@@ -54,7 +69,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             run = run_union_optimization(cases, optimization_spec, evaluation_spec, spec_path=args.optimization_spec)
         else:
             raise ValueError(f"Unsupported optimizer mode {mode!r}.")
-        write_optimization_artifacts(args.output_root, run)
+        evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
+        write_optimization_artifacts(
+            args.output_root,
+            run,
+            mode_id=resolve_experiment_mode_id(optimization_spec, strict_nsga2=False),
+            seed=int(optimization_spec.benchmark_source["seed"]),
+            objective_definitions=list(evaluation_payload["objectives"]),
+        )
+        return 0
+    if args.command == "run-mode-experiment":
+        run_mode_experiment(
+            optimization_spec_path=Path(args.optimization_spec),
+            benchmark_seeds=list(args.benchmark_seed),
+            scenario_runs_root=Path(args.scenario_runs_root),
+        )
         return 0
     if args.command == "replay-llm-trace":
         optimization_spec = load_optimization_spec(args.optimization_spec)
@@ -69,8 +98,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         save_replay_summary(args.output, replay_summary)
         return 0
     if args.command == "analyze-controller-trace":
-        summary = analyze_controller_trace(Path(args.controller_trace))
+        summary = analyze_controller_trace(
+            Path(args.controller_trace),
+            optimization_result_path=None if args.optimization_result is None else Path(args.optimization_result),
+            operator_trace_path=None if args.operator_trace is None else Path(args.operator_trace),
+            llm_request_trace_path=None if args.llm_request_trace is None else Path(args.llm_request_trace),
+            llm_response_trace_path=None if args.llm_response_trace is None else Path(args.llm_response_trace),
+        )
         save_controller_trace_summary(args.output, summary)
+        return 0
+    if args.command == "render-template-comparison":
+        render_template_comparisons(Path(args.template_root))
         return 0
     parser.error(f"Unsupported command: {args.command}")
     return 0

@@ -13,6 +13,7 @@ import numpy as np
 from llm.openai_compatible import OpenAICompatibleClient, OpenAICompatibleConfig
 from optimizers.operator_pool.decisions import ControllerDecision
 from optimizers.operator_pool.policy_kernel import PolicySnapshot, build_policy_snapshot
+from optimizers.operator_pool.prompt_projection import build_prompt_projection
 from optimizers.operator_pool.random_controller import RandomUniformController
 from optimizers.operator_pool.state import ControllerState
 
@@ -31,7 +32,6 @@ _OPERATOR_ROLE_SUMMARIES: dict[str, str] = {
 _RECENT_DOMINANCE_MIN_WINDOW = 6
 _RECENT_DOMINANCE_MIN_COUNT = 5
 _RECENT_DOMINANCE_MIN_SHARE = 0.75
-_PREFEASIBLE_MIN_SUPPORTED_SELECTIONS = 3
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_WINDOW = 4
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_COUNT = 4
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_SHARE = 0.75
@@ -59,11 +59,20 @@ class LLMOperatorController:
         self.response_trace: list[dict[str, Any]] = []
         self.reflection_trace: list[dict[str, Any]] = []
         self.metrics: dict[str, Any] = {
+            "provider": self.config.provider,
+            "model": self.config.model,
+            "capability_profile": self.config.capability_profile,
+            "performance_profile": self.config.performance_profile,
             "request_count": 0,
             "response_count": 0,
             "fallback_count": 0,
+            "retry_count": 0,
+            "invalid_response_count": 0,
+            "schema_invalid_count": 0,
+            "semantic_invalid_count": 0,
             "elapsed_seconds_total": 0.0,
             "elapsed_seconds_avg": 0.0,
+            "elapsed_seconds_max": 0.0,
         }
 
     def select_operator(
@@ -93,6 +102,11 @@ class LLMOperatorController:
             effective_candidate_operator_ids=candidate_operator_ids,
             policy_snapshot=policy_snapshot,
             dominance_guardrail=dominance_guardrail,
+        )
+        entry_convert_metadata = self._entry_convert_metadata(
+            state=state,
+            policy_snapshot=policy_snapshot,
+            candidate_operator_ids=candidate_operator_ids,
         )
 
         system_prompt = self._build_system_prompt(
@@ -125,19 +139,23 @@ class LLMOperatorController:
                 "guardrail": None if guardrail is None else dict(guardrail),
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
+                **entry_convert_metadata,
             }
         )
         self.metrics["request_count"] = int(self.metrics["request_count"]) + 1
         started_at = time.perf_counter()
+        attempt_trace: list[dict[str, Any]] = []
         try:
-            response = self.client.request_operator_decision(
+            response = self._request_operator_decision(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 candidate_operator_ids=candidate_operator_ids,
+                attempt_trace=attempt_trace,
             )
         except Exception as exc:
             elapsed_seconds = max(0.0, float(time.perf_counter() - started_at))
             self.metrics["fallback_count"] = int(self.metrics["fallback_count"]) + 1
+            self._record_attempt_metrics(attempt_trace)
             self._record_elapsed_seconds(elapsed_seconds)
             self.response_trace.append(
                 {
@@ -155,7 +173,11 @@ class LLMOperatorController:
                     "guardrail": None if guardrail is None else dict(guardrail),
                     "fallback_used": True,
                     "error": str(exc),
+                    "attempt_trace": list(attempt_trace),
+                    "attempt_count": int(len(attempt_trace)),
+                    "retry_count": int(max(0, len(attempt_trace) - 1)),
                     "elapsed_seconds": elapsed_seconds,
+                    **entry_convert_metadata,
                 }
             )
             fallback_decision = self.fallback_controller.select_decision(state, candidate_operator_ids, rng)
@@ -171,6 +193,8 @@ class LLMOperatorController:
                         model_phase="",
                         model_rationale_present=False,
                     ),
+                    **entry_convert_metadata,
+                    **self._selected_entry_metadata(policy_snapshot, fallback_decision.selected_operator_id),
                     "guardrail_reason_codes": list(policy_snapshot.reason_codes),
                 }
             )
@@ -184,6 +208,7 @@ class LLMOperatorController:
 
         elapsed_seconds = max(0.0, float(time.perf_counter() - started_at))
         self.metrics["response_count"] = int(self.metrics["response_count"]) + 1
+        self._record_attempt_metrics(attempt_trace)
         self._record_elapsed_seconds(elapsed_seconds)
         self.response_trace.append(
             {
@@ -206,7 +231,12 @@ class LLMOperatorController:
                 "policy_phase": policy_snapshot.phase,
                 "policy_reason_codes": list(policy_snapshot.reason_codes),
                 "policy_reset_active": policy_snapshot.reset_active,
+                "attempt_trace": list(attempt_trace),
+                "attempt_count": int(len(attempt_trace)),
+                "retry_count": int(max(0, len(attempt_trace) - 1)),
                 "elapsed_seconds": elapsed_seconds,
+                **entry_convert_metadata,
+                **self._selected_entry_metadata(policy_snapshot, response.selected_operator_id),
             }
         )
         response_metadata = {
@@ -222,6 +252,8 @@ class LLMOperatorController:
                 model_phase=response.phase,
                 model_rationale_present=bool(response.rationale.strip()),
             ),
+            **entry_convert_metadata,
+            **self._selected_entry_metadata(policy_snapshot, response.selected_operator_id),
             "guardrail_reason_codes": list(policy_snapshot.reason_codes),
         }
         response_metadata.update(self._decision_guardrail_metadata(guardrail))
@@ -237,6 +269,45 @@ class LLMOperatorController:
         count = int(self.metrics.get("request_count", 0))
         self.metrics["elapsed_seconds_total"] = total
         self.metrics["elapsed_seconds_avg"] = 0.0 if count <= 0 else total / count
+        self.metrics["elapsed_seconds_max"] = max(float(self.metrics.get("elapsed_seconds_max", 0.0)), elapsed_seconds)
+
+    def _request_operator_decision(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        candidate_operator_ids: Sequence[str],
+        attempt_trace: list[dict[str, Any]],
+    ) -> Any:
+        try:
+            return self.client.request_operator_decision(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                candidate_operator_ids=candidate_operator_ids,
+                attempt_trace=attempt_trace,
+            )
+        except TypeError as exc:
+            if "attempt_trace" not in str(exc):
+                raise
+            attempt_trace.clear()
+            return self.client.request_operator_decision(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                candidate_operator_ids=candidate_operator_ids,
+            )
+
+    def _record_attempt_metrics(self, attempt_trace: Sequence[dict[str, Any]]) -> None:
+        invalid_attempts = [row for row in attempt_trace if not bool(row.get("valid", False))]
+        self.metrics["retry_count"] = int(self.metrics.get("retry_count", 0)) + max(0, len(attempt_trace) - 1)
+        self.metrics["invalid_response_count"] = int(self.metrics.get("invalid_response_count", 0)) + len(
+            invalid_attempts
+        )
+        for row in invalid_attempts:
+            error_message = str(row.get("error", ""))
+            if "outside the requested operator registry" in error_message:
+                self.metrics["semantic_invalid_count"] = int(self.metrics.get("semantic_invalid_count", 0)) + 1
+            else:
+                self.metrics["schema_invalid_count"] = int(self.metrics.get("schema_invalid_count", 0)) + 1
 
     def _build_system_prompt(
         self,
@@ -317,49 +388,13 @@ class LLMOperatorController:
         policy_snapshot: PolicySnapshot,
         guardrail: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        metadata: dict[str, Any] = {
-            "candidate_operator_ids": list(candidate_operator_ids),
-        }
-        if "search_phase" in state.metadata:
-            metadata["search_phase"] = state.metadata["search_phase"]
-        if "run_state" in state.metadata:
-            metadata["run_state"] = dict(state.metadata["run_state"])
-        if "parent_state" in state.metadata:
-            metadata["parent_state"] = dict(state.metadata["parent_state"])
-        if "archive_state" in state.metadata:
-            metadata["archive_state"] = dict(state.metadata["archive_state"])
-        if "domain_regime" in state.metadata:
-            metadata["domain_regime"] = dict(state.metadata["domain_regime"])
-        if "progress_state" in state.metadata:
-            metadata["progress_state"] = dict(state.metadata["progress_state"])
-        if "recent_decisions" in state.metadata:
-            metadata["recent_decisions"] = list(state.metadata["recent_decisions"])
-        if "recent_operator_counts" in state.metadata:
-            metadata["recent_operator_counts"] = {
-                str(operator_id): dict(summary)
-                for operator_id, summary in dict(state.metadata["recent_operator_counts"]).items()
-                if str(operator_id) in candidate_operator_ids
-            }
-        if "operator_summary" in state.metadata:
-            metadata["operator_summary"] = LLMOperatorController._build_prompt_operator_summary(
-                state,
-                candidate_operator_ids,
-            )
-        metadata["phase_policy"] = {
-            "phase": policy_snapshot.phase,
-            "reset_active": policy_snapshot.reset_active,
-            "reason_codes": list(policy_snapshot.reason_codes),
-            "candidate_annotations": {
-                operator_id: dict(annotation)
-                for operator_id, annotation in policy_snapshot.candidate_annotations.items()
-                if operator_id in candidate_operator_ids
-            },
-        }
-        if tuple(original_candidate_operator_ids) != tuple(candidate_operator_ids):
-            metadata["original_candidate_operator_ids"] = list(original_candidate_operator_ids)
-        if guardrail is not None:
-            metadata["decision_guardrail"] = dict(guardrail)
-        return metadata
+        return build_prompt_projection(
+            state,
+            candidate_operator_ids=candidate_operator_ids,
+            original_candidate_operator_ids=original_candidate_operator_ids,
+            policy_snapshot=policy_snapshot,
+            guardrail=guardrail,
+        )
 
     @staticmethod
     def _is_before_first_feasible(state: ControllerState) -> bool:
@@ -367,49 +402,6 @@ class LLMOperatorController:
         if not isinstance(run_state, dict):
             return False
         return run_state.get("first_feasible_eval") is None
-
-    @staticmethod
-    def _build_prompt_operator_summary(
-        state: ControllerState,
-        candidate_operator_ids: Sequence[str],
-    ) -> dict[str, dict[str, Any]]:
-        raw_operator_summary = state.metadata.get("operator_summary", {})
-        if not isinstance(raw_operator_summary, dict):
-            return {}
-        before_first_feasible = LLMOperatorController._is_before_first_feasible(state)
-        prompt_operator_summary: dict[str, dict[str, Any]] = {}
-        for operator_id, raw_summary in raw_operator_summary.items():
-            if str(operator_id) not in candidate_operator_ids:
-                continue
-            summary = dict(raw_summary)
-            if before_first_feasible:
-                summary = LLMOperatorController._calibrate_prefeasible_operator_summary(summary)
-            prompt_operator_summary[str(operator_id)] = summary
-        return prompt_operator_summary
-
-    @staticmethod
-    def _calibrate_prefeasible_operator_summary(summary: dict[str, Any]) -> dict[str, Any]:
-        calibrated_summary = dict(summary)
-        selection_count = int(calibrated_summary.get("selection_count", 0))
-        proposal_count = int(calibrated_summary.get("proposal_count", 0))
-        recent_selection_count = int(calibrated_summary.get("recent_selection_count", 0))
-        feasible_entry_count = int(calibrated_summary.get("feasible_entry_count", 0))
-        feasible_preservation_count = int(calibrated_summary.get("feasible_preservation_count", 0))
-        has_feasible_credit = feasible_entry_count > 0 or feasible_preservation_count > 0
-        support_count = max(selection_count, proposal_count, recent_selection_count)
-        evidence_level = (
-            "feasible_credit"
-            if has_feasible_credit
-            else "supported"
-            if support_count >= _PREFEASIBLE_MIN_SUPPORTED_SELECTIONS
-            else "limited"
-        )
-        calibrated_summary["evidence_level"] = evidence_level
-        if evidence_level == "limited":
-            calibrated_summary.pop("avg_total_violation_delta", None)
-            calibrated_summary.pop("recent_helpful_regimes", None)
-            calibrated_summary.pop("recent_harmful_regimes", None)
-        return calibrated_summary
 
     @staticmethod
     def _recent_llm_valid_operator_counter(
@@ -577,9 +569,27 @@ class LLMOperatorController:
             guidance.append(
                 "Cold-start policy: bootstrap with stable operator families before speculative custom exploration."
             )
+        elif policy_snapshot.phase == "prefeasible_convert":
+            guidance.append(
+                "Prefeasible convert policy: the search is near feasible, so prioritize first feasible conversion. "
+                "Preserve stable role diversity while favoring operators with supported entry evidence that can relieve "
+                "the dominant violation family."
+            )
         elif policy_snapshot.phase.startswith("prefeasible"):
             guidance.append(
-                "Prefeasible policy: prioritize trusted evidence and stable operator families before speculative custom families."
+                "Prefeasible policy: prioritize trusted evidence and stable operator roles before speculative custom families."
+            )
+        elif policy_snapshot.phase == "post_feasible_expand":
+            guidance.append(
+                "Post-feasible expand policy: feasibility is stable but frontier growth has stalled, so use Pareto and frontier contribution evidence to restore expansion."
+            )
+        elif policy_snapshot.phase == "post_feasible_preserve":
+            guidance.append(
+                "Post-feasible preserve policy: keep feasibility stable while diversifying across low-regression families that continue Pareto progress."
+            )
+        elif policy_snapshot.phase == "post_feasible_recover":
+            guidance.append(
+                "Post-feasible recover policy: recent feasible regressions increased, so narrow choices toward trusted preserve families until the frontier stabilizes again."
             )
         elif policy_snapshot.phase.startswith("post_feasible"):
             guidance.append(
@@ -589,11 +599,77 @@ class LLMOperatorController:
             guidance.append(
                 "A family-level policy filter removed speculative custom families that lack trusted evidence."
             )
+        if "post_feasible_recover_preserve_bias" in policy_snapshot.reason_codes:
+            guidance.append(
+                "A recovery filter removed risky expansion families that lack preservation evidence."
+            )
+        if "post_feasible_expand_frontier_bias" in policy_snapshot.reason_codes:
+            guidance.append(
+                "A frontier-growth filter removed high-regression families without positive frontier evidence."
+            )
         if policy_snapshot.reset_active:
             guidance.append(
-                "A progress-reset window is active, so use trusted evidence to recover from a no-progress streak."
+                "A progress-reset window is active, so use trusted evidence to recover from a no-progress streak while preserving stable role diversity across baseline, global exploration, and local cleanup."
             )
         return " ".join(guidance)
+
+    @staticmethod
+    def _entry_convert_metadata(
+        *,
+        state: ControllerState,
+        policy_snapshot: PolicySnapshot,
+        candidate_operator_ids: Sequence[str],
+    ) -> dict[str, Any]:
+        if policy_snapshot.phase != "prefeasible_convert":
+            return {}
+        progress_state = state.metadata.get("progress_state")
+        dominant_violation_family = ""
+        dominant_violation_persistence_count = 0
+        evaluations_since_near_feasible_improvement: int | None = None
+        if isinstance(progress_state, dict):
+            dominant_violation_family = str(progress_state.get("recent_dominant_violation_family", ""))
+            dominant_violation_persistence_count = int(
+                progress_state.get("recent_dominant_violation_persistence_count", 0)
+            )
+            if progress_state.get("evaluations_since_near_feasible_improvement") is not None:
+                evaluations_since_near_feasible_improvement = int(
+                    progress_state["evaluations_since_near_feasible_improvement"]
+                )
+        supported_entry_candidate_count = sum(
+            1
+            for operator_id in candidate_operator_ids
+            if str(policy_snapshot.candidate_annotations.get(operator_id, {}).get("entry_evidence_level", ""))
+            in {"supported", "trusted"}
+        )
+        return {
+            "entry_convert_active": True,
+            "dominant_violation_family": dominant_violation_family,
+            "dominant_violation_persistence_count": dominant_violation_persistence_count,
+            "evaluations_since_near_feasible_improvement": evaluations_since_near_feasible_improvement,
+            "supported_entry_candidate_count": int(supported_entry_candidate_count),
+            "supported_entry_candidate_share": (
+                0.0
+                if not candidate_operator_ids
+                else float(supported_entry_candidate_count) / float(len(candidate_operator_ids))
+            ),
+        }
+
+    @staticmethod
+    def _selected_entry_metadata(
+        policy_snapshot: PolicySnapshot,
+        selected_operator_id: str,
+    ) -> dict[str, Any]:
+        annotation = policy_snapshot.candidate_annotations.get(str(selected_operator_id), {})
+        if not isinstance(annotation, dict):
+            return {}
+        dominant_violation_relief_count = int(annotation.get("dominant_violation_relief_count", 0))
+        near_feasible_improvement_count = int(annotation.get("near_feasible_improvement_count", 0))
+        return {
+            "selected_entry_evidence_level": str(annotation.get("entry_evidence_level", "")),
+            "near_feasible_relief": (
+                dominant_violation_relief_count > 0 or near_feasible_improvement_count > 0
+            ),
+        }
 
     @staticmethod
     def _merge_guardrail_metadata(

@@ -110,7 +110,7 @@ class UnionAugmentedCMOPSO(CMOPSO):
                     controller_id=self.union_controller.controller_id,
                     candidate_operator_ids=tuple(self.operator_ids),
                     selected_operator_id=operator_id,
-                    phase=decision.phase,
+                    phase=str(decision.metadata.get("model_phase") or decision.phase),
                     rationale=decision.rationale,
                     metadata={
                         "particle_index": int(particle_index),

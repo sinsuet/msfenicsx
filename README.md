@@ -24,7 +24,7 @@ The previous heuristic hybrid `B1` path is no longer part of the active supporte
 - `evaluation/`: evaluation specs, report contracts, metric extraction, and standalone evaluation CLI
 - `optimizers/`: optimization specs, decision-vector codecs, `pymoo` baseline search, and standalone optimizer CLI
 - `llm/`: OpenAI-compatible client boundary and controller-side strategy integrations for the `L1` union-`LLM` line
-- `visualization/`: reserved boundary for future read-only rendering and reporting
+- `visualization/`: read-only experiment dashboards, mechanism summaries, and template-level comparison rendering
 
 ## Active Flows
 
@@ -59,6 +59,49 @@ The repository now also includes the first `L1-union-llm-nsga2` runtime path on 
 The current live `L1` implementation already uses compact domain-grounded controller state, including parent/objective/violation/archive/regime summaries, operator-outcome credit, and traceable anti-collapse safeguards.
 The current next-step direction is to extract a reusable controller-policy kernel that is phase-aware, evidence-aware, family-aware, and progress-aware rather than to keep tuning the controller toward one benchmark seed or one thermal scenario. That kernel is validated first on the paper-facing `NSGA-II` line, but it is intended to remain portable to future multi-scenario and multi-backbone controller studies.
 
+The paper-facing experiment system now uses exactly three official mode ids:
+
+- `nsga2_raw`
+- `nsga2_union`
+- `nsga2_llm`
+
+Those modes map to the active ladder as:
+
+- `nsga2_raw`: `algorithm.mode=raw`
+- `nsga2_union`: `algorithm.mode=union` with `operator_control.controller=random_uniform`
+- `nsga2_llm`: `algorithm.mode=union` with `operator_control.controller=llm`
+
+The canonical template-first experiment layout is now:
+
+```text
+scenario_runs/<scenario_template_id>/experiments/<mode>__<MMDD_HHMM>[__NN]/
+```
+
+Each experiment directory contains exactly one mode and uses:
+
+```text
+manifest.json
+spec_snapshot/
+runs/seed-*/
+summaries/
+figures/
+dashboards/
+logs/
+representatives/
+```
+
+Single-run seed bundles keep the existing raw mechanism artifacts where applicable:
+
+- `controller_trace.json`
+- `operator_trace.json`
+- `llm_request_trace.jsonl`
+- `llm_response_trace.jsonl`
+
+and now also write the shared compact sidecars used by dashboards and multi-seed aggregation:
+
+- `evaluation_events.jsonl`
+- `generation_summary.jsonl`
+
 Current built-in evaluation metric namespaces are:
 
 - `summary.*` from `thermal_solution.summary_metrics`
@@ -77,11 +120,14 @@ Available commands:
 - `conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/<scenario_id>/<case_id>/case.yaml --solution ./scenario_runs/<scenario_id>/<case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/<scenario_id>/<case_id>`
 - `conda run -n msfenicsx python -m evaluation.cli evaluate-operating-cases --case hot=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<hot_case_id>.yaml --case cold=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<cold_case_id>.yaml --solution hot=./scenario_runs/<scenario_id>/<hot_case_id>/solution.yaml --solution cold=./scenario_runs/<scenario_id>/<cold_case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./scenario_runs/evaluations/panel-four-component-hot-cold-baseline/seed-11/report.yaml`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --output-root ./scenario_runs/optimizations/panel-four-component-b0`
+- `conda run -n msfenicsx python -m optimizers.cli run-mode-experiment --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --scenario-runs-root ./scenario_runs`
 - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_live.yaml --request-trace ./scenario_runs/optimizations/<run>/llm_request_trace.jsonl --output ./scenario_runs/optimizations/diagnostics/<summary>.json`
 - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/optimizations/<run>/controller_trace.json --output ./scenario_runs/optimizations/<run>/controller_trace_summary.json`
+- `conda run -n msfenicsx python -m optimizers.cli render-template-comparison --template-root ./scenario_runs/panel-four-component-hot-cold-benchmark`
 
 For templates with `operating_case_profiles`, use `generate-operating-case-pair`; `generate-case` is intentionally rejected for the active benchmark to avoid unloaded single-case artifacts.
 Text artifacts in the active repository workflows should default to UTF-8 encoding.
+`run-mode-experiment` now materializes experiment-level shared summaries and static HTML dashboards under `summaries/` and `dashboards/`.
 
 ## Environment
 

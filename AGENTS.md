@@ -103,8 +103,10 @@ Controller-policy repairs validated first on the paper-facing `NSGA-II` line sho
   - `conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<case_id>.yaml --output-root ./scenario_runs`
   - `conda run -n msfenicsx python -m evaluation.cli evaluate-operating-cases --case hot=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<hot_case_id>.yaml --case cold=./scenario_runs/generated_cases/panel-four-component-hot-cold-benchmark/seed-11/<cold_case_id>.yaml --solution hot=./scenario_runs/<scenario_id>/<hot_case_id>/solution.yaml --solution cold=./scenario_runs/<scenario_id>/<cold_case_id>/solution.yaml --spec scenarios/evaluation/panel_four_component_hot_cold_baseline.yaml --output ./scenario_runs/evaluations/panel-four-component-hot-cold-baseline/seed-11/report.yaml`
   - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --output-root ./scenario_runs/optimizations/panel-four-component-b0`
+  - `conda run -n msfenicsx python -m optimizers.cli run-mode-experiment --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_b0.yaml --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --scenario-runs-root ./scenario_runs`
   - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/panel_four_component_hot_cold_nsga2_union_llm_l1_gpt54_live.yaml --request-trace ./scenario_runs/optimizations/<run>/llm_request_trace.jsonl --output ./scenario_runs/optimizations/diagnostics/<summary>.json`
   - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/optimizations/<run>/controller_trace.json --output ./scenario_runs/optimizations/<run>/controller_trace_summary.json`
+  - `conda run -n msfenicsx python -m optimizers.cli render-template-comparison --template-root ./scenario_runs/panel-four-component-hot-cold-benchmark`
   - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
 ## Engineering Guardrails
@@ -135,6 +137,29 @@ Controller-policy repairs validated first on the paper-facing `NSGA-II` line sho
 - Runtime outputs should go to `scenario_runs/` or another explicit artifact location, not source folders.
 - Prefer `scenario_runs/` as the canonical runtime root for generated cases, solved case bundles, evaluation reports, and optimization bundles.
 - Active optimizer runs should write manifest-backed bundles under paths such as `scenario_runs/optimizations/...`.
+- The canonical paper-facing experiment layout is now template-first and single-mode:
+  - `scenario_runs/<scenario_template_id>/experiments/<mode>__<MMDD_HHMM>[__NN]/`
+- One experiment container must represent exactly one mode:
+  - `nsga2_raw`
+  - `nsga2_union`
+  - `nsga2_llm`
+- Seed runs for that container belong under:
+  - `runs/seed-*/`
+- Experiment-level summaries, figures, and dashboards belong under the same experiment root:
+  - `summaries/`
+  - `figures/`
+  - `dashboards/`
+- Do not mix raw/union/llm comparison outputs into a single-mode experiment directory.
+- Template-level comparisons should instead be rendered under:
+  - `scenario_runs/<scenario_template_id>/comparisons/`
+- Keep the existing canonical raw mechanism logs for controller-guided modes:
+  - `controller_trace.json`
+  - `operator_trace.json`
+  - `llm_request_trace.jsonl`
+  - `llm_response_trace.jsonl`
+- Add shared compact sidecars above those raw artifacts instead of inventing conflicting parallel raw names:
+  - `evaluation_events.jsonl`
+  - `generation_summary.jsonl`
 - Templates with `operating_case_profiles` should be generated through `generate-operating-case-pair`, not `generate-case`.
 - Remove temporary scripts, debug files, caches, and one-off intermediate outputs after validation when they are not part of the intended repository state.
 - Human-authored source and docs stay in source and docs paths.

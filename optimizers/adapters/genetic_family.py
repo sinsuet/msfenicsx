@@ -299,7 +299,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
                     controller_id=self.controller.controller_id,
                     candidate_operator_ids=tuple(self.operator_ids),
                     selected_operator_id=str(record["operator_id"]),
-                    phase=str(record["decision"].phase),
+                    phase=str(record["decision"].metadata.get("model_phase") or record["decision"].phase),
                     rationale=str(record["decision"].rationale),
                     metadata={
                         "decision_index": int(record["decision_index"]),

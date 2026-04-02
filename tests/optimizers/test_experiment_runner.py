@@ -233,6 +233,9 @@ def test_run_mode_experiment_writes_seed_runs_and_spec_snapshots(tmp_path, monke
     assert (experiment_root / "runs" / "seed-11" / "evaluation_events.jsonl").exists()
     assert (experiment_root / "runs" / "seed-17" / "optimization_result.json").exists()
     assert (experiment_root / "summaries" / "run_index.json").exists()
+    assert (experiment_root / "figures" / "overview.svg").exists()
+    assert (experiment_root / "figures" / "overview.json").exists()
+    assert (experiment_root / "logs" / "experiment_index.json").exists()
 
     manifest = json.loads((experiment_root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["mode_id"] == "nsga2_raw"

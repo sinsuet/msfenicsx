@@ -26,6 +26,36 @@ class _FakeLLMClient:
         return self.decision
 
 
+class _RetryThenSuccessLLMClient:
+    def request_operator_decision(self, **kwargs) -> OpenAICompatibleDecision:
+        attempt_trace = kwargs.get("attempt_trace")
+        if isinstance(attempt_trace, list):
+            attempt_trace.extend(
+                [
+                    {
+                        "attempt_index": 1,
+                        "valid": False,
+                        "error": "Expecting value: line 1 column 1 (char 0)",
+                    },
+                    {
+                        "attempt_index": 2,
+                        "valid": True,
+                        "selected_operator_id": "local_refine",
+                    },
+                ]
+            )
+        return OpenAICompatibleDecision(
+            selected_operator_id="local_refine",
+            phase="repair",
+            rationale="tighten around hot zone",
+            provider="openai-compatible",
+            model="GPT-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "local_refine"},
+        )
+
+
 def _state() -> ControllerState:
     return ControllerState(
         family="genetic",
@@ -289,6 +319,79 @@ def _post_feasible_state_without_guardrail() -> ControllerState:
     )
 
 
+def _post_feasible_expand_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=8,
+        evaluation_index=78,
+        parent_count=2,
+        vector_size=8,
+        metadata={
+            "search_phase": "feasible_refine",
+            "candidate_operator_ids": ["native_sbx_pm", "local_refine", "radiator_expand"],
+            "run_state": {
+                "decision_index": 18,
+                "evaluations_used": 77,
+                "evaluations_remaining": 52,
+                "feasible_rate": 0.15,
+                "first_feasible_eval": 49,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 2,
+                "recent_frontier_stagnation_count": 3,
+                "last_progress_eval": 75,
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 74,
+                    "selected_operator_id": "local_refine",
+                    "fallback_used": False,
+                    "llm_valid": True,
+                },
+                {
+                    "evaluation_index": 75,
+                    "selected_operator_id": "native_sbx_pm",
+                    "fallback_used": False,
+                    "llm_valid": True,
+                },
+            ],
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 9,
+                    "recent_selection_count": 1,
+                    "proposal_count": 9,
+                    "feasible_entry_count": 0,
+                    "feasible_preservation_count": 3,
+                    "feasible_regression_count": 0,
+                    "pareto_contribution_count": 0,
+                },
+                "local_refine": {
+                    "selection_count": 6,
+                    "recent_selection_count": 1,
+                    "proposal_count": 6,
+                    "feasible_entry_count": 0,
+                    "feasible_preservation_count": 2,
+                    "feasible_regression_count": 0,
+                    "pareto_contribution_count": 1,
+                },
+                "radiator_expand": {
+                    "selection_count": 5,
+                    "recent_selection_count": 0,
+                    "proposal_count": 5,
+                    "feasible_entry_count": 0,
+                    "feasible_preservation_count": 0,
+                    "feasible_regression_count": 0,
+                    "pareto_contribution_count": 2,
+                    "post_feasible_avg_objective_delta": -0.35,
+                },
+            },
+        },
+    )
+
+
 def _prefeasible_support_limited_state() -> ControllerState:
     return ControllerState(
         family="genetic",
@@ -355,6 +458,31 @@ def _prefeasible_support_limited_state() -> ControllerState:
             },
         },
     )
+
+
+def test_llm_controller_metrics_count_retries_and_invalid_attempts() -> None:
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=_RetryThenSuccessLLMClient(),
+    )
+
+    decision = controller.select_decision(
+        _state(),
+        ("native_sbx_pm", "local_refine"),
+        np.random.default_rng(7),
+    )
+
+    assert decision.selected_operator_id == "local_refine"
+    assert controller.metrics["retry_count"] == 1
+    assert controller.metrics["invalid_response_count"] == 1
+    assert controller.metrics["schema_invalid_count"] == 1
 
 
 def _prefeasible_custom_dominance_state() -> ControllerState:
@@ -685,6 +813,421 @@ def _prefeasible_reset_policy_state() -> ControllerState:
     )
 
 
+def _prefeasible_role_diversity_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=5,
+        evaluation_index=64,
+        parent_count=2,
+        vector_size=8,
+        metadata={
+            "search_phase": "near_feasible",
+            "candidate_operator_ids": [
+                "native_sbx_pm",
+                "sbx_pm_global",
+                "local_refine",
+                "hot_pair_to_sink",
+            ],
+            "run_state": {
+                "decision_index": 19,
+                "evaluations_used": 63,
+                "evaluations_remaining": 66,
+                "feasible_rate": 0.0,
+                "first_feasible_eval": None,
+            },
+            "progress_state": {
+                "phase": "prefeasible_stagnation",
+                "recent_no_progress_count": 8,
+                "last_progress_eval": 48,
+                "prefeasible_reset_window_count": 4,
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 56 + idx,
+                    "selected_operator_id": operator_id,
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for idx, operator_id in enumerate(
+                    (
+                        "native_sbx_pm",
+                        "local_refine",
+                        "native_sbx_pm",
+                        "local_refine",
+                        "native_sbx_pm",
+                        "local_refine",
+                    )
+                )
+            ],
+            "recent_operator_counts": {
+                "native_sbx_pm": {
+                    "recent_selection_count": 3,
+                    "recent_fallback_selection_count": 0,
+                    "recent_llm_valid_selection_count": 3,
+                },
+                "local_refine": {
+                    "recent_selection_count": 3,
+                    "recent_fallback_selection_count": 0,
+                    "recent_llm_valid_selection_count": 3,
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 18,
+                    "recent_selection_count": 3,
+                    "proposal_count": 18,
+                    "recent_family_share": 0.5,
+                    "recent_role_share": 0.5,
+                },
+                "sbx_pm_global": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                    "recent_family_share": 0.0,
+                    "recent_role_share": 0.0,
+                },
+                "local_refine": {
+                    "selection_count": 15,
+                    "recent_selection_count": 3,
+                    "proposal_count": 15,
+                    "recent_family_share": 0.5,
+                    "recent_role_share": 0.5,
+                },
+                "hot_pair_to_sink": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                },
+            },
+        },
+    )
+
+
+def _prefeasible_projection_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=6,
+        evaluation_index=48,
+        parent_count=2,
+        vector_size=8,
+        metadata={
+            "search_phase": "near_feasible",
+            "candidate_operator_ids": ["native_sbx_pm", "local_refine", "radiator_expand"],
+            "run_state": {
+                "decision_index": 17,
+                "evaluations_used": 47,
+                "evaluations_remaining": 82,
+                "feasible_rate": 0.0,
+                "first_feasible_eval": None,
+            },
+            "archive_state": {
+                "best_feasible": None,
+                "best_near_feasible": {
+                    "evaluation_index": 43,
+                    "total_violation": 0.11,
+                },
+                "pareto_size": 0,
+                "recent_frontier_add_count": 2,
+                "evaluations_since_frontier_add": 0,
+                "recent_feasible_regression_count": 3,
+                "recent_feasible_preservation_count": 1,
+            },
+            "progress_state": {
+                "phase": "prefeasible_stagnation",
+                "first_feasible_found": False,
+                "evaluations_since_first_feasible": None,
+                "recent_no_progress_count": 8,
+                "recent_frontier_stagnation_count": 0,
+                "post_feasible_mode": None,
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 15,
+                    "recent_selection_count": 5,
+                    "proposal_count": 15,
+                },
+                "local_refine": {
+                    "selection_count": 11,
+                    "recent_selection_count": 3,
+                    "proposal_count": 11,
+                    "post_feasible_avg_objective_delta": -0.18,
+                    "post_feasible_avg_violation_delta": 0.07,
+                },
+                "radiator_expand": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                    "post_feasible_avg_objective_delta": -0.41,
+                    "post_feasible_avg_violation_delta": 0.11,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_projection_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=8,
+        evaluation_index=79,
+        parent_count=2,
+        vector_size=8,
+        metadata={
+            "search_phase": "feasible_refine",
+            "candidate_operator_ids": ["native_sbx_pm", "local_refine", "radiator_expand"],
+            "run_state": {
+                "decision_index": 23,
+                "evaluations_used": 78,
+                "evaluations_remaining": 51,
+                "feasible_rate": 0.19,
+                "first_feasible_eval": 52,
+            },
+            "archive_state": {
+                "best_feasible": {
+                    "evaluation_index": 73,
+                    "total_violation": 0.0,
+                },
+                "best_near_feasible": {
+                    "evaluation_index": 46,
+                    "total_violation": 0.08,
+                },
+                "pareto_size": 3,
+                "recent_frontier_add_count": 2,
+                "evaluations_since_frontier_add": 4,
+                "recent_feasible_regression_count": 1,
+                "recent_feasible_preservation_count": 2,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "first_feasible_found": True,
+                "evaluations_since_first_feasible": 27,
+                "recent_no_progress_count": 3,
+                "recent_frontier_stagnation_count": 4,
+                "post_feasible_mode": "expand",
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 12,
+                    "recent_selection_count": 1,
+                    "proposal_count": 12,
+                },
+                "local_refine": {
+                    "selection_count": 8,
+                    "recent_selection_count": 1,
+                    "proposal_count": 8,
+                    "feasible_preservation_count": 3,
+                },
+                "radiator_expand": {
+                    "selection_count": 7,
+                    "recent_selection_count": 2,
+                    "proposal_count": 7,
+                    "post_feasible_avg_objective_delta": -0.34,
+                    "post_feasible_avg_violation_delta": 0.02,
+                },
+            },
+        },
+    )
+
+
+def _preentry_post_feasible_prompt_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=4,
+        evaluation_index=52,
+        parent_count=2,
+        vector_size=8,
+        metadata={
+            "search_phase": "near_feasible",
+            "candidate_operator_ids": ["native_sbx_pm", "local_refine", "radiator_expand"],
+            "run_state": {
+                "decision_index": 15,
+                "evaluations_used": 51,
+                "evaluations_remaining": 78,
+                "feasible_rate": 0.0,
+                "first_feasible_eval": None,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "first_feasible_found": False,
+                "evaluations_since_first_feasible": None,
+                "recent_no_progress_count": 6,
+                "recent_frontier_stagnation_count": 3,
+                "post_feasible_mode": "expand",
+            },
+            "archive_state": {
+                "best_feasible": None,
+                "best_near_feasible": {
+                    "evaluation_index": 43,
+                    "total_violation": 0.09,
+                },
+                "pareto_size": 0,
+                "recent_frontier_add_count": 2,
+                "evaluations_since_frontier_add": 1,
+                "recent_feasible_regression_count": 1,
+                "recent_feasible_preservation_count": 0,
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 47,
+                    "selected_operator_id": "native_sbx_pm",
+                    "fallback_used": False,
+                    "llm_valid": True,
+                },
+                {
+                    "evaluation_index": 48,
+                    "selected_operator_id": "local_refine",
+                    "fallback_used": False,
+                    "llm_valid": True,
+                },
+            ],
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 12,
+                    "recent_selection_count": 1,
+                    "proposal_count": 12,
+                    "feasible_preservation_count": 1,
+                    "pareto_contribution_count": 1,
+                },
+                "local_refine": {
+                    "selection_count": 9,
+                    "recent_selection_count": 1,
+                    "proposal_count": 9,
+                    "feasible_preservation_count": 1,
+                    "pareto_contribution_count": 1,
+                },
+                "radiator_expand": {
+                    "selection_count": 4,
+                    "recent_selection_count": 0,
+                    "proposal_count": 4,
+                    "pareto_contribution_count": 2,
+                    "post_feasible_avg_objective_delta": -0.2,
+                },
+            },
+        },
+    )
+
+
+def _near_feasible_convert_prompt_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=5,
+        evaluation_index=66,
+        parent_count=2,
+        vector_size=8,
+        metadata={
+            "search_phase": "near_feasible",
+            "candidate_operator_ids": ["native_sbx_pm", "sbx_pm_global", "local_refine", "battery_to_warm_zone"],
+            "run_state": {
+                "decision_index": 20,
+                "evaluations_used": 65,
+                "evaluations_remaining": 64,
+                "feasible_rate": 0.0,
+                "first_feasible_eval": None,
+            },
+            "archive_state": {
+                "best_feasible": None,
+                "best_near_feasible": {
+                    "evaluation_index": 59,
+                    "total_violation": 0.22,
+                    "dominant_violation": {
+                        "constraint_id": "cold_battery_floor",
+                        "violation": 0.17,
+                    },
+                },
+                "pareto_size": 0,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": None,
+                "recent_feasible_regression_count": 0,
+                "recent_feasible_preservation_count": 0,
+            },
+            "progress_state": {
+                "phase": "prefeasible_stagnation",
+                "prefeasible_mode": "convert",
+                "recent_no_progress_count": 5,
+                "evaluations_since_near_feasible_improvement": 4,
+                "recent_dominant_violation_family": "cold_dominant",
+                "recent_dominant_violation_persistence_count": 6,
+                "prefeasible_reset_window_count": 3,
+                "first_feasible_found": False,
+                "evaluations_since_first_feasible": None,
+                "post_feasible_mode": None,
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 61 + idx,
+                    "selected_operator_id": operator_id,
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for idx, operator_id in enumerate(
+                    (
+                        "native_sbx_pm",
+                        "local_refine",
+                        "native_sbx_pm",
+                        "sbx_pm_global",
+                    )
+                )
+            ],
+            "recent_operator_counts": {
+                "native_sbx_pm": {
+                    "recent_selection_count": 2,
+                    "recent_fallback_selection_count": 0,
+                    "recent_llm_valid_selection_count": 2,
+                },
+                "sbx_pm_global": {
+                    "recent_selection_count": 1,
+                    "recent_fallback_selection_count": 0,
+                    "recent_llm_valid_selection_count": 1,
+                },
+                "local_refine": {
+                    "recent_selection_count": 1,
+                    "recent_fallback_selection_count": 0,
+                    "recent_llm_valid_selection_count": 1,
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 19,
+                    "recent_selection_count": 2,
+                    "proposal_count": 19,
+                    "recent_family_share": 0.5,
+                    "recent_role_share": 0.5,
+                    "dominant_violation_relief_count": 0,
+                },
+                "sbx_pm_global": {
+                    "selection_count": 4,
+                    "recent_selection_count": 1,
+                    "proposal_count": 4,
+                    "recent_family_share": 0.25,
+                    "recent_role_share": 0.25,
+                    "dominant_violation_relief_count": 0,
+                },
+                "local_refine": {
+                    "selection_count": 11,
+                    "recent_selection_count": 1,
+                    "proposal_count": 11,
+                    "recent_family_share": 0.25,
+                    "recent_role_share": 0.25,
+                    "dominant_violation_relief_count": 3,
+                    "near_feasible_improvement_count": 2,
+                    "recent_entry_helpful_regimes": ["near_feasible", "cold_dominant"],
+                },
+                "battery_to_warm_zone": {
+                    "selection_count": 3,
+                    "recent_selection_count": 0,
+                    "proposal_count": 3,
+                    "dominant_violation_relief_count": 0,
+                },
+            },
+        },
+    )
+
+
 def _controller_parameters() -> dict[str, object]:
     return {
         "provider": "openai",
@@ -953,6 +1496,72 @@ def test_llm_controller_user_prompt_includes_domain_grounded_blocks_without_raw_
     assert "case_reports" not in metadata
 
 
+def test_llm_controller_prefeasible_prompt_projection_omits_post_feasible_frontier_fields() -> None:
+    client = _FakeLLMClient(
+        decision=OpenAICompatibleDecision(
+            selected_operator_id="local_refine",
+            phase="repair",
+            rationale="phase-scoped prefeasible prompt",
+            provider="openai",
+            model="gpt-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "local_refine"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters=_controller_parameters(),
+        client=client,
+    )
+
+    controller.select_decision(
+        _prefeasible_projection_state(),
+        ("native_sbx_pm", "local_refine", "radiator_expand"),
+        np.random.default_rng(7),
+    )
+
+    assert client.last_kwargs is not None
+    payload = json.loads(str(client.last_kwargs["user_prompt"]))
+    metadata = payload["metadata"]
+    assert "recent_frontier_add_count" not in metadata["archive_state"]
+    assert "post_feasible_avg_objective_delta" not in metadata["operator_summary"]["local_refine"]
+    assert "post_feasible_avg_violation_delta" not in metadata["operator_summary"]["local_refine"]
+
+
+def test_llm_controller_post_feasible_prompt_projection_keeps_frontier_fields() -> None:
+    client = _FakeLLMClient(
+        decision=OpenAICompatibleDecision(
+            selected_operator_id="radiator_expand",
+            phase="expand",
+            rationale="phase-scoped post-feasible prompt",
+            provider="openai",
+            model="gpt-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "radiator_expand"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters=_controller_parameters(),
+        client=client,
+    )
+
+    controller.select_decision(
+        _post_feasible_projection_state(),
+        ("native_sbx_pm", "local_refine", "radiator_expand"),
+        np.random.default_rng(7),
+    )
+
+    assert client.last_kwargs is not None
+    payload = json.loads(str(client.last_kwargs["user_prompt"]))
+    metadata = payload["metadata"]
+    assert metadata["archive_state"]["recent_frontier_add_count"] == 2
+    assert metadata["archive_state"]["recent_feasible_regression_count"] == 1
+    assert metadata["operator_summary"]["radiator_expand"]["post_feasible_avg_objective_delta"] == pytest.approx(
+        -0.34
+    )
+
+
 def test_llm_controller_prefeasible_prompt_warns_against_low_support_violation_outliers() -> None:
     client = _FakeLLMClient(
         decision=OpenAICompatibleDecision(
@@ -1137,6 +1746,133 @@ def test_llm_controller_prompt_reports_phase_policy_not_operator_specific_patch(
     assert "prefeasible" in system_prompt
     assert "trusted evidence" in system_prompt
     assert "battery_to_warm_zone" not in system_prompt
+
+
+def test_llm_controller_prefeasible_reset_guidance_mentions_stable_role_diversity() -> None:
+    client = _FakeLLMClient(
+        decision=OpenAICompatibleDecision(
+            selected_operator_id="sbx_pm_global",
+            phase="repair",
+            rationale="restore global stable exploration during reset",
+            provider="openai",
+            model="gpt-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "sbx_pm_global"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters=_controller_parameters(),
+        client=client,
+    )
+
+    controller.select_decision(
+        _prefeasible_role_diversity_state(),
+        ("native_sbx_pm", "sbx_pm_global", "local_refine", "hot_pair_to_sink"),
+        np.random.default_rng(7),
+    )
+
+    assert client.last_kwargs is not None
+    system_prompt = str(client.last_kwargs["system_prompt"]).lower()
+    payload = json.loads(str(client.last_kwargs["user_prompt"]))
+    phase_policy = payload["metadata"]["phase_policy"]
+    assert "stable role" in system_prompt
+    assert "role diversity" in system_prompt
+    assert phase_policy["candidate_annotations"]["sbx_pm_global"]["prefeasible_role"] == "stable_global"
+
+
+def test_llm_controller_requires_real_feasible_entry_before_post_feasible_guidance_appears() -> None:
+    client = _FakeLLMClient(
+        decision=OpenAICompatibleDecision(
+            selected_operator_id="local_refine",
+            phase="repair",
+            rationale="do not surface pareto guidance before feasible entry",
+            provider="openai",
+            model="gpt-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "local_refine"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters=_controller_parameters(),
+        client=client,
+    )
+
+    controller.select_decision(
+        _preentry_post_feasible_prompt_state(),
+        ("native_sbx_pm", "local_refine", "radiator_expand"),
+        np.random.default_rng(7),
+    )
+
+    assert client.last_kwargs is not None
+    system_prompt = str(client.last_kwargs["system_prompt"]).lower()
+    payload = json.loads(str(client.last_kwargs["user_prompt"]))
+    assert "pareto" not in system_prompt
+    assert "frontier" not in system_prompt
+    assert payload["metadata"]["phase_policy"]["phase"].startswith("prefeasible")
+
+
+def test_llm_controller_prompt_includes_post_feasible_mode_guidance_without_operator_name_patch() -> None:
+    client = _FakeLLMClient(
+        decision=OpenAICompatibleDecision(
+            selected_operator_id="radiator_expand",
+            phase="expand",
+            rationale="restore frontier growth",
+            provider="openai",
+            model="gpt-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "radiator_expand"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters=_controller_parameters(),
+        client=client,
+    )
+
+    controller.select_decision(
+        _post_feasible_expand_state(),
+        ("native_sbx_pm", "local_refine", "radiator_expand"),
+        np.random.default_rng(7),
+    )
+
+    assert client.last_kwargs is not None
+    system_prompt = str(client.last_kwargs["system_prompt"]).lower()
+    assert "pareto" in system_prompt
+    assert "frontier" in system_prompt
+    assert "battery_to_warm_zone" not in system_prompt
+
+
+def test_llm_controller_prefeasible_convert_prompt_mentions_entry_conversion_not_pareto_growth() -> None:
+    client = _FakeLLMClient(
+        decision=OpenAICompatibleDecision(
+            selected_operator_id="local_refine",
+            phase="repair",
+            rationale="convert near-feasible state into first feasible",
+            provider="openai",
+            model="gpt-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "local_refine"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters=_controller_parameters(),
+        client=client,
+    )
+
+    controller.select_decision(
+        _near_feasible_convert_prompt_state(),
+        ("native_sbx_pm", "sbx_pm_global", "local_refine", "battery_to_warm_zone"),
+        np.random.default_rng(7),
+    )
+
+    assert client.last_kwargs is not None
+    system_prompt = str(client.last_kwargs["system_prompt"]).lower()
+    assert "first feasible" in system_prompt
+    assert "dominant violation" in system_prompt
+    assert "pareto" not in system_prompt
 
 
 def test_llm_controller_trace_records_policy_reason_codes() -> None:

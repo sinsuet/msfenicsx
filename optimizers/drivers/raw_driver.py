@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +12,7 @@ from pymoo.optimize import minimize
 from core.schema.io import load_case
 from evaluation.io import load_multicase_spec
 from optimizers.algorithm_config import resolve_algorithm_config
+from optimizers.generation_callback import GenerationSummaryCallback
 from optimizers.io import generate_benchmark_cases, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.models import OptimizationResult
 from optimizers.problem import CandidateArtifacts, ThermalOptimizationProblem, objective_to_minimization
@@ -22,6 +23,7 @@ from optimizers.raw_backbones.registry import build_raw_algorithm
 class OptimizationRun:
     result: OptimizationResult
     representative_artifacts: dict[str, CandidateArtifacts]
+    generation_summary_rows: list[dict[str, Any]] = field(default_factory=list)
 
 
 def run_raw_optimization(
@@ -42,12 +44,15 @@ def run_raw_optimization(
     baseline_record = problem.evaluate_baseline()
 
     algorithm = build_raw_algorithm(problem, algorithm_config)
+    generation_callback = GenerationSummaryCallback(objective_definitions=evaluation_payload["objectives"])
     minimize(
         problem,
         algorithm,
         termination=("n_gen", int(algorithm_config["num_generations"])),
         seed=int(algorithm_config["seed"]),
         verbose=False,
+        callback=generation_callback,
+        copy_algorithm=False,
     )
 
     pareto_front = _extract_pareto_front(problem.history, evaluation_payload["objectives"])
@@ -69,6 +74,7 @@ def run_raw_optimization(
     return OptimizationRun(
         result=OptimizationResult.from_dict(result_payload),
         representative_artifacts=representative_artifacts,
+        generation_summary_rows=list(generation_callback.rows),
     )
 
 
@@ -103,13 +109,20 @@ def _build_result_payload(
     return {
         "schema_version": spec_payload["schema_version"],
         "run_meta": {
-            "run_id": f"{spec_payload['spec_meta']['spec_id']}-run",
+            "run_id": (
+                f"{spec_payload['spec_meta']['spec_id']}"
+                f"-b{int(spec_payload['benchmark_source']['seed'])}"
+                f"-a{int(spec_payload['algorithm']['seed'])}"
+                "-run"
+            ),
             "base_case_ids": {
                 operating_case_id: case.to_dict()["case_meta"]["case_id"] if hasattr(case, "to_dict") else case["case_meta"]["case_id"]
                 for operating_case_id, case in loaded_cases.items()
             },
             "optimization_spec_id": spec_payload["spec_meta"]["spec_id"],
             "evaluation_spec_id": evaluation_payload["spec_meta"]["spec_id"],
+            "benchmark_seed": int(spec_payload["benchmark_source"]["seed"]),
+            "algorithm_seed": int(spec_payload["algorithm"]["seed"]),
         },
         "baseline_candidates": [baseline_record],
         "pareto_front": pareto_front,

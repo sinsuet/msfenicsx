@@ -10,16 +10,42 @@ from core.schema.io import save_case, save_solution
 from evaluation.io import save_multicase_report
 from optimizers.io import save_optimization_result
 from optimizers.problem import CandidateArtifacts
+from optimizers.run_telemetry import build_evaluation_events, build_generation_summary_rows
 
 
-def write_optimization_artifacts(output_root: str | Path, run: Any) -> Path:
+def write_optimization_artifacts(
+    output_root: str | Path,
+    run: Any,
+    *,
+    mode_id: str,
+    seed: int,
+    objective_definitions: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+) -> Path:
     resolved_output_root = Path(output_root)
     _initialize_bundle_root(resolved_output_root, include_representatives=True)
     save_optimization_result(run.result, resolved_output_root / "optimization_result.json")
     save_optimization_result({"pareto_front": run.result.pareto_front}, resolved_output_root / "pareto_front.json")
+    evaluation_rows = build_evaluation_events(
+        run_id=str(run.result.run_meta["run_id"]),
+        mode_id=mode_id,
+        seed=seed,
+        history=run.result.history,
+        objectives=objective_definitions,
+        generation_rows=getattr(run, "generation_summary_rows", []),
+    )
+    generation_rows = build_generation_summary_rows(
+        run_id=str(run.result.run_meta["run_id"]),
+        mode_id=mode_id,
+        seed=seed,
+        rows=getattr(run, "generation_summary_rows", []),
+    )
+    _write_jsonl_payload(resolved_output_root / "evaluation_events.jsonl", evaluation_rows)
+    _write_jsonl_payload(resolved_output_root / "generation_summary.jsonl", generation_rows)
     snapshots = {
         "optimization_result": "optimization_result.json",
         "pareto_front": "pareto_front.json",
+        "evaluation_events": "evaluation_events.jsonl",
+        "generation_summary": "generation_summary.jsonl",
     }
     if hasattr(run, "controller_trace"):
         _write_trace_payload(resolved_output_root / "controller_trace.json", getattr(run, "controller_trace"))
@@ -49,6 +75,8 @@ def write_optimization_artifacts(output_root: str | Path, run: Any) -> Path:
         "run_id": run.result.run_meta["run_id"],
         "optimization_spec_id": run.result.run_meta["optimization_spec_id"],
         "evaluation_spec_id": run.result.run_meta["evaluation_spec_id"],
+        "mode_id": mode_id,
+        "benchmark_seed": int(seed),
         "snapshots": snapshots,
         "directories": _bundle_directories(include_representatives=True),
     }

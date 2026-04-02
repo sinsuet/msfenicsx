@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
+
+from optimizers.operator_pool.operators import get_operator_behavior_profile
+
+_RECENT_FRONTIER_WINDOW = 4
 
 
 def vector_key(values: Sequence[float], *, ndigits: int = 12) -> tuple[float, ...]:
@@ -72,6 +77,16 @@ def dominant_violation(record: Mapping[str, Any] | None) -> dict[str, float] | N
     }
 
 
+def dominant_violation_family(record: Mapping[str, Any] | None) -> str | None:
+    dominant = dominant_violation(record)
+    if dominant is None:
+        return None
+    constraint_id = dominant.get("constraint_id")
+    if constraint_id is None:
+        return None
+    return classify_constraint_family(str(constraint_id))
+
+
 def classify_constraint_family(constraint_id: str | None) -> str:
     normalized = "" if constraint_id is None else str(constraint_id).lower()
     if any(token in normalized for token in ("spread", "overlap", "spacing", "radiator", "geometry")):
@@ -83,6 +98,24 @@ def classify_constraint_family(constraint_id: str | None) -> str:
     return "mixed"
 
 
+def family_violation_total(
+    record: Mapping[str, Any] | None,
+    family: str | None,
+) -> float:
+    if record is None or not family:
+        return 0.0
+    constraint_values = record.get("constraint_values", {})
+    if not isinstance(constraint_values, Mapping):
+        return 0.0
+    return float(
+        sum(
+            max(0.0, float(violation))
+            for constraint_id, violation in constraint_values.items()
+            if classify_constraint_family(str(constraint_id)) == str(family)
+        )
+    )
+
+
 def objective_score(objective_values: Mapping[str, Any] | None) -> float:
     if not objective_values:
         return float("inf")
@@ -92,6 +125,143 @@ def objective_score(objective_values: Mapping[str, Any] | None) -> float:
         objective_name = str(objective_id).lower()
         score += -numeric if "maximize" in objective_name else numeric
     return float(score)
+
+
+def objective_vector(record: Mapping[str, Any] | None) -> tuple[float, ...] | None:
+    if record is None:
+        return None
+    objective_values = record.get("objective_values", {})
+    if not isinstance(objective_values, Mapping) or not objective_values:
+        return None
+    normalized_items: list[tuple[str, float]] = []
+    for objective_id, value in objective_values.items():
+        objective_name = str(objective_id).lower()
+        numeric_value = float(value)
+        minimized_value = -numeric_value if "maximize" in objective_name else numeric_value
+        normalized_items.append((str(objective_id), minimized_value))
+    normalized_items.sort(key=lambda item: item[0])
+    return tuple(value for _, value in normalized_items)
+
+
+def dominates_objectives(left: Sequence[float], right: Sequence[float]) -> bool:
+    return all(lv <= rv for lv, rv in zip(left, right, strict=True)) and any(
+        lv < rv for lv, rv in zip(left, right, strict=True)
+    )
+
+
+def is_frontier_add_record(
+    record: Mapping[str, Any] | None,
+    prior_feasible_records: Sequence[Mapping[str, Any]],
+) -> bool:
+    candidate_vector = objective_vector(record)
+    if candidate_vector is None:
+        return False
+    for prior_record in prior_feasible_records:
+        prior_vector = objective_vector(prior_record)
+        if prior_vector is None:
+            continue
+        if prior_vector == candidate_vector:
+            return False
+        if dominates_objectives(prior_vector, candidate_vector):
+            return False
+    return True
+
+
+def build_frontier_summary(
+    history: Sequence[Mapping[str, Any]],
+    *,
+    recent_window: int = _RECENT_FRONTIER_WINDOW,
+) -> dict[str, Any]:
+    if not history:
+        return {
+            "pareto_size": 0,
+            "recent_frontier_add_count": 0,
+            "evaluations_since_frontier_add": None,
+            "recent_feasible_regression_count": 0,
+            "recent_feasible_preservation_count": 0,
+            "recent_frontier_stagnation_count": 0,
+            "frontier_add_evaluation_indices": [],
+            "feasible_regression_evaluation_indices": [],
+            "feasible_preservation_evaluation_indices": [],
+        }
+
+    ordered_history = sorted(history, key=lambda row: int(row.get("evaluation_index", 0)))
+    feasible_rows = [dict(row) for row in ordered_history if bool(row.get("feasible", False))]
+    first_feasible_eval = (
+        None
+        if not feasible_rows
+        else min(int(row.get("evaluation_index", 0)) for row in feasible_rows)
+    )
+    prior_feasible_records: list[Mapping[str, Any]] = []
+    frontier_add_evaluation_indices: list[int] = []
+    feasible_regression_evaluation_indices: list[int] = []
+    feasible_preservation_evaluation_indices: list[int] = []
+    for row in ordered_history:
+        evaluation_index = int(row.get("evaluation_index", 0))
+        feasible = bool(row.get("feasible", False))
+        if first_feasible_eval is not None and evaluation_index >= first_feasible_eval:
+            if feasible:
+                if is_frontier_add_record(row, prior_feasible_records):
+                    frontier_add_evaluation_indices.append(evaluation_index)
+                else:
+                    feasible_preservation_evaluation_indices.append(evaluation_index)
+            else:
+                feasible_regression_evaluation_indices.append(evaluation_index)
+        if feasible:
+            prior_feasible_records.append(dict(row))
+
+    latest_completed_eval = int(ordered_history[-1].get("evaluation_index", 0))
+    recent_rows = ordered_history[-max(1, int(recent_window)) :]
+    recent_evaluation_indices = {int(row.get("evaluation_index", 0)) for row in recent_rows}
+    last_frontier_add_eval = (
+        None if not frontier_add_evaluation_indices else frontier_add_evaluation_indices[-1]
+    )
+    current_pareto_size = 0
+    for candidate_row in feasible_rows:
+        candidate_vector = objective_vector(candidate_row)
+        if candidate_vector is None:
+            continue
+        dominated = False
+        for incumbent_row in feasible_rows:
+            if candidate_row is incumbent_row:
+                continue
+            incumbent_vector = objective_vector(incumbent_row)
+            if incumbent_vector is None:
+                continue
+            if dominates_objectives(incumbent_vector, candidate_vector):
+                dominated = True
+                break
+        if not dominated:
+            current_pareto_size += 1
+    return {
+        "pareto_size": int(current_pareto_size),
+        "recent_frontier_add_count": sum(
+            1 for evaluation_index in frontier_add_evaluation_indices if evaluation_index in recent_evaluation_indices
+        ),
+        "evaluations_since_frontier_add": (
+            None
+            if last_frontier_add_eval is None
+            else max(0, latest_completed_eval - int(last_frontier_add_eval))
+        ),
+        "recent_feasible_regression_count": sum(
+            1
+            for evaluation_index in feasible_regression_evaluation_indices
+            if evaluation_index in recent_evaluation_indices
+        ),
+        "recent_feasible_preservation_count": sum(
+            1
+            for evaluation_index in feasible_preservation_evaluation_indices
+            if evaluation_index in recent_evaluation_indices
+        ),
+        "recent_frontier_stagnation_count": (
+            0
+            if last_frontier_add_eval is None
+            else max(0, latest_completed_eval - int(last_frontier_add_eval))
+        ),
+        "frontier_add_evaluation_indices": list(frontier_add_evaluation_indices),
+        "feasible_regression_evaluation_indices": list(feasible_regression_evaluation_indices),
+        "feasible_preservation_evaluation_indices": list(feasible_preservation_evaluation_indices),
+    }
 
 
 def summarize_record(record: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -153,9 +323,16 @@ def build_progress_state(
             "last_progress_eval": None,
             "recent_best_near_feasible_improvement": 0.0,
             "recent_best_feasible_improvement": 0.0,
+            "prefeasible_mode": "diversify",
+            "evaluations_since_near_feasible_improvement": None,
+            "recent_dominant_violation_family": None,
+            "recent_dominant_violation_persistence_count": 0,
+            "recent_frontier_stagnation_count": 0,
+            "post_feasible_mode": None,
         }
 
     ordered_history = sorted(history, key=lambda row: int(row.get("evaluation_index", 0)))
+    frontier_summary = build_frontier_summary(ordered_history)
     latest_completed_eval = int(ordered_history[-1].get("evaluation_index", 0))
     first_feasible_eval: int | None = None
     last_progress_eval: int | None = None
@@ -163,6 +340,7 @@ def build_progress_state(
     best_feasible_score = float("inf")
     recent_best_near_feasible_improvement = 0.0
     recent_best_feasible_improvement = 0.0
+    last_near_feasible_improvement_eval: int | None = None
 
     for row in ordered_history:
         row_eval = int(row.get("evaluation_index", 0))
@@ -182,17 +360,49 @@ def build_progress_state(
             if best_near_feasible_violation < float("inf"):
                 recent_best_near_feasible_improvement = float(violation - best_near_feasible_violation)
             best_near_feasible_violation = violation
+            last_near_feasible_improvement_eval = row_eval
             if first_feasible_eval is None:
                 last_progress_eval = row_eval
+
+    recent_dominant_violation_family: str | None = None
+    recent_dominant_violation_persistence_count = 0
+    for row in reversed(ordered_history):
+        if bool(row.get("feasible", False)):
+            continue
+        family = dominant_violation_family(row)
+        if family is None:
+            continue
+        if recent_dominant_violation_family is None:
+            recent_dominant_violation_family = family
+        if family != recent_dominant_violation_family:
+            break
+        recent_dominant_violation_persistence_count += 1
 
     first_feasible_found = first_feasible_eval is not None
     if last_progress_eval is None:
         last_progress_eval = first_feasible_eval if first_feasible_eval is not None else latest_completed_eval
     recent_no_progress_count = max(0, latest_completed_eval - int(last_progress_eval))
+    evaluations_since_near_feasible_improvement = (
+        None
+        if last_near_feasible_improvement_eval is None
+        else max(0, latest_completed_eval - int(last_near_feasible_improvement_eval))
+    )
+    prefeasible_mode = (
+        "convert"
+        if not first_feasible_found and best_near_feasible_violation <= 1.0
+        else "diversify"
+    )
     if first_feasible_found:
         phase = "post_feasible_progress" if recent_no_progress_count == 0 else "post_feasible_stagnation"
+        if int(frontier_summary["recent_feasible_regression_count"]) > 0:
+            post_feasible_mode = "recover"
+        elif int(frontier_summary["recent_frontier_stagnation_count"]) >= 2:
+            post_feasible_mode = "expand"
+        else:
+            post_feasible_mode = "preserve"
     else:
         phase = "prefeasible_progress" if recent_no_progress_count == 0 else "prefeasible_stagnation"
+        post_feasible_mode = None
     return {
         "phase": phase,
         "first_feasible_found": first_feasible_found,
@@ -203,6 +413,46 @@ def build_progress_state(
         "last_progress_eval": int(last_progress_eval),
         "recent_best_near_feasible_improvement": float(recent_best_near_feasible_improvement),
         "recent_best_feasible_improvement": float(recent_best_feasible_improvement),
+        "prefeasible_mode": prefeasible_mode,
+        "evaluations_since_near_feasible_improvement": evaluations_since_near_feasible_improvement,
+        "recent_dominant_violation_family": recent_dominant_violation_family,
+        "recent_dominant_violation_persistence_count": int(recent_dominant_violation_persistence_count),
+        "recent_frontier_stagnation_count": int(frontier_summary["recent_frontier_stagnation_count"]),
+        "post_feasible_mode": post_feasible_mode,
+    }
+
+
+def build_prefeasible_reset_summary(
+    recent_decisions: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    stable_family_mix: Counter[str] = Counter()
+    reset_row_count = 0
+    for row in recent_decisions:
+        policy_phase = str(row.get("policy_phase", "")).strip()
+        if not policy_phase.startswith("prefeasible"):
+            continue
+        reason_codes = row.get("reason_codes", [])
+        if not isinstance(reason_codes, Sequence) or isinstance(reason_codes, (str, bytes)):
+            reason_codes = [] if not reason_codes else [str(reason_codes)]
+        reset_active = bool(row.get("policy_reset_active", False)) or "prefeasible_forced_reset" in {
+            str(code) for code in reason_codes
+        }
+        if not reset_active:
+            continue
+        operator_id = str(row.get("selected_operator_id", "")).strip()
+        if not operator_id:
+            continue
+        try:
+            profile = get_operator_behavior_profile(operator_id)
+        except KeyError:
+            continue
+        if profile.exploration_class != "stable":
+            continue
+        reset_row_count += 1
+        stable_family_mix[profile.family] += 1
+    return {
+        "prefeasible_reset_window_count": int(reset_row_count),
+        "prefeasible_recent_stable_family_mix": dict(stable_family_mix),
     }
 
 
@@ -238,6 +488,7 @@ def build_parent_state(
 
 
 def build_archive_state(history: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    frontier_summary = build_frontier_summary(history)
     feasible_rows = [dict(row) for row in history if bool(row.get("feasible", False))]
     infeasible_rows = [dict(row) for row in history if not bool(row.get("feasible", False))]
     best_feasible = None
@@ -251,6 +502,11 @@ def build_archive_state(history: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "best_near_feasible": best_near_feasible,
         "feasible_count": len(feasible_rows),
         "infeasible_count": len(infeasible_rows),
+        "pareto_size": int(frontier_summary["pareto_size"]),
+        "recent_frontier_add_count": int(frontier_summary["recent_frontier_add_count"]),
+        "evaluations_since_frontier_add": frontier_summary["evaluations_since_frontier_add"],
+        "recent_feasible_regression_count": int(frontier_summary["recent_feasible_regression_count"]),
+        "recent_feasible_preservation_count": int(frontier_summary["recent_feasible_preservation_count"]),
     }
 
 

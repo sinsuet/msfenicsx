@@ -10,6 +10,7 @@ from optimizers.operator_pool.domain_state import (
     build_domain_regime,
     build_history_lookup,
     build_parent_state,
+    build_prefeasible_reset_summary,
     build_progress_state,
     build_run_state,
 )
@@ -26,6 +27,18 @@ def _compact_recent_decision(row: ControllerTraceRow) -> dict[str, Any]:
         "selected_operator_id": row.selected_operator_id,
         "fallback_used": fallback_used,
         "llm_valid": row.controller_id == "llm" and not fallback_used,
+    }
+
+
+def _policy_recent_decision(row: ControllerTraceRow) -> dict[str, Any]:
+    reason_codes = row.metadata.get("guardrail_reason_codes", [])
+    if not isinstance(reason_codes, Sequence) or isinstance(reason_codes, (str, bytes)):
+        reason_codes = [] if not reason_codes else [str(reason_codes)]
+    return {
+        "selected_operator_id": row.selected_operator_id,
+        "policy_phase": str(row.metadata.get("policy_phase") or row.metadata.get("guardrail_policy_phase") or row.phase),
+        "policy_reset_active": bool(row.metadata.get("guardrail_policy_reset_active", False)),
+        "reason_codes": [str(code) for code in reason_codes],
     }
 
 
@@ -98,6 +111,9 @@ def build_controller_state(
         archive_state = build_archive_state(history_rows)
         domain_regime = build_domain_regime(parent_state=parent_state, archive_state=archive_state)
         progress_state = build_progress_state(history=history_rows)
+        progress_state.update(
+            build_prefeasible_reset_summary([_policy_recent_decision(row) for row in recent_rows])
+        )
         state_metadata["run_state"] = run_state
         state_metadata["parent_state"] = parent_state
         state_metadata["archive_state"] = archive_state

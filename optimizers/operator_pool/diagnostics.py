@@ -4,20 +4,47 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from optimizers.operator_pool.domain_state import dominant_violation_family, total_violation
 from optimizers.operator_pool.operators import get_operator_behavior_profile
 from optimizers.operator_pool.trace import ControllerTraceRow
 
 
-def analyze_controller_trace(path: str | Path) -> dict[str, Any]:
+def analyze_controller_trace(
+    path: str | Path,
+    *,
+    optimization_result_path: str | Path | None = None,
+    operator_trace_path: str | Path | None = None,
+    llm_request_trace_path: str | Path | None = None,
+    llm_response_trace_path: str | Path | None = None,
+) -> dict[str, Any]:
     trace_path = Path(path)
     rows = json.loads(trace_path.read_text(encoding="utf-8"))
-    controller_rows = [ControllerTraceRow.from_dict(dict(row)) for row in rows]
-    summary = _summarize_controller_rows(controller_rows)
+    controller_rows = sorted(
+        [ControllerTraceRow.from_dict(dict(row)) for row in rows],
+        key=lambda row: (int(row.evaluation_index), int(row.generation_index)),
+    )
+    artifact_context = _load_artifact_context(optimization_result_path)
+    summary = summarize_controller_rows(controller_rows, artifact_context=artifact_context)
     summary["trace_path"] = str(trace_path)
+
+    if optimization_result_path is not None:
+        summary["optimization_result_path"] = str(Path(optimization_result_path))
+    if operator_trace_path is not None:
+        operator_trace_rows = json.loads(Path(operator_trace_path).read_text(encoding="utf-8"))
+        summary["operator_trace"] = {
+            "row_count": len(operator_trace_rows),
+            "path": str(Path(operator_trace_path)),
+        }
+    llm_trace_summary = _summarize_llm_traces(
+        llm_request_trace_path=llm_request_trace_path,
+        llm_response_trace_path=llm_response_trace_path,
+    )
+    if llm_trace_summary is not None:
+        summary["llm_trace"] = llm_trace_summary
     return summary
 
 
@@ -25,7 +52,11 @@ def save_controller_trace_summary(path: str | Path, summary: dict[str, Any]) -> 
     Path(path).write_text(json.dumps(summary, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _summarize_controller_rows(rows: Sequence[ControllerTraceRow]) -> dict[str, Any]:
+def summarize_controller_rows(
+    rows: Sequence[ControllerTraceRow],
+    *,
+    artifact_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     aggregate_phase_counts: Counter[str] = Counter()
     aggregate_reason_code_counts: Counter[str] = Counter()
     phase_buckets = {
@@ -36,15 +67,26 @@ def _summarize_controller_rows(rows: Sequence[ControllerTraceRow]) -> dict[str, 
     }
     current_speculative_streak = 0
     current_same_operator_streak = 0
+    current_same_family_streak = 0
+    current_stable_family_streak = 0
+    current_stable_role_streak = 0
+    current_dominant_violation_family = ""
+    current_dominant_violation_streak = 0
     current_bucket = "unknown"
     current_operator_id = ""
+    current_family = ""
+    current_stable_family = ""
+    current_stable_role = ""
     fallback_count = 0
     llm_valid_count = 0
+    latest_eval_by_bucket: dict[str, int] = {}
+    first_feasible_eval = None if artifact_context is None else artifact_context.get("first_feasible_eval")
 
     for row in rows:
-        bucket = _phase_bucket(_policy_phase(row))
+        bucket = _phase_bucket(_policy_phase(row), first_feasible_eval=first_feasible_eval, evaluation_index=row.evaluation_index)
         phase_buckets[bucket]["decision_count"] += 1
         aggregate_phase_counts[bucket] += 1
+        latest_eval_by_bucket[bucket] = int(row.evaluation_index)
 
         fallback_used = bool(row.metadata.get("fallback_used", False))
         if fallback_used:
@@ -62,10 +104,19 @@ def _summarize_controller_rows(rows: Sequence[ControllerTraceRow]) -> dict[str, 
             phase_buckets[bucket]["reason_code_counts"][code] += 1
 
         operator_family = _operator_family(row.selected_operator_id)
+        phase_buckets[bucket]["family_mix"][operator_family] += 1
         if bucket != current_bucket:
             current_speculative_streak = 0
             current_same_operator_streak = 0
+            current_same_family_streak = 0
+            current_stable_family_streak = 0
+            current_stable_role_streak = 0
+            current_dominant_violation_family = ""
+            current_dominant_violation_streak = 0
             current_operator_id = ""
+            current_family = ""
+            current_stable_family = ""
+            current_stable_role = ""
             current_bucket = bucket
 
         if not fallback_used and operator_family == "speculative_custom":
@@ -87,7 +138,120 @@ def _summarize_controller_rows(rows: Sequence[ControllerTraceRow]) -> dict[str, 
             current_same_operator_streak,
         )
 
-    return {
+        if operator_family == current_family:
+            current_same_family_streak += 1
+        else:
+            current_family = operator_family
+            current_same_family_streak = 1
+        phase_buckets[bucket]["max_same_family_streak"] = max(
+            phase_buckets[bucket]["max_same_family_streak"],
+            current_same_family_streak,
+        )
+
+        operator_role = _operator_role(row.selected_operator_id)
+        stable_family = operator_family if _operator_is_stable(row.selected_operator_id) else ""
+        stable_role = operator_role if _operator_is_stable(row.selected_operator_id) else ""
+        if stable_family:
+            if stable_family == current_stable_family:
+                current_stable_family_streak += 1
+            else:
+                current_stable_family = stable_family
+                current_stable_family_streak = 1
+            phase_buckets[bucket]["max_stable_family_monopoly_streak"] = max(
+                phase_buckets[bucket]["max_stable_family_monopoly_streak"],
+                current_stable_family_streak,
+            )
+        else:
+            current_stable_family = ""
+            current_stable_family_streak = 0
+
+        if stable_role:
+            if stable_role == current_stable_role:
+                current_stable_role_streak += 1
+            else:
+                current_stable_role = stable_role
+                current_stable_role_streak = 1
+            phase_buckets[bucket]["max_stable_role_monopoly_streak"] = max(
+                phase_buckets[bucket]["max_stable_role_monopoly_streak"],
+                current_stable_role_streak,
+            )
+        else:
+            current_stable_role = ""
+            current_stable_role_streak = 0
+
+        reset_active = bool(row.metadata.get("guardrail_policy_reset_active", False)) or "prefeasible_forced_reset" in reason_codes
+        if bucket == "prefeasible" and reset_active:
+            phase_buckets[bucket]["reset_window_count"] += 1
+            if stable_family:
+                phase_buckets[bucket]["reset_family_counts"][stable_family] += 1
+
+        entry_metrics = (
+            {}
+            if artifact_context is None
+            else dict(artifact_context.get("entry_metrics", {}).get(int(row.evaluation_index), {}))
+        )
+        entry_convert_active = (
+            bool(row.metadata.get("entry_convert_active", False))
+            or bool(entry_metrics.get("entry_convert_active", False))
+            or _policy_phase(row) == "prefeasible_convert"
+        )
+        if bucket == "prefeasible" and entry_convert_active:
+            phase_buckets[bucket]["entry_convert_window_count"] += 1
+            supported_entry_candidate_share = _supported_entry_candidate_share(row, entry_metrics=entry_metrics)
+            if supported_entry_candidate_share is not None:
+                phase_buckets[bucket]["supported_entry_candidate_share_total"] += supported_entry_candidate_share
+                phase_buckets[bucket]["supported_entry_candidate_share_count"] += 1
+
+        dominant_violation_family_name = str(
+            row.metadata.get("dominant_violation_family", "") or entry_metrics.get("dominant_violation_family", "")
+        ).strip()
+        if bucket == "prefeasible" and dominant_violation_family_name:
+            if dominant_violation_family_name == current_dominant_violation_family:
+                current_dominant_violation_streak += 1
+            else:
+                current_dominant_violation_family = dominant_violation_family_name
+                current_dominant_violation_streak = 1
+            phase_buckets[bucket]["max_dominant_violation_persistence_streak"] = max(
+                phase_buckets[bucket]["max_dominant_violation_persistence_streak"],
+                current_dominant_violation_streak,
+            )
+        elif bucket == "prefeasible":
+            current_dominant_violation_family = ""
+            current_dominant_violation_streak = 0
+
+        near_feasible_relief = bool(row.metadata.get("near_feasible_relief", False)) or bool(
+            entry_metrics.get("near_feasible_relief", False)
+        )
+        if bucket == "prefeasible" and near_feasible_relief:
+            phase_buckets[bucket]["near_feasible_relief_count"] += 1
+            phase_buckets[bucket]["last_near_feasible_relief_eval"] = int(row.evaluation_index)
+
+        if artifact_context is None:
+            continue
+        evaluation_metrics = artifact_context["evaluation_metrics"].get(int(row.evaluation_index), {})
+        if evaluation_metrics.get("frontier_add", False):
+            phase_buckets[bucket]["frontier_add_count"] += 1
+        if evaluation_metrics.get("feasible_regression", False):
+            phase_buckets[bucket]["feasible_regression_count"] += 1
+        if evaluation_metrics.get("feasible_preservation", False):
+            phase_buckets[bucket]["feasible_preservation_count"] += 1
+
+    last_frontier_add_eval = None if artifact_context is None else artifact_context.get("last_frontier_add_eval")
+    for bucket_name, bucket in phase_buckets.items():
+        latest_eval = latest_eval_by_bucket.get(bucket_name)
+        if bucket_name == "post_feasible" and latest_eval is not None and last_frontier_add_eval is not None:
+            bucket["evaluations_since_frontier_add"] = max(0, int(latest_eval) - int(last_frontier_add_eval))
+        if (
+            bucket_name == "prefeasible"
+            and latest_eval is not None
+            and bucket["last_near_feasible_relief_eval"] is not None
+        ):
+            bucket["evaluations_since_last_near_feasible_relief"] = max(
+                0,
+                int(latest_eval) - int(bucket["last_near_feasible_relief_eval"]),
+            )
+
+    summary = {
         "aggregate": {
             "decision_count": len(rows),
             "fallback_count": fallback_count,
@@ -99,7 +263,27 @@ def _summarize_controller_rows(rows: Sequence[ControllerTraceRow]) -> dict[str, 
         "prefeasible": _finalize_phase_bucket(phase_buckets["prefeasible"]),
         "post_feasible": _finalize_phase_bucket(phase_buckets["post_feasible"]),
         "unknown": _finalize_phase_bucket(phase_buckets["unknown"]),
+        "family_mix": {
+            bucket_name: dict(phase_buckets[bucket_name]["family_mix"])
+            for bucket_name in ("cold_start", "prefeasible", "post_feasible", "unknown")
+        },
     }
+    if artifact_context is None:
+        return summary
+    summary["aggregate"].update(
+        {
+            "first_feasible_eval": artifact_context.get("first_feasible_eval"),
+            "rows_before_first_feasible": sum(
+                1 for row in rows if _is_before_first_feasible(row.evaluation_index, artifact_context.get("first_feasible_eval"))
+            ),
+            "rows_after_first_feasible": sum(
+                1
+                for row in rows
+                if _is_after_or_at_first_feasible(row.evaluation_index, artifact_context.get("first_feasible_eval"))
+            ),
+        }
+    )
+    return summary
 
 
 def _new_phase_bucket() -> dict[str, Any]:
@@ -110,23 +294,85 @@ def _new_phase_bucket() -> dict[str, Any]:
         "forced_reset_count": 0,
         "max_speculative_family_streak": 0,
         "max_same_operator_streak": 0,
+        "max_same_family_streak": 0,
+        "max_stable_family_monopoly_streak": 0,
+        "max_stable_role_monopoly_streak": 0,
+        "reset_window_count": 0,
+        "frontier_add_count": 0,
+        "feasible_regression_count": 0,
+        "feasible_preservation_count": 0,
+        "evaluations_since_frontier_add": None,
+        "max_dominant_violation_persistence_streak": 0,
+        "near_feasible_relief_count": 0,
+        "last_near_feasible_relief_eval": None,
+        "evaluations_since_last_near_feasible_relief": None,
+        "entry_convert_window_count": 0,
+        "supported_entry_candidate_share_total": 0.0,
+        "supported_entry_candidate_share_count": 0,
         "reason_code_counts": Counter(),
+        "family_mix": Counter(),
+        "reset_family_counts": Counter(),
     }
 
 
 def _finalize_phase_bucket(bucket: dict[str, Any]) -> dict[str, Any]:
-    return {
+    reset_window_count = int(bucket["reset_window_count"])
+    reset_family_counts = Counter(bucket["reset_family_counts"])
+    finalized = {
         "decision_count": int(bucket["decision_count"]),
         "fallback_count": int(bucket["fallback_count"]),
         "llm_valid_count": int(bucket["llm_valid_count"]),
         "forced_reset_count": int(bucket["forced_reset_count"]),
         "max_speculative_family_streak": int(bucket["max_speculative_family_streak"]),
         "max_same_operator_streak": int(bucket["max_same_operator_streak"]),
+        "max_same_family_streak": int(bucket["max_same_family_streak"]),
+        "max_stable_family_monopoly_streak": int(bucket["max_stable_family_monopoly_streak"]),
+        "max_stable_role_monopoly_streak": int(bucket["max_stable_role_monopoly_streak"]),
+        "reset_window_count": reset_window_count,
+        "global_explore_share_during_reset": (
+            0.0 if reset_window_count <= 0 else float(reset_family_counts.get("global_explore", 0)) / float(reset_window_count)
+        ),
+        "local_refine_share_during_reset": (
+            0.0 if reset_window_count <= 0 else float(reset_family_counts.get("local_refine", 0)) / float(reset_window_count)
+        ),
+        "native_baseline_share_during_reset": (
+            0.0 if reset_window_count <= 0 else float(reset_family_counts.get("native_baseline", 0)) / float(reset_window_count)
+        ),
+        "frontier_add_count": int(bucket["frontier_add_count"]),
+        "feasible_regression_count": int(bucket["feasible_regression_count"]),
+        "feasible_preservation_count": int(bucket["feasible_preservation_count"]),
+        "evaluations_since_frontier_add": (
+            None
+            if bucket["evaluations_since_frontier_add"] is None
+            else int(bucket["evaluations_since_frontier_add"])
+        ),
         "reason_code_counts": dict(bucket["reason_code_counts"]),
+        "family_mix": dict(bucket["family_mix"]),
     }
+    if int(bucket["entry_convert_window_count"]) > 0 or int(bucket["near_feasible_relief_count"]) > 0:
+        finalized["max_dominant_violation_persistence_streak"] = int(
+            bucket["max_dominant_violation_persistence_streak"]
+        )
+        finalized["near_feasible_relief_count"] = int(bucket["near_feasible_relief_count"])
+        finalized["entry_convert_window_count"] = int(bucket["entry_convert_window_count"])
+        finalized["evaluations_since_last_near_feasible_relief"] = (
+            None
+            if bucket["evaluations_since_last_near_feasible_relief"] is None
+            else int(bucket["evaluations_since_last_near_feasible_relief"])
+        )
+        if int(bucket["supported_entry_candidate_share_count"]) > 0:
+            finalized["supported_entry_candidate_share"] = float(
+                bucket["supported_entry_candidate_share_total"]
+            ) / float(bucket["supported_entry_candidate_share_count"])
+    return finalized
 
 
-def _phase_bucket(phase: str) -> str:
+def _phase_bucket(
+    phase: str,
+    *,
+    first_feasible_eval: int | None,
+    evaluation_index: int,
+) -> str:
     normalized = phase.strip().lower()
     if normalized == "cold_start":
         return "cold_start"
@@ -134,13 +380,18 @@ def _phase_bucket(phase: str) -> str:
         return "prefeasible"
     if normalized.startswith("post_feasible") or normalized.startswith("feasible"):
         return "post_feasible"
+    if _is_before_first_feasible(evaluation_index, first_feasible_eval):
+        return "prefeasible"
+    if _is_after_or_at_first_feasible(evaluation_index, first_feasible_eval):
+        return "post_feasible"
     return "unknown"
 
 
 def _policy_phase(row: ControllerTraceRow) -> str:
-    policy_phase = row.metadata.get("guardrail_policy_phase")
-    if policy_phase:
-        return str(policy_phase)
+    for key in ("policy_phase", "guardrail_policy_phase"):
+        value = row.metadata.get(key)
+        if value:
+            return str(value)
     if row.phase:
         return str(row.phase)
     return "unknown"
@@ -154,6 +405,23 @@ def _reason_codes(values: Any) -> list[str]:
     return []
 
 
+def _supported_entry_candidate_share(
+    row: ControllerTraceRow,
+    *,
+    entry_metrics: Mapping[str, Any] | None = None,
+) -> float | None:
+    if row.metadata.get("supported_entry_candidate_share") is not None:
+        return float(row.metadata["supported_entry_candidate_share"])
+    if row.metadata.get("supported_entry_candidate_count") is None:
+        if entry_metrics is None or entry_metrics.get("supported_entry_candidate_share") is None:
+            return None
+        return float(entry_metrics["supported_entry_candidate_share"])
+    candidate_count = len(tuple(row.candidate_operator_ids))
+    if candidate_count <= 0:
+        return 0.0
+    return float(row.metadata["supported_entry_candidate_count"]) / float(candidate_count)
+
+
 def _operator_family(operator_id: str) -> str:
     try:
         return get_operator_behavior_profile(operator_id).family
@@ -162,3 +430,174 @@ def _operator_family(operator_id: str) -> str:
         if normalized.startswith("native_"):
             return "native_baseline"
         return "unknown"
+
+
+def _operator_role(operator_id: str) -> str:
+    try:
+        return get_operator_behavior_profile(operator_id).role
+    except KeyError:
+        return "unknown"
+
+
+def _operator_is_stable(operator_id: str) -> bool:
+    try:
+        return get_operator_behavior_profile(operator_id).exploration_class == "stable"
+    except KeyError:
+        return str(operator_id).startswith("native_")
+
+
+def _load_artifact_context(optimization_result_path: str | Path | None) -> dict[str, Any] | None:
+    if optimization_result_path is None:
+        return None
+    payload = json.loads(Path(optimization_result_path).read_text(encoding="utf-8"))
+    history = sorted(
+        [
+            dict(row)
+            for row in payload.get("history", [])
+            if isinstance(row, Mapping) and "evaluation_index" in row
+        ],
+        key=lambda row: int(row.get("evaluation_index", 0)),
+    )
+    first_feasible_eval = payload.get("aggregate_metrics", {}).get("first_feasible_eval")
+    if first_feasible_eval is None:
+        feasible_evals = [int(row.get("evaluation_index", 0)) for row in history if bool(row.get("feasible", False))]
+        first_feasible_eval = None if not feasible_evals else min(feasible_evals)
+    if first_feasible_eval is not None:
+        first_feasible_eval = int(first_feasible_eval)
+
+    prior_feasible_records: list[Mapping[str, Any]] = []
+    evaluation_metrics: dict[int, dict[str, bool]] = {}
+    entry_metrics: dict[int, dict[str, Any]] = {}
+    last_frontier_add_eval: int | None = None
+    best_prefeasible_violation = float("inf")
+    for row in history:
+        evaluation_index = int(row.get("evaluation_index", 0))
+        feasible = bool(row.get("feasible", False))
+        row_total_violation = total_violation(row)
+        metrics = {
+            "frontier_add": False,
+            "feasible_regression": False,
+            "feasible_preservation": False,
+        }
+        if first_feasible_eval is not None and evaluation_index >= first_feasible_eval:
+            if feasible:
+                if _is_frontier_add(row, prior_feasible_records):
+                    metrics["frontier_add"] = True
+                    last_frontier_add_eval = evaluation_index
+                else:
+                    metrics["feasible_preservation"] = True
+            else:
+                metrics["feasible_regression"] = True
+        evaluation_metrics[evaluation_index] = metrics
+        entry_convert_active = (
+            not feasible
+            and (
+                row_total_violation <= 1.0
+                or best_prefeasible_violation <= 1.0
+            )
+        )
+        near_feasible_relief = (
+            not feasible
+            and row_total_violation < best_prefeasible_violation
+            and (
+                row_total_violation <= 1.0
+                or best_prefeasible_violation <= 1.0
+            )
+        )
+        entry_metrics[evaluation_index] = {
+            "entry_convert_active": entry_convert_active,
+            "dominant_violation_family": dominant_violation_family(row),
+            "near_feasible_relief": near_feasible_relief,
+        }
+        if not feasible:
+            best_prefeasible_violation = min(best_prefeasible_violation, row_total_violation)
+        if feasible:
+            prior_feasible_records.append(row)
+
+    return {
+        "first_feasible_eval": first_feasible_eval,
+        "evaluation_metrics": evaluation_metrics,
+        "entry_metrics": entry_metrics,
+        "last_frontier_add_eval": last_frontier_add_eval,
+    }
+
+
+def _is_frontier_add(candidate: Mapping[str, Any], prior_feasible_records: Sequence[Mapping[str, Any]]) -> bool:
+    candidate_tuple = _objective_tuple(candidate)
+    if candidate_tuple is None:
+        return False
+    for record in prior_feasible_records:
+        incumbent_tuple = _objective_tuple(record)
+        if incumbent_tuple is None:
+            continue
+        if incumbent_tuple == candidate_tuple:
+            return False
+        if _dominates(incumbent_tuple, candidate_tuple):
+            return False
+    return True
+
+
+def _objective_tuple(record: Mapping[str, Any]) -> tuple[float, ...] | None:
+    objective_values = record.get("objective_values")
+    if not isinstance(objective_values, Mapping) or not objective_values:
+        return None
+    items: list[tuple[str, float]] = []
+    for objective_id, value in objective_values.items():
+        objective_name = str(objective_id).lower()
+        numeric_value = float(value)
+        minimized_value = -numeric_value if "maximize" in objective_name else numeric_value
+        items.append((str(objective_id), minimized_value))
+    items.sort(key=lambda item: item[0])
+    return tuple(value for _, value in items)
+
+
+def _dominates(left: Sequence[float], right: Sequence[float]) -> bool:
+    return all(lv <= rv for lv, rv in zip(left, right, strict=True)) and any(
+        lv < rv for lv, rv in zip(left, right, strict=True)
+    )
+
+
+def _is_before_first_feasible(evaluation_index: int, first_feasible_eval: int | None) -> bool:
+    return first_feasible_eval is not None and int(evaluation_index) < int(first_feasible_eval)
+
+
+def _is_after_or_at_first_feasible(evaluation_index: int, first_feasible_eval: int | None) -> bool:
+    return first_feasible_eval is not None and int(evaluation_index) >= int(first_feasible_eval)
+
+
+def _summarize_llm_traces(
+    *,
+    llm_request_trace_path: str | Path | None,
+    llm_response_trace_path: str | Path | None,
+) -> dict[str, Any] | None:
+    if llm_request_trace_path is None and llm_response_trace_path is None:
+        return None
+    request_rows = [] if llm_request_trace_path is None else _load_jsonl_rows(llm_request_trace_path)
+    response_rows = [] if llm_response_trace_path is None else _load_jsonl_rows(llm_response_trace_path)
+    elapsed_values = [
+        float(row.get("elapsed_seconds", 0.0))
+        for row in response_rows
+        if isinstance(row, Mapping) and row.get("elapsed_seconds") is not None
+    ]
+    return {
+        "request_count": len(request_rows),
+        "response_count": len(response_rows),
+        "fallback_count": sum(
+            1 for row in response_rows if isinstance(row, Mapping) and bool(row.get("fallback_used", False))
+        ),
+        "elapsed_seconds_avg": (
+            0.0 if not elapsed_values else sum(elapsed_values) / float(len(elapsed_values))
+        ),
+        "request_trace_path": None if llm_request_trace_path is None else str(Path(llm_request_trace_path)),
+        "response_trace_path": None if llm_response_trace_path is None else str(Path(llm_response_trace_path)),
+    }
+
+
+def _load_jsonl_rows(path: str | Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        rows.append(dict(json.loads(stripped)))
+    return rows

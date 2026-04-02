@@ -12,6 +12,8 @@ from optimizers.operator_pool.domain_state import (
     build_history_lookup,
     classify_constraint_family,
     dominant_violation,
+    family_violation_total,
+    is_frontier_add_record,
     objective_score,
     outcome_regime,
     total_violation,
@@ -34,12 +36,13 @@ def _is_llm_valid_selection(row: ControllerTraceRow) -> bool:
 def _evidence_level(summary_row: Mapping[str, Any]) -> str:
     feasible_entry_count = int(summary_row.get("feasible_entry_count", 0))
     feasible_preservation_count = int(summary_row.get("feasible_preservation_count", 0))
+    pareto_contribution_count = int(summary_row.get("pareto_contribution_count", 0))
     support_count = max(
         int(summary_row.get("selection_count", 0)),
         int(summary_row.get("proposal_count", 0)),
         int(summary_row.get("recent_selection_count", 0)),
     )
-    if feasible_entry_count > 0 or feasible_preservation_count > 0:
+    if feasible_entry_count > 0 or feasible_preservation_count > 0 or pareto_contribution_count > 0:
         return "trusted"
     if support_count >= _SUPPORTED_SELECTION_THRESHOLD:
         return "supported"
@@ -65,6 +68,11 @@ def summarize_operator_history(
     recent_llm_valid_selected_operator_ids = [
         row.selected_operator_id for row in recent_controller_rows if _is_llm_valid_selection(row)
     ]
+    recent_effective_rows = [row for row in recent_controller_rows if _is_llm_valid_selection(row)]
+    if not recent_effective_rows:
+        recent_effective_rows = [row for row in recent_controller_rows if not _is_fallback_selection(row)]
+    if not recent_effective_rows:
+        recent_effective_rows = list(recent_controller_rows)
     selection_counter = Counter(selected_operator_ids)
     recent_selection_counter = Counter(recent_selected_operator_ids)
     fallback_selection_counter = Counter(fallback_selected_operator_ids)
@@ -72,6 +80,15 @@ def summarize_operator_history(
     recent_fallback_selection_counter = Counter(recent_fallback_selected_operator_ids)
     recent_llm_valid_selection_counter = Counter(recent_llm_valid_selected_operator_ids)
     proposal_counter = Counter(row.operator_id for row in operator_trace)
+    recent_family_counter = Counter(
+        get_operator_behavior_profile(row.selected_operator_id).family
+        for row in recent_effective_rows
+    )
+    recent_role_counter = Counter(
+        get_operator_behavior_profile(row.selected_operator_id).role
+        for row in recent_effective_rows
+    )
+    recent_effective_total = len(recent_effective_rows)
 
     operator_ids = sorted(
         set(selection_counter)
@@ -98,15 +115,34 @@ def summarize_operator_history(
             "recent_fallback_selection_count": int(recent_fallback_selection_counter.get(operator_id, 0)),
             "recent_llm_valid_selection_count": int(recent_llm_valid_selection_counter.get(operator_id, 0)),
             "proposal_count": int(proposal_counter.get(operator_id, 0)),
+            "recent_family_share": (
+                0.0
+                if recent_effective_total <= 0
+                else float(recent_family_counter.get(profile.family, 0)) / float(recent_effective_total)
+            ),
+            "recent_role_share": (
+                0.0
+                if recent_effective_total <= 0
+                else float(recent_role_counter.get(profile.role, 0)) / float(recent_effective_total)
+            ),
             **outcome_summary.get(
                 operator_id,
                 {
                     "feasible_entry_count": 0,
                     "feasible_preservation_count": 0,
+                    "feasible_regression_count": 0,
+                    "pareto_contribution_count": 0,
+                    "frontier_novelty_count": 0,
                     "avg_total_violation_delta": 0.0,
                     "avg_feasible_objective_delta": 0.0,
+                    "post_feasible_avg_objective_delta": 0.0,
+                    "post_feasible_avg_violation_delta": 0.0,
+                    "dominant_violation_relief_count": 0,
+                    "near_feasible_improvement_count": 0,
+                    "avg_near_feasible_violation_delta": 0.0,
                     "recent_helpful_regimes": [],
                     "recent_harmful_regimes": [],
+                    "recent_entry_helpful_regimes": [],
                 },
             ),
         }
@@ -141,10 +177,18 @@ def _summarize_operator_outcomes(
             {
                 "feasible_entry_count": 0,
                 "feasible_preservation_count": 0,
+                "feasible_regression_count": 0,
+                "pareto_contribution_count": 0,
+                "frontier_novelty_count": 0,
+                "dominant_violation_relief_count": 0,
+                "near_feasible_improvement_count": 0,
                 "total_violation_deltas": [],
                 "feasible_objective_deltas": [],
+                "post_feasible_violation_deltas": [],
+                "near_feasible_violation_deltas": [],
                 "recent_helpful_regimes": [],
                 "recent_harmful_regimes": [],
+                "recent_entry_helpful_regimes": [],
             },
         )
         child_record = history_by_evaluation_index.get(int(row.evaluation_index))
@@ -169,6 +213,17 @@ def _summarize_operator_outcomes(
             operator_summary["feasible_entry_count"] += 1
         if child_feasible and all(parent_feasible_flags):
             operator_summary["feasible_preservation_count"] += 1
+        if not child_feasible and any(parent_feasible_flags):
+            operator_summary["feasible_regression_count"] += 1
+
+        prior_feasible_records = [
+            dict(record)
+            for evaluation_index, record in history_by_evaluation_index.items()
+            if evaluation_index < int(row.evaluation_index) and bool(record.get("feasible", False))
+        ]
+        if child_feasible and is_frontier_add_record(child_record, prior_feasible_records):
+            operator_summary["pareto_contribution_count"] += 1
+            operator_summary["frontier_novelty_count"] += 1
 
         if child_feasible and any(parent_feasible_flags):
             parent_objective_scores = [
@@ -180,6 +235,9 @@ def _summarize_operator_outcomes(
                 operator_summary["feasible_objective_deltas"].append(
                     float(objective_score(child_record.get("objective_values")) - np.mean(parent_objective_scores))
                 )
+            operator_summary["post_feasible_violation_deltas"].append(violation_delta)
+        elif any(parent_feasible_flags):
+            operator_summary["post_feasible_violation_deltas"].append(violation_delta)
 
         regime = outcome_regime(parent_records=parent_records, child_record=child_record)
         regime_tags = [str(regime.get("phase", "")), str(regime.get("dominant_constraint_family", ""))]
@@ -188,10 +246,50 @@ def _summarize_operator_outcomes(
             if regime_tag and regime_tag not in operator_summary[target_key]:
                 operator_summary[target_key].append(regime_tag)
 
+        if (
+            not any(parent_feasible_flags)
+            and not child_feasible
+            and regime.get("phase") == "near_feasible"
+            and violation_delta < 0.0
+        ):
+            operator_summary["near_feasible_improvement_count"] += 1
+            operator_summary["near_feasible_violation_deltas"].append(violation_delta)
+            for regime_tag in regime_tags:
+                if regime_tag and regime_tag not in operator_summary["recent_entry_helpful_regimes"]:
+                    operator_summary["recent_entry_helpful_regimes"].append(regime_tag)
+
+        parent_dominant_candidates = [
+            (str(parent_dominant["constraint_id"]), float(parent_dominant["violation"]))
+            for record in parent_records
+            for parent_dominant in [dominant_violation(record)]
+            if parent_dominant is not None and parent_dominant.get("constraint_id")
+        ]
+        if parent_dominant_candidates:
+            dominant_constraint_id = max(parent_dominant_candidates, key=lambda item: item[1])[0]
+            dominant_family = classify_constraint_family(dominant_constraint_id)
+            parent_family_violation = float(
+                np.mean(
+                    [
+                        family_violation_total(record, dominant_family)
+                        for record in parent_records
+                    ]
+                )
+            )
+            child_family_violation = family_violation_total(child_record, dominant_family)
+            if child_family_violation < parent_family_violation:
+                operator_summary["dominant_violation_relief_count"] += 1
+                if dominant_family and dominant_family not in operator_summary["recent_entry_helpful_regimes"]:
+                    operator_summary["recent_entry_helpful_regimes"].append(dominant_family)
+
     return {
         operator_id: {
             "feasible_entry_count": int(summary["feasible_entry_count"]),
             "feasible_preservation_count": int(summary["feasible_preservation_count"]),
+            "feasible_regression_count": int(summary["feasible_regression_count"]),
+            "pareto_contribution_count": int(summary["pareto_contribution_count"]),
+            "frontier_novelty_count": int(summary["frontier_novelty_count"]),
+            "dominant_violation_relief_count": int(summary["dominant_violation_relief_count"]),
+            "near_feasible_improvement_count": int(summary["near_feasible_improvement_count"]),
             "avg_total_violation_delta": (
                 0.0
                 if not summary["total_violation_deltas"]
@@ -202,8 +300,24 @@ def _summarize_operator_outcomes(
                 if not summary["feasible_objective_deltas"]
                 else float(np.mean(summary["feasible_objective_deltas"]))
             ),
+            "post_feasible_avg_objective_delta": (
+                0.0
+                if not summary["feasible_objective_deltas"]
+                else float(np.mean(summary["feasible_objective_deltas"]))
+            ),
+            "post_feasible_avg_violation_delta": (
+                0.0
+                if not summary["post_feasible_violation_deltas"]
+                else float(np.mean(summary["post_feasible_violation_deltas"]))
+            ),
+            "avg_near_feasible_violation_delta": (
+                0.0
+                if not summary["near_feasible_violation_deltas"]
+                else float(np.mean(summary["near_feasible_violation_deltas"]))
+            ),
             "recent_helpful_regimes": list(summary["recent_helpful_regimes"]),
             "recent_harmful_regimes": list(summary["recent_harmful_regimes"]),
+            "recent_entry_helpful_regimes": list(summary["recent_entry_helpful_regimes"]),
         }
         for operator_id, summary in per_operator.items()
     }

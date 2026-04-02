@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,7 @@ from optimizers.drivers.raw_driver import (
     _extract_pareto_front,
     _load_base_cases,
 )
+from optimizers.generation_callback import GenerationSummaryCallback
 from optimizers.io import generate_benchmark_cases, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.models import OptimizationResult
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
@@ -31,6 +32,7 @@ class UnionOptimizationRun:
     representative_artifacts: dict[str, CandidateArtifacts]
     controller_trace: list[ControllerTraceRow]
     operator_trace: list[OperatorTraceRow]
+    generation_summary_rows: list[dict[str, Any]] = field(default_factory=list)
     llm_request_trace: list[dict[str, Any]] | None = None
     llm_response_trace: list[dict[str, Any]] | None = None
     llm_reflection_trace: list[dict[str, Any]] | None = None
@@ -63,12 +65,14 @@ def run_union_optimization(
         adapter = build_swarm_union_algorithm(problem, spec_payload, algorithm_config)
     else:
         raise ValueError(f"Unsupported union-driver family {family!r}.")
+    generation_callback = GenerationSummaryCallback(objective_definitions=evaluation_payload["objectives"])
     minimize(
         problem,
         adapter.algorithm,
         termination=("n_gen", int(algorithm_config["num_generations"])),
         seed=int(algorithm_config["seed"]),
         verbose=False,
+        callback=generation_callback,
         copy_algorithm=False,
     )
 
@@ -93,6 +97,7 @@ def run_union_optimization(
         representative_artifacts=representative_artifacts,
         controller_trace=list(adapter.controller_trace),
         operator_trace=list(adapter.operator_trace),
+        generation_summary_rows=list(generation_callback.rows),
         llm_request_trace=None if getattr(adapter, "llm_request_trace", None) is None else list(adapter.llm_request_trace),
         llm_response_trace=None if getattr(adapter, "llm_response_trace", None) is None else list(adapter.llm_response_trace),
         llm_reflection_trace=(
