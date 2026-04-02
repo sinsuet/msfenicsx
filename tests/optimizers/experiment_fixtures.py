@@ -76,6 +76,72 @@ def create_mode_root_with_seed_bundles(
     return mode_root
 
 
+def create_mixed_run_root(
+    tmp_path: Path,
+    *,
+    modes: tuple[str, ...] = ("raw", "union", "llm"),
+    seeds: tuple[int, ...] = (11,),
+) -> Path:
+    mode_slug = "_".join(mode for mode in ("raw", "union", "llm") if mode in modes)
+    run_root = create_run_root(
+        tmp_path,
+        run_id=f"0401_1430__{mode_slug}",
+        modes=modes,
+        include_comparison=len(modes) > 1,
+    )
+    _write_json(
+        run_root / "manifest.json",
+        {
+            "scenario_template_id": "s1_typical",
+            "run_id": f"0401_1430__{mode_slug}",
+            "mode_ids": list(modes),
+            "benchmark_seeds": list(seeds),
+            "directories": {
+                "shared": "shared",
+                **{mode: mode for mode in modes},
+                **({"comparison": "comparison"} if len(modes) > 1 else {}),
+            },
+        },
+    )
+    for mode in modes:
+        mode_root = run_root / mode
+        for directory_name in ("logs", "summaries", "pages", "figures", "reports", "seeds"):
+            (mode_root / directory_name).mkdir(parents=True, exist_ok=True)
+        _write_json(
+            mode_root / "manifest.json",
+            {
+                "mode_id": mode,
+                "benchmark_seeds": list(seeds),
+                "directories": {
+                    "logs": "logs",
+                    "summaries": "summaries",
+                    "pages": "pages",
+                    "figures": "figures",
+                    "reports": "reports",
+                    "seeds": "seeds",
+                },
+            },
+        )
+        for seed in seeds:
+            _create_mode_seed_bundle(mode_root / "seeds" / f"seed-{seed}", mode=mode, seed=seed)
+    if len(modes) > 1:
+        for directory_name in ("summaries", "pages", "figures", "reports"):
+            (run_root / "comparison" / directory_name).mkdir(parents=True, exist_ok=True)
+        _write_json(
+            run_root / "comparison" / "manifest.json",
+            {
+                "mode_ids": list(modes),
+                "directories": {
+                    "summaries": "summaries",
+                    "pages": "pages",
+                    "figures": "figures",
+                    "reports": "reports",
+                },
+            },
+        )
+    return run_root
+
+
 def create_experiment_root(
     tmp_path: Path,
     *,
