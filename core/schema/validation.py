@@ -128,6 +128,21 @@ def _validate_component_family(family: Any) -> None:
     shape = family.get("shape")
     if shape is not None and shape not in SUPPORTED_COMPONENT_SHAPES:
         raise SchemaValidationError(f"Unsupported shape '{shape}' in component family.")
+    layout_tags = family.get("layout_tags", [])
+    if not isinstance(layout_tags, Sequence) or isinstance(layout_tags, (str, bytes, bytearray)):
+        raise SchemaValidationError("component_family.layout_tags must be a sequence when provided.")
+    for tag in layout_tags:
+        if not isinstance(tag, str) or not tag:
+            raise SchemaValidationError("component_family.layout_tags entries must be non-empty strings.")
+    placement_hint = family.get("placement_hint")
+    if placement_hint is not None and (not isinstance(placement_hint, str) or not placement_hint):
+        raise SchemaValidationError("component_family.placement_hint must be a non-empty string when provided.")
+    adjacency_group = family.get("adjacency_group")
+    if adjacency_group is not None and (not isinstance(adjacency_group, str) or not adjacency_group):
+        raise SchemaValidationError("component_family.adjacency_group must be a non-empty string when provided.")
+    clearance = family.get("clearance")
+    if clearance is not None:
+        _require_positive_real(clearance, "component_family.clearance")
 
 
 def _validate_boundary_feature_family(family: Any) -> None:
