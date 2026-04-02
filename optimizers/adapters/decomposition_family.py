@@ -179,7 +179,7 @@ def build_decomposition_union_algorithm(problem: Any, optimization_spec: Any, al
         operator_ids=list(spec_payload["operator_control"]["operator_pool"]),
         controller_id=str(spec_payload["operator_control"]["controller"]),
         variable_layout=VariableLayout.from_optimization_spec(spec_payload),
-        repair_reference_case=next(iter(problem.base_cases.values())),
+        repair_reference_case=problem.base_case,
         optimization_spec=spec_payload,
         ref_dirs=kwargs["ref_dirs"],
         n_neighbors=kwargs["n_neighbors"],

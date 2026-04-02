@@ -44,12 +44,6 @@ def generate_benchmark_case(spec_path: str | Path, optimization_spec: Optimizati
     return generate_case(template_path, seed=int(spec_payload["benchmark_source"]["seed"]))
 
 
-def generate_benchmark_cases(spec_path: str | Path, optimization_spec: OptimizationSpec | dict[str, Any]) -> Any:
-    """Compatibility alias for older call sites; returns a single benchmark case."""
-
-    return generate_benchmark_case(spec_path, optimization_spec)
-
-
 def _coerce_payload(value: OptimizationSpec | OptimizationResult | dict[str, Any]) -> dict[str, Any]:
     if hasattr(value, "to_dict"):
         return value.to_dict()

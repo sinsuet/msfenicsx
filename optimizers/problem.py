@@ -39,8 +39,6 @@ class ThermalOptimizationProblem(ElementwiseProblem):
             xu=np.asarray([float(item["upper_bound"]) for item in design_variables], dtype=np.float64),
         )
         self.base_case = base_case
-        # Keep legacy union adapters working while the optimizer core is single-case first.
-        self.base_cases = {"evaluation_case": base_case}
         self.optimization_spec = optimization_payload
         self.evaluation_spec = evaluation_payload
         self.history: list[dict[str, Any]] = []

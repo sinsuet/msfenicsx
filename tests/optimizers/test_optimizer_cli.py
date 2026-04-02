@@ -928,20 +928,18 @@ def test_optimizer_cli_run_mode_experiment_writes_template_first_experiment_root
     def _fake_load_spec(path):
         del path
         return {
-            "spec_meta": {"spec_id": "panel-four-component-hot-cold-baseline"},
+            "spec_meta": {"spec_id": "s1_typical_eval"},
             "objectives": [
-                {"objective_id": "minimize_hot_pa_peak", "sense": "minimize"},
-                {"objective_id": "maximize_cold_battery_min", "sense": "maximize"},
-                {"objective_id": "minimize_radiator_resource", "sense": "minimize"},
+                {"objective_id": "minimize_peak_temperature", "sense": "minimize"},
+                {"objective_id": "minimize_temperature_gradient_rms", "sense": "minimize"},
             ],
             "constraints": [
-                {"constraint_id": "cold_battery_floor"},
-                {"constraint_id": "hot_pa_limit"},
+                {"constraint_id": "radiator_span_budget"},
             ],
         }
 
-    def _fake_run_raw_optimization(base_cases, optimization_spec, evaluation_spec, *, spec_path=None):
-        del base_cases, evaluation_spec, spec_path
+    def _fake_run_raw_optimization(base_case, optimization_spec, evaluation_spec, *, spec_path=None):
+        del base_case, evaluation_spec, spec_path
         from tests.optimizers.test_experiment_runner import _fake_result
 
         seed = int(optimization_spec.benchmark_source["seed"])
@@ -957,9 +955,8 @@ def test_optimizer_cli_run_mode_experiment_writes_template_first_experiment_root
                         "num_evaluations_so_far": 2,
                         "feasible_fraction": 0.5,
                         "best_total_constraint_violation": 0.0,
-                        "best_hot_pa_peak": 299.0,
-                        "best_cold_battery_min": 259.0,
-                        "best_radiator_resource": 0.45,
+                        "best_minimize_peak_temperature": 299.0,
+                        "best_minimize_temperature_gradient_rms": 8.4,
                         "pareto_size": 1,
                         "new_feasible_entries": 1,
                         "new_pareto_entries": 1,
@@ -988,7 +985,7 @@ def test_optimizer_cli_run_mode_experiment_writes_template_first_experiment_root
     )
 
     assert exit_code == 0
-    experiment_root = next((scenario_runs_root / "panel-four-component-hot-cold-benchmark" / "experiments").iterdir())
+    experiment_root = next((scenario_runs_root / "s1_typical" / "experiments").iterdir())
     assert (experiment_root / "runs" / "seed-11" / "optimization_result.json").exists()
     assert (experiment_root / "summaries" / "run_index.json").exists()
     assert (experiment_root / "figures" / "overview.svg").exists()
