@@ -34,7 +34,9 @@ def build_comparison_summaries(run_root: str | Path) -> dict[str, str]:
             {
                 "mode_id": mode,
                 "seed_count": int(mode_summary.get("seed_count", 0)),
+                "baseline_feasible_count": int(mode_summary.get("baseline_feasible_count", 0)),
                 "first_feasible_eval_stats": mode_summary.get("first_feasible_eval_stats", {}),
+                "optimizer_feasible_rate_stats": mode_summary.get("optimizer_feasible_rate_stats", {}),
                 "pareto_size_stats": mode_summary.get("pareto_size_stats", {}),
                 "best_peak_stats": mode_summary.get("best_peak_stats", {}),
                 "best_gradient_stats": mode_summary.get("best_gradient_stats", {}),
@@ -49,7 +51,9 @@ def build_comparison_summaries(run_root: str | Path) -> dict[str, str]:
                 {
                     "mode_id": mode,
                     "seed": seed,
+                    "baseline_feasible": bool(seed_row.get("baseline_feasible", False)),
                     "first_feasible_eval": seed_row.get("first_feasible_eval"),
+                    "optimizer_feasible_rate": seed_row.get("optimizer_feasible_rate"),
                     "pareto_size": seed_row.get("pareto_size"),
                     "best_temperature_max": final_timeline.get("best_temperature_max_so_far"),
                     "best_gradient_rms": final_timeline.get("best_gradient_rms_so_far"),

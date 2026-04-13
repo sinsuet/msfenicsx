@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 from dolfinx import fem
+import pytest
 from shapely.geometry import box
 
 from core.generator.pipeline import generate_case
@@ -42,6 +43,30 @@ def test_export_field_views_writes_temperature_and_gradient_grids() -> None:
     assert payload["field_view"]["temperature"]["grid_shape"] == [81, 101]
     assert payload["field_view"]["layout"]["components"][0]["component_id"] == "comp-001"
     assert payload["field_view"]["layout"]["line_sinks"][0]["feature_id"] == "sink-top-window"
+
+
+def test_export_field_views_samples_linear_field_gradient_as_nearly_constant() -> None:
+    domain = build_panel_mesh({"width": 1.0, "height": 0.8}, {"nx": 4, "ny": 4})
+    function_space = fem.functionspace(domain, ("Lagrange", 1))
+    temperature = fem.Function(function_space)
+    temperature.interpolate(lambda x: x[0] + 2.0 * x[1])
+    temperature.x.scatter_forward()
+
+    payload = export_field_views(
+        temperature,
+        panel_domain={"width": 1.0, "height": 0.8},
+        components=[
+            {
+                "component_id": "comp-001",
+                "polygon": box(0.2, 0.2, 0.4, 0.4),
+            }
+        ],
+    )
+
+    gradient_grid = payload["arrays"]["gradient_magnitude"]
+
+    assert float(np.mean(gradient_grid)) == pytest.approx(np.sqrt(5.0))
+    assert float(np.std(gradient_grid)) < 0.15
 
 
 def test_sample_solution_fields_includes_page_ready_field_exports() -> None:

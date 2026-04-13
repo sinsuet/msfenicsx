@@ -146,3 +146,24 @@ def test_s1_typical_union_mixed_trace_uses_one_decision_per_proposal(monkeypatch
     assert [row.metadata["decision_index"] for row in run.controller_trace] == [0, 1, 2, 3]
     assert {row.metadata["children_per_event"] for row in run.controller_trace} == {1}
     assert [row.metadata["decision_index"] for row in run.operator_trace] == [0, 1, 2, 3]
+
+
+def test_s1_typical_union_keeps_trace_indices_ordered_with_parallel_workers() -> None:
+    from optimizers.drivers.union_driver import run_union_optimization
+
+    spec_path = "scenarios/optimization/s1_typical_union.yaml"
+    spec = _spec(spec_path, seed=13, population_size=4, num_generations=1)
+    run = run_union_optimization(
+        _base_case(spec_path, spec),
+        spec,
+        _evaluation_spec(spec_path, spec),
+        spec_path=spec_path,
+        evaluation_workers=2,
+    )
+
+    controller_indices = [row.evaluation_index for row in run.controller_trace]
+    operator_indices = [row.evaluation_index for row in run.operator_trace]
+
+    assert controller_indices == sorted(controller_indices)
+    assert operator_indices == sorted(operator_indices)
+    assert controller_indices == operator_indices

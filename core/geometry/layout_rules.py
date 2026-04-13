@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from shapely.geometry import Polygon
@@ -29,6 +29,27 @@ def component_within_domain(component: dict[str, Any], panel_domain: dict[str, f
 def components_overlap(component_a: dict[str, Any], component_b: dict[str, Any], tolerance: float = 1.0e-12) -> bool:
     overlap_area = component_polygon(component_a).intersection(component_polygon(component_b)).area
     return overlap_area > tolerance
+
+
+def required_clearance_gap(
+    component_a: dict[str, Any],
+    component_b: dict[str, Any],
+    clearance_by_family: Mapping[str, float],
+) -> float:
+    clearance_a = _component_clearance(component_a, clearance_by_family)
+    clearance_b = _component_clearance(component_b, clearance_by_family)
+    required_gap = max(clearance_a, clearance_b)
+    return float(component_polygon(component_a).distance(component_polygon(component_b)) - required_gap)
+
+
+def components_violate_clearance(
+    component_a: dict[str, Any],
+    component_b: dict[str, Any],
+    clearance_by_family: Mapping[str, float],
+) -> bool:
+    if components_overlap(component_a, component_b):
+        return True
+    return required_clearance_gap(component_a, component_b, clearance_by_family) < -1.0e-12
 
 
 def component_respects_keep_out_regions(
@@ -67,3 +88,10 @@ def region_polygon(region: dict[str, Any]) -> Polygon:
     if kind == "polygon":
         return Polygon(polygon_outline(region["vertices"]))
     raise ValueError(f"Unsupported keep-out region kind: {kind}")
+
+
+def _component_clearance(component: dict[str, Any], clearance_by_family: Mapping[str, float]) -> float:
+    if "clearance" in component:
+        return max(0.0, float(component.get("clearance", 0.0)))
+    family_id = str(component.get("family_id", ""))
+    return max(0.0, float(clearance_by_family.get(family_id, 0.0)))

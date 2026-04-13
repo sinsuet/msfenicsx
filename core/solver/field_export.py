@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any, Sequence
 
 import numpy as np
+from dolfinx import fem
+import ufl
 
 
 DEFAULT_GRID_SHAPE = (81, 101)
@@ -29,11 +31,7 @@ def export_field_views(
     dof_coordinates = temperature_function.function_space.tabulate_dof_coordinates()[:, :2]
     values = np.asarray(temperature_function.x.array, dtype=np.float64)
     temperature_grid = _nearest_neighbor_grid(dof_coordinates, values, grid_points).reshape(grid_shape)
-
-    dx = panel_width / float(max(1, width_samples - 1))
-    dy = panel_height / float(max(1, height_samples - 1))
-    gradient_y, gradient_x = np.gradient(temperature_grid, dy, dx)
-    gradient_magnitude_grid = np.sqrt((gradient_x**2) + (gradient_y**2))
+    gradient_magnitude_grid = _gradient_magnitude_grid(temperature_function, grid_points, grid_shape)
 
     hottest_index = int(np.argmax(temperature_grid))
     hottest_row, hottest_col = np.unravel_index(hottest_index, temperature_grid.shape)
@@ -81,6 +79,25 @@ def _nearest_neighbor_grid(
     distances = np.sum((grid_points[:, None, :] - dof_coordinates[None, :, :]) ** 2, axis=2)
     nearest_indices = np.argmin(distances, axis=1)
     return values[nearest_indices]
+
+
+def _gradient_magnitude_grid(
+    temperature_function: Any,
+    grid_points: np.ndarray,
+    grid_shape: tuple[int, int],
+) -> np.ndarray:
+    mesh = temperature_function.function_space.mesh
+    gradient_space = fem.functionspace(mesh, ("DG", 0))
+    gradient_magnitude = fem.Function(gradient_space)
+    expression = fem.Expression(
+        ufl.sqrt(ufl.inner(ufl.grad(temperature_function), ufl.grad(temperature_function))),
+        gradient_space.element.interpolation_points,
+    )
+    gradient_magnitude.interpolate(expression)
+    gradient_magnitude.x.scatter_forward()
+    gradient_coordinates = gradient_magnitude.function_space.tabulate_dof_coordinates()[:, :2]
+    gradient_values = np.asarray(gradient_magnitude.x.array, dtype=np.float64)
+    return _nearest_neighbor_grid(gradient_coordinates, gradient_values, grid_points).reshape(grid_shape)
 
 
 def _build_contour_levels(grid: np.ndarray, count: int = 6) -> list[float]:

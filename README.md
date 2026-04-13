@@ -25,6 +25,10 @@ The only active paper-facing mainline is `s1_typical`.
   - geometry legality
   - `case.total_radiator_span <= radiator_span_max`
 - generator uses semantic band and edge hints before falling back to generic legal placement
+- template now targets `component_area_ratio ~= 0.45`, where the denominator is the official placement region rather than the full panel area
+- all fifteen components generate waste heat and declare explicit localized `source_area_ratio` values
+- generation, cheap constraints, and repair all enforce real minimum-clearance legality instead of overlap-only packing
+- solver keeps the official top-edge `line_sink` and adds weak ambient outer-boundary cooling for background heat leakage
 - cheap legality checks run before any expensive PDE solve
 - repair uses projection plus local legality restoration with shape-aware overlap handling
 - active optimizer modes:
@@ -132,7 +136,18 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
+  --evaluation-workers 2 \
   --output-root ./scenario_runs/s1_typical/raw-smoke
+
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+  --optimization-spec scenarios/optimization/s1_typical_union.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/union-smoke
+
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/llm-smoke
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
@@ -140,8 +155,18 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
   --mode raw \
   --mode union \
   --benchmark-seed 11 \
-  --benchmark-seed 17 \
-  --benchmark-seed 23 \
+  --evaluation-workers 2 \
+  --scenario-runs-root ./scenario_runs
+
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+  --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
+  --optimization-spec scenarios/optimization/s1_typical_union.yaml \
+  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --mode raw \
+  --mode union \
+  --mode llm \
+  --benchmark-seed 11 \
+  --evaluation-workers 2 \
   --scenario-runs-root ./scenario_runs
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli replay-llm-trace \
@@ -153,6 +178,10 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
   --controller-trace ./scenario_runs/s1_typical/<run_id>/union/seeds/seed-11/controller_trace.json \
   --output ./scenario_runs/s1_typical/<run_id>/union/reports/controller_trace_summary.json
 ```
+
+`s1_typical` is a fixed single-case benchmark. Repeat experiments by varying `algorithm.seed`, not by passing multiple `benchmark_seed` values.
+
+The optimizer CLI uses a desktop-safe default worker budget when `--evaluation-workers` is omitted. During interactive daytime work, prefer `--evaluation-workers 2` or lower for `raw`, `union`, and later `llm` reruns.
 
 ## Environment
 

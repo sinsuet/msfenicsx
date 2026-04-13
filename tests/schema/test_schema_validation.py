@@ -24,6 +24,7 @@ def _base_template_payload() -> dict:
         "material_rules": [
             {"material_id": "panel_substrate", "conductivity": 205.0, "emissivity": 0.78},
         ],
+        "physics": {"kind": "steady_heat_radiation", "ambient_temperature": 290.0},
         "mesh_profile": {"nx": 32, "ny": 24},
         "solver_profile": {"nonlinear_solver": "snes"},
         "generation_rules": {"seed_policy": "external"},
@@ -174,4 +175,63 @@ def test_validate_scenario_template_rejects_legacy_operating_case_profiles() -> 
     payload["operating_case_profiles"] = []
 
     with pytest.raises(SchemaValidationError, match="operating_case_profiles"):
+        validate_scenario_template_payload(payload)
+
+
+def test_validate_scenario_template_accepts_layout_strategy_zones_and_source_area_ratio() -> None:
+    payload = _base_template_payload()
+    payload["generation_rules"] = {
+        "seed_policy": "external",
+        "layout_strategy": {
+            "kind": "legacy_aligned_dense_core_v1",
+            "zones": {
+                "dense_core": {"x_min": 0.2, "x_max": 0.8, "y_min": 0.12, "y_max": 0.62},
+                "top_sink_band": {"x_min": 0.18, "x_max": 0.82, "y_min": 0.54, "y_max": 0.72},
+                "left_io_edge": {"x_min": 0.05, "x_max": 0.18, "y_min": 0.08, "y_max": 0.68},
+                "right_service_edge": {"x_min": 0.82, "x_max": 0.95, "y_min": 0.08, "y_max": 0.68},
+            },
+        },
+    }
+    payload["load_rules"] = [{"target_family": "c01", "total_power": 12.0, "source_area_ratio": 0.25}]
+
+    validate_scenario_template_payload(payload)
+
+
+def test_validate_scenario_template_rejects_invalid_source_area_ratio() -> None:
+    payload = _base_template_payload()
+    payload["load_rules"] = [{"target_family": "c01", "total_power": 12.0, "source_area_ratio": 1.25}]
+
+    with pytest.raises(SchemaValidationError, match="source_area_ratio"):
+        validate_scenario_template_payload(payload)
+
+
+def test_validate_scenario_template_accepts_background_boundary_cooling() -> None:
+    payload = _base_template_payload()
+    payload["physics"] = {
+        "kind": "steady_heat_radiation",
+        "ambient_temperature": 292.0,
+        "background_boundary_cooling": {
+            "transfer_coefficient": 1.2,
+            "emissivity": 0.72,
+        },
+    }
+    payload["load_rules"] = [
+        {"target_family": "c01", "total_power": 8.0, "source_area_ratio": 0.35}
+    ]
+
+    validate_scenario_template_payload(payload)
+
+
+def test_validate_scenario_template_rejects_invalid_background_boundary_emissivity() -> None:
+    payload = _base_template_payload()
+    payload["physics"] = {
+        "kind": "steady_heat_radiation",
+        "ambient_temperature": 292.0,
+        "background_boundary_cooling": {
+            "transfer_coefficient": 1.2,
+            "emissivity": 1.5,
+        },
+    }
+
+    with pytest.raises(SchemaValidationError, match="background_boundary_cooling"):
         validate_scenario_template_payload(payload)

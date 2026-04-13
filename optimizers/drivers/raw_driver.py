@@ -32,6 +32,7 @@ def run_raw_optimization(
     evaluation_spec: Any,
     *,
     spec_path: str | Path | None = None,
+    evaluation_workers: int | None = None,
 ) -> OptimizationRun:
     spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
     evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
@@ -39,19 +40,27 @@ def run_raw_optimization(
     if algorithm_config["mode"] != "raw":
         raise ValueError(f"run_raw_optimization only supports algorithm.mode='raw', got {algorithm_config['mode']!r}.")
 
-    loaded_case, problem, baseline_record = _initialize_single_case_problem(base_case, spec_payload, evaluation_payload)
+    loaded_case, problem, baseline_record = _initialize_single_case_problem(
+        base_case,
+        spec_payload,
+        evaluation_payload,
+        evaluation_workers=evaluation_workers,
+    )
 
     algorithm = build_raw_algorithm(problem, algorithm_config)
     generation_callback = GenerationSummaryCallback(objective_definitions=evaluation_payload["objectives"])
-    minimize(
-        problem,
-        algorithm,
-        termination=("n_gen", int(algorithm_config["num_generations"])),
-        seed=int(algorithm_config["seed"]),
-        verbose=False,
-        callback=generation_callback,
-        copy_algorithm=False,
-    )
+    try:
+        minimize(
+            problem,
+            algorithm,
+            termination=("n_gen", int(algorithm_config["num_generations"])),
+            seed=int(algorithm_config["seed"]),
+            verbose=False,
+            callback=generation_callback,
+            copy_algorithm=False,
+        )
+    finally:
+        problem.close()
 
     pareto_front = _extract_pareto_front(problem.history, evaluation_payload["objectives"])
     representative_candidates = _build_representative_candidates(pareto_front, evaluation_payload["objectives"])
@@ -93,9 +102,16 @@ def _initialize_single_case_problem(
     base_case: Any,
     spec_payload: dict[str, Any],
     evaluation_payload: dict[str, Any],
+    *,
+    evaluation_workers: int | None = None,
 ) -> tuple[Any, ThermalOptimizationProblem, dict[str, Any]]:
     loaded_case = _load_base_case(base_case)
-    problem = ThermalOptimizationProblem(loaded_case, spec_payload, evaluation_payload)
+    problem = ThermalOptimizationProblem(
+        loaded_case,
+        spec_payload,
+        evaluation_payload,
+        evaluation_workers=evaluation_workers,
+    )
     baseline_record = problem.evaluate_baseline()
     return loaded_case, problem, baseline_record
 
@@ -109,8 +125,13 @@ def _build_result_payload(
     representative_candidates: dict[str, dict[str, Any]],
     history: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    feasible_indices = [entry["evaluation_index"] for entry in history if entry["feasible"]]
-    feasible_rate = sum(1 for entry in history if entry["feasible"]) / float(len(history))
+    optimizer_history = [entry for entry in history if _counts_toward_optimizer_progress(entry)]
+    optimizer_feasible = [entry for entry in optimizer_history if entry["feasible"]]
+    feasible_rate = (
+        float(len(optimizer_feasible)) / float(len(optimizer_history))
+        if optimizer_history
+        else 0.0
+    )
     return {
         "schema_version": spec_payload["schema_version"],
         "run_meta": {
@@ -133,8 +154,13 @@ def _build_result_payload(
         "representative_candidates": representative_candidates,
         "aggregate_metrics": {
             "num_evaluations": len(history),
+            "baseline_feasible": bool(baseline_record["feasible"]),
+            "optimizer_num_evaluations": len(optimizer_history),
             "feasible_rate": feasible_rate,
-            "first_feasible_eval": feasible_indices[0] if feasible_indices else None,
+            "optimizer_feasible_rate": feasible_rate,
+            "first_feasible_eval": (
+                optimizer_feasible[0]["evaluation_index"] if optimizer_feasible else None
+            ),
             "pareto_size": len(pareto_front),
         },
         "history": history,
@@ -226,3 +252,7 @@ def _representative_key(objective: dict[str, Any]) -> str:
     if objective_id.startswith("maximize_"):
         return f"max_{objective_id.removeprefix('maximize_')}"
     return objective_id
+
+
+def _counts_toward_optimizer_progress(record: dict[str, Any]) -> bool:
+    return str(record.get("source", "")).strip().lower() != "baseline"

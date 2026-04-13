@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from optimizers.mode_summary import build_mode_summaries
 from optimizers.run_telemetry import build_progress_timeline, load_jsonl_rows
 from tests.optimizers.experiment_fixtures import create_mode_root_with_seed_bundles
@@ -32,3 +34,17 @@ def test_progress_timeline_tracks_first_feasible_and_pareto_growth(tmp_path: Pat
     assert rows[-1]["budget_fraction"] == 1.0
     milestones = json.loads((mode_root / "seeds" / "seed-11" / "optimization_result.json").read_text(encoding="utf-8"))
     assert milestones["aggregate_metrics"]["first_feasible_eval"] == 3
+
+
+def test_build_mode_summary_carries_optimizer_only_feasibility_fields(tmp_path: Path) -> None:
+    mode_root = create_mode_root_with_seed_bundles(tmp_path, mode="raw", seeds=(11,))
+
+    build_mode_summaries(mode_root)
+
+    seed_summary = json.loads((mode_root / "summaries" / "seed_summary.json").read_text(encoding="utf-8"))
+    mode_summary = json.loads((mode_root / "summaries" / "mode_summary.json").read_text(encoding="utf-8"))
+
+    assert seed_summary["rows"][0]["baseline_feasible"] is False
+    assert seed_summary["rows"][0]["optimizer_feasible_rate"] == pytest.approx(2.0 / 3.0)
+    assert mode_summary["baseline_feasible_count"] == 0
+    assert mode_summary["optimizer_feasible_rate_stats"]["mean"] == pytest.approx(2.0 / 3.0)

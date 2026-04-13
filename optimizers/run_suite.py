@@ -40,6 +40,7 @@ def run_benchmark_suite(
     benchmark_seeds: Sequence[int],
     scenario_runs_root: Path,
     modes: Sequence[str] | None = None,
+    evaluation_workers: int | None = None,
     started_at: datetime | None = None,
 ) -> Path:
     if not optimization_spec_paths:
@@ -61,6 +62,11 @@ def run_benchmark_suite(
     primary_spec_path, primary_spec = spec_by_mode[selected_modes[0]]
     template_path = resolve_benchmark_template_path(primary_spec_path, primary_spec)
     scenario_template_id = _resolve_template_id(template_path)
+    effective_seeds = list(benchmark_seeds) if benchmark_seeds else [int(primary_spec.benchmark_source["seed"])]
+    _validate_benchmark_seed_policy(
+        scenario_template_id=scenario_template_id,
+        benchmark_seeds=effective_seeds,
+    )
     effective_started_at = datetime.now() if started_at is None else started_at
     run_id = build_run_id(effective_started_at, selected_modes)
     run_root = initialize_run_root(
@@ -72,7 +78,6 @@ def run_benchmark_suite(
     if len(selected_modes) > 1:
         initialize_comparison_root(run_root)
 
-    effective_seeds = list(benchmark_seeds) if benchmark_seeds else [int(primary_spec.benchmark_source["seed"])]
     _snapshot_shared_inputs(run_root, spec_by_mode, selected_modes)
     write_manifest(
         run_root / "manifest.json",
@@ -113,7 +118,13 @@ def run_benchmark_suite(
             seeded_spec = _with_benchmark_seed(optimization_spec, seed)
             base_case = generate_benchmark_case(spec_path, seeded_spec)
             evaluation_spec = load_spec(resolve_evaluation_spec_path(spec_path, seeded_spec))
-            run = _dispatch_run(base_case, seeded_spec, evaluation_spec, spec_path)
+            run = _dispatch_run(
+                base_case,
+                seeded_spec,
+                evaluation_spec,
+                spec_path,
+                evaluation_workers=evaluation_workers,
+            )
             evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
             write_optimization_artifacts(
                 mode_root / "seeds" / f"seed-{seed}",
@@ -166,6 +177,12 @@ def _resolve_template_id(template_path: Path) -> str:
     return template_path.stem
 
 
+def _validate_benchmark_seed_policy(*, scenario_template_id: str, benchmark_seeds: Sequence[int]) -> None:
+    unique_seeds = {int(seed) for seed in benchmark_seeds}
+    if scenario_template_id == "s1_typical" and len(unique_seeds) > 1:
+        raise ValueError("s1_typical is a fixed single benchmark_seed case; pass exactly one benchmark_seed.")
+
+
 def _snapshot_shared_inputs(
     run_root: Path,
     spec_by_mode: dict[str, tuple[Path, OptimizationSpec]],
@@ -202,6 +219,8 @@ def _dispatch_run(
     optimization_spec: OptimizationSpec,
     evaluation_spec: Any,
     optimization_spec_path: Path,
+    *,
+    evaluation_workers: int | None = None,
 ) -> Any:
     if optimization_spec.algorithm["mode"] == "raw":
         return run_raw_optimization(
@@ -209,12 +228,14 @@ def _dispatch_run(
             optimization_spec,
             evaluation_spec,
             spec_path=optimization_spec_path,
+            evaluation_workers=evaluation_workers,
         )
     return run_union_optimization(
         base_case,
         optimization_spec,
         evaluation_spec,
         spec_path=optimization_spec_path,
+        evaluation_workers=evaluation_workers,
     )
 
 

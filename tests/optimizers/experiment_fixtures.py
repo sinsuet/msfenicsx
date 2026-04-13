@@ -210,7 +210,10 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
             },
             "aggregate_metrics": {
                 "num_evaluations": len(history),
-                "feasible_rate": 0.5,
+                "baseline_feasible": False,
+                "optimizer_num_evaluations": 3,
+                "feasible_rate": 2.0 / 3.0,
+                "optimizer_feasible_rate": 2.0 / 3.0,
                 "first_feasible_eval": 3,
                 "pareto_size": 2,
             },

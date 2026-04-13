@@ -458,9 +458,14 @@ def _load_artifact_context(optimization_result_path: str | Path | None) -> dict[
         ],
         key=lambda row: int(row.get("evaluation_index", 0)),
     )
+    optimizer_history = [row for row in history if _counts_toward_optimizer_progress(row)]
     first_feasible_eval = payload.get("aggregate_metrics", {}).get("first_feasible_eval")
     if first_feasible_eval is None:
-        feasible_evals = [int(row.get("evaluation_index", 0)) for row in history if bool(row.get("feasible", False))]
+        feasible_evals = [
+            int(row.get("evaluation_index", 0))
+            for row in optimizer_history
+            if bool(row.get("feasible", False))
+        ]
         first_feasible_eval = None if not feasible_evals else min(feasible_evals)
     if first_feasible_eval is not None:
         first_feasible_eval = int(first_feasible_eval)
@@ -473,13 +478,14 @@ def _load_artifact_context(optimization_result_path: str | Path | None) -> dict[
     for row in history:
         evaluation_index = int(row.get("evaluation_index", 0))
         feasible = bool(row.get("feasible", False))
+        counts_toward_progress = _counts_toward_optimizer_progress(row)
         row_total_violation = total_violation(row)
         metrics = {
             "frontier_add": False,
             "feasible_regression": False,
             "feasible_preservation": False,
         }
-        if first_feasible_eval is not None and evaluation_index >= first_feasible_eval:
+        if counts_toward_progress and first_feasible_eval is not None and evaluation_index >= first_feasible_eval:
             if feasible:
                 if _is_frontier_add(row, prior_feasible_records):
                     metrics["frontier_add"] = True
@@ -490,6 +496,8 @@ def _load_artifact_context(optimization_result_path: str | Path | None) -> dict[
                 metrics["feasible_regression"] = True
         evaluation_metrics[evaluation_index] = metrics
         entry_convert_active = (
+            counts_toward_progress
+            and
             not feasible
             and (
                 row_total_violation <= 1.0
@@ -497,6 +505,8 @@ def _load_artifact_context(optimization_result_path: str | Path | None) -> dict[
             )
         )
         near_feasible_relief = (
+            counts_toward_progress
+            and
             not feasible
             and row_total_violation < best_prefeasible_violation
             and (
@@ -509,9 +519,9 @@ def _load_artifact_context(optimization_result_path: str | Path | None) -> dict[
             "dominant_violation_family": dominant_violation_family(row),
             "near_feasible_relief": near_feasible_relief,
         }
-        if not feasible:
+        if counts_toward_progress and not feasible:
             best_prefeasible_violation = min(best_prefeasible_violation, row_total_violation)
-        if feasible:
+        if counts_toward_progress and feasible:
             prior_feasible_records.append(row)
 
     return {
@@ -563,6 +573,10 @@ def _is_before_first_feasible(evaluation_index: int, first_feasible_eval: int | 
 
 def _is_after_or_at_first_feasible(evaluation_index: int, first_feasible_eval: int | None) -> bool:
     return first_feasible_eval is not None and int(evaluation_index) >= int(first_feasible_eval)
+
+
+def _counts_toward_optimizer_progress(record: Mapping[str, Any]) -> bool:
+    return str(record.get("source", "")).strip().lower() != "baseline"
 
 
 def _summarize_llm_traces(

@@ -28,15 +28,17 @@ def build_evaluation_events(
     ordered_history = sorted(history, key=lambda row: int(row.get("evaluation_index", 0)))
     generation_lookup = _build_generation_lookup(ordered_history, generation_rows or [])
     rows: list[dict[str, Any]] = []
-    prior_feasible_found = False
+    prior_optimizer_feasible_found = False
 
     for index, record in enumerate(ordered_history):
         prefix = ordered_history[: index + 1]
+        optimizer_prefix = [row for row in prefix if _counts_toward_optimizer_progress(row)]
         dominant = dominant_violation(record)
         pareto_members = {
             int(item.get("evaluation_index", -1))
-            for item in _pareto_front(prefix, objective_definitions)
+            for item in _pareto_front(optimizer_prefix, objective_definitions)
         }
+        counts_toward_progress = _counts_toward_optimizer_progress(record)
         row = {
             "run_id": str(run_id),
             "mode_id": str(mode_id),
@@ -71,15 +73,23 @@ def build_evaluation_events(
                     if float(value) > 0.0
                 )
             ),
-            "entered_feasible_region": bool(record.get("feasible", False)) and not prior_feasible_found,
-            "preserved_feasibility": bool(record.get("feasible", False)) and prior_feasible_found,
+            "entered_feasible_region": (
+                counts_toward_progress
+                and bool(record.get("feasible", False))
+                and not prior_optimizer_feasible_found
+            ),
+            "preserved_feasibility": (
+                counts_toward_progress
+                and bool(record.get("feasible", False))
+                and prior_optimizer_feasible_found
+            ),
             "pareto_membership_after_eval": int(record.get("evaluation_index", 0)) in pareto_members,
             "failure_reason": record.get("failure_reason"),
-            "feasibility_phase": "post_feasible" if prior_feasible_found else "prefeasible",
+            "feasibility_phase": "post_feasible" if prior_optimizer_feasible_found else "prefeasible",
         }
         rows.append(row)
-        if bool(record.get("feasible", False)):
-            prior_feasible_found = True
+        if counts_toward_progress and bool(record.get("feasible", False)):
+            prior_optimizer_feasible_found = True
     return rows
 
 
@@ -109,6 +119,7 @@ def build_progress_timeline(rows: Sequence[Mapping[str, Any]]) -> list[dict[str,
     total_budget = max(int(row.get("evaluation_index", 0)) for row in ordered_rows)
     objective_definitions = _objective_definitions_from_rows(ordered_rows)
     feasible_prefix: list[Mapping[str, Any]] = []
+    optimizer_evaluation_count = 0
     feasible_count = 0
     first_feasible_eval: int | None = None
     best_temperature_max: float | None = None
@@ -120,31 +131,35 @@ def build_progress_timeline(rows: Sequence[Mapping[str, Any]]) -> list[dict[str,
         evaluation_index = int(row.get("evaluation_index", 0))
         total_constraint_violation = float(row.get("total_constraint_violation", 0.0))
         feasible = bool(row.get("feasible", False))
-        if best_total_constraint_violation is None:
-            best_total_constraint_violation = total_constraint_violation
-        else:
-            best_total_constraint_violation = min(best_total_constraint_violation, total_constraint_violation)
-        if feasible:
-            feasible_count += 1
-            feasible_prefix.append(row)
-            if first_feasible_eval is None:
-                first_feasible_eval = evaluation_index
-            peak_value = _extract_objective_value(
-                dict(row.get("objective_values", {})),
-                preferred_keys=("summary.temperature_max", "minimize_peak_temperature"),
-                fallback_tokens=("temperature_max", "peak_temperature"),
-            )
-            gradient_value = _extract_objective_value(
-                dict(row.get("objective_values", {})),
-                preferred_keys=("summary.temperature_gradient_rms", "minimize_temperature_gradient_rms"),
-                fallback_tokens=("temperature_gradient_rms", "gradient_rms"),
-            )
-            if peak_value is not None:
-                best_temperature_max = peak_value if best_temperature_max is None else min(best_temperature_max, peak_value)
-            if gradient_value is not None:
-                best_gradient_rms = (
-                    gradient_value if best_gradient_rms is None else min(best_gradient_rms, gradient_value)
+        if _counts_toward_optimizer_progress(row):
+            optimizer_evaluation_count += 1
+            if best_total_constraint_violation is None:
+                best_total_constraint_violation = total_constraint_violation
+            else:
+                best_total_constraint_violation = min(best_total_constraint_violation, total_constraint_violation)
+            if feasible:
+                feasible_count += 1
+                feasible_prefix.append(row)
+                if first_feasible_eval is None:
+                    first_feasible_eval = evaluation_index
+                peak_value = _extract_objective_value(
+                    dict(row.get("objective_values", {})),
+                    preferred_keys=("summary.temperature_max", "minimize_peak_temperature"),
+                    fallback_tokens=("temperature_max", "peak_temperature"),
                 )
+                gradient_value = _extract_objective_value(
+                    dict(row.get("objective_values", {})),
+                    preferred_keys=("summary.temperature_gradient_rms", "minimize_temperature_gradient_rms"),
+                    fallback_tokens=("temperature_gradient_rms", "gradient_rms"),
+                )
+                if peak_value is not None:
+                    best_temperature_max = (
+                        peak_value if best_temperature_max is None else min(best_temperature_max, peak_value)
+                    )
+                if gradient_value is not None:
+                    best_gradient_rms = (
+                        gradient_value if best_gradient_rms is None else min(best_gradient_rms, gradient_value)
+                    )
         pareto_size = len(_pareto_front(feasible_prefix, objective_definitions)) if feasible_prefix else 0
         timeline.append(
             {
@@ -153,7 +168,11 @@ def build_progress_timeline(rows: Sequence[Mapping[str, Any]]) -> list[dict[str,
                 "budget_fraction": float(evaluation_index / float(max(1, total_budget))),
                 "feasible": feasible,
                 "feasible_count_so_far": feasible_count,
-                "feasible_rate_so_far": float(feasible_count / float(len(timeline) + 1)),
+                "feasible_rate_so_far": (
+                    0.0
+                    if optimizer_evaluation_count <= 0
+                    else float(feasible_count / float(optimizer_evaluation_count))
+                ),
                 "first_feasible_eval_so_far": first_feasible_eval,
                 "pareto_size_so_far": pareto_size,
                 "best_temperature_max_so_far": best_temperature_max,
@@ -319,3 +338,7 @@ def _dominates(
     return all(left <= right for left, right in zip(candidate_tuple, incumbent_tuple, strict=True)) and any(
         left < right for left, right in zip(candidate_tuple, incumbent_tuple, strict=True)
     )
+
+
+def _counts_toward_optimizer_progress(record: Mapping[str, Any]) -> bool:
+    return str(record.get("source", "")).strip().lower() != "baseline"

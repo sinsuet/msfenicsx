@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 from llm.openai_compatible.client import OpenAICompatibleDecision
@@ -465,7 +466,8 @@ def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_
         assert (representative_root / "fields" / "gradient_magnitude_grid.npz").exists()
         assert (representative_root / "summaries" / "field_view.json").exists()
         assert (representative_root / "pages").is_dir()
-        assert not (representative_root / "pages" / "index.html").exists()
+        assert (representative_root / "pages" / "index.html").exists()
+        assert (representative_root / "figures" / "layout.svg").exists()
         assert not (representative_root / "tensors").exists()
     manifest_payload = json.loads(
         (output_root / "representatives" / "min-peak-temperature" / "manifest.json").read_text(encoding="utf-8")
@@ -1001,6 +1003,115 @@ def test_optimizer_cli_run_benchmark_suite_mixed_mode_writes_comparison_root(tmp
     assert (run_root / "comparison").is_dir()
     assert (run_root / "comparison" / "summaries" / "seed_delta_table.json").exists()
     assert (run_root / "comparison" / "pages" / "progress.html").exists()
+
+
+def test_optimizer_cli_run_benchmark_suite_rejects_multiple_benchmark_seeds_for_s1_typical(tmp_path: Path) -> None:
+    raw_spec_path = _write_small_raw_spec(tmp_path)
+    scenario_runs_root = tmp_path / "scenario_runs"
+
+    with pytest.raises(ValueError, match="s1_typical.*single benchmark_seed"):
+        main(
+            [
+                "run-benchmark-suite",
+                "--optimization-spec",
+                str(raw_spec_path),
+                "--mode",
+                "raw",
+                "--benchmark-seed",
+                "11",
+                "--benchmark-seed",
+                "17",
+                "--scenario-runs-root",
+                str(scenario_runs_root),
+            ]
+        )
+
+
+def test_optimizer_cli_rejects_non_positive_evaluation_workers() -> None:
+    parser = build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "run-benchmark-suite",
+                "--optimization-spec",
+                "spec.yaml",
+                "--scenario-runs-root",
+                "scenario_runs",
+                "--evaluation-workers",
+                "0",
+            ]
+        )
+
+
+def test_optimizer_cli_optimize_benchmark_forwards_evaluation_workers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import optimizers.cli as cli_module
+
+    output_root = tmp_path / "optimizer_run"
+    spec_path = _write_small_raw_spec(tmp_path)
+    forwarded: dict[str, object] = {}
+
+    def _fake_run_raw(*args, **kwargs):
+        del args
+        forwarded.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(cli_module, "run_raw_optimization", _fake_run_raw)
+    monkeypatch.setattr(cli_module, "write_optimization_artifacts", lambda *args, **kwargs: None)
+
+    exit_code = main(
+        [
+            "optimize-benchmark",
+            "--optimization-spec",
+            str(spec_path),
+            "--output-root",
+            str(output_root),
+            "--evaluation-workers",
+            "2",
+        ]
+    )
+
+    assert exit_code == 0
+    assert forwarded["evaluation_workers"] == 2
+
+
+def test_optimizer_cli_run_benchmark_suite_forwards_evaluation_workers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import optimizers.cli as cli_module
+
+    raw_spec_path = _write_small_raw_spec(tmp_path)
+    scenario_runs_root = tmp_path / "scenario_runs"
+    forwarded: dict[str, object] = {}
+
+    def _fake_run_benchmark_suite(**kwargs):
+        forwarded.update(kwargs)
+        return scenario_runs_root / "s1_typical" / "fake-run"
+
+    monkeypatch.setattr(cli_module, "run_benchmark_suite", _fake_run_benchmark_suite)
+
+    exit_code = main(
+        [
+            "run-benchmark-suite",
+            "--optimization-spec",
+            str(raw_spec_path),
+            "--mode",
+            "raw",
+            "--benchmark-seed",
+            "11",
+            "--scenario-runs-root",
+            str(scenario_runs_root),
+            "--evaluation-workers",
+            "2",
+        ]
+    )
+
+    assert exit_code == 0
+    assert forwarded["evaluation_workers"] == 2
 
 
 def test_optimizer_cli_run_benchmark_suite_llm_mode_writes_llm_pages_and_reports(tmp_path: Path, monkeypatch) -> None:

@@ -29,6 +29,14 @@ def decision_vector_from_values(
     }
 
 
+def _counts_toward_optimizer_progress(record: Mapping[str, Any]) -> bool:
+    return str(record.get("source", "")).strip().lower() != "baseline"
+
+
+def _optimizer_progress_history(history: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    return [row for row in history if _counts_toward_optimizer_progress(row)]
+
+
 def build_history_lookup(
     history: Sequence[Mapping[str, Any]],
     design_variable_ids: Sequence[str] | None,
@@ -100,11 +108,14 @@ def _sink_span_from_record(record: Mapping[str, Any] | None) -> float | None:
 
 
 def _reference_record_for_run_state(history: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
-    feasible_rows = [row for row in history if bool(row.get("feasible", False))]
+    reference_history = _optimizer_progress_history(history)
+    if not reference_history:
+        reference_history = list(history)
+    feasible_rows = [row for row in reference_history if bool(row.get("feasible", False))]
     if feasible_rows:
         return min(feasible_rows, key=lambda row: objective_score(row.get("objective_values")))
-    if history:
-        return min(history, key=total_violation)
+    if reference_history:
+        return min(reference_history, key=total_violation)
     return None
 
 
@@ -232,7 +243,8 @@ def build_frontier_summary(
     *,
     recent_window: int = _RECENT_FRONTIER_WINDOW,
 ) -> dict[str, Any]:
-    if not history:
+    progress_history = _optimizer_progress_history(history)
+    if not progress_history:
         return {
             "pareto_size": 0,
             "recent_frontier_add_count": 0,
@@ -245,7 +257,7 @@ def build_frontier_summary(
             "feasible_preservation_evaluation_indices": [],
         }
 
-    ordered_history = sorted(history, key=lambda row: int(row.get("evaluation_index", 0)))
+    ordered_history = sorted(progress_history, key=lambda row: int(row.get("evaluation_index", 0)))
     feasible_rows = [dict(row) for row in ordered_history if bool(row.get("feasible", False))]
     first_feasible_eval = (
         None
@@ -354,7 +366,8 @@ def build_run_state(
     total_evaluation_budget: int | None,
     sink_budget_limit: float | None = None,
 ) -> dict[str, Any]:
-    feasible_evaluations = [row for row in history if bool(row.get("feasible", False))]
+    progress_history = _optimizer_progress_history(history)
+    feasible_evaluations = [row for row in progress_history if bool(row.get("feasible", False))]
     evaluations_used = max(0, int(evaluation_index) - 1)
     run_state = {
         "generation_index": int(generation_index),
@@ -365,7 +378,9 @@ def build_run_state(
             if total_evaluation_budget is None
             else max(0, int(total_evaluation_budget) - evaluations_used)
         ),
-        "feasible_rate": (0.0 if not history else len(feasible_evaluations) / float(len(history))),
+        "feasible_rate": (
+            0.0 if not progress_history else len(feasible_evaluations) / float(len(progress_history))
+        ),
         "first_feasible_eval": (
             None
             if not feasible_evaluations
@@ -391,7 +406,8 @@ def build_progress_state(
     *,
     history: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
-    if not history:
+    progress_history = _optimizer_progress_history(history)
+    if not progress_history:
         return {
             "phase": "cold_start",
             "first_feasible_found": False,
@@ -408,7 +424,7 @@ def build_progress_state(
             "post_feasible_mode": None,
         }
 
-    ordered_history = sorted(history, key=lambda row: int(row.get("evaluation_index", 0)))
+    ordered_history = sorted(progress_history, key=lambda row: int(row.get("evaluation_index", 0)))
     frontier_summary = build_frontier_summary(ordered_history)
     latest_completed_eval = int(ordered_history[-1].get("evaluation_index", 0))
     first_feasible_eval: int | None = None
@@ -565,9 +581,11 @@ def build_parent_state(
 
 
 def build_archive_state(history: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    frontier_summary = build_frontier_summary(history)
-    feasible_rows = [dict(row) for row in history if bool(row.get("feasible", False))]
-    infeasible_rows = [dict(row) for row in history if not bool(row.get("feasible", False))]
+    progress_history = _optimizer_progress_history(history)
+    archive_history = progress_history or list(history)
+    frontier_summary = build_frontier_summary(archive_history)
+    feasible_rows = [dict(row) for row in archive_history if bool(row.get("feasible", False))]
+    infeasible_rows = [dict(row) for row in archive_history if not bool(row.get("feasible", False))]
     best_feasible = None
     if feasible_rows:
         best_feasible = summarize_record(min(feasible_rows, key=lambda row: objective_score(row.get("objective_values"))))

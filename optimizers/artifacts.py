@@ -12,6 +12,7 @@ from evaluation.io import save_report
 from optimizers.io import save_optimization_result
 from optimizers.problem import CandidateArtifacts
 from optimizers.run_telemetry import build_evaluation_events, build_generation_summary_rows
+from visualization.case_pages import render_case_page
 
 
 def write_optimization_artifacts(
@@ -96,6 +97,7 @@ def _write_representative_bundle(bundle_root: Path, artifacts: CandidateArtifact
     exported_fields = None
     if artifacts.field_exports is not None:
         exported_fields = write_field_export_artifacts(bundle_root, artifacts.field_exports)
+        render_case_page(bundle_root)
     manifest = {
         "case_snapshot": case_snapshot,
         "solution_snapshot": solution_snapshot,

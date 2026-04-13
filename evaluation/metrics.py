@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from numbers import Real
 from typing import Any
 
+from core.generator.layout_metrics import measure_case_layout_metrics
+
 
 class MetricResolutionError(ValueError):
     """Raised when an evaluation metric key cannot be resolved."""
@@ -65,13 +67,42 @@ def build_derived_signals(case_payload: Mapping[str, Any], solution_payload: Map
     panel_area = resolve_metric_value(case_payload, solution_payload, "case.panel_area")
     total_power = resolve_metric_value(case_payload, solution_payload, "case.total_power")
     power_density = resolve_metric_value(case_payload, solution_payload, "case.power_density")
-    return {
+    derived = {
         "hotspot_component_id": hotspot_component_id,
         "hotspot_temperature_max": hotspot_temperature_max,
         "panel_area": panel_area,
         "total_power": total_power,
         "power_density": power_density,
     }
+    provenance = case_payload.get("provenance", {})
+    if isinstance(provenance, Mapping):
+        layout_metrics = None
+        layout_context = provenance.get("layout_context")
+        if isinstance(layout_context, Mapping):
+            layout_metrics = measure_case_layout_metrics(case_payload, layout_context=layout_context)
+        if layout_metrics is None:
+            layout_metrics = provenance.get("layout_metrics", {})
+        if isinstance(layout_metrics, Mapping):
+            for key, value in layout_metrics.items():
+                if isinstance(value, Real):
+                    derived[f"layout_{key}"] = float(value)
+    physics = case_payload.get("physics", {})
+    if isinstance(physics, Mapping):
+        background = physics.get("background_boundary_cooling", {})
+        ambient_temperature = physics.get("ambient_temperature")
+        if isinstance(ambient_temperature, Real):
+            derived["ambient_temperature"] = float(ambient_temperature)
+        if isinstance(background, Mapping):
+            transfer_coefficient = background.get("transfer_coefficient")
+            emissivity = background.get("emissivity")
+            if isinstance(transfer_coefficient, Real):
+                derived["background_boundary_transfer_coefficient"] = float(transfer_coefficient)
+            if isinstance(emissivity, Real):
+                derived["background_boundary_emissivity"] = float(emissivity)
+    derived["active_heat_source_count"] = float(
+        sum(1 for load in case_payload.get("loads", []) if float(load.get("total_power", 0.0)) > 0.0)
+    )
+    return derived
 
 
 def _resolve_case_metric(case_payload: Mapping[str, Any], field: str, metric_key: str) -> float:

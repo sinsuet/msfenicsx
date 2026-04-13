@@ -329,6 +329,12 @@ This preserves:
 
 The design should avoid making future `llm` support harder, but no `llm` execution changes are required now.
 
+When `llm` is brought onto this execution path later, it should reuse the same bounded execution surface:
+
+- single `benchmark_seed`
+- the same `--evaluation-workers` control
+- the same desktop-safe default posture used by `raw` and `union`
+
 ## 10. Failure Handling
 
 Parallel execution must preserve current failure visibility.

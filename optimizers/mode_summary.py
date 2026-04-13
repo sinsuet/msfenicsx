@@ -34,7 +34,12 @@ def build_mode_summaries(mode_root: str | Path) -> dict[str, str]:
                 "run_id": str(result_payload["run_meta"]["run_id"]),
                 "progress_timeline": str(timeline_path.relative_to(root).as_posix()),
                 "milestones": str(milestones_path.relative_to(root).as_posix()),
+                "baseline_feasible": bool(result_payload["aggregate_metrics"].get("baseline_feasible", False)),
                 "first_feasible_eval": result_payload["aggregate_metrics"].get("first_feasible_eval"),
+                "optimizer_feasible_rate": result_payload["aggregate_metrics"].get(
+                    "optimizer_feasible_rate",
+                    result_payload["aggregate_metrics"].get("feasible_rate"),
+                ),
                 "pareto_size": int(result_payload["aggregate_metrics"].get("pareto_size", 0)),
                 "final_timeline": timeline[-1] if timeline else {},
                 "representatives": _discover_representatives(seed_root),
@@ -47,8 +52,12 @@ def build_mode_summaries(mode_root: str | Path) -> dict[str, str]:
         "mode_id": _resolve_mode_id(root),
         "seed_count": int(len(seed_rows)),
         "seeds": [int(row["seed"]) for row in seed_rows],
+        "baseline_feasible_count": int(sum(1 for row in seed_rows if row.get("baseline_feasible", False))),
         "first_feasible_eval_stats": _metric_stats(
             [float(row["first_feasible_eval"]) for row in seed_rows if row.get("first_feasible_eval") is not None]
+        ),
+        "optimizer_feasible_rate_stats": _metric_stats(
+            [float(row["optimizer_feasible_rate"]) for row in seed_rows if row.get("optimizer_feasible_rate") is not None]
         ),
         "pareto_size_stats": _metric_stats([float(row["pareto_size"]) for row in seed_rows]),
         "best_peak_stats": _metric_stats(

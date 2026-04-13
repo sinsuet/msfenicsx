@@ -26,7 +26,9 @@ def sample_template_parameters(template: ScenarioTemplate, seed: int) -> dict[st
                     "material_ref": family["material_ref"],
                     "rotation_deg": _sample_value(family.get("rotation_deg", 0.0), rng),
                     "thermal_tags": list(family.get("thermal_tags", [])),
+                    "clearance": float(family.get("clearance", 0.0)),
                     "total_power": _sample_load_power(load_rules_by_family.get(family["family_id"]), rng),
+                    "source_area_ratio": _sample_source_area_ratio(load_rules_by_family.get(family["family_id"]), rng),
                 }
             )
     sampled_boundary_features = []
@@ -69,6 +71,12 @@ def _sample_load_power(rule: dict[str, Any] | None, rng: random.Random) -> float
         return None
     power_spec = rule["total_power"]
     return _sample_value(power_spec, rng)
+
+
+def _sample_source_area_ratio(rule: dict[str, Any] | None, rng: random.Random) -> float | None:
+    if rule is None or "source_area_ratio" not in rule:
+        return None
+    return float(_sample_value(rule["source_area_ratio"], rng))
 
 
 def _sample_value(spec: Any, rng: random.Random) -> Any:

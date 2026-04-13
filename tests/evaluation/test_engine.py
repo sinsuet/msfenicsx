@@ -1,5 +1,6 @@
 import pytest
 
+from core.generator.layout_metrics import build_layout_context, measure_case_layout_metrics
 from core.schema.models import ThermalCase, ThermalSolution
 from evaluation.engine import MetricResolutionError, evaluate_case_solution
 from evaluation.models import EvaluationSpec
@@ -120,6 +121,38 @@ def _spec(limit: float = 325.0, metric: str = "component.comp-001.temperature_ma
     )
 
 
+def _case_with_layout_metrics() -> ThermalCase:
+    payload = _case().to_dict()
+    payload["provenance"] = {
+        **payload["provenance"],
+        "layout_metrics": {
+            "active_deck_occupancy": 0.401,
+            "bbox_fill_ratio": 0.392,
+            "nearest_neighbor_gap_mean": 0.011,
+        },
+    }
+    return ThermalCase.from_dict(payload)
+
+
+def _case_with_stale_layout_metrics_and_context() -> ThermalCase:
+    payload = _case().to_dict()
+    payload["provenance"] = {
+        **payload["provenance"],
+        "layout_context": build_layout_context(
+            placement_region={"x_min": 0.1, "x_max": 0.9, "y_min": 0.1, "y_max": 0.7},
+            active_deck={"x_min": 0.15, "x_max": 0.85, "y_min": 0.12, "y_max": 0.62},
+            dense_core={"x_min": 0.22, "x_max": 0.78, "y_min": 0.18, "y_max": 0.56},
+        ),
+        "layout_metrics": {
+            "active_deck_occupancy": 0.999,
+            "bbox_fill_ratio": 0.999,
+            "nearest_neighbor_gap_mean": 0.999,
+            "centroid_dispersion": 0.999,
+        },
+    }
+    return ThermalCase.from_dict(payload)
+
+
 def test_evaluate_case_solution_reports_feasible_summary() -> None:
     report = evaluate_case_solution(_case(), _solution(), _spec())
 
@@ -153,3 +186,52 @@ def test_evaluate_case_solution_supports_summary_temperature_gradient_rms() -> N
     )
 
     assert report.metric_values["summary.temperature_gradient_rms"] == pytest.approx(12.5)
+
+
+def test_evaluate_case_solution_surfaces_layout_realism_signals() -> None:
+    report = evaluate_case_solution(_case_with_layout_metrics(), _solution(), _spec())
+
+    assert report.derived_signals["layout_active_deck_occupancy"] == pytest.approx(0.401)
+    assert report.derived_signals["layout_bbox_fill_ratio"] == pytest.approx(0.392)
+    assert report.derived_signals["layout_nearest_neighbor_gap_mean"] == pytest.approx(0.011)
+
+
+def test_evaluate_case_solution_recomputes_layout_signals_from_candidate_geometry_when_context_is_present() -> None:
+    case = _case_with_stale_layout_metrics_and_context()
+    case_payload = case.to_dict()
+    expected_metrics = measure_case_layout_metrics(
+        case_payload,
+        layout_context=case_payload["provenance"]["layout_context"],
+    )
+
+    assert expected_metrics is not None
+
+    report = evaluate_case_solution(case, _solution(), _spec())
+
+    assert report.derived_signals["layout_active_deck_occupancy"] == pytest.approx(expected_metrics["active_deck_occupancy"])
+    assert report.derived_signals["layout_bbox_fill_ratio"] == pytest.approx(expected_metrics["bbox_fill_ratio"])
+    assert report.derived_signals["layout_nearest_neighbor_gap_mean"] == pytest.approx(
+        expected_metrics["nearest_neighbor_gap_mean"]
+    )
+    assert report.derived_signals["layout_bbox_fill_ratio"] != pytest.approx(0.999)
+
+
+def test_evaluate_case_solution_surfaces_ambient_and_heat_source_signals() -> None:
+    payload = _case_with_layout_metrics().to_dict()
+    payload["physics"] = {
+        "kind": "steady_heat_radiation",
+        "ambient_temperature": 292.0,
+        "background_boundary_cooling": {
+            "transfer_coefficient": 0.15,
+            "emissivity": 0.08,
+        },
+    }
+    payload["loads"] = [
+        {"load_id": f"load-{index}", "target_component_id": f"comp-{index:03d}", "total_power": 4.0}
+        for index in range(1, 3)
+    ]
+    report = evaluate_case_solution(ThermalCase.from_dict(payload), _solution(), _spec())
+
+    assert report.derived_signals["ambient_temperature"] == pytest.approx(292.0)
+    assert report.derived_signals["background_boundary_transfer_coefficient"] == pytest.approx(0.15)
+    assert report.derived_signals["active_heat_source_count"] == pytest.approx(2.0)

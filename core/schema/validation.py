@@ -27,6 +27,7 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
         "boundary_feature_families",
         "load_rules",
         "material_rules",
+        "physics",
         "mesh_profile",
         "solver_profile",
         "generation_rules",
@@ -42,6 +43,7 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
     _require_sequence(payload["boundary_feature_families"], "boundary_feature_families")
     _require_sequence(payload["load_rules"], "load_rules")
     _require_sequence(payload["material_rules"], "material_rules")
+    _require_mapping(payload["physics"], "physics")
     _require_mapping(payload["mesh_profile"], "mesh_profile")
     _require_mapping(payload["solver_profile"], "solver_profile")
     _require_mapping(payload["generation_rules"], "generation_rules")
@@ -53,6 +55,10 @@ def validate_scenario_template_payload(payload: Mapping[str, Any]) -> None:
         _validate_component_family(family)
     for family in payload["boundary_feature_families"]:
         _validate_boundary_feature_family(family)
+    for load_rule in payload["load_rules"]:
+        _validate_load_rule(load_rule)
+    _validate_physics(payload["physics"], "physics")
+    _validate_generation_rules(payload["generation_rules"])
 
 
 def validate_thermal_case_payload(payload: Mapping[str, Any]) -> None:
@@ -93,6 +99,7 @@ def validate_thermal_case_payload(payload: Mapping[str, Any]) -> None:
         _validate_component(component)
     for feature in payload["boundary_features"]:
         _validate_boundary_feature(feature)
+    _validate_physics(payload["physics"], "physics")
 
 
 def validate_thermal_solution_payload(payload: Mapping[str, Any]) -> None:
@@ -150,6 +157,56 @@ def _validate_boundary_feature_family(family: Any) -> None:
     kind = family.get("kind")
     if kind is not None and kind != "line_sink":
         raise SchemaValidationError(f"Unsupported boundary feature kind '{kind}'.")
+
+
+def _validate_load_rule(rule: Any) -> None:
+    _require_mapping(rule, "load_rule")
+    target_family = rule.get("target_family")
+    if not isinstance(target_family, str) or not target_family:
+        raise SchemaValidationError("load_rule.target_family must be a non-empty string.")
+    _require_positive_spec(rule.get("total_power"), f"load_rule.total_power for {target_family}")
+    if "source_area_ratio" in rule:
+        _require_ratio_spec(rule.get("source_area_ratio"), f"load_rule.source_area_ratio for {target_family}")
+
+
+def _validate_generation_rules(generation_rules: Mapping[str, Any]) -> None:
+    layout_strategy = generation_rules.get("layout_strategy")
+    if layout_strategy is None:
+        return
+    _require_mapping(layout_strategy, "generation_rules.layout_strategy")
+    kind = layout_strategy.get("kind")
+    if not isinstance(kind, str) or not kind:
+        raise SchemaValidationError("generation_rules.layout_strategy.kind must be a non-empty string.")
+    zones = layout_strategy.get("zones")
+    _require_mapping(zones, "generation_rules.layout_strategy.zones")
+    for zone_name, zone in zones.items():
+        if not isinstance(zone_name, str) or not zone_name:
+            raise SchemaValidationError("generation_rules.layout_strategy.zones keys must be non-empty strings.")
+        _validate_rect_region(zone, f"generation_rules.layout_strategy.zones[{zone_name}]")
+
+
+def _validate_physics(payload: Any, label: str) -> None:
+    _require_mapping(payload, label)
+    kind = payload.get("kind")
+    if not isinstance(kind, str) or not kind:
+        raise SchemaValidationError(f"{label}.kind must be a non-empty string.")
+    ambient_temperature = payload.get("ambient_temperature")
+    if ambient_temperature is not None:
+        _require_positive_real(ambient_temperature, f"{label}.ambient_temperature")
+    background_boundary_cooling = payload.get("background_boundary_cooling")
+    if background_boundary_cooling is not None:
+        _validate_background_boundary_cooling(
+            background_boundary_cooling,
+            f"{label}.background_boundary_cooling",
+        )
+
+
+def _validate_background_boundary_cooling(payload: Any, label: str) -> None:
+    _require_mapping(payload, label)
+    _require_positive_real(payload.get("transfer_coefficient"), f"{label}.transfer_coefficient")
+    emissivity = _require_real(payload.get("emissivity"), f"{label}.emissivity")
+    if not 0.0 < emissivity <= 1.0:
+        raise SchemaValidationError(f"{label}.emissivity must satisfy 0 < value <= 1.")
 
 
 def _validate_component(component: Any) -> None:
@@ -228,6 +285,40 @@ def _validate_boundary_feature(feature: Any) -> None:
         feature["transfer_coefficient"],
         f"line_sink transfer_coefficient for {feature['feature_id']}",
     )
+
+
+def _validate_rect_region(region: Any, label: str) -> None:
+    _require_mapping(region, label)
+    x_min = _require_real(region.get("x_min"), f"{label}.x_min")
+    x_max = _require_real(region.get("x_max"), f"{label}.x_max")
+    y_min = _require_real(region.get("y_min"), f"{label}.y_min")
+    y_max = _require_real(region.get("y_max"), f"{label}.y_max")
+    if x_min >= x_max:
+        raise SchemaValidationError(f"{label} must satisfy x_min < x_max.")
+    if y_min >= y_max:
+        raise SchemaValidationError(f"{label} must satisfy y_min < y_max.")
+
+
+def _require_positive_spec(value: Any, label: str) -> None:
+    if isinstance(value, Mapping):
+        minimum = _require_positive_real(value.get("min"), f"{label}.min")
+        maximum = _require_positive_real(value.get("max"), f"{label}.max")
+        if minimum > maximum:
+            raise SchemaValidationError(f"{label} must satisfy min <= max.")
+        return
+    _require_positive_real(value, label)
+
+
+def _require_ratio_spec(value: Any, label: str) -> None:
+    if isinstance(value, Mapping):
+        minimum = _require_real(value.get("min"), f"{label}.min")
+        maximum = _require_real(value.get("max"), f"{label}.max")
+        if not 0.0 < minimum <= maximum <= 1.0:
+            raise SchemaValidationError(f"{label} must satisfy 0 < min <= max <= 1.")
+        return
+    numeric_value = _require_real(value, label)
+    if not 0.0 < numeric_value <= 1.0:
+        raise SchemaValidationError(f"{label} must satisfy 0 < value <= 1.")
 
 
 def _require_required_keys(payload: Mapping[str, Any], required_keys: Sequence[str], label: str) -> None:

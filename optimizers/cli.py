@@ -16,6 +16,13 @@ from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_
 from optimizers.run_suite import resolve_suite_mode_id, run_benchmark_suite
 
 
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("value must be >= 1")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="msfenicsx-optimize")
     subparsers = parser.add_subparsers(dest="command")
@@ -23,12 +30,14 @@ def build_parser() -> argparse.ArgumentParser:
     optimize_parser = subparsers.add_parser("optimize-benchmark")
     optimize_parser.add_argument("--optimization-spec", required=True)
     optimize_parser.add_argument("--output-root", required=True)
+    optimize_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
 
     suite_parser = subparsers.add_parser("run-benchmark-suite")
     suite_parser.add_argument("--optimization-spec", required=True, action="append")
     suite_parser.add_argument("--mode", action="append", default=[])
     suite_parser.add_argument("--scenario-runs-root", required=True)
     suite_parser.add_argument("--benchmark-seed", type=int, action="append", default=[])
+    suite_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
 
     replay_parser = subparsers.add_parser("replay-llm-trace")
     replay_parser.add_argument("--optimization-spec", required=True)
@@ -60,9 +69,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         evaluation_spec = load_spec(evaluation_spec_path)
         mode = optimization_spec.algorithm["mode"]
         if mode == "raw":
-            run = run_raw_optimization(base_case, optimization_spec, evaluation_spec, spec_path=args.optimization_spec)
+            run = run_raw_optimization(
+                base_case,
+                optimization_spec,
+                evaluation_spec,
+                spec_path=args.optimization_spec,
+                evaluation_workers=args.evaluation_workers,
+            )
         elif mode == "union":
-            run = run_union_optimization(base_case, optimization_spec, evaluation_spec, spec_path=args.optimization_spec)
+            run = run_union_optimization(
+                base_case,
+                optimization_spec,
+                evaluation_spec,
+                spec_path=args.optimization_spec,
+                evaluation_workers=args.evaluation_workers,
+            )
         else:
             raise ValueError(f"Unsupported optimizer mode {mode!r}.")
         evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
@@ -80,6 +101,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             benchmark_seeds=list(args.benchmark_seed),
             scenario_runs_root=Path(args.scenario_runs_root),
             modes=list(args.mode),
+            evaluation_workers=args.evaluation_workers,
         )
         return 0
     if args.command == "replay-llm-trace":

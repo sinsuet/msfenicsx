@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import yaml
 
+from core.generator.layout_metrics import build_layout_context, measure_case_layout_metrics
 from visualization.figure_axes import render_colorbar_panel
 from visualization.figure_text import wrap_text_lines
 from visualization.figure_theme import SCIENTIFIC_COLORS, SCIENTIFIC_FONT_FAMILY, build_scientific_canvas
@@ -114,10 +115,11 @@ def render_case_page(representative_root: str | Path) -> Path:
 
     layout_component_rows = _build_layout_component_rows(field_view)
     sink_rows = _build_sink_rows(field_view)
+    layout_metric_rows = _build_layout_metric_rows(case_payload)
     component_rows = _build_component_rows(solution_payload, field_view)
     global_metric_rows = _build_metric_rows(solution_payload, evaluation_payload)
     constraint_rows = _build_constraint_rows(evaluation_payload)
-    diagnostic_rows = _build_diagnostic_rows(solution_payload, evaluation_payload)
+    diagnostic_rows = _build_diagnostic_rows(case_payload, solution_payload, evaluation_payload)
 
     output_path = root / "pages" / "index.html"
     mode_page_href = _relative_href(output_path.parent, root.parents[3] / "pages" / "index.html")
@@ -151,6 +153,10 @@ def render_case_page(representative_root: str | Path) -> Path:
                 [
                     ("../figures/layout.svg", "Real component footprints, sink span, and hotspot reference in panel coordinates."),
                 ]
+            )
+            + html_table(
+                ["Layout Metric", "Value"],
+                layout_metric_rows or [["No layout metrics", "n/a"]],
             )
             + html_table(
                 ["Component", "Bounds"],
@@ -834,6 +840,19 @@ def _build_layout_component_rows(field_view: dict[str, Any]) -> list[list[str]]:
     ]
 
 
+def _build_layout_metric_rows(case_payload: dict[str, Any]) -> list[list[str]]:
+    layout_metrics = _resolved_layout_metrics(case_payload)
+    ordered_metrics = [
+        ("Active Deck Occupancy", layout_metrics.get("active_deck_occupancy")),
+        ("BBox Fill Ratio", layout_metrics.get("bbox_fill_ratio")),
+        ("Nearest Neighbor Gap", layout_metrics.get("nearest_neighbor_gap_mean")),
+        ("Centroid Dispersion", layout_metrics.get("centroid_dispersion")),
+        ("Component Area Ratio", layout_metrics.get("component_area_ratio")),
+        ("Largest Dense-Core Void", layout_metrics.get("largest_dense_core_void_ratio")),
+    ]
+    return [[label, _format_scalar(value)] for label, value in ordered_metrics if value is not None]
+
+
 def _build_sink_rows(field_view: dict[str, Any]) -> list[list[str]]:
     line_sinks = list(dict(field_view.get("layout", {})).get("line_sinks", []))
     return [
@@ -881,15 +900,28 @@ def _build_constraint_rows(evaluation_payload: dict[str, Any]) -> list[list[str]
     return rows
 
 
-def _build_diagnostic_rows(solution_payload: dict[str, Any], evaluation_payload: dict[str, Any]) -> list[list[str]]:
+def _build_diagnostic_rows(
+    case_payload: dict[str, Any],
+    solution_payload: dict[str, Any],
+    evaluation_payload: dict[str, Any],
+) -> list[list[str]]:
     diagnostics = dict(solution_payload.get("solver_diagnostics", {}))
     evaluation_meta = dict(evaluation_payload.get("evaluation_meta", {}))
+    physics = dict(case_payload.get("physics", {}))
+    background = dict(physics.get("background_boundary_cooling", {}))
+    active_heat_sources = sum(1 for load in case_payload.get("loads", []) if float(load.get("total_power", 0.0)) > 0.0)
     rows = [
         ["Solver", str(diagnostics.get("solver", "n/a"))],
         ["Converged", _format_bool(diagnostics.get("converged"))],
         ["Iterations", _format_scalar(diagnostics.get("iterations"))],
         ["Evaluation Spec", str(evaluation_meta.get("spec_id", "n/a"))],
         ["Feasible", _format_bool(evaluation_payload.get("feasible"))],
+        ["Ambient Temperature", _format_scalar(physics.get("ambient_temperature"))],
+        [
+            "Background Boundary Cooling",
+            f"h={_format_scalar(background.get('transfer_coefficient'))}, eps={_format_scalar(background.get('emissivity'))}",
+        ],
+        ["Active Heat Sources", _format_scalar(active_heat_sources)],
     ]
     return rows
 
@@ -915,6 +947,63 @@ def _resolve_panel_domain(field_view: dict[str, Any], case_payload: dict[str, An
         return float(panel_domain["width"]), float(panel_domain["height"])
     panel_domain = dict(field_view.get("panel_domain", {}))
     return float(panel_domain.get("width", 1.0)), float(panel_domain.get("height", 1.0))
+
+
+def _resolved_layout_metrics(case_payload: dict[str, Any]) -> dict[str, float]:
+    recomputed = _recompute_layout_metrics(case_payload)
+    if recomputed is not None:
+        return recomputed
+    provenance = dict(case_payload.get("provenance", {}))
+    return dict(provenance.get("layout_metrics", {}))
+
+
+def _recompute_layout_metrics(case_payload: dict[str, Any]) -> dict[str, float] | None:
+    provenance = case_payload.get("provenance", {})
+    if isinstance(provenance, dict):
+        layout_context = provenance.get("layout_context")
+        if isinstance(layout_context, dict):
+            metrics = measure_case_layout_metrics(case_payload, layout_context=layout_context)
+            if metrics is not None:
+                return metrics
+    layout_context = _load_case_layout_context(case_payload)
+    if layout_context is None:
+        return None
+    return measure_case_layout_metrics(case_payload, layout_context=layout_context)
+
+
+def _load_case_template_payload(case_payload: dict[str, Any]) -> dict[str, Any] | None:
+    provenance = dict(case_payload.get("provenance", {}))
+    case_meta = dict(case_payload.get("case_meta", {}))
+    template_id = provenance.get("source_template_id") or case_meta.get("scenario_id")
+    if not isinstance(template_id, str) or not template_id:
+        return None
+    repo_root = Path(__file__).resolve().parents[1]
+    template_path = repo_root / "scenarios" / "templates" / f"{template_id}.yaml"
+    if not template_path.exists():
+        return None
+    return _load_yaml(template_path)
+
+
+def _load_case_layout_context(case_payload: dict[str, Any]) -> dict[str, dict[str, float]] | None:
+    panel_domain = case_payload.get("panel_domain")
+    if not isinstance(panel_domain, dict):
+        return None
+    template_payload = _load_case_template_payload(case_payload)
+    if template_payload is None:
+        return None
+    placement_regions = template_payload.get("placement_regions", [])
+    placement_region = placement_regions[0] if placement_regions else {
+        "x_min": 0.0,
+        "x_max": float(panel_domain.get("width", 0.0)),
+        "y_min": 0.0,
+        "y_max": float(panel_domain.get("height", 0.0)),
+    }
+    zones = dict(dict(template_payload.get("generation_rules", {})).get("layout_strategy", {}).get("zones", {}))
+    return build_layout_context(
+        placement_region=placement_region,
+        active_deck=zones.get("active_deck"),
+        dense_core=zones.get("dense_core"),
+    )
 
 
 def _project_bounds(

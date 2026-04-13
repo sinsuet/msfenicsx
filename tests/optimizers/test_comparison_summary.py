@@ -15,6 +15,14 @@ def test_build_comparison_summary_writes_seed_delta_and_progress_matrix(tmp_path
     assert "seed_delta_table" in written
     assert (run_root / "comparison" / "summaries" / "seed_delta_table.json").exists()
     assert (run_root / "comparison" / "summaries" / "progress_matrix.json").exists()
+    seed_delta = json.loads((run_root / "comparison" / "summaries" / "seed_delta_table.json").read_text(encoding="utf-8"))
+    mode_scoreboard = json.loads(
+        (run_root / "comparison" / "summaries" / "mode_scoreboard.json").read_text(encoding="utf-8")
+    )
+
+    assert seed_delta["rows"][0]["baseline_feasible"] is False
+    assert seed_delta["rows"][0]["optimizer_feasible_rate"] == 2.0 / 3.0
+    assert "optimizer_feasible_rate_stats" in mode_scoreboard["rows"][0]
 
 
 def test_build_comparison_summary_aligns_real_run_representative_names(tmp_path: Path) -> None:

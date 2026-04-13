@@ -8,7 +8,13 @@ from typing import Any
 
 import numpy as np
 
-from core.geometry.layout_rules import component_polygon, component_within_domain, components_overlap
+from core.generator.layout_metrics import measure_case_layout_metrics
+from core.geometry.layout_rules import (
+    component_polygon,
+    component_within_domain,
+    components_violate_clearance,
+    required_clearance_gap,
+)
 from core.schema.models import ThermalCase
 from optimizers.codec import DecisionVectorError, _set_path_value
 from optimizers.cheap_constraints import project_sink_interval
@@ -53,11 +59,23 @@ def repair_case_payload_from_vector(
         radiator_bounds,
         radiator_span_max=radiator_span_max,
     )
+    clearance_by_family = {
+        str(component.get("family_id", "")): float(component.get("clearance", 0.0))
+        for component in payload["components"]
+        if component.get("family_id") is not None
+    }
     _resolve_component_overlaps(
         payload["components"],
         component_bounds,
         panel_domain=payload["panel_domain"],
+        clearance_by_family=clearance_by_family,
     )
+    provenance = payload.setdefault("provenance", {})
+    layout_context = provenance.get("layout_context")
+    if isinstance(layout_context, dict):
+        layout_metrics = measure_case_layout_metrics(payload, layout_context=layout_context)
+        if layout_metrics is not None:
+            provenance["layout_metrics"] = layout_metrics
     return payload
 
 
@@ -144,6 +162,7 @@ def _resolve_component_overlaps(
     component_bounds: dict[int, dict[str, tuple[float, float]]],
     *,
     panel_domain: dict[str, Any],
+    clearance_by_family: dict[str, float],
 ) -> None:
     movable_indices = set(component_bounds)
     for _ in range(MAX_SEPARATION_PASSES):
@@ -152,13 +171,22 @@ def _resolve_component_overlaps(
             left = components[left_index]
             right = components[right_index]
             overlap_x, overlap_y = _component_overlap_deltas(left, right)
+            shortfall = max(0.0, -required_clearance_gap(left, right, clearance_by_family))
             if overlap_x <= 0.0 or overlap_y <= 0.0:
+                if shortfall <= 0.0:
+                    continue
+                primary_axis = "x" if abs(overlap_x) <= abs(overlap_y) else "y"
+                secondary_axis = "y" if primary_axis == "x" else "x"
+                primary_delta = shortfall
+                secondary_delta = shortfall
+            else:
+                primary_axis = "x" if overlap_x <= overlap_y else "y"
+                secondary_axis = "y" if primary_axis == "x" else "x"
+                primary_delta = overlap_x if primary_axis == "x" else overlap_y
+                secondary_delta = overlap_y if secondary_axis == "y" else overlap_x
+            if primary_delta <= 0.0 and secondary_delta <= 0.0:
                 continue
             changed = True
-            primary_axis = "x" if overlap_x <= overlap_y else "y"
-            secondary_axis = "y" if primary_axis == "x" else "x"
-            primary_delta = overlap_x if primary_axis == "x" else overlap_y
-            secondary_delta = overlap_y if secondary_axis == "y" else overlap_x
             _separate_pair(
                 components,
                 left_index,
@@ -167,11 +195,13 @@ def _resolve_component_overlaps(
                 component_bounds,
                 axis=primary_axis,
                 delta=primary_delta,
+                clearance_by_family=clearance_by_family,
             )
             updated_left = components[left_index]
             updated_right = components[right_index]
+            retry_shortfall = max(0.0, -required_clearance_gap(updated_left, updated_right, clearance_by_family))
             retry_overlap_x, retry_overlap_y = _component_overlap_deltas(updated_left, updated_right)
-            if retry_overlap_x > 0.0 and retry_overlap_y > 0.0:
+            if retry_shortfall > 0.0 or (retry_overlap_x > 0.0 and retry_overlap_y > 0.0):
                 _separate_pair(
                     components,
                     left_index,
@@ -180,10 +210,11 @@ def _resolve_component_overlaps(
                     component_bounds,
                     axis=secondary_axis,
                     delta=secondary_delta,
+                    clearance_by_family=clearance_by_family,
                 )
         if not changed:
             break
-    _restore_local_legality(components, component_bounds, panel_domain)
+    _restore_local_legality(components, component_bounds, panel_domain, clearance_by_family)
 
 
 def _separate_pair(
@@ -195,13 +226,15 @@ def _separate_pair(
     *,
     axis: str,
     delta: float,
+    clearance_by_family: dict[str, float],
 ) -> None:
     left = components[left_index]
     right = components[right_index]
     left_value = float(left["pose"][axis])
     right_value = float(right["pose"][axis])
     direction = 1.0 if right_value >= left_value else -1.0
-    shift = float(delta) + REPAIR_EPSILON
+    shortfall = max(0.0, -required_clearance_gap(left, right, clearance_by_family))
+    shift = max(float(delta), shortfall) + REPAIR_EPSILON
     left_movable = left_index in movable_indices
     right_movable = right_index in movable_indices
     if left_movable and right_movable:
@@ -224,13 +257,14 @@ def _restore_local_legality(
     components: list[dict[str, Any]],
     component_bounds: dict[int, dict[str, tuple[float, float]]],
     panel_domain: dict[str, Any],
+    clearance_by_family: dict[str, float],
 ) -> None:
     movable_indices = set(component_bounds)
     for _ in range(MAX_LOCAL_RESTORE_PASSES):
-        overlap_pairs = _overlap_pairs(components)
-        if not overlap_pairs:
+        illegal_pairs = _illegal_pairs(components, clearance_by_family)
+        if not illegal_pairs:
             return
-        offender = _select_worst_offender(overlap_pairs, movable_indices)
+        offender = _select_worst_offender(illegal_pairs, movable_indices)
         if offender is None:
             return
         if not _reposition_component(
@@ -238,14 +272,15 @@ def _restore_local_legality(
             offender,
             component_bounds[offender],
             panel_domain,
+            clearance_by_family,
         ):
             return
 
 
-def _overlap_pairs(components: list[dict[str, Any]]) -> list[tuple[int, int]]:
+def _illegal_pairs(components: list[dict[str, Any]], clearance_by_family: dict[str, float]) -> list[tuple[int, int]]:
     pairs: list[tuple[int, int]] = []
     for left_index, right_index in combinations(range(len(components)), 2):
-        if components_overlap(components[left_index], components[right_index]):
+        if components_violate_clearance(components[left_index], components[right_index], clearance_by_family):
             pairs.append((left_index, right_index))
     return pairs
 
@@ -267,6 +302,7 @@ def _reposition_component(
     component_index: int,
     bounds: dict[str, tuple[float, float]],
     panel_domain: dict[str, Any],
+    clearance_by_family: dict[str, float],
 ) -> bool:
     component = components[component_index]
     original_x = float(component["pose"]["x"])
@@ -287,7 +323,7 @@ def _reposition_component(
         if not component_within_domain(component, panel_domain):
             continue
         if any(
-            components_overlap(component, other)
+            components_violate_clearance(component, other, clearance_by_family)
             for other_index, other in enumerate(components)
             if other_index != component_index
         ):

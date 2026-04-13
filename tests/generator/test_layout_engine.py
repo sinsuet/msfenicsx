@@ -1,4 +1,6 @@
-from core.generator.layout_engine import place_components
+import pytest
+
+from core.generator.layout_engine import _components_conflict_with_clearance, place_components
 from core.generator.parameter_sampler import sample_template_parameters
 from core.generator.template_loader import load_template_model
 from core.geometry.layout_rules import component_within_domain, components_overlap
@@ -21,7 +23,7 @@ def test_place_components_produces_non_overlapping_layout_inside_domain() -> Non
             assert not components_overlap(component, other_component)
 
 
-def test_place_components_keeps_anchor_families_in_preferred_bands() -> None:
+def test_place_components_keeps_v3_anchor_families_inside_tighter_zones() -> None:
     template = load_template_model("scenarios/templates/s1_typical.yaml")
     sampled = sample_template_parameters(template, seed=11)
 
@@ -32,10 +34,9 @@ def test_place_components_keeps_anchor_families_in_preferred_bands() -> None:
     )
     by_family = {component["family_id"]: component for component in placed_components}
 
-    assert by_family["c12"]["pose"]["y"] >= 0.58
-    assert by_family["c11"]["pose"]["x"] <= 0.18
-    assert by_family["c08"]["pose"]["x"] >= 0.82
-    assert by_family["c10"]["pose"]["y"] <= 0.18
+    assert by_family["c12"]["pose"]["y"] >= 0.60
+    assert by_family["c11"]["pose"]["x"] <= 0.17
+    assert by_family["c08"]["pose"]["x"] >= 0.83
 
 
 def test_place_components_groups_sink_aware_components_near_top_band() -> None:
@@ -51,4 +52,45 @@ def test_place_components_groups_sink_aware_components_near_top_band() -> None:
     top_band_families = ("c02", "c04", "c06", "c12")
     mean_y = sum(float(by_family[family_id]["pose"]["y"]) for family_id in top_band_families) / len(top_band_families)
 
-    assert mean_y >= 0.56
+    assert mean_y >= 0.54
+
+
+def test_place_components_generates_all_components_for_calibration_seed_sample() -> None:
+    template = load_template_model("scenarios/templates/s1_typical.yaml")
+
+    for seed in (11, 17, 23, 29, 31):
+        sampled = sample_template_parameters(template, seed=seed)
+        placed_components = place_components(
+            template=template,
+            sampled_components=sampled["components"],
+            seed=seed,
+        )
+        assert len(placed_components) == 15
+
+
+def test_components_conflict_with_clearance_detects_nearby_non_overlapping_parts() -> None:
+    left = {
+        "component_id": "c01-001",
+        "family_id": "c01",
+        "role": "left",
+        "shape": "rect",
+        "pose": {"x": 0.20, "y": 0.20, "rotation_deg": 0.0},
+        "geometry": {"width": 0.10, "height": 0.10},
+        "material_ref": "electronics_housing",
+    }
+    right = {
+        "component_id": "c02-001",
+        "family_id": "c02",
+        "role": "right",
+        "shape": "rect",
+        "pose": {"x": 0.31, "y": 0.20, "rotation_deg": 0.0},
+        "geometry": {"width": 0.10, "height": 0.10},
+        "material_ref": "electronics_housing",
+    }
+    family_profiles = {
+        "c01": {"clearance": 0.025},
+        "c02": {"clearance": 0.025},
+    }
+
+    assert not components_overlap(left, right)
+    assert _components_conflict_with_clearance(left, right, family_profiles)

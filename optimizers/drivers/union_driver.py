@@ -45,6 +45,7 @@ def run_union_optimization(
     evaluation_spec: Any,
     *,
     spec_path: str | Path | None = None,
+    evaluation_workers: int | None = None,
 ) -> UnionOptimizationRun:
     spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
     evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
@@ -52,7 +53,12 @@ def run_union_optimization(
     if algorithm_config["mode"] != "union":
         raise ValueError(f"run_union_optimization only supports algorithm.mode='union', got {algorithm_config['mode']!r}.")
 
-    loaded_case, problem, baseline_record = _initialize_single_case_problem(base_case, spec_payload, evaluation_payload)
+    loaded_case, problem, baseline_record = _initialize_single_case_problem(
+        base_case,
+        spec_payload,
+        evaluation_payload,
+        evaluation_workers=evaluation_workers,
+    )
 
     family = str(algorithm_config["family"])
     if family == "genetic":
@@ -64,15 +70,18 @@ def run_union_optimization(
     else:
         raise ValueError(f"Unsupported union-driver family {family!r}.")
     generation_callback = GenerationSummaryCallback(objective_definitions=evaluation_payload["objectives"])
-    minimize(
-        problem,
-        adapter.algorithm,
-        termination=("n_gen", int(algorithm_config["num_generations"])),
-        seed=int(algorithm_config["seed"]),
-        verbose=False,
-        callback=generation_callback,
-        copy_algorithm=False,
-    )
+    try:
+        minimize(
+            problem,
+            adapter.algorithm,
+            termination=("n_gen", int(algorithm_config["num_generations"])),
+            seed=int(algorithm_config["seed"]),
+            verbose=False,
+            callback=generation_callback,
+            copy_algorithm=False,
+        )
+    finally:
+        problem.close()
 
     pareto_front = _extract_pareto_front(problem.history, evaluation_payload["objectives"])
     representative_candidates = _build_representative_candidates(pareto_front, evaluation_payload["objectives"])

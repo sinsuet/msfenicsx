@@ -6,7 +6,11 @@ from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Any
 
-from core.geometry.layout_rules import component_within_domain, components_overlap, validate_line_sink_edge_segment
+from core.geometry.layout_rules import (
+    component_within_domain,
+    components_violate_clearance,
+    validate_line_sink_edge_segment,
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -119,13 +123,18 @@ def _geometry_issues(case_payload: dict[str, Any]) -> list[str]:
     issues: list[str] = []
     panel_domain = case_payload["panel_domain"]
     components = case_payload.get("components", [])
+    clearance_by_family = {
+        str(component.get("family_id", "")): float(component.get("clearance", 0.0))
+        for component in components
+        if component.get("family_id") is not None
+    }
     for component in components:
         component_id = str(component.get("component_id", "unknown"))
         if not component_within_domain(component, panel_domain):
             issues.append(f"component_outside_domain:{component_id}")
     for left, right in combinations(components, 2):
-        if components_overlap(left, right):
-            issues.append(f"components_overlap:{left['component_id']}:{right['component_id']}")
+        if components_violate_clearance(left, right, clearance_by_family):
+            issues.append(f"clearance_violation:{left['component_id']}:{right['component_id']}")
     for feature in case_payload.get("boundary_features", []):
         if not validate_line_sink_edge_segment(feature):
             issues.append(f"invalid_line_sink:{feature['feature_id']}")

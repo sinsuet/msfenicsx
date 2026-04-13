@@ -29,6 +29,7 @@ class ScenarioTemplate:
     boundary_feature_families: list[dict[str, Any]]
     load_rules: list[dict[str, Any]]
     material_rules: list[dict[str, Any]]
+    physics: dict[str, Any]
     mesh_profile: dict[str, Any]
     solver_profile: dict[str, Any]
     generation_rules: dict[str, Any]

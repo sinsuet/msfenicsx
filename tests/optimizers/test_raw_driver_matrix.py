@@ -63,3 +63,23 @@ def test_raw_driver_finds_feasible_candidates_on_s1_typical() -> None:
     assert run.result.aggregate_metrics["feasible_rate"] > 0.0
     assert run.result.aggregate_metrics["first_feasible_eval"] is not None
     assert run.result.aggregate_metrics["pareto_size"] > 0
+
+
+def test_raw_driver_supports_desktop_safe_parallel_evaluation_workers() -> None:
+    spec_path = "scenarios/optimization/s1_typical_raw.yaml"
+
+    for evaluation_workers in (1, 2):
+        spec = _raw_spec(seed=17, population_size=4, num_generations=1)
+        run = run_raw_optimization(
+            generate_benchmark_case(spec_path, spec),
+            spec,
+            load_spec(resolve_evaluation_spec_path(spec_path, spec)),
+            spec_path=spec_path,
+            evaluation_workers=evaluation_workers,
+        )
+
+        assert run.result.aggregate_metrics["optimizer_num_evaluations"] > 0
+        assert run.result.aggregate_metrics["first_feasible_eval"] is not None
+        assert [row["evaluation_index"] for row in run.result.history] == list(
+            range(1, len(run.result.history) + 1)
+        )
