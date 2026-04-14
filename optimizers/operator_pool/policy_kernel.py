@@ -24,6 +24,8 @@ _NO_PROGRESS_RESET_THRESHOLD = 5
 _SUPPORTED_SELECTION_THRESHOLD = 3
 _PREFEASIBLE_CONVERT_STALL_THRESHOLD = 3
 _PREFEASIBLE_CONVERT_PERSISTENCE_THRESHOLD = 2
+_POST_FEASIBLE_RECOVER_SEMANTIC_VISIBLE = 1
+_POST_FEASIBLE_EXPAND_SEMANTIC_VISIBLE = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -446,18 +448,38 @@ def _post_feasible_candidate_filter(
         )
         if not filtered:
             filtered = _filter_to_stable_families(candidate_operator_ids, candidate_annotations)
+        filtered = _restore_semantic_visibility(
+            phase,
+            tuple(candidate_operator_ids),
+            tuple(filtered),
+            candidate_annotations,
+        )
         return (
             tuple(candidate_operator_ids) if not filtered else tuple(filtered),
             "post_feasible_recover_preserve_bias",
         )
 
     if phase in {"post_feasible_expand", "post_feasible_preserve"}:
+        pre_visibility_filtered = tuple(
+            operator_id
+            for operator_id in candidate_operator_ids
+            if str(candidate_annotations.get(operator_id, {}).get("post_feasible_role", "")) != "risky_expand"
+        )
         filtered = tuple(
             operator_id
             for operator_id in candidate_operator_ids
             if str(candidate_annotations.get(operator_id, {}).get("post_feasible_role", "")) != "risky_expand"
         )
-        if filtered and len(filtered) < len(tuple(candidate_operator_ids)):
+        filtered = _restore_semantic_visibility(
+            phase,
+            tuple(candidate_operator_ids),
+            tuple(filtered),
+            candidate_annotations,
+        )
+        if filtered and (
+            len(pre_visibility_filtered) < len(tuple(candidate_operator_ids))
+            or tuple(filtered) != tuple(candidate_operator_ids)
+        ):
             reason_code = (
                 "post_feasible_expand_frontier_bias"
                 if phase == "post_feasible_expand"
@@ -466,3 +488,99 @@ def _post_feasible_candidate_filter(
             return tuple(filtered), reason_code
 
     return tuple(candidate_operator_ids), None
+
+
+def _restore_semantic_visibility(
+    phase: str,
+    candidate_operator_ids: Sequence[str],
+    filtered_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> tuple[str, ...]:
+    semantic_target = (
+        _POST_FEASIBLE_RECOVER_SEMANTIC_VISIBLE
+        if phase == "post_feasible_recover"
+        else _POST_FEASIBLE_EXPAND_SEMANTIC_VISIBLE
+    )
+    if semantic_target <= 0:
+        return tuple(filtered_operator_ids)
+
+    original_order = {operator_id: index for index, operator_id in enumerate(candidate_operator_ids)}
+    stable_operator_ids = tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if str(candidate_annotations.get(operator_id, {}).get("operator_family", "")) in _STABLE_FAMILIES
+    )
+    semantic_operator_ids = tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if operator_id not in stable_operator_ids
+    )
+    if not semantic_operator_ids:
+        return tuple(filtered_operator_ids)
+
+    selected_operator_ids = {str(operator_id) for operator_id in filtered_operator_ids}
+    selected_semantic_count = sum(1 for operator_id in semantic_operator_ids if operator_id in selected_operator_ids)
+    if selected_semantic_count >= semantic_target:
+        return tuple(filtered_operator_ids)
+
+    for operator_id in _rank_semantic_candidates(
+        phase,
+        semantic_operator_ids,
+        candidate_annotations,
+        original_order=original_order,
+    ):
+        selected_operator_ids.add(operator_id)
+        selected_semantic_count = sum(1 for candidate_id in semantic_operator_ids if candidate_id in selected_operator_ids)
+        if selected_semantic_count >= semantic_target:
+            break
+
+    stable_selected = [operator_id for operator_id in stable_operator_ids if operator_id in selected_operator_ids]
+    semantic_selected = [operator_id for operator_id in semantic_operator_ids if operator_id in selected_operator_ids]
+    return tuple(stable_selected + semantic_selected)
+
+
+def _rank_semantic_candidates(
+    phase: str,
+    semantic_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+    *,
+    original_order: dict[str, int],
+) -> tuple[str, ...]:
+    def _evidence_rank(annotation: dict[str, Any]) -> int:
+        evidence_level = str(annotation.get("evidence_level", ""))
+        if evidence_level == "trusted":
+            return 0
+        if evidence_level == "supported":
+            return 1
+        return 2
+
+    def _role_rank(annotation: dict[str, Any]) -> int:
+        role = str(annotation.get("post_feasible_role", ""))
+        if phase == "post_feasible_recover":
+            priority = {
+                "trusted_preserve": 0,
+                "fragile_preserve": 1,
+                "supported_expand": 2,
+                "risky_expand": 3,
+            }
+            return priority.get(role, 4)
+        priority = {
+            "supported_expand": 0,
+            "fragile_preserve": 1,
+            "trusted_preserve": 2,
+            "risky_expand": 3,
+        }
+        return priority.get(role, 4)
+
+    def _sort_key(operator_id: str) -> tuple[float, ...]:
+        annotation = dict(candidate_annotations.get(operator_id, {}))
+        return (
+            float(_role_rank(annotation)),
+            float(_evidence_rank(annotation)),
+            -float(annotation.get("pareto_contribution_count", 0)),
+            -float(annotation.get("feasible_preservation_count", 0)),
+            float(annotation.get("feasible_regression_count", 0)),
+            float(original_order.get(operator_id, 10**6)),
+        )
+
+    return tuple(sorted((str(operator_id) for operator_id in semantic_operator_ids), key=_sort_key))

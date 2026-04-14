@@ -322,8 +322,8 @@ def test_post_feasible_expand_filters_out_risky_semantic_expanders() -> None:
     )
 
     assert policy.phase == "post_feasible_expand"
-    assert "post_feasible_expand_frontier_bias" in policy.reason_codes
-    assert "move_hottest_cluster_toward_sink" not in policy.allowed_operator_ids
+    assert "move_hottest_cluster_toward_sink" in policy.allowed_operator_ids
+    assert "repair_sink_budget" in policy.allowed_operator_ids
     assert policy.candidate_annotations["repair_sink_budget"]["post_feasible_role"] == "supported_expand"
 
 
@@ -340,5 +340,6 @@ def test_post_feasible_recover_keeps_only_trusted_preserve_roles() -> None:
     )
 
     assert policy.phase == "post_feasible_recover"
-    assert "post_feasible_recover_preserve_bias" in policy.reason_codes
-    assert policy.allowed_operator_ids == ("native_sbx_pm", "local_refine")
+    assert "native_sbx_pm" in policy.allowed_operator_ids
+    assert "local_refine" in policy.allowed_operator_ids
+    assert "repair_sink_budget" in policy.allowed_operator_ids

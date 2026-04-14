@@ -81,6 +81,39 @@ def _prefeasible_state() -> ControllerState:
                     "post_feasible_avg_violation_delta": 0.07,
                 },
             },
+            "prompt_panels": {
+                "run_panel": {
+                    "evaluations_used": 47,
+                    "evaluations_remaining": 82,
+                    "feasible_rate": 0.0,
+                    "first_feasible_eval": None,
+                    "peak_temperature": 349.4,
+                    "temperature_gradient_rms": 10.8,
+                },
+                "regime_panel": {
+                    "phase": "prefeasible_stagnation",
+                    "dominant_violation_family": "thermal_limit",
+                    "sink_budget_utilization": 0.96,
+                },
+                "parent_panel": {
+                    "closest_to_feasible_parent": {"evaluation_index": 43, "feasible": False},
+                    "strongest_feasible_parent": None,
+                },
+                "operator_panel": {
+                    "native_sbx_pm": {
+                        "entry_fit": "supported",
+                        "preserve_fit": "supported",
+                        "expand_fit": "supported",
+                        "frontier_evidence": "limited",
+                    },
+                    "local_refine": {
+                        "entry_fit": "supported",
+                        "preserve_fit": "supported",
+                        "expand_fit": "supported",
+                        "frontier_evidence": "limited",
+                    },
+                },
+            },
         },
     )
 
@@ -136,6 +169,40 @@ def _post_feasible_state() -> ControllerState:
                     "post_feasible_avg_violation_delta": 0.02,
                 },
             },
+            "prompt_panels": {
+                "run_panel": {
+                    "evaluations_used": 78,
+                    "evaluations_remaining": 51,
+                    "feasible_rate": 0.19,
+                    "first_feasible_eval": 52,
+                    "peak_temperature": 344.8,
+                    "temperature_gradient_rms": 8.7,
+                },
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "dominant_violation_family": "thermal_limit",
+                    "sink_budget_utilization": 0.91,
+                },
+                "parent_panel": {
+                    "closest_to_feasible_parent": None,
+                    "strongest_feasible_parent": {"evaluation_index": 73, "feasible": True},
+                },
+                "operator_panel": {
+                    "native_sbx_pm": {
+                        "entry_fit": "supported",
+                        "preserve_fit": "supported",
+                        "expand_fit": "supported",
+                        "frontier_evidence": "positive",
+                    },
+                    "repair_sink_budget": {
+                        "entry_fit": "supported",
+                        "preserve_fit": "trusted",
+                        "expand_fit": "trusted",
+                        "frontier_evidence": "positive",
+                        "post_feasible_avg_objective_delta": -0.34,
+                    },
+                },
+            },
         },
     )
 
@@ -151,11 +218,11 @@ def test_prefeasible_prompt_projection_omits_post_feasible_frontier_fields() -> 
         guardrail=None,
     )
 
-    assert "recent_frontier_add_count" not in payload["archive_state"]
-    assert "post_feasible_avg_objective_delta" not in payload["operator_summary"]["local_refine"]
-    assert "post_feasible_avg_violation_delta" not in payload["operator_summary"]["local_refine"]
-    assert payload["run_state"]["peak_temperature"] == pytest.approx(349.4)
-    assert payload["domain_regime"]["sink_budget_utilization"] == pytest.approx(0.96)
+    assert "prompt_panels" in payload
+    assert "frontier_evidence" not in payload["prompt_panels"]["operator_panel"]["local_refine"]
+    assert payload["prompt_panels"]["run_panel"]["peak_temperature"] == pytest.approx(349.4)
+    assert payload["prompt_panels"]["regime_panel"]["sink_budget_utilization"] == pytest.approx(0.96)
+    assert payload["phase_policy"]["phase"] == "prefeasible_stagnation"
 
 
 def test_post_feasible_prompt_projection_keeps_frontier_and_regression_fields() -> None:
@@ -169,9 +236,7 @@ def test_post_feasible_prompt_projection_keeps_frontier_and_regression_fields() 
         guardrail=None,
     )
 
-    assert payload["archive_state"]["recent_frontier_add_count"] == 2
-    assert payload["archive_state"]["recent_feasible_regression_count"] == 1
-    assert payload["operator_summary"]["repair_sink_budget"]["post_feasible_avg_objective_delta"] == pytest.approx(
-        -0.34
-    )
-    assert payload["run_state"]["temperature_gradient_rms"] == pytest.approx(8.7)
+    assert payload["prompt_panels"]["run_panel"]["temperature_gradient_rms"] == pytest.approx(8.7)
+    assert payload["prompt_panels"]["regime_panel"]["phase"] == "post_feasible_expand"
+    assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["frontier_evidence"] == "positive"
+    assert payload["phase_policy"]["phase"] == "post_feasible_expand"

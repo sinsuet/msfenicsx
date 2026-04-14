@@ -152,6 +152,14 @@ def _domain_grounded_state() -> ControllerState:
                 "peak_temperature": 344.8,
                 "temperature_gradient_rms": 8.7,
             },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 3,
+                "recent_frontier_stagnation_count": 3,
+                "recent_dominant_violation_family": "thermal_limit",
+                "recent_dominant_violation_persistence_count": 2,
+            },
             "parent_state": {
                 "parent_indices": [3, 8],
                 "parents": [
@@ -181,6 +189,56 @@ def _domain_grounded_state() -> ControllerState:
                 "phase": "feasible_refine",
                 "dominant_constraint_family": "thermal_limit",
                 "sink_budget_utilization": 0.9166666667,
+            },
+            "prompt_panels": {
+                "run_panel": {
+                    "evaluations_used": 63,
+                    "evaluations_remaining": 66,
+                    "feasible_rate": 0.17,
+                    "first_feasible_eval": 45,
+                    "peak_temperature": 344.8,
+                    "temperature_gradient_rms": 8.7,
+                    "pareto_size": 4,
+                },
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "dominant_violation_family": "thermal_limit",
+                    "dominant_violation_persistence_count": 2,
+                    "sink_budget_utilization": 0.9166666667,
+                    "entry_pressure": "low",
+                    "preservation_pressure": "medium",
+                    "frontier_pressure": "high",
+                },
+                "parent_panel": {
+                    "closest_to_feasible_parent": {
+                        "evaluation_index": 44,
+                        "feasible": False,
+                        "total_violation": 0.7,
+                    },
+                    "strongest_feasible_parent": {
+                        "evaluation_index": 45,
+                        "feasible": True,
+                        "objective_summary": {"minimize_peak_temperature": 344.8},
+                    },
+                },
+                "operator_panel": {
+                    "move_hottest_cluster_toward_sink": {
+                        "entry_fit": "trusted",
+                        "preserve_fit": "trusted",
+                        "expand_fit": "supported",
+                        "recent_regression_risk": "low",
+                        "frontier_evidence": "positive",
+                        "dominant_violation_relief": "supported",
+                    },
+                    "repair_sink_budget": {
+                        "entry_fit": "supported",
+                        "preserve_fit": "trusted",
+                        "expand_fit": "weak",
+                        "recent_regression_risk": "low",
+                        "frontier_evidence": "limited",
+                        "dominant_violation_relief": "supported",
+                    },
+                },
             },
             "recent_decisions": [
                 {
@@ -225,6 +283,271 @@ def _domain_grounded_state() -> ControllerState:
             },
             "problem_history": [{"should_not": "appear"}],
             "case_reports": {"should_not": "appear"},
+        },
+    )
+
+
+def _prefeasible_convert_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=4,
+        evaluation_index=33,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "near_feasible",
+            "candidate_operator_ids": [
+                "native_sbx_pm",
+                "repair_sink_budget",
+                "move_hottest_cluster_toward_sink",
+            ],
+            "run_state": {
+                "decision_index": 8,
+                "evaluations_used": 32,
+                "evaluations_remaining": 97,
+                "feasible_rate": 0.0,
+                "first_feasible_eval": None,
+                "peak_temperature": 350.1,
+                "temperature_gradient_rms": 9.9,
+            },
+            "progress_state": {
+                "phase": "prefeasible_stagnation",
+                "first_feasible_found": False,
+                "prefeasible_mode": "convert",
+                "recent_no_progress_count": 4,
+                "evaluations_since_near_feasible_improvement": 4,
+                "recent_dominant_violation_family": "thermal_limit",
+                "recent_dominant_violation_persistence_count": 3,
+            },
+            "domain_regime": {
+                "phase": "near_feasible",
+                "dominant_constraint_family": "thermal_limit",
+                "sink_budget_utilization": 0.9,
+            },
+            "prompt_panels": {
+                "run_panel": {
+                    "evaluations_used": 32,
+                    "evaluations_remaining": 97,
+                    "feasible_rate": 0.0,
+                    "first_feasible_eval": None,
+                    "peak_temperature": 350.1,
+                    "temperature_gradient_rms": 9.9,
+                    "pareto_size": 0,
+                },
+                "regime_panel": {
+                    "phase": "prefeasible_convert",
+                    "dominant_violation_family": "thermal_limit",
+                    "dominant_violation_persistence_count": 3,
+                    "sink_budget_utilization": 0.9,
+                    "entry_pressure": "high",
+                    "preservation_pressure": "low",
+                    "frontier_pressure": "low",
+                },
+                "parent_panel": {
+                    "closest_to_feasible_parent": {
+                        "evaluation_index": 31,
+                        "feasible": False,
+                        "total_violation": 0.42,
+                    },
+                    "strongest_feasible_parent": None,
+                },
+                "operator_panel": {
+                    "repair_sink_budget": {
+                        "entry_fit": "trusted",
+                        "preserve_fit": "supported",
+                        "expand_fit": "weak",
+                        "recent_regression_risk": "low",
+                        "frontier_evidence": "limited",
+                        "dominant_violation_relief": "supported",
+                    },
+                    "move_hottest_cluster_toward_sink": {
+                        "entry_fit": "weak",
+                        "preserve_fit": "weak",
+                        "expand_fit": "supported",
+                        "recent_regression_risk": "medium",
+                        "frontier_evidence": "positive",
+                        "dominant_violation_relief": "limited",
+                    },
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 5,
+                    "recent_selection_count": 1,
+                    "proposal_count": 5,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 4,
+                    "recent_selection_count": 1,
+                    "proposal_count": 4,
+                    "feasible_entry_count": 1,
+                    "dominant_violation_relief_count": 2,
+                    "near_feasible_improvement_count": 2,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 6,
+                    "recent_selection_count": 2,
+                    "proposal_count": 6,
+                    "pareto_contribution_count": 2,
+                    "post_feasible_avg_objective_delta": -0.2,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_collapse_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=8,
+        evaluation_index=88,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "candidate_operator_ids": [
+                "native_sbx_pm",
+                "global_explore",
+                "local_refine",
+                "slide_sink",
+                "repair_sink_budget",
+                "move_hottest_cluster_toward_sink",
+            ],
+            "run_state": {
+                "decision_index": 26,
+                "evaluations_used": 87,
+                "evaluations_remaining": 42,
+                "feasible_rate": 0.41,
+                "first_feasible_eval": 45,
+                "peak_temperature": 309.8,
+                "temperature_gradient_rms": 13.2,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "first_feasible_found": True,
+                "post_feasible_mode": "recover",
+                "recent_no_progress_count": 2,
+                "recent_frontier_stagnation_count": 5,
+            },
+            "domain_regime": {
+                "phase": "feasible_refine",
+                "dominant_constraint_family": "thermal_limit",
+                "sink_budget_utilization": 0.97,
+            },
+            "prompt_panels": {
+                "run_panel": {
+                    "evaluations_used": 87,
+                    "evaluations_remaining": 42,
+                    "feasible_rate": 0.41,
+                    "first_feasible_eval": 45,
+                    "peak_temperature": 309.8,
+                    "temperature_gradient_rms": 13.2,
+                    "pareto_size": 5,
+                },
+                "regime_panel": {
+                    "phase": "post_feasible_recover",
+                    "dominant_violation_family": "thermal_limit",
+                    "dominant_violation_persistence_count": 4,
+                    "sink_budget_utilization": 0.97,
+                    "entry_pressure": "low",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                },
+                "parent_panel": {
+                    "closest_to_feasible_parent": None,
+                    "strongest_feasible_parent": {
+                        "evaluation_index": 83,
+                        "feasible": True,
+                        "objective_summary": {"minimize_peak_temperature": 309.8},
+                    },
+                },
+                "operator_panel": {
+                    "native_sbx_pm": {
+                        "entry_fit": "supported",
+                        "preserve_fit": "trusted",
+                        "expand_fit": "supported",
+                        "recent_regression_risk": "low",
+                        "frontier_evidence": "positive",
+                        "dominant_violation_relief": "supported",
+                    },
+                    "global_explore": {
+                        "entry_fit": "supported",
+                        "preserve_fit": "supported",
+                        "expand_fit": "supported",
+                        "recent_regression_risk": "medium",
+                        "frontier_evidence": "limited",
+                        "dominant_violation_relief": "limited",
+                    },
+                    "local_refine": {
+                        "entry_fit": "supported",
+                        "preserve_fit": "trusted",
+                        "expand_fit": "supported",
+                        "recent_regression_risk": "low",
+                        "frontier_evidence": "positive",
+                        "dominant_violation_relief": "supported",
+                    },
+                    "slide_sink": {
+                        "entry_fit": "weak",
+                        "preserve_fit": "weak",
+                        "expand_fit": "weak",
+                        "recent_regression_risk": "medium",
+                        "frontier_evidence": "limited",
+                        "dominant_violation_relief": "limited",
+                    },
+                    "repair_sink_budget": {
+                        "entry_fit": "weak",
+                        "preserve_fit": "weak",
+                        "expand_fit": "weak",
+                        "recent_regression_risk": "medium",
+                        "frontier_evidence": "limited",
+                        "dominant_violation_relief": "limited",
+                    },
+                    "move_hottest_cluster_toward_sink": {
+                        "entry_fit": "weak",
+                        "preserve_fit": "weak",
+                        "expand_fit": "weak",
+                        "recent_regression_risk": "medium",
+                        "frontier_evidence": "limited",
+                        "dominant_violation_relief": "limited",
+                    },
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 18,
+                    "recent_selection_count": 2,
+                    "proposal_count": 18,
+                    "feasible_preservation_count": 5,
+                },
+                "global_explore": {
+                    "selection_count": 10,
+                    "recent_selection_count": 1,
+                    "proposal_count": 10,
+                },
+                "local_refine": {
+                    "selection_count": 16,
+                    "recent_selection_count": 2,
+                    "proposal_count": 16,
+                    "feasible_preservation_count": 4,
+                },
+                "slide_sink": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                },
+            },
         },
     )
 
@@ -299,11 +622,59 @@ def test_llm_controller_builds_semantic_operator_prompt_and_metadata() -> None:
 
     user_payload = json.loads(str(client.last_kwargs["user_prompt"]))
     metadata = user_payload["metadata"]
-    assert metadata["run_state"]["peak_temperature"] == pytest.approx(344.8)
-    assert metadata["run_state"]["temperature_gradient_rms"] == pytest.approx(8.7)
-    assert metadata["domain_regime"]["sink_budget_utilization"] == pytest.approx(0.9166666667)
+    assert metadata["prompt_panels"]["run_panel"]["peak_temperature"] == pytest.approx(344.8)
+    assert metadata["prompt_panels"]["run_panel"]["temperature_gradient_rms"] == pytest.approx(8.7)
+    assert metadata["prompt_panels"]["regime_panel"]["phase"] == "post_feasible_expand"
+    assert metadata["prompt_panels"]["operator_panel"]["move_hottest_cluster_toward_sink"]["preserve_fit"] == "trusted"
+    assert "run_state" not in metadata
+    assert "parent_state" not in metadata
+    assert "archive_state" not in metadata
+    assert "domain_regime" not in metadata
+    assert "progress_state" not in metadata
     assert "problem_history" not in metadata
     assert "case_reports" not in metadata
+
+
+def test_llm_system_prompt_prioritizes_first_feasible_before_pareto_in_prefeasible_convert() -> None:
+    client = _FakeLLMClient(
+        OpenAICompatibleDecision(
+            selected_operator_id="repair_sink_budget",
+            phase="prefeasible_convert",
+            rationale="Cross the feasibility boundary before chasing frontier novelty.",
+            provider="openai-compatible",
+            model="GPT-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "repair_sink_budget"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=client,
+    )
+
+    controller.select_decision(
+        _prefeasible_convert_state(),
+        (
+            "native_sbx_pm",
+            "repair_sink_budget",
+            "move_hottest_cluster_toward_sink",
+        ),
+        np.random.default_rng(5),
+    )
+
+    assert client.last_kwargs is not None
+    system_prompt = str(client.last_kwargs["system_prompt"])
+    assert "first feasible conversion" in system_prompt
+    assert "before frontier growth or Pareto novelty" in system_prompt
+    assert "protect stable near-feasible progress" in system_prompt
 
 
 def test_llm_controller_recent_dominance_guardrail_filters_repeated_semantic_operator() -> None:
@@ -346,3 +717,46 @@ def test_llm_controller_recent_dominance_guardrail_filters_repeated_semantic_ope
     assert client.last_kwargs is not None
     assert client.last_kwargs["candidate_operator_ids"] == ("native_sbx_pm", "local_refine")
     assert controller.request_trace[0]["guardrail"]["filtered_operator_ids"] == ["move_hottest_cluster_toward_sink"]
+
+
+def test_llm_controller_request_can_include_semantic_candidates_post_feasible() -> None:
+    client = _FakeLLMClient(
+        OpenAICompatibleDecision(
+            selected_operator_id="slide_sink",
+            phase="post_feasible_recover",
+            rationale="Keep one semantic retargeting option visible during recover mode.",
+            provider="openai-compatible",
+            model="GPT-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "slide_sink"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=client,
+    )
+
+    decision = controller.select_decision(
+        _post_feasible_collapse_state(),
+        (
+            "native_sbx_pm",
+            "global_explore",
+            "local_refine",
+            "slide_sink",
+            "repair_sink_budget",
+            "move_hottest_cluster_toward_sink",
+        ),
+        np.random.default_rng(23),
+    )
+
+    assert decision.selected_operator_id == "slide_sink"
+    assert client.last_kwargs is not None
+    assert "slide_sink" in tuple(client.last_kwargs["candidate_operator_ids"])
