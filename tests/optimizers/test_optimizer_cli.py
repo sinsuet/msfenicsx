@@ -1,3 +1,4 @@
+import os
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -595,6 +596,68 @@ def test_optimizer_cli_llm_union_mode_writes_llm_sidecars(
     assert "elapsed_seconds" in llm_response_trace[0]
     assert "elapsed_seconds_total" in llm_metrics
     assert "elapsed_seconds_avg" in llm_metrics
+
+
+def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_path: Path, monkeypatch) -> None:
+    import optimizers.cli as cli_module
+
+    spec_path = _write_small_llm_spec(tmp_path)
+    output_root = tmp_path / "run_llm_optimizer_run"
+    captured: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        cli_module,
+        "load_provider_profile_overlay",
+        lambda profile, **kwargs: {
+            "LLM_API_KEY": "switch-key",
+            "LLM_BASE_URL": "https://switch.example/v1",
+            "LLM_MODEL": "claude-sonnet-4",
+        },
+        raising=False,
+    )
+
+    def _fake_run_union_optimization(*args, **kwargs):
+        del args, kwargs
+        captured["LLM_API_KEY"] = os.environ["LLM_API_KEY"]
+        captured["LLM_BASE_URL"] = os.environ["LLM_BASE_URL"]
+        captured["LLM_MODEL"] = os.environ["LLM_MODEL"]
+        return _fake_union_run(include_llm_sidecars=True)
+
+    monkeypatch.setattr(cli_module, "run_union_optimization", _fake_run_union_optimization)
+
+    exit_code = main(
+        [
+            "run-llm",
+            "claude",
+            "--optimization-spec",
+            str(spec_path),
+            "--output-root",
+            str(output_root),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured == {
+        "LLM_API_KEY": "switch-key",
+        "LLM_BASE_URL": "https://switch.example/v1",
+        "LLM_MODEL": "claude-sonnet-4",
+    }
+
+
+def test_optimizer_cli_run_llm_rejects_non_llm_specs(tmp_path: Path) -> None:
+    spec_path = _write_small_raw_spec(tmp_path)
+
+    with pytest.raises(ValueError, match="operator_control.controller='llm'"):
+        main(
+            [
+                "run-llm",
+                "gpt",
+                "--optimization-spec",
+                str(spec_path),
+                "--output-root",
+                str(tmp_path / "run_llm_non_llm"),
+            ]
+        )
 
 
 def test_optimizer_cli_replay_llm_trace_writes_summary_artifact(

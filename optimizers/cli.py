@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Sequence
+from contextlib import contextmanager
 from pathlib import Path
 
 from evaluation.io import load_spec
+from llm.openai_compatible.profile_loader import load_provider_profile_overlay
 from llm.openai_compatible.replay import replay_request_trace_file, save_replay_summary
 from optimizers.artifacts import write_optimization_artifacts
 from optimizers.drivers.raw_driver import run_raw_optimization
@@ -32,6 +35,12 @@ def build_parser() -> argparse.ArgumentParser:
     optimize_parser.add_argument("--output-root", required=True)
     optimize_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
 
+    run_llm_parser = subparsers.add_parser("run-llm")
+    run_llm_parser.add_argument("profile")
+    run_llm_parser.add_argument("--optimization-spec", required=True)
+    run_llm_parser.add_argument("--output-root", required=True)
+    run_llm_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
+
     suite_parser = subparsers.add_parser("run-benchmark-suite")
     suite_parser.add_argument("--optimization-spec", required=True, action="append")
     suite_parser.add_argument("--mode", action="append", default=[])
@@ -56,6 +65,69 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _run_optimize_benchmark(
+    optimization_spec_path: str | Path,
+    output_root: str | Path,
+    *,
+    evaluation_workers: int | None,
+    optimization_spec=None,
+) -> int:
+    optimization_spec = (
+        load_optimization_spec(optimization_spec_path) if optimization_spec is None else optimization_spec
+    )
+    base_case = generate_benchmark_case(optimization_spec_path, optimization_spec)
+    evaluation_spec_path = resolve_evaluation_spec_path(optimization_spec_path, optimization_spec)
+    evaluation_spec = load_spec(evaluation_spec_path)
+    mode = optimization_spec.algorithm["mode"]
+    if mode == "raw":
+        run = run_raw_optimization(
+            base_case,
+            optimization_spec,
+            evaluation_spec,
+            spec_path=optimization_spec_path,
+            evaluation_workers=evaluation_workers,
+        )
+    elif mode == "union":
+        run = run_union_optimization(
+            base_case,
+            optimization_spec,
+            evaluation_spec,
+            spec_path=optimization_spec_path,
+            evaluation_workers=evaluation_workers,
+        )
+    else:
+        raise ValueError(f"Unsupported optimizer mode {mode!r}.")
+    evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
+    write_optimization_artifacts(
+        output_root,
+        run,
+        mode_id=resolve_suite_mode_id(optimization_spec),
+        seed=int(optimization_spec.benchmark_source["seed"]),
+        objective_definitions=list(evaluation_payload["objectives"]),
+    )
+    return 0
+
+
+def _require_llm_optimization_spec(optimization_spec, *, command_name: str) -> None:
+    operator_control = optimization_spec.operator_control
+    if operator_control is None or operator_control.get("controller") != "llm":
+        raise ValueError(f"{command_name} requires an optimization spec with operator_control.controller='llm'.")
+
+
+@contextmanager
+def _temporary_env_overlay(values: dict[str, str]):
+    previous = {key: os.environ.get(key) for key in values}
+    os.environ.update(values)
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -63,38 +135,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     if args.command == "optimize-benchmark":
-        optimization_spec = load_optimization_spec(args.optimization_spec)
-        base_case = generate_benchmark_case(args.optimization_spec, optimization_spec)
-        evaluation_spec_path = resolve_evaluation_spec_path(args.optimization_spec, optimization_spec)
-        evaluation_spec = load_spec(evaluation_spec_path)
-        mode = optimization_spec.algorithm["mode"]
-        if mode == "raw":
-            run = run_raw_optimization(
-                base_case,
-                optimization_spec,
-                evaluation_spec,
-                spec_path=args.optimization_spec,
-                evaluation_workers=args.evaluation_workers,
-            )
-        elif mode == "union":
-            run = run_union_optimization(
-                base_case,
-                optimization_spec,
-                evaluation_spec,
-                spec_path=args.optimization_spec,
-                evaluation_workers=args.evaluation_workers,
-            )
-        else:
-            raise ValueError(f"Unsupported optimizer mode {mode!r}.")
-        evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
-        write_optimization_artifacts(
+        return _run_optimize_benchmark(
+            args.optimization_spec,
             args.output_root,
-            run,
-            mode_id=resolve_suite_mode_id(optimization_spec),
-            seed=int(optimization_spec.benchmark_source["seed"]),
-            objective_definitions=list(evaluation_payload["objectives"]),
+            evaluation_workers=args.evaluation_workers,
         )
-        return 0
+    if args.command == "run-llm":
+        optimization_spec = load_optimization_spec(args.optimization_spec)
+        _require_llm_optimization_spec(optimization_spec, command_name="run-llm")
+        overlay = load_provider_profile_overlay(args.profile)
+        with _temporary_env_overlay(overlay):
+            return _run_optimize_benchmark(
+                args.optimization_spec,
+                args.output_root,
+                evaluation_workers=args.evaluation_workers,
+                optimization_spec=optimization_spec,
+            )
     if args.command == "run-benchmark-suite":
         run_benchmark_suite(
             optimization_spec_paths=[Path(path) for path in args.optimization_spec],
@@ -106,9 +162,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "replay-llm-trace":
         optimization_spec = load_optimization_spec(args.optimization_spec)
+        _require_llm_optimization_spec(optimization_spec, command_name="replay-llm-trace")
         operator_control = optimization_spec.operator_control
-        if operator_control is None or operator_control.get("controller") != "llm":
-            raise ValueError("replay-llm-trace requires an optimization spec with operator_control.controller='llm'.")
+        assert operator_control is not None
         replay_summary = replay_request_trace_file(
             Path(args.request_trace),
             dict(operator_control["controller_parameters"]),
