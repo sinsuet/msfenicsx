@@ -311,7 +311,7 @@ def test_llm_spec_stays_controller_only_against_union() -> None:
     assert params["retry"]["timeout_seconds"] > 0
 
 
-def test_llm_spec_round_trips_rust_cat_live_controller_profile() -> None:
+def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
     spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
 
     assert spec.operator_control is not None
@@ -319,9 +319,11 @@ def test_llm_spec_round_trips_rust_cat_live_controller_profile() -> None:
     assert params["provider"] == "openai-compatible"
     assert params["capability_profile"] == "chat_compatible_json"
     assert params["performance_profile"] == "balanced"
-    assert params["model"] == "gpt-5.4"
-    assert params["api_key_env_var"] == "OPENAI_API_KEY"
-    assert params["base_url"] == "https://rust.cat/v1"
+    assert params["api_key_env_var"] == "LLM_API_KEY"
+    assert params["base_url_env_var"] == "LLM_BASE_URL"
+    assert params["model_env_var"] == "LLM_MODEL"
+    assert "model" not in params
+    assert "base_url" not in params
     assert params["max_output_tokens"] == 256
     assert params["temperature"] == 1.0
 

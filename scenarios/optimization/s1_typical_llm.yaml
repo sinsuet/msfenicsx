@@ -159,9 +159,9 @@ operator_control:
     provider: openai-compatible
     capability_profile: chat_compatible_json
     performance_profile: balanced
-    model: gpt-5.4
-    api_key_env_var: OPENAI_API_KEY
-    base_url: https://rust.cat/v1
+    model_env_var: LLM_MODEL
+    api_key_env_var: LLM_API_KEY
+    base_url_env_var: LLM_BASE_URL
     max_output_tokens: 256
     temperature: 1.0
     reasoning:
