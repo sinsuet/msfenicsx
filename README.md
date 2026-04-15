@@ -149,6 +149,12 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s1_typical/llm-smoke
 
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+  gpt \
+  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/llm-gpt-smoke
+
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
   --optimization-spec scenarios/optimization/s1_typical_union.yaml \
@@ -191,8 +197,41 @@ The optimizer CLI uses a desktop-safe default worker budget when `--evaluation-w
 
 The `nsga2_llm` route uses the OpenAI-compatible client in `llm/openai_compatible/` and expects:
 
-- `OPENAI_API_KEY` from process environment or repository-root `.env`
-- `model=gpt-5.4`
+- one of the provider profiles declared in `llm/openai_compatible/profiles.yaml`
+- provider credentials from process environment or repository-root `.env`
+- the active paper-facing `s1_typical_llm` spec now resolves runtime provider identity through:
+  - `LLM_API_KEY`
+  - `LLM_BASE_URL`
+  - `LLM_MODEL`
+
+Recommended multi-provider `.env` layout:
+
+```env
+GPT_PROXY_API_KEY=...
+GPT_PROXY_BASE_URL=https://gpt.example/v1
+
+CLAUDE_PROXY_API_KEY=...
+CLAUDE_PROXY_BASE_URL=https://claude.example/v1
+
+QWEN_PROXY_API_KEY=...
+QWEN_PROXY_BASE_URL=https://qwen.example/v1
+```
+
+Recommended LLM benchmark invocation:
+
+```bash
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+  claude \
+  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/llm-claude-smoke
+```
+
+Direct `optimize-benchmark` execution for `s1_typical_llm.yaml` still works, but only if you explicitly provide:
+
+- `LLM_API_KEY`
+- `LLM_BASE_URL`
+- `LLM_MODEL`
 
 If needed:
 
