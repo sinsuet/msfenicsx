@@ -1,0 +1,14 @@
+schema_version: "1.0"
+profiles:
+  gpt:
+    source_api_key_env_var: GPT_PROXY_API_KEY
+    source_base_url_env_var: GPT_PROXY_BASE_URL
+    model: gpt-5.4
+  claude:
+    source_api_key_env_var: CLAUDE_PROXY_API_KEY
+    source_base_url_env_var: CLAUDE_PROXY_BASE_URL
+    model: claude-sonnet-4
+  qwen:
+    source_api_key_env_var: QWEN_PROXY_API_KEY
+    source_base_url_env_var: QWEN_PROXY_BASE_URL
+    model: qwen-max
