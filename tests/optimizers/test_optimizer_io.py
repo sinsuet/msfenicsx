@@ -326,6 +326,29 @@ def test_llm_spec_round_trips_rust_cat_live_controller_profile() -> None:
     assert params["temperature"] == 1.0
 
 
+def test_llm_validation_accepts_model_env_var_without_literal_model() -> None:
+    payload = _spec_payload()
+    payload["algorithm"]["mode"] = "union"
+    payload["operator_control"] = {
+        "controller": "llm",
+        "operator_pool": list(approved_union_operator_ids_for_backbone("genetic", "nsga2")),
+        "controller_parameters": {
+            "provider": "openai-compatible",
+            "model_env_var": "LLM_MODEL",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "api_key_env_var": "LLM_API_KEY",
+            "base_url_env_var": "LLM_BASE_URL",
+            "max_output_tokens": 256,
+        },
+    }
+
+    spec = OptimizationSpec.from_dict(payload)
+
+    assert spec.operator_control is not None
+    assert spec.operator_control["controller_parameters"]["model_env_var"] == "LLM_MODEL"
+
+
 def test_resolve_algorithm_config_merges_global_defaults_profile_and_inline_overrides(tmp_path: Path) -> None:
     profile_path = tmp_path / "nsga2_profile.yaml"
     profile_path.write_text(

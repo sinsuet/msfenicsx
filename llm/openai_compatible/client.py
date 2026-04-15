@@ -127,6 +127,7 @@ class OpenAICompatibleClient:
         raw_text: str,
         operator_ids: Sequence[str],
     ) -> OpenAICompatibleDecision:
+        resolved_model = self.config.resolve_model(self._environ)
         payload = json.loads(raw_text)
         if "selected_operator_id" not in payload and "operator_id" in payload:
             payload["selected_operator_id"] = payload["operator_id"]
@@ -146,7 +147,7 @@ class OpenAICompatibleClient:
             phase=str(payload.get("phase", "")),
             rationale=str(payload.get("rationale", "")),
             provider=self.config.provider,
-            model=self.config.model,
+            model=resolved_model,
             capability_profile=self.config.capability_profile,
             performance_profile=self.config.performance_profile,
             raw_payload=dict(payload),
@@ -160,9 +161,10 @@ class OpenAICompatibleClient:
         candidate_operator_ids: Sequence[str],
     ) -> str:
         sdk_client = self._resolve_sdk_client()
+        resolved_model = self.config.resolve_model(self._environ)
         schema = build_operator_decision_schema(candidate_operator_ids)
         request_payload: dict[str, Any] = {
-            "model": self.config.model,
+            "model": resolved_model,
             "input": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -213,13 +215,14 @@ class OpenAICompatibleClient:
         candidate_operator_ids: Sequence[str],
     ) -> str:
         sdk_client = self._resolve_sdk_client()
+        resolved_model = self.config.resolve_model(self._environ)
         normalized_system_prompt = self._build_chat_json_system_prompt(
             system_prompt,
             user_prompt,
             candidate_operator_ids,
         )
         request_payload: dict[str, Any] = {
-            "model": self.config.model,
+            "model": resolved_model,
             "messages": [
                 {"role": "system", "content": normalized_system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -247,13 +250,14 @@ class OpenAICompatibleClient:
         candidate_operator_ids: Sequence[str],
     ) -> str:
         http_client = self._resolve_http_client()
+        resolved_model = self.config.resolve_model(self._environ)
         normalized_system_prompt = self._build_chat_json_system_prompt(
             system_prompt,
             user_prompt,
             candidate_operator_ids,
         )
         request_payload: dict[str, Any] = {
-            "model": self.config.model,
+            "model": resolved_model,
             "messages": [
                 {"role": "system", "content": normalized_system_prompt},
                 {"role": "user", "content": user_prompt},

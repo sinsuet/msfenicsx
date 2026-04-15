@@ -209,7 +209,6 @@ def _validate_operator_control(operator_control: Any, *, family: str, backbone: 
 def _validate_llm_controller_parameters(controller_parameters: Any) -> None:
     required_keys = (
         "provider",
-        "model",
         "capability_profile",
         "performance_profile",
         "api_key_env_var",
@@ -239,7 +238,17 @@ def _validate_llm_controller_parameters(controller_parameters: Any) -> None:
             f"{sorted(SUPPORTED_LLM_PERFORMANCE_PROFILES)}."
         )
 
-    _require_text(controller_parameters["model"], "operator_control.controller_parameters.model")
+    if not any(key in controller_parameters for key in ("model", "model_env_var")):
+        raise OptimizationValidationError(
+            "operator_control.controller_parameters must include 'model' or 'model_env_var'."
+        )
+    if "model" in controller_parameters:
+        _require_text(controller_parameters["model"], "operator_control.controller_parameters.model")
+    if "model_env_var" in controller_parameters:
+        _require_text(
+            controller_parameters["model_env_var"],
+            "operator_control.controller_parameters.model_env_var",
+        )
     _require_text(controller_parameters["api_key_env_var"], "operator_control.controller_parameters.api_key_env_var")
     if _require_integer(
         controller_parameters["max_output_tokens"],

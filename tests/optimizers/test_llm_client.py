@@ -483,3 +483,37 @@ def test_config_resolves_api_key_from_dotenv_when_process_env_missing(tmp_path) 
     config = _build_config(capability_profile="responses_native")
 
     assert config.resolve_api_key({}, dotenv_path=dotenv_path) == "dotenv-key"
+
+
+def test_config_resolves_model_from_model_env_var_before_literal(tmp_path) -> None:
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text("LLM_MODEL=qwen-max\n", encoding="utf-8")
+    config = OpenAICompatibleConfig.from_dict(
+        {
+            "provider": "openai-compatible",
+            "model": "gpt-5.4",
+            "model_env_var": "LLM_MODEL",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 128,
+        }
+    )
+
+    assert config.resolve_model(dotenv_path=dotenv_path) == "qwen-max"
+
+
+def test_config_raises_when_model_and_model_env_var_are_both_missing() -> None:
+    config = OpenAICompatibleConfig.from_dict(
+        {
+            "provider": "openai-compatible",
+            "model_env_var": "LLM_MODEL",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 128,
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="Missing model"):
+        config.resolve_model(environ={})
