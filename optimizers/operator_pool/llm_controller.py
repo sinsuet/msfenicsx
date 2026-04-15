@@ -326,8 +326,9 @@ class LLMOperatorController:
             "You are an operator-selection controller for constrained multiobjective thermal optimization. "
             "Select exactly one operator from the provided candidate_operator_ids. "
             "Do not emit raw design vectors. "
-            "Treat recent_decisions and operator_summary as context, not as an instruction to copy the most recent "
-            "dominant operator. Avoid repeatedly selecting the same operator when recent history is overly "
+            "Treat metadata.prompt_panels as the primary decision surface and phase_policy as the active controller "
+            "policy context. Treat recent operator concentrations as context, not as an instruction to copy the most "
+            "recent dominant operator. Avoid repeatedly selecting the same operator when recent history is overly "
             "concentrated unless the current state makes that operator uniquely necessary. "
             f"Candidate operator semantics: {operator_guidance}"
         )
@@ -572,9 +573,9 @@ class LLMOperatorController:
             )
         elif policy_snapshot.phase == "prefeasible_convert":
             guidance.append(
-                "Prefeasible convert policy: the search is near feasible, so prioritize first feasible conversion. "
-                "Preserve stable role diversity while favoring operators with supported entry evidence that can relieve "
-                "the dominant violation family."
+                "Prefeasible convert policy: keep first feasible conversion before frontier growth or Pareto novelty. "
+                "Then protect stable near-feasible progress as the second objective. "
+                "Favor operators with supported entry evidence that can relieve the dominant violation family."
             )
         elif policy_snapshot.phase.startswith("prefeasible"):
             guidance.append(
@@ -582,19 +583,19 @@ class LLMOperatorController:
             )
         elif policy_snapshot.phase == "post_feasible_expand":
             guidance.append(
-                "Post-feasible expand policy: feasibility is stable but frontier growth has stalled, so use Pareto and frontier contribution evidence to restore expansion."
+                "Post-feasible expand policy: preserve feasibility first, then use trusted frontier evidence to restore Pareto growth without inviting avoidable regression."
             )
         elif policy_snapshot.phase == "post_feasible_preserve":
             guidance.append(
-                "Post-feasible preserve policy: keep feasibility stable while diversifying across low-regression families that continue Pareto progress."
+                "Post-feasible preserve policy: preserve feasibility first, reduce regression pressure second, and only accept frontier gains that do not destabilize the feasible set."
             )
         elif policy_snapshot.phase == "post_feasible_recover":
             guidance.append(
-                "Post-feasible recover policy: recent feasible regressions increased, so narrow choices toward trusted preserve families until the frontier stabilizes again."
+                "Post-feasible recover policy: protect the feasible set first, then narrow choices toward trusted preserve families until regression pressure falls."
             )
         elif policy_snapshot.phase.startswith("post_feasible"):
             guidance.append(
-                "Post-feasible policy: preserve feasibility while expanding Pareto improvements."
+                "Post-feasible policy: keep feasibility stable before prioritizing Pareto improvements."
             )
         if "prefeasible_speculative_family_collapse" in policy_snapshot.reason_codes:
             guidance.append(

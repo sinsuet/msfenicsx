@@ -48,6 +48,37 @@ class _FakeSDK:
         )()
 
 
+class _FakeHTTPResponse:
+    def __init__(self, payload: str, *, status_code: int = 200, content_type: str = "application/json") -> None:
+        self.text = payload
+        self.status_code = status_code
+        self.headers = {"content-type": content_type}
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise RuntimeError(f"http {self.status_code}")
+
+
+class _FakeHTTPClient:
+    def __init__(self, payload: str, *, status_code: int = 200, content_type: str = "application/json") -> None:
+        self.payload = payload
+        self.status_code = status_code
+        self.content_type = content_type
+        self.last_url: str | None = None
+        self.last_headers: dict[str, object] | None = None
+        self.last_json: dict[str, object] | None = None
+
+    def post(self, url: str, *, headers: dict[str, object], json: dict[str, object]) -> _FakeHTTPResponse:
+        self.last_url = url
+        self.last_headers = dict(headers)
+        self.last_json = dict(json)
+        return _FakeHTTPResponse(
+            self.payload,
+            status_code=self.status_code,
+            content_type=self.content_type,
+        )
+
+
 def _build_config(*, capability_profile: str) -> OpenAICompatibleConfig:
     return OpenAICompatibleConfig.from_dict(
         {
@@ -118,6 +149,50 @@ def test_chat_compatible_json_client_normalizes_openai_compatible_json_payload(
     assert chat_api.last_kwargs["messages"][1] == {"role": "user", "content": "user prompt"}
     assert "system prompt" in chat_api.last_kwargs["messages"][0]["content"]
     assert "json" in chat_api.last_kwargs["messages"][0]["content"].lower()
+
+
+def test_chat_compatible_json_client_can_use_direct_http_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    http_client = _FakeHTTPClient(
+        (
+            '{"id":"resp_123","object":"chat.completion","created":1,"model":"gpt-5.4",'
+            '"choices":[{"index":0,"message":{"role":"assistant","content":"'
+            '{\\"selected_operator_id\\":\\"global_explore\\",\\"phase\\":\\"explore\\",'
+            '\\"rationale\\":\\"widen search\\"}"}}]}'
+        )
+    )
+    client = OpenAICompatibleClient(
+        OpenAICompatibleConfig.from_dict(
+            {
+                "provider": "openai-compatible",
+                "model": "gpt-5.4",
+                "capability_profile": "chat_compatible_json",
+                "performance_profile": "balanced",
+                "api_key_env_var": "TEST_OPENAI_API_KEY",
+                "base_url": "https://rust.cat/v1",
+                "max_output_tokens": 256,
+                "temperature": 1.0,
+            }
+        ),
+        http_client=http_client,
+    )
+
+    response = client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
+    )
+
+    assert response.selected_operator_id == "global_explore"
+    assert http_client.last_url == "https://rust.cat/v1/chat/completions"
+    assert http_client.last_headers is not None
+    assert http_client.last_headers["Authorization"] == "Bearer test-key"
+    assert http_client.last_json is not None
+    assert http_client.last_json["model"] == "gpt-5.4"
+    assert http_client.last_json["response_format"] == {"type": "json_object"}
+    assert http_client.last_json["max_tokens"] == 256
 
 
 def test_chat_compatible_json_client_injects_json_instruction_when_missing(

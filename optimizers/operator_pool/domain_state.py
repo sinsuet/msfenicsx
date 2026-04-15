@@ -605,6 +605,118 @@ def build_archive_state(history: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _pressure_level(score: int) -> str:
+    if score >= 3:
+        return "high"
+    if score >= 1:
+        return "medium"
+    return "low"
+
+
+def build_prompt_phase(
+    *,
+    run_state: Mapping[str, Any],
+    progress_state: Mapping[str, Any],
+    domain_regime: Mapping[str, Any],
+) -> str:
+    first_feasible_eval = run_state.get("first_feasible_eval")
+    if first_feasible_eval is None:
+        prefeasible_mode = str(progress_state.get("prefeasible_mode", "")).strip()
+        dominant_violation_family = str(progress_state.get("recent_dominant_violation_family", "")).strip()
+        domain_phase = str(domain_regime.get("phase", "")).strip()
+        if prefeasible_mode == "convert" and (domain_phase == "near_feasible" or dominant_violation_family):
+            return "prefeasible_convert"
+        return "prefeasible_search"
+    if str(progress_state.get("post_feasible_mode", "")).strip() == "expand":
+        return "post_feasible_expand"
+    return "post_feasible_preserve"
+
+
+def build_prompt_parent_panel(parent_state: Mapping[str, Any]) -> dict[str, Any]:
+    parents = [dict(parent) for parent in parent_state.get("parents", []) if isinstance(parent, Mapping)]
+    infeasible_parents = [parent for parent in parents if parent.get("feasible") is False]
+    feasible_parents = [parent for parent in parents if parent.get("feasible") is True]
+
+    closest_to_feasible_parent = None
+    if infeasible_parents:
+        closest_to_feasible_parent = min(
+            infeasible_parents,
+            key=lambda parent: (
+                float(parent.get("total_violation", float("inf"))),
+                int(parent.get("evaluation_index", 10**9)),
+            ),
+        )
+
+    strongest_feasible_parent = None
+    if feasible_parents:
+        strongest_feasible_parent = min(
+            feasible_parents,
+            key=lambda parent: (
+                objective_score(parent.get("objective_summary")),
+                int(parent.get("evaluation_index", 10**9)),
+            ),
+        )
+
+    return {
+        "closest_to_feasible_parent": closest_to_feasible_parent,
+        "strongest_feasible_parent": strongest_feasible_parent,
+    }
+
+
+def build_prompt_regime_panel(
+    *,
+    run_state: Mapping[str, Any],
+    progress_state: Mapping[str, Any],
+    archive_state: Mapping[str, Any],
+    domain_regime: Mapping[str, Any],
+) -> dict[str, Any]:
+    phase = build_prompt_phase(
+        run_state=run_state,
+        progress_state=progress_state,
+        domain_regime=domain_regime,
+    )
+    dominant_violation_family = str(
+        progress_state.get("recent_dominant_violation_family")
+        or domain_regime.get("dominant_constraint_family")
+        or ""
+    ).strip()
+    persistence_count = int(progress_state.get("recent_dominant_violation_persistence_count", 0))
+    first_feasible_eval = run_state.get("first_feasible_eval")
+    recent_feasible_regression_count = int(archive_state.get("recent_feasible_regression_count", 0))
+    recent_frontier_stagnation_count = int(progress_state.get("recent_frontier_stagnation_count", 0))
+
+    entry_pressure_score = 0
+    if first_feasible_eval is None:
+        entry_pressure_score = 3 if phase == "prefeasible_convert" else 1
+        if persistence_count >= 2:
+            entry_pressure_score = max(entry_pressure_score, 3)
+
+    preservation_pressure_score = 0
+    if first_feasible_eval is not None:
+        preservation_pressure_score = 3 if recent_feasible_regression_count > 0 else 2
+        if phase == "post_feasible_expand":
+            preservation_pressure_score = max(1, preservation_pressure_score - 1)
+
+    frontier_pressure_score = 0
+    if first_feasible_eval is not None:
+        frontier_pressure_score = 3 if phase == "post_feasible_expand" else 0
+        if recent_frontier_stagnation_count > 0:
+            frontier_pressure_score = max(frontier_pressure_score, 1)
+
+    regime_panel = {
+        "phase": phase,
+        "dominant_violation_family": dominant_violation_family,
+        "dominant_violation_persistence_count": persistence_count,
+        "near_feasible_window": bool(first_feasible_eval is None and phase == "prefeasible_convert"),
+        "entry_pressure": _pressure_level(entry_pressure_score),
+        "preservation_pressure": _pressure_level(preservation_pressure_score),
+        "frontier_pressure": _pressure_level(frontier_pressure_score),
+    }
+    if domain_regime.get("sink_budget_utilization") is not None:
+        regime_panel["sink_budget_utilization"] = float(domain_regime["sink_budget_utilization"])
+    return regime_panel
+
+
 def build_domain_regime(
     *,
     parent_state: Mapping[str, Any],

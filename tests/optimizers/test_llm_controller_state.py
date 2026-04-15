@@ -322,3 +322,181 @@ def test_build_controller_state_reports_peak_gradient_budget_and_congestion() ->
     assert domain_regime["dominant_constraint_family"] == "thermal_limit"
     assert domain_regime["sink_budget_utilization"] == pytest.approx(0.44 / 0.48)
     assert state.metadata["search_phase"] == "feasible_refine"
+
+
+def test_build_controller_state_emits_phase_aware_prompt_panels() -> None:
+    parents = _parents()
+    history = [
+        _record(
+            2,
+            parents.primary,
+            feasible=False,
+            peak_temperature=352.4,
+            temperature_gradient_rms=12.6,
+            c01_temperature_violation=1.3,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            3,
+            parents.secondary,
+            feasible=True,
+            peak_temperature=347.9,
+            temperature_gradient_rms=9.8,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            4,
+            _vector(sink_start=0.24, sink_end=0.68, x_shift=0.015, y_shift=0.02),
+            feasible=True,
+            peak_temperature=344.8,
+            temperature_gradient_rms=8.7,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    state = build_controller_state(
+        parents,
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=9,
+        candidate_operator_ids=("native_sbx_pm", "move_hottest_cluster_toward_sink", "repair_sink_budget"),
+        metadata={
+            "design_variable_ids": list(_S1_VARIABLE_IDS),
+            "decision_index": 5,
+            "total_evaluation_budget": 20,
+            "radiator_span_max": 0.48,
+        },
+        history=history,
+        recent_window=2,
+    )
+
+    prompt_panels = state.metadata["prompt_panels"]
+    assert prompt_panels["run_panel"]["first_feasible_eval"] == 3
+    assert prompt_panels["run_panel"]["pareto_size"] == 1
+    assert prompt_panels["regime_panel"]["phase"] == "post_feasible_preserve"
+    assert prompt_panels["regime_panel"]["dominant_violation_family"] == "thermal_limit"
+    assert prompt_panels["parent_panel"]["closest_to_feasible_parent"]["evaluation_index"] == 2
+    assert prompt_panels["parent_panel"]["strongest_feasible_parent"]["evaluation_index"] == 3
+    assert prompt_panels["operator_panel"] == {}
+
+
+def test_operator_summary_exposes_entry_preserve_expand_fit_fields() -> None:
+    parents = _parents()
+    child_entry = _vector(sink_start=0.2, sink_end=0.64, x_shift=0.005, y_shift=0.01)
+    child_expand = _vector(sink_start=0.19, sink_end=0.61, x_shift=0.02, y_shift=0.015)
+    history = [
+        _record(
+            2,
+            parents.primary,
+            feasible=False,
+            peak_temperature=352.4,
+            temperature_gradient_rms=12.6,
+            c01_temperature_violation=1.3,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            3,
+            parents.secondary,
+            feasible=False,
+            peak_temperature=349.1,
+            temperature_gradient_rms=10.4,
+            c01_temperature_violation=0.6,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            4,
+            child_entry,
+            feasible=True,
+            peak_temperature=346.0,
+            temperature_gradient_rms=9.2,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            5,
+            child_expand,
+            feasible=True,
+            peak_temperature=343.9,
+            temperature_gradient_rms=8.5,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+    ]
+    controller_trace = [
+        ControllerTraceRow(
+            generation_index=1,
+            evaluation_index=4,
+            family="genetic",
+            backbone="nsga2",
+            controller_id="llm",
+            candidate_operator_ids=("slide_sink", "local_refine"),
+            selected_operator_id="slide_sink",
+            metadata={"decision_index": 0, "fallback_used": False},
+        ),
+        ControllerTraceRow(
+            generation_index=1,
+            evaluation_index=5,
+            family="genetic",
+            backbone="nsga2",
+            controller_id="llm",
+            candidate_operator_ids=("slide_sink", "local_refine"),
+            selected_operator_id="slide_sink",
+            metadata={"decision_index": 1, "fallback_used": False},
+        ),
+    ]
+    operator_trace = [
+        OperatorTraceRow(
+            generation_index=1,
+            evaluation_index=4,
+            operator_id="slide_sink",
+            parent_count=2,
+            parent_vectors=(
+                tuple(float(value) for value in parents.primary.tolist()),
+                tuple(float(value) for value in parents.secondary.tolist()),
+            ),
+            proposal_vector=tuple(float(value) for value in child_entry.tolist()),
+            metadata={},
+        ),
+        OperatorTraceRow(
+            generation_index=1,
+            evaluation_index=5,
+            operator_id="slide_sink",
+            parent_count=2,
+            parent_vectors=(
+                tuple(float(value) for value in child_entry.tolist()),
+                tuple(float(value) for value in child_entry.tolist()),
+            ),
+            proposal_vector=tuple(float(value) for value in child_expand.tolist()),
+            metadata={},
+        ),
+    ]
+
+    state = build_controller_state(
+        ParentBundle.from_vectors(child_entry, child_expand),
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=9,
+        candidate_operator_ids=("slide_sink", "local_refine"),
+        metadata={
+            "design_variable_ids": list(_S1_VARIABLE_IDS),
+            "decision_index": 5,
+            "total_evaluation_budget": 20,
+            "radiator_span_max": 0.48,
+        },
+        controller_trace=controller_trace,
+        operator_trace=operator_trace,
+        history=history,
+        recent_window=2,
+    )
+
+    row = state.metadata["prompt_panels"]["operator_panel"]["slide_sink"]
+    assert row["entry_fit"] == "trusted"
+    assert row["preserve_fit"] == "trusted"
+    assert row["expand_fit"] == "trusted"
+    assert row["recent_regression_risk"] == "low"
+    assert row["frontier_evidence"] == "positive"
+    assert row["dominant_violation_relief"] == "supported"

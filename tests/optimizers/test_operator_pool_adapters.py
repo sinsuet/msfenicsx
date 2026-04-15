@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import numpy as np
 import pytest
 
 from evaluation.io import load_spec
@@ -167,3 +170,75 @@ def test_s1_typical_union_keeps_trace_indices_ordered_with_parallel_workers() ->
     assert controller_indices == sorted(controller_indices)
     assert operator_indices == sorted(operator_indices)
     assert controller_indices == operator_indices
+
+
+def test_genetic_union_llm_uses_configured_recent_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    from optimizers.adapters.genetic_family import GeneticFamilyUnionMating
+
+    captured: dict[str, int] = {}
+
+    def _fake_build_controller(*args, **kwargs):
+        del args, kwargs
+        return SimpleNamespace(controller_id="llm")
+
+    def _fake_build_controller_state(parents, **kwargs):
+        del parents
+        captured["recent_window"] = int(kwargs["recent_window"])
+        return SimpleNamespace()
+
+    def _fake_select_controller_decision(controller, state, operator_ids, rng):
+        del controller, state, operator_ids, rng
+        return SimpleNamespace(
+            selected_operator_id="native_sbx_pm",
+            metadata={},
+            phase="prefeasible_convert",
+            rationale="test",
+        )
+
+    monkeypatch.setattr("optimizers.adapters.genetic_family.build_controller", _fake_build_controller)
+    monkeypatch.setattr("optimizers.adapters.genetic_family.build_controller_state", _fake_build_controller_state)
+    monkeypatch.setattr(
+        "optimizers.adapters.genetic_family.select_controller_decision",
+        _fake_select_controller_decision,
+    )
+
+    raw_mating = SimpleNamespace(
+        repair=None,
+        eliminate_duplicates=None,
+        n_max_iterations=1,
+        crossover=SimpleNamespace(n_offsprings=1, n_parents=2),
+    )
+    mating = GeneticFamilyUnionMating(
+        operator_ids=_approved_union_operator_ids(),
+        controller_id="llm",
+        variable_layout=None,
+        repair_reference_case=None,
+        optimization_spec={
+            "design_variables": [{"variable_id": "c01_x"}, {"variable_id": "c01_y"}],
+            "algorithm": {"population_size": 4, "num_generations": 2},
+        },
+        family="genetic",
+        backbone="nsga2",
+        selection=None,
+        raw_mating=raw_mating,
+        native_parameters={},
+        controller_parameters={"memory": {"recent_window": 12}},
+    )
+
+    pop = [
+        SimpleNamespace(X=np.asarray([0.2, 0.3], dtype=np.float64)),
+        SimpleNamespace(X=np.asarray([0.4, 0.5], dtype=np.float64)),
+    ]
+    problem = SimpleNamespace(_next_evaluation_index=1, history=[])
+
+    record = mating._build_event_record(
+        pop,
+        [0, 1],
+        generation_index=0,
+        event_index=0,
+        rng=np.random.default_rng(0),
+        problem=problem,
+    )
+
+    assert captured["recent_window"] == 12
+    assert record["operator_id"] == "native_sbx_pm"

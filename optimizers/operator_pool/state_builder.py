@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from optimizers.operator_pool.domain_state import (
@@ -10,6 +10,8 @@ from optimizers.operator_pool.domain_state import (
     build_domain_regime,
     build_history_lookup,
     build_parent_state,
+    build_prompt_parent_panel,
+    build_prompt_regime_panel,
     build_prefeasible_reset_summary,
     build_progress_state,
     build_run_state,
@@ -52,6 +54,55 @@ def _build_recent_operator_counts(operator_summary: dict[str, dict[str, Any]]) -
         for operator_id, summary in operator_summary.items()
         if int(summary.get("recent_selection_count", 0)) > 0
     }
+
+
+def _build_prompt_run_panel(
+    *,
+    run_state: Mapping[str, Any],
+    archive_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    run_panel = {
+        key: run_state[key]
+        for key in (
+            "evaluations_used",
+            "evaluations_remaining",
+            "feasible_rate",
+            "first_feasible_eval",
+            "peak_temperature",
+            "temperature_gradient_rms",
+            "sink_span",
+            "sink_budget_utilization",
+        )
+        if key in run_state
+    }
+    run_panel["pareto_size"] = int(archive_state.get("pareto_size", 0))
+    return run_panel
+
+
+def _build_prompt_operator_panel(
+    *,
+    operator_summary: Mapping[str, Any],
+    candidate_operator_ids: Sequence[str],
+) -> dict[str, dict[str, Any]]:
+    candidate_set = {str(operator_id) for operator_id in candidate_operator_ids}
+    operator_panel: dict[str, dict[str, Any]] = {}
+    for operator_id, summary in operator_summary.items():
+        normalized_operator_id = str(operator_id)
+        if normalized_operator_id not in candidate_set or not isinstance(summary, Mapping):
+            continue
+        operator_panel[normalized_operator_id] = {
+            key: summary[key]
+            for key in (
+                "entry_fit",
+                "preserve_fit",
+                "expand_fit",
+                "recent_regression_risk",
+                "frontier_evidence",
+                "dominant_violation_relief",
+            )
+            if key in summary
+        }
+    return operator_panel
 
 
 def build_controller_state(
@@ -130,6 +181,20 @@ def build_controller_state(
         state_metadata["domain_regime"] = domain_regime
         state_metadata["progress_state"] = progress_state
         state_metadata["search_phase"] = str(state_metadata.get("search_phase") or domain_regime["phase"])
+        state_metadata["prompt_panels"] = {
+            "run_panel": _build_prompt_run_panel(run_state=run_state, archive_state=archive_state),
+            "regime_panel": build_prompt_regime_panel(
+                run_state=run_state,
+                progress_state=progress_state,
+                archive_state=archive_state,
+                domain_regime=domain_regime,
+            ),
+            "parent_panel": build_prompt_parent_panel(parent_state),
+            "operator_panel": _build_prompt_operator_panel(
+                operator_summary=operator_summary,
+                candidate_operator_ids=candidate_operator_ids,
+            ),
+        }
     elif "search_phase" in state_metadata:
         state_metadata["search_phase"] = str(state_metadata["search_phase"])
     return ControllerState.from_parent_bundle(

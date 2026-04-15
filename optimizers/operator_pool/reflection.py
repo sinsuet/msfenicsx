@@ -49,6 +49,78 @@ def _evidence_level(summary_row: Mapping[str, Any]) -> str:
     return "speculative"
 
 
+def _entry_fit(summary_row: Mapping[str, Any]) -> str:
+    if int(summary_row.get("feasible_entry_count", 0)) > 0:
+        return "trusted"
+    if int(summary_row.get("dominant_violation_relief_count", 0)) > 0:
+        return "supported"
+    if int(summary_row.get("near_feasible_improvement_count", 0)) > 0:
+        return "supported"
+    return "weak"
+
+
+def _preserve_fit(summary_row: Mapping[str, Any]) -> str:
+    feasible_preservation_count = int(summary_row.get("feasible_preservation_count", 0))
+    feasible_regression_count = int(summary_row.get("feasible_regression_count", 0))
+    if feasible_preservation_count > 0 and feasible_regression_count <= 0:
+        return "trusted"
+    if feasible_preservation_count > 0:
+        return "supported"
+    if str(summary_row.get("evidence_level", "")) in {"trusted", "supported"}:
+        return "supported"
+    return "weak"
+
+
+def _expand_fit(summary_row: Mapping[str, Any]) -> str:
+    if (
+        int(summary_row.get("pareto_contribution_count", 0)) > 0
+        or int(summary_row.get("frontier_novelty_count", 0)) > 0
+        or float(summary_row.get("post_feasible_avg_objective_delta", 0.0)) < 0.0
+    ):
+        return "trusted"
+    if str(summary_row.get("evidence_level", "")) in {"trusted", "supported"}:
+        return "supported"
+    return "weak"
+
+
+def _recent_regression_risk(summary_row: Mapping[str, Any]) -> str:
+    if (
+        int(summary_row.get("feasible_regression_count", 0)) > 0
+        or float(summary_row.get("post_feasible_avg_violation_delta", 0.0)) > 0.0
+    ):
+        return "high"
+    if (
+        int(summary_row.get("feasible_preservation_count", 0)) <= 0
+        and str(summary_row.get("evidence_level", "")) == "speculative"
+    ):
+        return "medium"
+    return "low"
+
+
+def _frontier_evidence(summary_row: Mapping[str, Any]) -> str:
+    if (
+        int(summary_row.get("pareto_contribution_count", 0)) > 0
+        or int(summary_row.get("frontier_novelty_count", 0)) > 0
+        or float(summary_row.get("post_feasible_avg_objective_delta", 0.0)) < 0.0
+    ):
+        return "positive"
+    if max(
+        int(summary_row.get("selection_count", 0)),
+        int(summary_row.get("proposal_count", 0)),
+        int(summary_row.get("recent_selection_count", 0)),
+    ) > 0:
+        return "limited"
+    return "none"
+
+
+def _dominant_violation_relief(summary_row: Mapping[str, Any]) -> str:
+    if int(summary_row.get("dominant_violation_relief_count", 0)) > 0:
+        return "supported"
+    if int(summary_row.get("near_feasible_improvement_count", 0)) > 0:
+        return "limited"
+    return "none"
+
+
 def summarize_operator_history(
     controller_trace: list[ControllerTraceRow],
     operator_trace: list[OperatorTraceRow],
@@ -150,6 +222,12 @@ def summarize_operator_history(
         operator_summary["operator_role"] = profile.role
         operator_summary["exploration_class"] = profile.exploration_class
         operator_summary["evidence_level"] = _evidence_level(operator_summary)
+        operator_summary["entry_fit"] = _entry_fit(operator_summary)
+        operator_summary["preserve_fit"] = _preserve_fit(operator_summary)
+        operator_summary["expand_fit"] = _expand_fit(operator_summary)
+        operator_summary["recent_regression_risk"] = _recent_regression_risk(operator_summary)
+        operator_summary["frontier_evidence"] = _frontier_evidence(operator_summary)
+        operator_summary["dominant_violation_relief"] = _dominant_violation_relief(operator_summary)
         summary[operator_id] = operator_summary
     return summary
 

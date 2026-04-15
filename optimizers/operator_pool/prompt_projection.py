@@ -56,34 +56,11 @@ def build_prompt_projection(
 
     if "search_phase" in state.metadata:
         metadata["search_phase"] = state.metadata["search_phase"]
-    if "run_state" in state.metadata and isinstance(state.metadata["run_state"], Mapping):
-        metadata["run_state"] = dict(state.metadata["run_state"])
-    if "parent_state" in state.metadata and isinstance(state.metadata["parent_state"], Mapping):
-        metadata["parent_state"] = dict(state.metadata["parent_state"])
-    if "archive_state" in state.metadata and isinstance(state.metadata["archive_state"], Mapping):
-        metadata["archive_state"] = _project_archive_state(
-            dict(state.metadata["archive_state"]),
-            post_feasible_active=post_feasible_active,
-        )
-    if "domain_regime" in state.metadata and isinstance(state.metadata["domain_regime"], Mapping):
-        metadata["domain_regime"] = dict(state.metadata["domain_regime"])
-    if "progress_state" in state.metadata and isinstance(state.metadata["progress_state"], Mapping):
-        metadata["progress_state"] = _project_progress_state(
-            dict(state.metadata["progress_state"]),
-            post_feasible_active=post_feasible_active,
-        )
-    if "recent_decisions" in state.metadata and isinstance(state.metadata["recent_decisions"], Sequence):
-        metadata["recent_decisions"] = list(state.metadata["recent_decisions"])
-    if "recent_operator_counts" in state.metadata and isinstance(state.metadata["recent_operator_counts"], Mapping):
-        metadata["recent_operator_counts"] = {
-            str(operator_id): dict(summary)
-            for operator_id, summary in dict(state.metadata["recent_operator_counts"]).items()
-            if str(operator_id) in candidate_ids and isinstance(summary, Mapping)
-        }
-    if "operator_summary" in state.metadata:
-        metadata["operator_summary"] = _build_prompt_operator_summary(
-            state,
-            candidate_ids,
+    if "prompt_panels" in state.metadata and isinstance(state.metadata["prompt_panels"], Mapping):
+        metadata["prompt_panels"] = _project_prompt_panels(
+            dict(state.metadata["prompt_panels"]),
+            candidate_operator_ids=candidate_ids,
+            prompt_phase=prompt_phase,
             post_feasible_active=post_feasible_active,
         )
     metadata["phase_policy"] = {
@@ -106,6 +83,40 @@ def build_prompt_projection(
     return metadata
 
 
+def _project_prompt_panels(
+    prompt_panels: dict[str, Any],
+    *,
+    candidate_operator_ids: Sequence[str],
+    prompt_phase: str,
+    post_feasible_active: bool,
+) -> dict[str, Any]:
+    projected: dict[str, Any] = {}
+    run_panel = prompt_panels.get("run_panel")
+    if isinstance(run_panel, Mapping):
+        projected["run_panel"] = dict(run_panel)
+    regime_panel = prompt_panels.get("regime_panel")
+    if isinstance(regime_panel, Mapping):
+        projected_regime_panel = dict(regime_panel)
+        projected_regime_panel["phase"] = prompt_phase
+        projected["regime_panel"] = projected_regime_panel
+    parent_panel = prompt_panels.get("parent_panel")
+    if isinstance(parent_panel, Mapping):
+        projected["parent_panel"] = dict(parent_panel)
+    operator_panel = prompt_panels.get("operator_panel")
+    if isinstance(operator_panel, Mapping):
+        projected_operator_panel: dict[str, dict[str, Any]] = {}
+        for operator_id, summary in operator_panel.items():
+            normalized_operator_id = str(operator_id)
+            if normalized_operator_id not in candidate_operator_ids or not isinstance(summary, Mapping):
+                continue
+            projected_summary = dict(summary)
+            if not post_feasible_active:
+                projected_summary.pop("frontier_evidence", None)
+            projected_operator_panel[normalized_operator_id] = projected_summary
+        projected["operator_panel"] = projected_operator_panel
+    return projected
+
+
 def _resolve_prompt_phase(state: ControllerState, policy_snapshot: PolicySnapshot) -> str:
     phase = str(policy_snapshot.phase)
     if not phase.startswith("post_feasible"):
@@ -114,7 +125,11 @@ def _resolve_prompt_phase(state: ControllerState, policy_snapshot: PolicySnapsho
     progress_state = state.metadata.get("progress_state")
     first_feasible_eval = run_state.get("first_feasible_eval") if isinstance(run_state, Mapping) else None
     first_feasible_found = progress_state.get("first_feasible_found") if isinstance(progress_state, Mapping) else None
-    if first_feasible_eval is None or first_feasible_found is not True:
+    if first_feasible_eval is None:
+        return "prefeasible_progress"
+    if first_feasible_found is None:
+        return phase
+    if first_feasible_found is not True:
         return "prefeasible_progress"
     return phase
 

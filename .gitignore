@@ -20,3 +20,5 @@ tests/artifacts/
 .env
 .env.*
 radiation_gen/
+claude.md
+.env1
