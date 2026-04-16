@@ -42,26 +42,26 @@ def write_optimization_artifacts(
         seed=seed,
         rows=getattr(run, "generation_summary_rows", []),
     )
-    _write_jsonl_payload(resolved_output_root / "evaluation_events.jsonl", evaluation_rows)
-    _write_jsonl_payload(resolved_output_root / "generation_summary.jsonl", generation_rows)
+    _write_jsonl_payload(resolved_output_root / "traces" / "evaluation_events.jsonl", evaluation_rows)
+    _write_jsonl_payload(resolved_output_root / "traces" / "generation_summary.jsonl", generation_rows)
     snapshots = {
         "optimization_result": "optimization_result.json",
         "pareto_front": "pareto_front.json",
-        "evaluation_events": "evaluation_events.jsonl",
-        "generation_summary": "generation_summary.jsonl",
+        "evaluation_events": "traces/evaluation_events.jsonl",
+        "generation_summary": "traces/generation_summary.jsonl",
     }
     if getattr(run, "llm_request_trace", None):
-        _write_jsonl_payload(resolved_output_root / "llm_request_trace.jsonl", getattr(run, "llm_request_trace"))
-        snapshots["llm_request_trace"] = "llm_request_trace.jsonl"
+        _write_jsonl_payload(resolved_output_root / "traces" / "llm_request_trace.jsonl", getattr(run, "llm_request_trace"))
+        snapshots["llm_request_trace"] = "traces/llm_request_trace.jsonl"
     if getattr(run, "llm_response_trace", None):
-        _write_jsonl_payload(resolved_output_root / "llm_response_trace.jsonl", getattr(run, "llm_response_trace"))
-        snapshots["llm_response_trace"] = "llm_response_trace.jsonl"
+        _write_jsonl_payload(resolved_output_root / "traces" / "llm_response_trace.jsonl", getattr(run, "llm_response_trace"))
+        snapshots["llm_response_trace"] = "traces/llm_response_trace.jsonl"
     if getattr(run, "llm_reflection_trace", None):
         _write_jsonl_payload(
-            resolved_output_root / "llm_reflection_trace.jsonl",
+            resolved_output_root / "traces" / "llm_reflection_trace.jsonl",
             getattr(run, "llm_reflection_trace"),
         )
-        snapshots["llm_reflection_trace"] = "llm_reflection_trace.jsonl"
+        snapshots["llm_reflection_trace"] = "traces/llm_reflection_trace.jsonl"
     representatives_root = resolved_output_root / "representatives"
     for name, artifacts in run.representative_artifacts.items():
         _write_representative_bundle(representatives_root / name.replace("_", "-"), artifacts)
@@ -144,6 +144,7 @@ def _seed_bundle_directories() -> dict[str, str]:
         "logs": "logs",
         "summaries": "summaries",
         "representatives": "representatives",
+        "traces": "traces",
     }
 
 
