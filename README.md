@@ -203,18 +203,25 @@ The `nsga2_llm` route uses the OpenAI-compatible client in `llm/openai_compatibl
   - `LLM_BASE_URL`
   - `LLM_MODEL`
 
-Recommended multi-provider `.env` layout:
+Edit the repository-root `.env` at `/home/hymn/msfenicsx/.env` to declare each provider once:
 
 ```env
 GPT_PROXY_API_KEY=...
-GPT_PROXY_BASE_URL=https://gpt.example/v1
+GPT_PROXY_BASE_URL=https://rust.cat/v1
 
 CLAUDE_PROXY_API_KEY=...
-CLAUDE_PROXY_BASE_URL=https://claude.example/v1
+CLAUDE_PROXY_BASE_URL=https://apiproxy.work/v1
 
 QWEN_PROXY_API_KEY=...
-QWEN_PROXY_BASE_URL=https://qwen.example/v1
+QWEN_PROXY_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 ```
+
+The bundled provider registry maps:
+
+- `default -> gpt`
+- `gpt -> GPT_PROXY_*`
+- `claude -> CLAUDE_PROXY_*`
+- `qwen -> QWEN_PROXY_*`
 
 Recommended LLM benchmark invocation:
 
@@ -233,6 +240,14 @@ This uses the bundled `default` profile, which points to GPT by default. To swit
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s1_typical/llm-claude-smoke
+```
+
+```bash
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+  qwen \
+  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/llm-qwen-smoke
 ```
 
 Direct `optimize-benchmark` execution for `s1_typical_llm.yaml` still works, but only if you explicitly provide:

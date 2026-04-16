@@ -107,10 +107,22 @@ Preferred commands:
 - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s1_typical/<run_id>/union/seeds/seed-11/controller_trace.json --output ./scenario_runs/s1_typical/<run_id>/union/reports/<summary>.json`
 - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
-The active `nsga2_llm` route currently uses:
+The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
 
-- `OPENAI_API_KEY` from process environment or repository-root `.env`
-- `model=GPT-5.4`
+- `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to GPT
+- switch providers explicitly with `run-llm claude ...` or `run-llm qwen ...`
+- provider profile declarations live in `llm/openai_compatible/profiles.yaml`
+- the active `scenarios/optimization/s1_typical_llm.yaml` resolves runtime provider identity through:
+  - `LLM_API_KEY`
+  - `LLM_BASE_URL`
+  - `LLM_MODEL`
+- repository-root `/home/hymn/msfenicsx/.env` should keep the raw provider credentials:
+  - `GPT_PROXY_API_KEY`
+  - `GPT_PROXY_BASE_URL=https://rust.cat/v1`
+  - `CLAUDE_PROXY_API_KEY`
+  - `CLAUDE_PROXY_BASE_URL=https://apiproxy.work/v1`
+  - `QWEN_PROXY_API_KEY`
+  - `QWEN_PROXY_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1`
 
 ## Engineering Guardrails
 
@@ -219,5 +231,6 @@ Current maintained test areas are:
 - `optimizers/operator_pool/operators.py`
 - `optimizers/operator_pool/domain_state.py`
 - `llm/openai_compatible/client.py`
+- `llm/openai_compatible/profiles.yaml`
 - `tests/optimizers/test_raw_driver_matrix.py`
 - `tests/optimizers/test_repair.py`
