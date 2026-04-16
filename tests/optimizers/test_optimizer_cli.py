@@ -644,6 +644,44 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
     }
 
 
+def test_optimizer_cli_run_llm_uses_default_profile_when_omitted(tmp_path: Path, monkeypatch) -> None:
+    import optimizers.cli as cli_module
+
+    spec_path = _write_small_llm_spec(tmp_path)
+    output_root = tmp_path / "run_llm_default_optimizer_run"
+    captured: dict[str, str] = {}
+
+    def _fake_load_provider_profile_overlay(profile, **kwargs):
+        del kwargs
+        captured["profile"] = profile
+        return {
+            "LLM_API_KEY": "default-key",
+            "LLM_BASE_URL": "https://default.example/v1",
+            "LLM_MODEL": "gpt-5.4",
+        }
+
+    monkeypatch.setattr(
+        cli_module,
+        "load_provider_profile_overlay",
+        _fake_load_provider_profile_overlay,
+        raising=False,
+    )
+    monkeypatch.setattr(cli_module, "run_union_optimization", lambda *args, **kwargs: _fake_union_run())
+
+    exit_code = main(
+        [
+            "run-llm",
+            "--optimization-spec",
+            str(spec_path),
+            "--output-root",
+            str(output_root),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["profile"] == "default"
+
+
 def test_optimizer_cli_run_llm_rejects_non_llm_specs(tmp_path: Path) -> None:
     spec_path = _write_small_raw_spec(tmp_path)
 

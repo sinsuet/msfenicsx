@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     optimize_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
 
     run_llm_parser = subparsers.add_parser("run-llm")
-    run_llm_parser.add_argument("profile")
+    run_llm_parser.add_argument("profile", nargs="?", default="default")
     run_llm_parser.add_argument("--optimization-spec", required=True)
     run_llm_parser.add_argument("--output-root", required=True)
     run_llm_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)

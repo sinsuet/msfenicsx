@@ -74,3 +74,16 @@ def test_load_provider_profile_requires_source_base_url(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="Missing source base URL"):
         load_provider_profile_overlay("qwen", profiles_path=profiles_path, dotenv_path=dotenv_path)
+
+
+def test_bundled_profiles_support_default_profile_via_gpt_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GPT_PROXY_API_KEY", "bundled-gpt-key")
+    monkeypatch.setenv("GPT_PROXY_BASE_URL", "https://bundled-gpt.example/v1")
+
+    overlay = load_provider_profile_overlay("default")
+
+    assert overlay == {
+        "LLM_API_KEY": "bundled-gpt-key",
+        "LLM_BASE_URL": "https://bundled-gpt.example/v1",
+        "LLM_MODEL": "gpt-5.4",
+    }

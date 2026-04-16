@@ -150,10 +150,9 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
   --output-root ./scenario_runs/s1_typical/llm-smoke
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
-  gpt \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
   --evaluation-workers 2 \
-  --output-root ./scenario_runs/s1_typical/llm-gpt-smoke
+  --output-root ./scenario_runs/s1_typical/llm-default-smoke
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
@@ -218,6 +217,15 @@ QWEN_PROXY_BASE_URL=https://qwen.example/v1
 ```
 
 Recommended LLM benchmark invocation:
+
+```bash
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/llm-default-smoke
+```
+
+This uses the bundled `default` profile, which points to GPT by default. To switch providers explicitly:
 
 ```bash
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
