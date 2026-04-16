@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from core.io.scenario_runs import write_field_export_artifacts
 from core.schema.io import save_case, save_solution
 from evaluation.io import save_report
@@ -107,6 +109,33 @@ def _write_representative_bundle(bundle_root: Path, artifacts: CandidateArtifact
     if exported_fields is not None:
         manifest["field_exports"] = exported_fields
     _write_manifest(bundle_root / "manifest.json", manifest)
+
+
+def write_representative_bundle(
+    root: Path,
+    *,
+    case_yaml: str,
+    solution_yaml: str,
+    evaluation_yaml: str,
+    temperature_grid: np.ndarray,
+    gradient_grid: np.ndarray,
+) -> None:
+    """Write the flat § 3.1 representative layout.
+
+    Layout:
+      representatives/<id>/case.yaml
+      representatives/<id>/solution.yaml
+      representatives/<id>/evaluation.yaml
+      representatives/<id>/fields/temperature_grid.npz
+      representatives/<id>/fields/gradient_magnitude_grid.npz
+    """
+    root = Path(root)
+    (root / "fields").mkdir(parents=True, exist_ok=True)
+    (root / "case.yaml").write_text(case_yaml, encoding="utf-8")
+    (root / "solution.yaml").write_text(solution_yaml, encoding="utf-8")
+    (root / "evaluation.yaml").write_text(evaluation_yaml, encoding="utf-8")
+    np.savez_compressed(root / "fields" / "temperature_grid.npz", grid=temperature_grid)
+    np.savez_compressed(root / "fields" / "gradient_magnitude_grid.npz", grid=gradient_grid)
 
 
 def _initialize_seed_bundle_root(bundle_root: Path) -> None:
