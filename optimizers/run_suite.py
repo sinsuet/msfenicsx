@@ -41,6 +41,8 @@ def run_benchmark_suite(
     scenario_runs_root: Path,
     modes: Sequence[str] | None = None,
     evaluation_workers: int | None = None,
+    population_size: int | None = None,
+    num_generations: int | None = None,
     started_at: datetime | None = None,
 ) -> Path:
     if not optimization_spec_paths:
@@ -50,6 +52,13 @@ def run_benchmark_suite(
         (Path(spec_path), load_optimization_spec(spec_path))
         for spec_path in optimization_spec_paths
     ]
+    from optimizers.cli import apply_algorithm_overrides
+    for _, spec in loaded_specs:
+        apply_algorithm_overrides(
+            spec.algorithm,
+            population_size=population_size,
+            num_generations=num_generations,
+        )
     selected_modes = _normalize_modes(modes or [resolve_suite_mode_id(spec) for _, spec in loaded_specs])
     spec_by_mode = {
         resolve_suite_mode_id(spec): (spec_path, spec)

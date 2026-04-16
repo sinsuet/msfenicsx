@@ -23,6 +23,19 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def apply_algorithm_overrides(
+    spec_dict: dict,
+    *,
+    population_size: int | None,
+    num_generations: int | None,
+) -> None:
+    """Overwrite `algorithm.population_size` / `num_generations` when provided."""
+    if population_size is not None:
+        spec_dict.setdefault("algorithm", {})["population_size"] = int(population_size)
+    if num_generations is not None:
+        spec_dict.setdefault("algorithm", {})["num_generations"] = int(num_generations)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="msfenicsx-optimize")
     subparsers = parser.add_subparsers(dest="command")
@@ -31,6 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     optimize_parser.add_argument("--optimization-spec", required=True)
     optimize_parser.add_argument("--output-root", required=True)
     optimize_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
+    optimize_parser.add_argument("--population-size", type=_positive_int, default=None)
+    optimize_parser.add_argument("--num-generations", type=_positive_int, default=None)
 
     suite_parser = subparsers.add_parser("run-benchmark-suite")
     suite_parser.add_argument("--optimization-spec", required=True, action="append")
@@ -38,6 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
     suite_parser.add_argument("--scenario-runs-root", required=True)
     suite_parser.add_argument("--benchmark-seed", type=int, action="append", default=[])
     suite_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
+    suite_parser.add_argument("--population-size", type=_positive_int, default=None)
+    suite_parser.add_argument("--num-generations", type=_positive_int, default=None)
 
     replay_parser = subparsers.add_parser("replay-llm-trace")
     replay_parser.add_argument("--optimization-spec", required=True)
@@ -64,6 +81,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "optimize-benchmark":
         optimization_spec = load_optimization_spec(args.optimization_spec)
+        apply_algorithm_overrides(
+            optimization_spec.algorithm,
+            population_size=args.population_size,
+            num_generations=args.num_generations,
+        )
         base_case = generate_benchmark_case(args.optimization_spec, optimization_spec)
         evaluation_spec_path = resolve_evaluation_spec_path(args.optimization_spec, optimization_spec)
         evaluation_spec = load_spec(evaluation_spec_path)
@@ -102,6 +124,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             scenario_runs_root=Path(args.scenario_runs_root),
             modes=list(args.mode),
             evaluation_workers=args.evaluation_workers,
+            population_size=args.population_size,
+            num_generations=args.num_generations,
         )
         return 0
     if args.command == "replay-llm-trace":
