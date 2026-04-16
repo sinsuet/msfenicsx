@@ -138,8 +138,8 @@ algorithm:
   family: genetic
   backbone: nsga2
   mode: raw
-  population_size: 32
-  num_generations: 16
+  population_size: 20
+  num_generations: 10
   seed: 7
   profile_path: scenarios/optimization/profiles/s1_typical_raw.yaml
 evaluation_protocol:

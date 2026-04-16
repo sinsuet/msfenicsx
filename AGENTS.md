@@ -6,7 +6,6 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 
 - `main` already contains the clean rebuild baseline.
 - The only active paper-facing mainline is `s1_typical`.
-- The retired four-component hot/cold benchmark is no longer an active supported workflow.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
@@ -66,8 +65,6 @@ The fixed benchmark decisions are:
 - cheap constraints must run before PDE
 - repair must use projection plus local legality restoration
 
-Additional backbone adapters may still exist as shared optimizer infrastructure, but they must not reintroduce retired hot/cold benchmark assets, alternate paper-facing specs, or benchmark-specific controller semantics.
-
 ## Architectural Expectations
 
 - Keep `core/` as the kernel for:
@@ -80,7 +77,6 @@ Additional backbone adapters may still exist as shared optimizer infrastructure,
   - CLI
 - Keep `evaluation/`, `optimizers/`, `llm/`, and `visualization/` as separate top-level layers that consume `core/`.
 - Do not add business logic to `scenarios/`; it is for hand-authored inputs.
-- Do not recreate legacy runtime folders such as `src/`, `radiation_gen/`, `examples/`, or `states/`.
 
 ## Environment And Execution
 
@@ -178,7 +174,8 @@ The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
 
 - Maintained tests belong under `tests/`.
 - Add or update focused tests for new behavior.
-- Run fresh relevant verification before claiming completion.
+- Run the **focused** tests relevant to your change (specific file or subdirectory under `tests/`) before claiming completion. Escalate to the full `conda run -n msfenicsx pytest -v` only when you are genuinely uncertain about cross-module impact — e.g. editing shared contracts in `core/`, shared registries in `optimizers/`, or when focused tests pass but behavior still looks suspicious.
+- When modifying optimizer or controller logic, run the specific test file first. Only run the full suite if the change clearly reaches beyond that file's scope or if you cannot convince yourself the blast radius is contained.
 
 Current maintained test areas are:
 
@@ -190,6 +187,7 @@ Current maintained test areas are:
 - `tests/cli/`
 - `tests/evaluation/`
 - `tests/optimizers/`
+- `tests/visualization/`
 
 ## Evidence And Reporting Expectations
 

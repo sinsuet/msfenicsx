@@ -36,8 +36,6 @@ The only active paper-facing mainline is `s1_typical`.
   - `nsga2_union`
   - `nsga2_llm`
 
-The retired four-component hot/cold mainline is no longer part of the active repository workflow.
-
 ## Active Inputs
 
 - template: `scenarios/templates/s1_typical.yaml`
@@ -157,15 +155,6 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
   --optimization-spec scenarios/optimization/s1_typical_union.yaml \
-  --mode raw \
-  --mode union \
-  --benchmark-seed 11 \
-  --evaluation-workers 2 \
-  --scenario-runs-root ./scenario_runs
-
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
-  --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
-  --optimization-spec scenarios/optimization/s1_typical_union.yaml \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
   --mode raw \
   --mode union \
@@ -274,3 +263,4 @@ Maintained verification areas:
 - `tests/cli/`
 - `tests/evaluation/`
 - `tests/optimizers/`
+- `tests/visualization/`

@@ -6,7 +6,6 @@ This file gives Claude Code repository-specific guidance for `msfenicsx`.
 
 - `main` already contains the clean rebuild baseline.
 - The only active paper-facing mainline is `s1_typical`.
-- The retired four-component hot/cold benchmark is no longer an active supported workflow.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
@@ -66,8 +65,6 @@ The fixed benchmark decisions are:
 - cheap constraints must run before PDE
 - repair must use projection plus local legality restoration
 
-Additional backbone adapters may still exist as shared optimizer infrastructure, but they must not reintroduce retired hot/cold benchmark assets, alternate paper-facing specs, or benchmark-specific controller semantics.
-
 ## Architectural Expectations
 
 - Keep `core/` as the kernel for:
@@ -80,7 +77,6 @@ Additional backbone adapters may still exist as shared optimizer infrastructure,
   - CLI
 - Keep `evaluation/`, `optimizers/`, `llm/`, and `visualization/` as separate top-level layers that consume `core/`.
 - Do not add business logic to `scenarios/`; it is for hand-authored inputs.
-- Do not recreate legacy runtime folders such as `src/`, `radiation_gen/`, `examples/`, or `states/`.
 
 ## Environment And Execution
 
@@ -90,6 +86,26 @@ Additional backbone adapters may still exist as shared optimizer infrastructure,
 - Prefer: `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
 - Repository text artifacts should use UTF-8 without BOM.
 - Treat terminal-side mojibake from the host bridge as environment noise unless the saved file itself is corrupted.
+
+### Outbound Network / Proxy
+
+- A local mihomo proxy is already provisioned in this WSL instance and managed as a systemd user service.
+  - Mixed HTTP+SOCKS endpoint: `http://127.0.0.1:7890`
+  - RESTful control: `http://127.0.0.1:9090`
+  - Service name: `mihomo.service` (via `systemctl --user`)
+  - Status check: `systemctl --user is-active mihomo`
+  - Subscription refresh: `~/.local/bin/mihomo-update-sub.sh`
+- Claude's `Bash` calls are non-interactive shells, so `~/.bashrc` proxy toggle helpers (`proxy_on` / `proxy_off`) do not apply automatically. Bash subcommands must opt in explicitly.
+- For any outbound network call that targets resources typically blocked from mainland China (github.com non-CDN, raw.githubusercontent.com, google.com, huggingface.co, openai.com, arxiv.org non-mirror, npm registry, pypi.org without a domestic mirror, etc.), prepend the proxy environment inline, for example:
+  - `curl -x http://127.0.0.1:7890 https://raw.githubusercontent.com/...`
+  - `http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890 git clone https://github.com/...`
+  - `HTTPS_PROXY=http://127.0.0.1:7890 pip install <pkg-from-pypi.org>`
+- Do not route through the proxy for:
+  - loopback / `127.0.0.1` / `localhost`
+  - domestic mirrors already configured in the environment (Tsinghua, Aliyun, USTC, etc.)
+  - conda/pip/apt operations that already use a domestic mirror
+- Before a proxy-dependent command, quickly verify the service is up (`ss -ltn | grep 7890` or `systemctl --user is-active mihomo`). If the proxy is unreachable, fall back to a direct attempt and flag the degraded state instead of silently retrying.
+- Do not hardcode proxy credentials or endpoints into repository files; the `127.0.0.1:7890` endpoint is a local-only development convenience and must not leak into scenario YAMLs, optimizer specs, or solver defaults.
 
 ### Preferred Commands
 
@@ -172,8 +188,8 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
 - Fix root causes with physically and architecturally defensible changes instead of fake passes or invalid shortcuts.
 - Do not repair controller behavior by hardcoding benchmark seeds, scenario IDs, or operator names as one-off policy exceptions.
 - Prefer portable optimizer-layer policy mechanisms over benchmark-specific prompt hacks.
-- Always run `conda run -n msfenicsx pytest -v` to verify changes before claiming completion.
-- When modifying optimizer or controller logic, run the specific test file first, then the full suite.
+- Run the **focused** tests relevant to your change (specific file or subdirectory under `tests/`) before claiming completion. Escalate to the full `conda run -n msfenicsx pytest -v` only when you are genuinely uncertain about cross-module impact — e.g. editing shared contracts in `core/`, shared registries in `optimizers/`, or when focused tests pass but behavior still looks suspicious.
+- When modifying optimizer or controller logic, run the specific test file first. Only run the full suite if the change clearly reaches beyond that file's scope or if you cannot convince yourself the blast radius is contained.
 
 ## Data And Artifact Rules
 
