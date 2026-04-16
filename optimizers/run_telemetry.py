@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from optimizers.operator_pool.domain_state import classify_constraint_family, dominant_violation, total_violation
 from optimizers.problem import objective_to_minimization
 
 
@@ -204,36 +203,6 @@ def _extract_objective_value(
         if any(token in key_text for token in fallback_tokens):
             return float(value)
     return None
-
-
-def _build_generation_lookup(
-    history: Sequence[Mapping[str, Any]],
-    generation_rows: Sequence[Mapping[str, Any]],
-) -> dict[int, int]:
-    lookup: dict[int, int] = {}
-    boundaries = sorted(
-        (
-            int(row.get("num_evaluations_so_far", 0)),
-            int(row.get("generation_index", 0)),
-        )
-        for row in generation_rows
-    )
-    boundary_index = 0
-    last_generation = 0
-    for position, record in enumerate(history, start=1):
-        evaluation_index = int(record.get("evaluation_index", 0))
-        if str(record.get("source", "")) == "baseline":
-            lookup[evaluation_index] = 0
-            continue
-        while boundary_index < len(boundaries) and position > boundaries[boundary_index][0]:
-            last_generation = boundaries[boundary_index][1]
-            boundary_index += 1
-        if boundary_index < len(boundaries):
-            lookup[evaluation_index] = boundaries[boundary_index][1]
-            last_generation = boundaries[boundary_index][1]
-        else:
-            lookup[evaluation_index] = last_generation
-    return lookup
 
 
 def _pareto_front(
