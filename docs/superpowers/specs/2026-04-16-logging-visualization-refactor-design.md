@@ -3,7 +3,7 @@
 - **Date**: 2026-04-16
 - **Scope**: single unified design covering run layout, trace schema, analytics, visualization style, figure factory, CLI, testing, and environment prep.
 - **Applies to**: `optimizers/` drivers (raw/union/llm), `optimizers/operator_pool/` controller, `optimizers/artifacts.py`, `optimizers/run_telemetry.py`, `visualization/`, `optimizers/cli.py`.
-- **Does not apply to**: `scenarios/templates/s1_typical.yaml` (the active benchmark template is NOT modified by this spec; multi-seed template changes are deferred to a follow-up spec — see § 1.4, Option B).
+- **Does not apply to**: `scenarios/templates/s1_typical.yaml` (the active benchmark template is NOT modified by this spec; multi-seed template changes are deferred to a follow-up spec — see § 3.4, Option B).
 
 ## 1. Motivation
 
@@ -74,7 +74,7 @@ Changes from current layout:
 - Representative depth reduced from 6 levels to 3 (`representatives/<id>/fields/*.npz`).
 - Figures and SVGs no longer live inside per-representative dirs; rendered centrally in `figures/` and named by representative id.
 - All traces move into `traces/` subfolder; all `.json` converted to `.jsonl` (one record per line) for streaming + diff-friendliness.
-- No `comparison/` sibling inside a single run — each run is single-mode. Cross-mode comparison is a separate CLI operation (§ 7).
+- No `comparison/` sibling inside a single run — each run is single-mode. Cross-mode comparison is a separate CLI operation (§ 8.2).
 
 ### 3.2 Multi-seed (N>=2)
 
@@ -147,7 +147,21 @@ One record per generation. Fields:
 - `operator_usage`: `{operator_name: count}`
 - `controller_phase` (llm only, e.g. `prefeasible`, `post_feasible_recover`, etc.)
 
-### 4.3 controller_trace.jsonl (llm only)
+### 4.3 operator_trace.jsonl (all modes)
+
+One record per operator application (emitted by every driver — raw/union/llm):
+
+- `decision_id` (null for raw/union — no controller decision; kept for schema uniformity)
+- `generation`
+- `operator_name`
+- `parents`: list of individual ids
+- `offspring`: list of individual ids
+- `params_digest`: sha1 of operator parameters for reproducibility
+- `wall_ms`
+
+This is what lets raw/union share the § 5.2 operator-usage analytics uniformly with llm.
+
+### 4.4 controller_trace.jsonl (llm only)
 
 One record per controller decision:
 
@@ -156,18 +170,18 @@ One record per controller decision:
 - `operator_selected`
 - `operator_pool_snapshot`
 - `input_state_digest` (sha1 of domain state presented to LLM)
-- `prompt_ref`: `prompts/<sha1>.md` (relative path; see § 4.5)
+- `prompt_ref`: `prompts/<sha1>.md` (relative path; see § 4.6)
 - `rationale` (LLM-emitted explanation)
 - `fallback_used` (bool; true if controller fell back to random_uniform)
 - `latency_ms`
 
-### 4.4 llm_request_trace.jsonl / llm_response_trace.jsonl (llm only)
+### 4.5 llm_request_trace.jsonl / llm_response_trace.jsonl (llm only)
 
 One record per HTTP round-trip:
 
 - `decision_id`
 - `prompt_ref` (request side)
-- `response_ref`: `prompts/<sha1>.md` (response side, if we store response bodies; see § 4.5)
+- `response_ref`: `prompts/<sha1>.md` (response side, if we store response bodies; see § 4.6)
 - `model`
 - `tokens`: `{ prompt, completion, total }`
 - `finish_reason`
@@ -175,7 +189,7 @@ One record per HTTP round-trip:
 
 No raw prompt text inside `.jsonl`. This fixes the current "messy LLM log" problem — trace lines stay narrow (<1KB) and grep-friendly; full text lives in de-duplicated markdown files.
 
-### 4.5 prompts/ — content-addressed markdown
+### 4.6 prompts/ — content-addressed markdown
 
 Each unique prompt body and each unique response body is written once to `prompts/<sha1>.md`. Format:
 
@@ -221,13 +235,13 @@ optimizers/analytics/
     └── stats.py            # Mann-Whitney, Wilcoxon
 ```
 
-### 5.2 Computed CSVs (all runs)
+### 5.2 Computed artifacts (all runs)
 
-- **`pareto.parquet`** — Pareto set with objectives, constraint slack, representative flag.
+- **`pareto.parquet`** — Pareto set with objectives, constraint slack, representative flag. Parquet (not CSV) because it holds vector columns efficiently.
 - **`hypervolume.csv`** — `(generation, hypervolume)` plus reference point metadata.
 - **`operator_phase_heatmap.csv`** — rows: operators; cols: phases (for raw/union there is a single `n/a` column, so the heatmap is degenerate but still rendered for uniformity).
 
-### 5.3 Computed CSVs (llm only)
+### 5.3 Computed artifacts (llm only)
 
 - **`decision_outcomes.csv`** — per controller decision: was it applied, did offspring improve HV, by how much.
 - **`phase_alignment.csv`** — agreement rate between controller-declared phase and post-hoc labeled phase (based on feasibility ratio thresholds).
@@ -254,6 +268,7 @@ FONT_FAMILY_MATH = "stix"
 BASE_FONT_SIZE = 9    # IEEE/Elsevier double-column baseline
 DPI_DEFAULT = 600
 DPI_HIRES = 1200
+DPI_FIELD_HIRES = 2400   # field plots only (pcolormesh shading='gouraud')
 COLORMAP_TEMPERATURE = "inferno"
 COLORMAP_GRADIENT = "viridis"
 PALETTE_CATEGORICAL = [   # Okabe-Ito colorblind-safe
@@ -273,7 +288,7 @@ rcParams applied: `font.family`, `font.size`, `mathtext.fontset`, `axes.linewidt
 ### 6.3 DPI policy
 
 - PDFs: vector, DPI irrelevant.
-- PNGs: 600 DPI default. `--hires` CLI flag bumps to 1200 (or 2400 for field plots via `pcolormesh(shading='gouraud')`).
+- PNGs: 600 DPI default. `--hires` CLI flag bumps non-field plots to `DPI_HIRES` (1200) and field plots (temperature/gradient) to `DPI_FIELD_HIRES` (2400) with `pcolormesh(shading='gouraud')` for smooth continuous color.
 
 ## 7. Figure Factory
 
