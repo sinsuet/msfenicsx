@@ -28,14 +28,7 @@ def write_optimization_artifacts(
     _initialize_seed_bundle_root(resolved_output_root)
     save_optimization_result(run.result, resolved_output_root / "optimization_result.json")
     save_optimization_result({"pareto_front": run.result.pareto_front}, resolved_output_root / "pareto_front.json")
-    evaluation_rows = build_evaluation_events(
-        run_id=str(run.result.run_meta["run_id"]),
-        mode_id=mode_id,
-        seed=seed,
-        history=run.result.history,
-        objectives=objective_definitions,
-        generation_rows=getattr(run, "generation_summary_rows", []),
-    )
+    evaluation_rows = build_evaluation_events(run.result.history)
     generation_rows = build_generation_summary_rows(
         run_id=str(run.result.run_meta["run_id"]),
         mode_id=mode_id,
