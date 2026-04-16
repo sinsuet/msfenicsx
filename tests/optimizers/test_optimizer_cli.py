@@ -127,19 +127,28 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
                 family="genetic",
                 backbone="nsga2",
                 controller_id="llm",
-                candidate_operator_ids=("native_sbx_pm", "local_refine", "slide_sink", "move_hottest_cluster_toward_sink"),
-                selected_operator_id=operator_id,
-                phase="",
-                rationale="",
-                metadata={"fallback_used": False},
-            )
-            for index, operator_id in enumerate(
-                (
-                    "move_hottest_cluster_toward_sink",
+                candidate_operator_ids=(
+                    "native_sbx_pm",
                     "local_refine",
                     "slide_sink",
                     "move_hottest_cluster_toward_sink",
-                    "native_sbx_pm",
+                    "spread_hottest_cluster",
+                ),
+                selected_operator_id=operator_id,
+                phase="",
+                rationale="",
+                metadata={
+                    "fallback_used": False,
+                    "policy_phase": phase,
+                },
+            )
+            for index, (operator_id, phase) in enumerate(
+                (
+                    ("move_hottest_cluster_toward_sink", "prefeasible_progress"),
+                    ("local_refine", "post_feasible_expand"),
+                    ("slide_sink", "post_feasible_expand"),
+                    ("move_hottest_cluster_toward_sink", "post_feasible_expand"),
+                    ("native_sbx_pm", "post_feasible_preserve"),
                 )
             )
         ],
@@ -252,8 +261,47 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
     _write_jsonl(
         request_trace_path,
         [
-            {"evaluation_index": 58, "candidate_operator_ids": ["local_refine", "slide_sink"]},
-            {"evaluation_index": 59, "candidate_operator_ids": ["slide_sink", "native_sbx_pm"]},
+            {
+                "evaluation_index": 58,
+                "policy_phase": "post_feasible_expand",
+                "candidate_operator_ids": ["local_refine", "slide_sink", "spread_hottest_cluster"],
+                "user_prompt": json.dumps(
+                    {
+                        "metadata": {
+                            "prompt_panels": {
+                                "regime_panel": {"phase": "post_feasible_expand"},
+                                "operator_panel": {
+                                    "local_refine": {"expand_budget_status": "preferred"},
+                                    "slide_sink": {"expand_budget_status": "neutral"},
+                                    "spread_hottest_cluster": {"expand_budget_status": "throttled"},
+                                },
+                            }
+                        }
+                    },
+                    ensure_ascii=True,
+                    sort_keys=True,
+                ),
+            },
+            {
+                "evaluation_index": 59,
+                "policy_phase": "post_feasible_expand",
+                "candidate_operator_ids": ["slide_sink", "native_sbx_pm"],
+                "user_prompt": json.dumps(
+                    {
+                        "metadata": {
+                            "prompt_panels": {
+                                "regime_panel": {"phase": "post_feasible_expand"},
+                                "operator_panel": {
+                                    "slide_sink": {"expand_budget_status": "preferred"},
+                                    "native_sbx_pm": {"expand_budget_status": "preferred"},
+                                },
+                            }
+                        }
+                    },
+                    ensure_ascii=True,
+                    sort_keys=True,
+                ),
+            },
         ],
     )
     _write_jsonl(
@@ -888,6 +936,82 @@ def test_analyze_controller_trace_reports_frontier_and_regression_metrics(tmp_pa
     assert summary["post_feasible"]["family_mix"]["local_refine"] == 1
 
 
+def test_controller_trace_summary_reports_semantic_visibility_rate(tmp_path: Path) -> None:
+    diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
+    paths = _write_enriched_diagnostics_artifacts(tmp_path)
+
+    summary = diagnostics.analyze_controller_trace(
+        paths["controller_trace"],
+        optimization_result_path=paths["optimization_result"],
+    )
+
+    assert summary["semantic_visibility_rate"] > 0.0
+    assert summary["semantic_candidate_count_avg"] >= 1.0
+    assert "semantic_frontier_add_count" in summary
+
+
+def test_controller_trace_summary_reports_stable_vs_semantic_pareto_ownership(tmp_path: Path) -> None:
+    diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
+    paths = _write_enriched_diagnostics_artifacts(tmp_path)
+
+    summary = diagnostics.analyze_controller_trace(
+        paths["controller_trace"],
+        optimization_result_path=paths["optimization_result"],
+    )
+
+    assert summary["stable_vs_semantic_pareto_ownership"]["semantic"] >= 1
+
+
+def test_analyze_controller_trace_reports_route_family_entropy_and_expand_mix(tmp_path: Path) -> None:
+    diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
+    controller_trace_path = tmp_path / "controller_trace.json"
+    _write_controller_trace(
+        controller_trace_path,
+        [
+            ControllerTraceRow(
+                generation_index=4,
+                evaluation_index=71 + index,
+                family="genetic",
+                backbone="nsga2",
+                controller_id="llm",
+                candidate_operator_ids=(
+                    "spread_hottest_cluster",
+                    "smooth_high_gradient_band",
+                    "slide_sink",
+                    "local_refine",
+                ),
+                selected_operator_id=operator_id,
+                metadata={
+                    "fallback_used": False,
+                    "policy_phase": phase,
+                },
+            )
+            for index, (operator_id, phase) in enumerate(
+                (
+                    ("spread_hottest_cluster", "post_feasible_expand"),
+                    ("smooth_high_gradient_band", "post_feasible_expand"),
+                    ("slide_sink", "post_feasible_expand"),
+                    ("local_refine", "post_feasible_preserve"),
+                )
+            )
+        ],
+    )
+
+    summary = diagnostics.analyze_controller_trace(controller_trace_path)
+
+    assert summary["route_family_counts"]["stable_local"] == 1
+    assert summary["route_family_counts"]["hotspot_spread"] == 1
+    assert summary["route_family_counts"]["congestion_relief"] == 1
+    assert summary["route_family_counts"]["sink_retarget"] == 1
+    assert summary["route_family_entropy"] == pytest.approx(2.0)
+    assert summary["expand_route_family_counts"] == {
+        "hotspot_spread": 1,
+        "congestion_relief": 1,
+        "sink_retarget": 1,
+    }
+    assert summary["expand_route_family_entropy"] == pytest.approx(1.584962500721156)
+
+
 def test_optimizer_cli_analyze_controller_trace_writes_summary_artifact(tmp_path: Path) -> None:
     controller_trace_path = tmp_path / "controller_trace.json"
     _write_controller_trace(
@@ -1182,3 +1306,21 @@ def test_optimizer_cli_analyze_controller_trace_accepts_optional_operator_and_re
     summary = json.loads(output_path.read_text(encoding="utf-8"))
     assert summary["llm_trace"]["request_count"] == 2
     assert summary["llm_trace"]["response_count"] == 2
+    assert summary["llm_trace"]["expand_budget_status_counts"]["throttled"] == 1
+
+
+def test_analyze_controller_trace_reports_expand_family_outcomes_and_budget_throttling(tmp_path: Path) -> None:
+    diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
+    paths = _write_enriched_diagnostics_artifacts(tmp_path)
+
+    summary = diagnostics.analyze_controller_trace(
+        paths["controller_trace"],
+        optimization_result_path=paths["optimization_result"],
+        llm_request_trace_path=paths["llm_request_trace"],
+        llm_response_trace_path=paths["llm_response_trace"],
+    )
+
+    assert summary["expand_family_outcomes"]["stable_local"]["frontier_add_count"] == 1
+    assert summary["expand_family_outcomes"]["sink_retarget"]["frontier_add_count"] == 1
+    assert summary["expand_family_outcomes"]["sink_retarget"]["feasible_regression_count"] == 1
+    assert summary["llm_trace"]["expand_budget_throttled_route_family_counts"]["hotspot_spread"] == 1

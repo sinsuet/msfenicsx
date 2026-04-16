@@ -156,13 +156,14 @@ operator_control:
     - slide_sink
     - rebalance_layout
   controller_parameters:
-    provider: openai
-    capability_profile: responses_native
+    provider: openai-compatible
+    capability_profile: chat_compatible_json
     performance_profile: balanced
     model: gpt-5.4
     api_key_env_var: OPENAI_API_KEY
-    max_output_tokens: 1024
-    temperature: 0.2
+    base_url: https://rust.cat/v1
+    max_output_tokens: 256
+    temperature: 1.0
     reasoning:
       effort: medium
     retry:

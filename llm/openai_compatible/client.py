@@ -8,6 +8,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
+
 from llm.openai_compatible.config import OpenAICompatibleConfig
 from llm.openai_compatible.schemas import build_operator_decision_schema
 
@@ -22,6 +24,7 @@ class OpenAICompatibleDecision:
     capability_profile: str
     performance_profile: str
     raw_payload: dict[str, Any]
+    selected_intent: str | None = None
 
 
 class OpenAICompatibleClient:
@@ -30,10 +33,12 @@ class OpenAICompatibleClient:
         config: OpenAICompatibleConfig,
         *,
         sdk_client: Any | None = None,
+        http_client: Any | None = None,
         environ: dict[str, str] | None = None,
     ) -> None:
         self.config = config
         self._sdk_client = sdk_client
+        self._http_client = http_client
         self._environ = os.environ if environ is None else environ
 
     def request_operator_decision(
@@ -139,6 +144,11 @@ class OpenAICompatibleClient:
             )
         return OpenAICompatibleDecision(
             selected_operator_id=selected_operator_id,
+            selected_intent=(
+                None
+                if payload.get("selected_intent") in (None, "")
+                else str(payload.get("selected_intent")).strip()
+            ),
             phase=str(payload.get("phase", "")),
             rationale=str(payload.get("rationale", "")),
             provider=self.config.provider,
@@ -189,6 +199,25 @@ class OpenAICompatibleClient:
         user_prompt: str,
         candidate_operator_ids: Sequence[str],
     ) -> str:
+        if self._sdk_client is not None and self._http_client is None:
+            return self._request_via_chat_compatible_json_sdk(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                candidate_operator_ids=candidate_operator_ids,
+            )
+        return self._request_via_chat_compatible_json_http(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            candidate_operator_ids=candidate_operator_ids,
+        )
+
+    def _request_via_chat_compatible_json_sdk(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        candidate_operator_ids: Sequence[str],
+    ) -> str:
         sdk_client = self._resolve_sdk_client()
         normalized_system_prompt = self._build_chat_json_system_prompt(
             system_prompt,
@@ -216,6 +245,44 @@ class OpenAICompatibleClient:
             raise ValueError("Chat-compatible response did not include JSON content.")
         return content
 
+    def _request_via_chat_compatible_json_http(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        candidate_operator_ids: Sequence[str],
+    ) -> str:
+        http_client = self._resolve_http_client()
+        normalized_system_prompt = self._build_chat_json_system_prompt(
+            system_prompt,
+            user_prompt,
+            candidate_operator_ids,
+        )
+        request_payload: dict[str, Any] = {
+            "model": self.config.model,
+            "messages": [
+                {"role": "system", "content": normalized_system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "response_format": {"type": "json_object"},
+            "max_tokens": self.config.max_output_tokens,
+        }
+        if self.config.temperature is not None:
+            request_payload["temperature"] = self.config.temperature
+        if self.config.reasoning:
+            request_payload["reasoning"] = dict(self.config.reasoning)
+        response = http_client.post(
+            self._resolve_chat_completions_url(),
+            headers={
+                "Authorization": f"Bearer {self.config.resolve_api_key(self._environ)}",
+                "Content-Type": "application/json",
+            },
+            json=request_payload,
+        )
+        if hasattr(response, "raise_for_status"):
+            response.raise_for_status()
+        return self._extract_chat_content_from_http_response(response)
+
     @staticmethod
     def _build_chat_json_system_prompt(
         system_prompt: str,
@@ -232,8 +299,10 @@ class OpenAICompatibleClient:
                 normalized_prompt = f"{normalized_prompt}{suffix}"
         return (
             f"{normalized_prompt.rstrip()} "
-            "Return exactly one JSON object with the keys selected_operator_id, phase, and rationale. "
+            "Return exactly one JSON object with the keys selected_operator_id, phase, rationale, "
+            "and optional selected_intent. "
             f"The selected_operator_id value must exactly equal one of {list(candidate_operator_ids)}. "
+            "If selected_intent is present, keep it short and route-like. "
             "Set phase to a short search-phase label when available. "
             "Set rationale to a brief explanation of the operator choice."
         )
@@ -255,10 +324,66 @@ class OpenAICompatibleClient:
         return (
             f"{system_prompt.rstrip()} "
             "Previous response was invalid. "
-            "It must return JSON only with the keys selected_operator_id, phase, and rationale. "
+            "It must return JSON only with the keys selected_operator_id, phase, rationale, "
+            "and optional selected_intent. "
             f"The selected_operator_id value must exactly equal one of {list(operator_ids)}. "
             f"Invalid reason: {error_message}"
         )
+
+    @staticmethod
+    def _extract_chat_content_from_http_response(response: Any) -> str:
+        body = str(getattr(response, "text", "")).strip()
+        if not body:
+            raise ValueError("Chat-compatible HTTP response did not include a body.")
+        payload = OpenAICompatibleClient._parse_http_chat_payload(body)
+        choices = payload.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise ValueError("Chat-compatible HTTP response did not include any choices.")
+        message = choices[0].get("message")
+        if not isinstance(message, dict):
+            raise ValueError("Chat-compatible HTTP response did not include a message payload.")
+        content = message.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("Chat-compatible HTTP response did not include JSON content.")
+        return content
+
+    @staticmethod
+    def _parse_http_chat_payload(body: str) -> dict[str, Any]:
+        stripped = body.strip()
+        if stripped.startswith("data:"):
+            payloads: list[dict[str, Any]] = []
+            for raw_line in stripped.splitlines():
+                line = raw_line.strip()
+                if not line.startswith("data:"):
+                    continue
+                chunk = line[5:].strip()
+                if not chunk or chunk == "[DONE]":
+                    continue
+                payload = json.loads(chunk)
+                if isinstance(payload, dict):
+                    payloads.append(payload)
+            if not payloads:
+                raise ValueError("Chat-compatible HTTP event stream did not include a JSON payload.")
+            return payloads[-1]
+        payload = json.loads(stripped)
+        if not isinstance(payload, dict):
+            raise ValueError("Chat-compatible HTTP response payload must be a JSON object.")
+        return payload
+
+    def _resolve_chat_completions_url(self) -> str:
+        base_url = self.config.resolve_base_url(self._environ)
+        if base_url:
+            return f"{base_url.rstrip('/')}/chat/completions"
+        if self.config.provider == "openai":
+            return "https://api.openai.com/v1/chat/completions"
+        raise RuntimeError("Chat-compatible HTTP transport requires a base_url for non-openai providers.")
+
+    def _resolve_http_client(self) -> Any:
+        if self._http_client is not None:
+            return self._http_client
+        timeout_seconds = self.config.timeout_seconds
+        self._http_client = httpx.Client(timeout=timeout_seconds)
+        return self._http_client
 
     def _resolve_sdk_client(self) -> Any:
         if self._sdk_client is not None:

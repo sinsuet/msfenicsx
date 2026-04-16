@@ -16,6 +16,9 @@ def build_operator_decision_schema(candidate_operator_ids: Sequence[str]) -> dic
                 "type": "string",
                 "enum": operator_ids,
             },
+            "selected_intent": {
+                "type": "string",
+            },
             "phase": {
                 "type": "string",
             },

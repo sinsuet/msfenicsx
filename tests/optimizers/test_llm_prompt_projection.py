@@ -187,6 +187,16 @@ def _post_feasible_state() -> ControllerState:
                     "closest_to_feasible_parent": None,
                     "strongest_feasible_parent": {"evaluation_index": 73, "feasible": True},
                 },
+                "spatial_panel": {
+                    "hotspot_to_sink_offset": 0.17,
+                    "hotspot_inside_sink_window": False,
+                    "local_congestion_pair": {
+                        "component_ids": ["c13", "c14"],
+                        "gap": 0.04,
+                    },
+                    "nearest_neighbor_gap_min": 0.04,
+                    "sink_budget_bucket": "available",
+                },
                 "operator_panel": {
                     "native_sbx_pm": {
                         "entry_fit": "supported",
@@ -200,6 +210,11 @@ def _post_feasible_state() -> ControllerState:
                         "expand_fit": "trusted",
                         "frontier_evidence": "positive",
                         "post_feasible_avg_objective_delta": -0.34,
+                        "applicability": "medium",
+                        "expected_peak_effect": "neutral",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "spatial_match_reason": "sink span is already feasible and close to current pressure.",
                     },
                 },
             },
@@ -240,3 +255,19 @@ def test_post_feasible_prompt_projection_keeps_frontier_and_regression_fields() 
     assert payload["prompt_panels"]["regime_panel"]["phase"] == "post_feasible_expand"
     assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["frontier_evidence"] == "positive"
     assert payload["phase_policy"]["phase"] == "post_feasible_expand"
+
+
+def test_post_feasible_prompt_projection_keeps_spatial_panel_and_operator_applicability() -> None:
+    prompt_projection = _prompt_projection_module()
+
+    payload = prompt_projection.build_prompt_projection(
+        _post_feasible_state(),
+        candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        original_candidate_operator_ids=("native_sbx_pm", "local_refine", "repair_sink_budget"),
+        policy_snapshot=_policy_snapshot("post_feasible_expand"),
+        guardrail=None,
+    )
+
+    assert "spatial_panel" in payload["prompt_panels"]
+    assert payload["prompt_panels"]["spatial_panel"]["hotspot_inside_sink_window"] is False
+    assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["applicability"] == "medium"

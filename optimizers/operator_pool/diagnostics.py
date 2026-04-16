@@ -10,6 +10,7 @@ from typing import Any
 
 from optimizers.operator_pool.domain_state import dominant_violation_family, total_violation
 from optimizers.operator_pool.operators import get_operator_behavior_profile
+from optimizers.operator_pool.route_families import operator_route_family, route_family_entropy
 from optimizers.operator_pool.trace import ControllerTraceRow
 
 
@@ -81,12 +82,36 @@ def summarize_controller_rows(
     llm_valid_count = 0
     latest_eval_by_bucket: dict[str, int] = {}
     first_feasible_eval = None if artifact_context is None else artifact_context.get("first_feasible_eval")
+    semantic_visible_count = 0
+    semantic_candidate_total = 0
+    semantic_selection_count = 0
+    semantic_frontier_add_count = 0
+    semantic_feasible_preservation_count = 0
+    stable_vs_semantic_pareto_ownership: Counter[str] = Counter({"stable": 0, "semantic": 0})
+    expand_family_outcomes: dict[str, dict[str, int]] = {}
+    pareto_evaluation_indices = (
+        set()
+        if artifact_context is None
+        else {int(value) for value in artifact_context.get("pareto_evaluation_indices", [])}
+    )
 
     for row in rows:
         bucket = _phase_bucket(_policy_phase(row), first_feasible_eval=first_feasible_eval, evaluation_index=row.evaluation_index)
         phase_buckets[bucket]["decision_count"] += 1
         aggregate_phase_counts[bucket] += 1
         latest_eval_by_bucket[bucket] = int(row.evaluation_index)
+
+        semantic_candidate_ids = [
+            str(operator_id)
+            for operator_id in _effective_candidate_operator_ids(row)
+            if not _operator_is_stable(str(operator_id))
+        ]
+        if semantic_candidate_ids:
+            semantic_visible_count += 1
+        semantic_candidate_total += len(semantic_candidate_ids)
+        selected_is_semantic = not _operator_is_stable(row.selected_operator_id)
+        if selected_is_semantic:
+            semantic_selection_count += 1
 
         fallback_used = bool(row.metadata.get("fallback_used", False))
         if fallback_used:
@@ -229,12 +254,37 @@ def summarize_controller_rows(
         if artifact_context is None:
             continue
         evaluation_metrics = artifact_context["evaluation_metrics"].get(int(row.evaluation_index), {})
+        policy_phase = _policy_phase(row)
+        if policy_phase.startswith("post_feasible_expand"):
+            route_family = operator_route_family(row.selected_operator_id)
+            family_summary = expand_family_outcomes.setdefault(
+                route_family,
+                {
+                    "selection_count": 0,
+                    "frontier_add_count": 0,
+                    "feasible_regression_count": 0,
+                    "feasible_preservation_count": 0,
+                },
+            )
+            family_summary["selection_count"] += 1
+            if evaluation_metrics.get("frontier_add", False):
+                family_summary["frontier_add_count"] += 1
+            if evaluation_metrics.get("feasible_regression", False):
+                family_summary["feasible_regression_count"] += 1
+            if evaluation_metrics.get("feasible_preservation", False):
+                family_summary["feasible_preservation_count"] += 1
         if evaluation_metrics.get("frontier_add", False):
             phase_buckets[bucket]["frontier_add_count"] += 1
+            if selected_is_semantic:
+                semantic_frontier_add_count += 1
         if evaluation_metrics.get("feasible_regression", False):
             phase_buckets[bucket]["feasible_regression_count"] += 1
         if evaluation_metrics.get("feasible_preservation", False):
             phase_buckets[bucket]["feasible_preservation_count"] += 1
+            if selected_is_semantic:
+                semantic_feasible_preservation_count += 1
+        if int(row.evaluation_index) in pareto_evaluation_indices:
+            stable_vs_semantic_pareto_ownership["semantic" if selected_is_semantic else "stable"] += 1
 
     last_frontier_add_eval = None if artifact_context is None else artifact_context.get("last_frontier_add_eval")
     for bucket_name, bucket in phase_buckets.items():
@@ -267,6 +317,28 @@ def summarize_controller_rows(
             bucket_name: dict(phase_buckets[bucket_name]["family_mix"])
             for bucket_name in ("cold_start", "prefeasible", "post_feasible", "unknown")
         },
+        "semantic_visibility_rate": (
+            0.0 if not rows else float(semantic_visible_count) / float(len(rows))
+        ),
+        "semantic_candidate_count_avg": (
+            0.0 if not rows else float(semantic_candidate_total) / float(len(rows))
+        ),
+        "semantic_selection_rate": (
+            0.0 if not rows else float(semantic_selection_count) / float(len(rows))
+        ),
+        "semantic_frontier_add_count": int(semantic_frontier_add_count),
+        "semantic_feasible_preservation_count": int(semantic_feasible_preservation_count),
+        "stable_vs_semantic_pareto_ownership": {
+            "stable": int(stable_vs_semantic_pareto_ownership["stable"]),
+            "semantic": int(stable_vs_semantic_pareto_ownership["semantic"]),
+        },
+        "route_family_counts": _route_family_counts(rows),
+        "route_family_entropy": route_family_entropy(_route_family_counts(rows)),
+        "expand_route_family_counts": _route_family_counts(rows, phase_prefix="post_feasible_expand"),
+        "expand_route_family_entropy": route_family_entropy(
+            _route_family_counts(rows, phase_prefix="post_feasible_expand")
+        ),
+        "expand_family_outcomes": expand_family_outcomes,
     }
     if artifact_context is None:
         return summary
@@ -422,6 +494,31 @@ def _supported_entry_candidate_share(
     return float(row.metadata["supported_entry_candidate_count"]) / float(candidate_count)
 
 
+def _effective_candidate_operator_ids(row: ControllerTraceRow) -> tuple[str, ...]:
+    candidate_ids = tuple(str(operator_id) for operator_id in row.candidate_operator_ids)
+    filtered_operator_ids = {
+        str(operator_id)
+        for operator_id in row.metadata.get("guardrail_filtered_operator_ids", [])
+    }
+    if not filtered_operator_ids:
+        return candidate_ids
+    effective_ids = tuple(operator_id for operator_id in candidate_ids if operator_id not in filtered_operator_ids)
+    return candidate_ids if not effective_ids else effective_ids
+
+
+def _route_family_counts(
+    rows: Sequence[ControllerTraceRow],
+    *,
+    phase_prefix: str | None = None,
+) -> dict[str, int]:
+    counter: Counter[str] = Counter()
+    for row in rows:
+        if phase_prefix is not None and not _policy_phase(row).startswith(phase_prefix):
+            continue
+        counter[operator_route_family(row.selected_operator_id)] += 1
+    return dict(counter)
+
+
 def _operator_family(operator_id: str) -> str:
     try:
         return get_operator_behavior_profile(operator_id).family
@@ -450,6 +547,11 @@ def _load_artifact_context(optimization_result_path: str | Path | None) -> dict[
     if optimization_result_path is None:
         return None
     payload = json.loads(Path(optimization_result_path).read_text(encoding="utf-8"))
+    pareto_evaluation_indices = [
+        int(row.get("evaluation_index", 0))
+        for row in payload.get("pareto_front", [])
+        if isinstance(row, Mapping) and row.get("evaluation_index") is not None
+    ]
     history = sorted(
         [
             dict(row)
@@ -529,6 +631,7 @@ def _load_artifact_context(optimization_result_path: str | Path | None) -> dict[
         "evaluation_metrics": evaluation_metrics,
         "entry_metrics": entry_metrics,
         "last_frontier_add_eval": last_frontier_add_eval,
+        "pareto_evaluation_indices": pareto_evaluation_indices,
     }
 
 
@@ -593,18 +696,68 @@ def _summarize_llm_traces(
         for row in response_rows
         if isinstance(row, Mapping) and row.get("elapsed_seconds") is not None
     ]
+    expand_budget_status_counts: Counter[str] = Counter()
+    expand_budget_throttled_operator_counts: Counter[str] = Counter()
+    expand_budget_throttled_route_family_counts: Counter[str] = Counter()
+    expand_request_count = 0
+    for row in request_rows:
+        metadata = _request_prompt_metadata(row)
+        if not metadata:
+            continue
+        prompt_panels = metadata.get("prompt_panels", {})
+        if not isinstance(prompt_panels, Mapping):
+            continue
+        regime_panel = prompt_panels.get("regime_panel", {})
+        if not isinstance(regime_panel, Mapping):
+            regime_panel = {}
+        phase = str(row.get("policy_phase") or regime_panel.get("phase", "")).strip()
+        if not phase.startswith("post_feasible_expand"):
+            continue
+        operator_panel = prompt_panels.get("operator_panel", {})
+        if not isinstance(operator_panel, Mapping):
+            continue
+        expand_request_count += 1
+        for operator_id, operator_row in operator_panel.items():
+            if not isinstance(operator_row, Mapping):
+                continue
+            budget_status = str(operator_row.get("expand_budget_status", "")).strip()
+            if not budget_status:
+                continue
+            expand_budget_status_counts[budget_status] += 1
+            if budget_status == "throttled":
+                normalized_operator_id = str(operator_id)
+                expand_budget_throttled_operator_counts[normalized_operator_id] += 1
+                expand_budget_throttled_route_family_counts[operator_route_family(normalized_operator_id)] += 1
     return {
         "request_count": len(request_rows),
         "response_count": len(response_rows),
         "fallback_count": sum(
             1 for row in response_rows if isinstance(row, Mapping) and bool(row.get("fallback_used", False))
         ),
+        "expand_request_count": int(expand_request_count),
+        "expand_budget_status_counts": dict(expand_budget_status_counts),
+        "expand_budget_throttled_operator_counts": dict(expand_budget_throttled_operator_counts),
+        "expand_budget_throttled_route_family_counts": dict(expand_budget_throttled_route_family_counts),
         "elapsed_seconds_avg": (
             0.0 if not elapsed_values else sum(elapsed_values) / float(len(elapsed_values))
         ),
         "request_trace_path": None if llm_request_trace_path is None else str(Path(llm_request_trace_path)),
         "response_trace_path": None if llm_response_trace_path is None else str(Path(llm_response_trace_path)),
     }
+
+
+def _request_prompt_metadata(row: Mapping[str, Any]) -> dict[str, Any]:
+    user_prompt = row.get("user_prompt")
+    if not isinstance(user_prompt, str) or not user_prompt.strip():
+        return {}
+    try:
+        payload = json.loads(user_prompt)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, Mapping):
+        return {}
+    metadata = payload.get("metadata", {})
+    return dict(metadata) if isinstance(metadata, Mapping) else {}
 
 
 def _load_jsonl_rows(path: str | Path) -> list[dict[str, Any]]:

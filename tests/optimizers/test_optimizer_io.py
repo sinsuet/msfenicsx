@@ -293,18 +293,37 @@ def test_llm_spec_shares_benchmark_source_and_operator_pool_with_union_spec() ->
     assert llm_spec.operator_control["controller"] == "llm"
 
 
-def test_llm_spec_round_trips_openai_controller_profile() -> None:
+def test_llm_spec_stays_controller_only_against_union() -> None:
+    union_spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
+    llm_spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
+
+    assert union_spec.benchmark_source == llm_spec.benchmark_source
+    assert union_spec.algorithm["profile_path"] == llm_spec.algorithm["profile_path"]
+    assert union_spec.algorithm["population_size"] == llm_spec.algorithm["population_size"]
+    assert union_spec.algorithm["num_generations"] == llm_spec.algorithm["num_generations"]
+    assert union_spec.operator_control is not None
+    assert llm_spec.operator_control is not None
+    assert union_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
+
+    params = llm_spec.operator_control["controller_parameters"]
+    assert params["memory"]["recent_window"] > 0
+    assert params["reasoning"]["effort"]
+    assert params["retry"]["timeout_seconds"] > 0
+
+
+def test_llm_spec_round_trips_rust_cat_live_controller_profile() -> None:
     spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
 
     assert spec.operator_control is not None
     params = spec.operator_control["controller_parameters"]
-    assert params["provider"] == "openai"
-    assert params["capability_profile"] == "responses_native"
+    assert params["provider"] == "openai-compatible"
+    assert params["capability_profile"] == "chat_compatible_json"
     assert params["performance_profile"] == "balanced"
     assert params["model"] == "gpt-5.4"
     assert params["api_key_env_var"] == "OPENAI_API_KEY"
-    assert params["max_output_tokens"] == 1024
-    assert params["reasoning"] == {"effort": "medium"}
+    assert params["base_url"] == "https://rust.cat/v1"
+    assert params["max_output_tokens"] == 256
+    assert params["temperature"] == 1.0
 
 
 def test_resolve_algorithm_config_merges_global_defaults_profile_and_inline_overrides(tmp_path: Path) -> None:

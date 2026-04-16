@@ -2,6 +2,7 @@ import pytest
 
 from llm.openai_compatible.client import OpenAICompatibleClient
 from llm.openai_compatible.config import OpenAICompatibleConfig
+from llm.openai_compatible.schemas import build_operator_decision_schema
 
 
 class _FakeResponsesAPI:
@@ -46,6 +47,37 @@ class _FakeSDK:
             (),
             {"completions": chat_api},
         )()
+
+
+class _FakeHTTPResponse:
+    def __init__(self, payload: str, *, status_code: int = 200, content_type: str = "application/json") -> None:
+        self.text = payload
+        self.status_code = status_code
+        self.headers = {"content-type": content_type}
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise RuntimeError(f"http {self.status_code}")
+
+
+class _FakeHTTPClient:
+    def __init__(self, payload: str, *, status_code: int = 200, content_type: str = "application/json") -> None:
+        self.payload = payload
+        self.status_code = status_code
+        self.content_type = content_type
+        self.last_url: str | None = None
+        self.last_headers: dict[str, object] | None = None
+        self.last_json: dict[str, object] | None = None
+
+    def post(self, url: str, *, headers: dict[str, object], json: dict[str, object]) -> _FakeHTTPResponse:
+        self.last_url = url
+        self.last_headers = dict(headers)
+        self.last_json = dict(json)
+        return _FakeHTTPResponse(
+            self.payload,
+            status_code=self.status_code,
+            content_type=self.content_type,
+        )
 
 
 def _build_config(*, capability_profile: str) -> OpenAICompatibleConfig:
@@ -120,6 +152,88 @@ def test_chat_compatible_json_client_normalizes_openai_compatible_json_payload(
     assert "json" in chat_api.last_kwargs["messages"][0]["content"].lower()
 
 
+def test_chat_compatible_json_client_can_use_direct_http_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    http_client = _FakeHTTPClient(
+        (
+            '{"id":"resp_123","object":"chat.completion","created":1,"model":"gpt-5.4",'
+            '"choices":[{"index":0,"message":{"role":"assistant","content":"'
+            '{\\"selected_operator_id\\":\\"global_explore\\",\\"phase\\":\\"explore\\",'
+            '\\"rationale\\":\\"widen search\\"}"}}]}'
+        )
+    )
+    client = OpenAICompatibleClient(
+        OpenAICompatibleConfig.from_dict(
+            {
+                "provider": "openai-compatible",
+                "model": "gpt-5.4",
+                "capability_profile": "chat_compatible_json",
+                "performance_profile": "balanced",
+                "api_key_env_var": "TEST_OPENAI_API_KEY",
+                "base_url": "https://rust.cat/v1",
+                "max_output_tokens": 256,
+                "temperature": 1.0,
+            }
+        ),
+        http_client=http_client,
+    )
+
+    response = client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
+    )
+
+    assert response.selected_operator_id == "global_explore"
+    assert http_client.last_url == "https://rust.cat/v1/chat/completions"
+    assert http_client.last_headers is not None
+    assert http_client.last_headers["Authorization"] == "Bearer test-key"
+    assert http_client.last_json is not None
+    assert http_client.last_json["model"] == "gpt-5.4"
+    assert http_client.last_json["response_format"] == {"type": "json_object"}
+    assert http_client.last_json["max_tokens"] == 256
+
+
+def test_chat_compatible_json_http_request_forwards_reasoning_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    http_client = _FakeHTTPClient(
+        (
+            '{"id":"resp_123","object":"chat.completion","created":1,"model":"gpt-5.4",'
+            '"choices":[{"index":0,"message":{"role":"assistant","content":"'
+            '{\\"selected_operator_id\\":\\"global_explore\\",\\"phase\\":\\"explore\\",'
+            '\\"rationale\\":\\"widen search\\"}"}}]}'
+        )
+    )
+    client = OpenAICompatibleClient(
+        OpenAICompatibleConfig.from_dict(
+            {
+                "provider": "openai-compatible",
+                "model": "gpt-5.4",
+                "capability_profile": "chat_compatible_json",
+                "performance_profile": "balanced",
+                "api_key_env_var": "TEST_OPENAI_API_KEY",
+                "base_url": "https://rust.cat/v1",
+                "max_output_tokens": 256,
+                "reasoning": {"effort": "medium"},
+            }
+        ),
+        http_client=http_client,
+    )
+
+    client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
+    )
+
+    assert http_client.last_json is not None
+    assert http_client.last_json["reasoning"] == {"effort": "medium"}
+
+
 def test_chat_compatible_json_client_injects_json_instruction_when_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -192,6 +306,35 @@ def test_chat_compatible_json_prompt_demands_phase_and_rationale_fields(
     assert "selected_operator_id" in system_message
     assert "phase" in system_message
     assert "rationale" in system_message
+
+
+def test_chat_compatible_json_schema_allows_optional_selected_intent() -> None:
+    schema = build_operator_decision_schema(("native_sbx_pm", "slide_sink"))
+
+    assert "selected_intent" in schema["properties"]
+    assert "selected_intent" not in schema["required"]
+
+
+def test_chat_compatible_json_client_accepts_payload_without_selected_intent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    chat_api = _FakeChatCompletionsAPI(
+        '{"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}'
+    )
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    response = client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
+    )
+
+    assert response.selected_operator_id == "global_explore"
+    assert response.selected_intent is None
 
 
 def test_chat_compatible_json_client_accepts_operator_id_alias(
@@ -408,3 +551,22 @@ def test_config_resolves_api_key_from_dotenv_when_process_env_missing(tmp_path) 
     config = _build_config(capability_profile="responses_native")
 
     assert config.resolve_api_key({}, dotenv_path=dotenv_path) == "dotenv-key"
+
+
+def test_config_resolves_api_key_from_main_repo_dotenv_when_running_in_worktree(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    worktree_root = repo_root / ".worktrees" / "llm-route-recovery"
+    common_git_dir = repo_root / ".git"
+    worktree_git_dir = common_git_dir / "worktrees" / "llm-route-recovery"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    worktree_root.mkdir(parents=True, exist_ok=True)
+    worktree_git_dir.mkdir(parents=True, exist_ok=True)
+    (repo_root / ".env").write_text("TEST_OPENAI_API_KEY=repo-dotenv-key\n", encoding="utf-8")
+    (worktree_root / ".git").write_text(f"gitdir: {worktree_git_dir}\n", encoding="utf-8")
+    monkeypatch.chdir(worktree_root)
+    config = _build_config(capability_profile="responses_native")
+
+    assert config.resolve_api_key({}) == "repo-dotenv-key"

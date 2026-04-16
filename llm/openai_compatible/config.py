@@ -88,14 +88,47 @@ class OpenAICompatibleConfig:
 
 
 def _load_dotenv_payload(dotenv_path: str | Path | None) -> dict[str, str]:
-    candidate_path = Path(".env") if dotenv_path is None else Path(dotenv_path)
-    if not candidate_path.exists():
-        return {}
-    payload: dict[str, str] = {}
-    for raw_line in candidate_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    for candidate_path in _candidate_dotenv_paths(dotenv_path):
+        if not candidate_path.exists():
             continue
-        key, value = line.split("=", 1)
-        payload[key.strip()] = value.strip()
-    return payload
+        payload: dict[str, str] = {}
+        for raw_line in candidate_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            payload[key.strip()] = value.strip()
+        if payload:
+            return payload
+    return {}
+
+
+def _candidate_dotenv_paths(dotenv_path: str | Path | None) -> tuple[Path, ...]:
+    if dotenv_path is not None:
+        return (Path(dotenv_path),)
+    current_dotenv = Path(".env")
+    common_root_dotenv = _git_common_root_dotenv_path(Path.cwd())
+    if common_root_dotenv is None or common_root_dotenv == current_dotenv:
+        return (current_dotenv,)
+    return (current_dotenv, common_root_dotenv)
+
+
+def _git_common_root_dotenv_path(cwd: Path) -> Path | None:
+    git_path = cwd / ".git"
+    if not git_path.is_file():
+        return None
+    raw_head = git_path.read_text(encoding="utf-8").splitlines()
+    if not raw_head:
+        return None
+    first_line = raw_head[0].strip()
+    if not first_line.startswith("gitdir:"):
+        return None
+    git_dir = Path(first_line.split(":", 1)[1].strip())
+    if not git_dir.is_absolute():
+        git_dir = (cwd / git_dir).resolve()
+    if git_dir.parent.name != "worktrees":
+        return None
+    common_git_dir = git_dir.parent.parent
+    if common_git_dir.name != ".git":
+        return None
+    return common_git_dir.parent / ".env"

@@ -65,6 +65,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
         self.selection = selection
         self.raw_mating = raw_mating
         self.radiator_span_max = radiator_span_max
+        memory_cfg = controller_parameters.get("memory", {}) if isinstance(controller_parameters, dict) else {}
+        self.recent_window = max(1, int(memory_cfg.get("recent_window", 32)))
         self.design_variable_ids = [
             str(item["variable_id"]) for item in self.optimization_spec.get("design_variables", [])
         ]
@@ -239,7 +241,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
             controller_trace=self.controller_trace,
             operator_trace=self.operator_trace,
             history=problem.history,
-            recent_window=32,
+            recent_window=self.recent_window,
         )
         decision = select_controller_decision(self.controller, state, self.operator_ids, rng)
         return {
