@@ -93,3 +93,16 @@ def test_decision_log_uses_accepted_evaluation_index_from_attempt_traces(tmp_pat
 
     assert first_row["user_prompt"] == "accepted prompt"
     assert first_row["response_text"] == "accepted response"
+
+
+def test_llm_decision_summary_reports_route_family_counts_and_entropy(tmp_path: Path) -> None:
+    llm_mode_root = create_mode_root_with_seed_bundles(tmp_path, mode="llm", seeds=(11,))
+
+    build_llm_decision_summaries(llm_mode_root)
+    payload = json.loads((llm_mode_root / "summaries" / "llm_decision_summary.json").read_text(encoding="utf-8"))
+
+    assert payload["route_family_counts"] == {
+        "stable_local": 1,
+        "sink_retarget": 1,
+    }
+    assert payload["route_family_entropy"] == 1.0

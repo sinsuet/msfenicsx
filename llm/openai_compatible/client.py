@@ -24,6 +24,7 @@ class OpenAICompatibleDecision:
     capability_profile: str
     performance_profile: str
     raw_payload: dict[str, Any]
+    selected_intent: str | None = None
 
 
 class OpenAICompatibleClient:
@@ -145,6 +146,11 @@ class OpenAICompatibleClient:
             )
         return OpenAICompatibleDecision(
             selected_operator_id=selected_operator_id,
+            selected_intent=(
+                None
+                if payload.get("selected_intent") in (None, "")
+                else str(payload.get("selected_intent")).strip()
+            ),
             phase=str(payload.get("phase", "")),
             rationale=str(payload.get("rationale", "")),
             provider=self.config.provider,
@@ -287,6 +293,8 @@ class OpenAICompatibleClient:
         }
         if self.config.temperature is not None:
             request_payload["temperature"] = self.config.temperature
+        if self.config.reasoning:
+            request_payload["reasoning"] = dict(self.config.reasoning)
         response = http_client.post(
             self._resolve_chat_completions_url(),
             headers={
@@ -315,8 +323,10 @@ class OpenAICompatibleClient:
                 normalized_prompt = f"{normalized_prompt}{suffix}"
         return (
             f"{normalized_prompt.rstrip()} "
-            "Return exactly one JSON object with the keys selected_operator_id, phase, and rationale. "
+            "Return exactly one JSON object with the keys selected_operator_id, phase, rationale, "
+            "and optional selected_intent. "
             f"The selected_operator_id value must exactly equal one of {list(candidate_operator_ids)}. "
+            "If selected_intent is present, keep it short and route-like. "
             "Set phase to a short search-phase label when available. "
             "Set rationale to a brief explanation of the operator choice."
         )
@@ -338,7 +348,8 @@ class OpenAICompatibleClient:
         return (
             f"{system_prompt.rstrip()} "
             "Previous response was invalid. "
-            "It must return JSON only with the keys selected_operator_id, phase, and rationale. "
+            "It must return JSON only with the keys selected_operator_id, phase, rationale, "
+            "and optional selected_intent. "
             f"The selected_operator_id value must exactly equal one of {list(operator_ids)}. "
             f"Invalid reason: {error_message}"
         )

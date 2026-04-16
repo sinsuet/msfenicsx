@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from optimizers.operator_pool.route_families import route_family_counts, route_family_entropy
 from optimizers.run_telemetry import load_jsonl_rows
 
 
@@ -123,23 +124,34 @@ def build_llm_decision_summary(
     controller_rows: Sequence[Mapping[str, Any]],
     response_rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
+    normalized_controller_rows = [
+        {
+            **dict(row),
+            "policy_phase": str(
+                dict(row.get("metadata", {})).get("policy_phase")
+                or dict(row.get("metadata", {})).get("guardrail_policy_phase")
+                or row.get("phase", "")
+            ),
+        }
+        for row in controller_rows
+    ]
     operator_counts = Counter(
         str(row.get("selected_operator_id", ""))
-        for row in controller_rows
+        for row in normalized_controller_rows
         if row.get("selected_operator_id")
     )
     phase_counts = Counter(
         str(row.get("phase", ""))
-        for row in controller_rows
+        for row in normalized_controller_rows
         if row.get("phase")
     )
     fallback_count = sum(
         1
-        for row in controller_rows
+        for row in normalized_controller_rows
         if bool(dict(row.get("metadata", {})).get("fallback_used", False))
     )
     guardrail_reason_counts: Counter[str] = Counter()
-    for row in controller_rows:
+    for row in normalized_controller_rows:
         metadata = dict(row.get("metadata", {}))
         raw_values = metadata.get("guardrail_reason_codes", [])
         if isinstance(raw_values, Sequence) and not isinstance(raw_values, (str, bytes)):
@@ -147,14 +159,20 @@ def build_llm_decision_summary(
                 guardrail_reason_counts[str(value)] += 1
         elif raw_values:
             guardrail_reason_counts[str(raw_values)] += 1
+    all_route_family_counts = route_family_counts(normalized_controller_rows)
+    expand_route_counts = route_family_counts(normalized_controller_rows, phase="post_feasible_expand")
     return {
-        "decision_count": int(len(controller_rows)),
+        "decision_count": int(len(normalized_controller_rows)),
         "response_row_count": int(len(response_rows)),
         "fallback_selection_count": int(fallback_count),
-        "llm_valid_selection_count": int(len(controller_rows) - fallback_count),
+        "llm_valid_selection_count": int(len(normalized_controller_rows) - fallback_count),
         "operator_counts": dict(operator_counts),
         "phase_counts": dict(phase_counts),
         "guardrail_reason_counts": dict(guardrail_reason_counts),
+        "route_family_counts": all_route_family_counts,
+        "route_family_entropy": route_family_entropy(all_route_family_counts),
+        "expand_route_family_counts": expand_route_counts,
+        "expand_route_family_entropy": route_family_entropy(expand_route_counts),
     }
 
 

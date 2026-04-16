@@ -11,6 +11,8 @@ from optimizers.operator_pool.domain_state import (
     build_domain_regime,
     build_history_lookup,
     build_parent_state,
+    decision_vector_from_values,
+    build_spatial_motif_panel,
     build_prompt_parent_panel,
     build_prompt_regime_panel,
     build_prefeasible_reset_summary,
@@ -20,6 +22,7 @@ from optimizers.operator_pool.domain_state import (
 from optimizers.operator_pool.models import ParentBundle
 from optimizers.operator_pool.operators import get_operator_behavior_profile
 from optimizers.operator_pool.reflection import summarize_operator_history
+from optimizers.operator_pool.route_families import expand_budget_family_metrics, operator_route_family
 from optimizers.operator_pool.state import ControllerState
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 
@@ -110,7 +113,6 @@ def _build_recent_operator_counts(operator_summary: dict[str, dict[str, Any]]) -
         for operator_id, summary in operator_summary.items()
         if int(summary.get("recent_selection_count", 0)) > 0
     }
-
 
 def _build_recent_operator_counts_from_decisions(
     recent_decisions: Sequence[Mapping[str, Any]],
@@ -235,8 +237,6 @@ def _build_prompt_generation_panel(
             if isinstance(summary, Mapping)
         },
     }
-
-
 def _build_prompt_run_panel(
     *,
     run_state: Mapping[str, Any],
@@ -264,18 +264,26 @@ def _build_prompt_operator_panel(
     *,
     operator_summary: Mapping[str, Any],
     candidate_operator_ids: Sequence[str],
+    spatial_panel: Mapping[str, Any] | None = None,
     regime_panel: Mapping[str, Any],
 ) -> dict[str, dict[str, Any]]:
     operator_panel: dict[str, dict[str, Any]] = {}
-    objective_balance = regime_panel.get("objective_balance")
-    if not isinstance(objective_balance, Mapping):
-        objective_balance = None
+    expand_budget_metrics = expand_budget_family_metrics(
+        candidate_operator_ids,
+        summary_by_operator={
+            str(operator_id): dict(summary)
+            for operator_id, summary in operator_summary.items()
+            if isinstance(summary, Mapping)
+        },
+    )
     for operator_id in candidate_operator_ids:
         normalized_operator_id = str(operator_id)
         summary = operator_summary.get(normalized_operator_id, {})
-        summary_row = dict(summary) if isinstance(summary, Mapping) else {}
+        if not isinstance(summary, Mapping):
+            summary = {}
+        expand_budget_state = expand_budget_metrics.get(operator_route_family(normalized_operator_id), {})
         operator_panel[normalized_operator_id] = {
-            key: summary_row[key]
+            key: summary[key]
             for key in (
                 "entry_fit",
                 "preserve_fit",
@@ -284,14 +292,28 @@ def _build_prompt_operator_panel(
                 "frontier_evidence",
                 "dominant_violation_relief",
             )
-            if key in summary_row
+            if key in summary
         }
+        operator_panel[normalized_operator_id].update(
+            {
+                "recent_expand_preserve_credit": int(
+                    expand_budget_state.get("recent_expand_feasible_preservation_count", 0)
+                ),
+                "recent_expand_regression_credit": int(
+                    expand_budget_state.get("recent_expand_feasible_regression_count", 0)
+                ),
+                "recent_expand_frontier_credit": int(
+                    expand_budget_state.get("recent_expand_frontier_add_count", 0)
+                ),
+                "expand_budget_status": str(expand_budget_state.get("expand_budget_status", "neutral")),
+            }
+        )
         operator_panel[normalized_operator_id].update(
             _build_operator_applicability_row(
                 normalized_operator_id,
-                summary_row=summary_row,
+                summary_row=summary,
+                spatial_panel=spatial_panel,
                 regime_panel=regime_panel,
-                objective_balance=objective_balance,
             )
         )
     return operator_panel
@@ -307,6 +329,18 @@ def _phase_fit_key(phase: str) -> str:
 
 def _clamp_applicability_score(score: int) -> int:
     return max(0, min(len(_APPLICABILITY_LABELS) - 1, int(score)))
+
+
+def _qualitative_rank(score: int) -> int:
+    if score >= 3:
+        return 2
+    if score >= 1:
+        return 1
+    return 0
+
+
+def _qualitative_level(score: int) -> str:
+    return _APPLICABILITY_LABELS[_qualitative_rank(score)]
 
 
 def _objective_balance_effect_matches(
@@ -342,9 +376,7 @@ def _cap_weak_speculative_custom_applicability(
     ):
         return applicability_score
 
-    operator_family = str(
-        summary_row.get("operator_family") or get_operator_behavior_profile(operator_id).family
-    )
+    operator_family = str(summary_row.get("operator_family") or get_operator_behavior_profile(operator_id).family)
     if operator_family != "speculative_custom":
         return applicability_score
     if str(summary_row.get("entry_fit", "weak")) != "weak":
@@ -357,20 +389,124 @@ def _cap_weak_speculative_custom_applicability(
     return min(applicability_score, _FIT_SCORES["supported"])
 
 
+def _merge_feasibility_risk(primary: str, secondary: str | None) -> str:
+    risk_rank = {"low": 0, "medium": 1, "high": 2}
+    primary_label = str(primary or "low")
+    secondary_label = str(secondary or primary_label)
+    if risk_rank.get(secondary_label, -1) > risk_rank.get(primary_label, -1):
+        return secondary_label
+    return primary_label
+
+
+def _offset_reason(offset: float, *, inside_sink_window: bool) -> str:
+    if inside_sink_window:
+        return "hotspot centroid already sits inside the current sink corridor."
+    if offset > 0.0:
+        return "hotspot centroid sits to the right of the current sink corridor."
+    return "hotspot centroid sits to the left of the current sink corridor."
+
+
+def _build_spatial_operator_support_row(
+    operator_id: str,
+    *,
+    spatial_panel: Mapping[str, Any] | None,
+    regime_panel: Mapping[str, Any],
+) -> tuple[int, dict[str, str]]:
+    if not isinstance(spatial_panel, Mapping) or not spatial_panel:
+        return 0, {
+            "expected_feasibility_risk": "low",
+            "spatial_match_reason": "state provides only generic support for this operator.",
+        }
+
+    hotspot_offset = float(spatial_panel.get("hotspot_to_sink_offset", 0.0))
+    inside_sink_window = bool(spatial_panel.get("hotspot_inside_sink_window", False))
+    cluster_compactness = float(spatial_panel.get("hottest_cluster_compactness", 0.0))
+    nearest_neighbor_gap_min = float(spatial_panel.get("nearest_neighbor_gap_min", 1.0))
+    sink_budget_bucket = str(spatial_panel.get("sink_budget_bucket") or "available")
+    phase = str(regime_panel.get("phase") or "")
+    frontier_pressure = str(regime_panel.get("frontier_pressure") or "low")
+    preservation_pressure = str(regime_panel.get("preservation_pressure") or "low")
+    absolute_offset = abs(hotspot_offset)
+    low_gap = nearest_neighbor_gap_min < 0.11
+    compact_cluster = cluster_compactness < 0.13
+    sink_aligned_expand = phase == "post_feasible_expand" and inside_sink_window and compact_cluster
+
+    applicability_score = 0
+    expected_feasibility_risk = "low"
+    spatial_match_reason = "state provides only generic support for this operator."
+
+    if operator_id == "slide_sink":
+        applicability_score = (2 if not inside_sink_window else 0) + (1 if absolute_offset >= 0.10 else 0)
+        expected_feasibility_risk = "medium" if sink_budget_bucket == "full_sink" else "low"
+        spatial_match_reason = _offset_reason(hotspot_offset, inside_sink_window=inside_sink_window)
+    elif operator_id == "move_hottest_cluster_toward_sink":
+        applicability_score = (2 if not inside_sink_window else 0) + (1 if absolute_offset >= 0.08 else 0)
+        expected_feasibility_risk = "medium"
+        spatial_match_reason = (
+            "hot cluster already sits inside the sink corridor, so further sink retargeting has limited leverage."
+            if inside_sink_window
+            else "hot cluster is misaligned with the sink corridor and can be translated toward it."
+        )
+    elif operator_id == "spread_hottest_cluster":
+        applicability_score = (2 if compact_cluster else 0) + (1 if low_gap else 0) + (1 if sink_aligned_expand else 0)
+        expected_feasibility_risk = "low" if sink_aligned_expand and preservation_pressure != "low" else "medium"
+        spatial_match_reason = (
+            "hot cluster already sits inside the sink corridor, so a bounded spread is the direct way "
+            "to open local space without retargeting the sink."
+            if sink_aligned_expand
+            else "hot cluster is compact enough that spreading can relieve local peak pressure."
+        )
+    elif operator_id == "smooth_high_gradient_band":
+        applicability_score = (2 if frontier_pressure == "high" else 0) + (1 if compact_cluster else 0)
+        expected_feasibility_risk = "low"
+        spatial_match_reason = "post-feasible refinement is still gradient-limited in the current regime."
+    elif operator_id == "reduce_local_congestion":
+        applicability_score = (2 if low_gap else 0) + (1 if compact_cluster else 0)
+        expected_feasibility_risk = "low"
+        spatial_match_reason = "closest packed components indicate a local congestion bottleneck."
+    elif operator_id == "repair_sink_budget":
+        applicability_score = 3 if sink_budget_bucket == "full_sink" else 1 if sink_budget_bucket == "tight" else 0
+        expected_feasibility_risk = "low"
+        spatial_match_reason = "sink span utilization suggests the budget may need protection."
+    elif operator_id == "rebalance_layout":
+        applicability_score = (1 if absolute_offset >= 0.10 else 0) + (2 if low_gap else 0)
+        expected_feasibility_risk = "medium"
+        spatial_match_reason = "layout shows both sink misalignment and crowding pressure."
+    elif operator_id == "local_refine":
+        applicability_score = (2 if preservation_pressure == "high" else 0) + (1 if low_gap else 0)
+        expected_feasibility_risk = "low"
+        spatial_match_reason = "current regime favors low-risk local cleanup around the incumbent basin."
+    elif operator_id == "global_explore":
+        applicability_score = 2 if phase.startswith("prefeasible") or frontier_pressure == "high" else 1
+        expected_feasibility_risk = "medium"
+        spatial_match_reason = "broader exploration remains useful when the controller still needs diversification."
+    elif operator_id == "native_sbx_pm":
+        applicability_score = 1
+        expected_feasibility_risk = "low"
+        spatial_match_reason = "native baseline crossover remains a safe fallback anchor."
+
+    return _qualitative_rank(applicability_score), {
+        "expected_feasibility_risk": expected_feasibility_risk,
+        "spatial_match_reason": spatial_match_reason,
+    }
+
+
 def _build_operator_applicability_row(
     operator_id: str,
     *,
-    summary_row: Mapping[str, Any],
+    summary_row: Mapping[str, Any] | None = None,
+    spatial_panel: Mapping[str, Any] | None = None,
     regime_panel: Mapping[str, Any],
     objective_balance: Mapping[str, Any] | None = None,
 ) -> dict[str, str]:
+    summary = dict(summary_row) if isinstance(summary_row, Mapping) else {}
     phase = str(regime_panel.get("phase", ""))
     fit_key = _phase_fit_key(phase)
-    fit_value = str(summary_row.get(fit_key, "weak"))
+    fit_value = str(summary.get(fit_key, "weak"))
     applicability_score = _FIT_SCORES.get(fit_value, 0)
-    regression_risk = str(summary_row.get("recent_regression_risk", "medium"))
-    frontier_evidence = str(summary_row.get("frontier_evidence", "none"))
-    dominant_violation_relief = str(summary_row.get("dominant_violation_relief", "none"))
+    regression_risk = str(summary.get("recent_regression_risk", "medium"))
+    frontier_evidence = str(summary.get("frontier_evidence", "none"))
+    dominant_violation_relief = str(summary.get("dominant_violation_relief", "none"))
 
     if phase == "post_feasible_expand" and frontier_evidence == "positive":
         applicability_score += 1
@@ -388,6 +524,9 @@ def _build_operator_applicability_row(
             },
         )
     )
+    if objective_balance is None:
+        panel_objective_balance = regime_panel.get("objective_balance")
+        objective_balance = panel_objective_balance if isinstance(panel_objective_balance, Mapping) else None
     if isinstance(objective_balance, Mapping):
         pressure = str(objective_balance.get("balance_pressure", "low"))
         preferred_effect = str(objective_balance.get("preferred_effect") or "")
@@ -396,14 +535,14 @@ def _build_operator_applicability_row(
                 applicability_score += 1
             elif preferred_effect == "gradient_improve" and effects["expected_gradient_effect"] == "improve":
                 applicability_score += 1
-            elif (
-                preferred_effect == "balanced"
-                and "improve" in {effects["expected_peak_effect"], effects["expected_gradient_effect"]}
-            ):
+            elif preferred_effect == "balanced" and "improve" in {
+                effects["expected_peak_effect"],
+                effects["expected_gradient_effect"],
+            }:
                 applicability_score += 1
         applicability_score = _cap_weak_speculative_custom_applicability(
             operator_id=operator_id,
-            summary_row=summary_row,
+            summary_row=summary,
             frontier_evidence=frontier_evidence,
             dominant_violation_relief=dominant_violation_relief,
             objective_balance=objective_balance,
@@ -411,11 +550,123 @@ def _build_operator_applicability_row(
             applicability_score=applicability_score,
         )
 
-    applicability = _APPLICABILITY_LABELS[_clamp_applicability_score(applicability_score)]
+    summary_rank = _clamp_applicability_score(applicability_score)
+    spatial_rank, spatial_row = _build_spatial_operator_support_row(
+        operator_id,
+        spatial_panel=spatial_panel,
+        regime_panel=regime_panel,
+    )
     return {
-        **effects,
-        "expected_feasibility_risk": regression_risk,
-        "applicability": applicability,
+        "applicability": _APPLICABILITY_LABELS[max(summary_rank, spatial_rank)],
+        "expected_peak_effect": str(effects["expected_peak_effect"]),
+        "expected_gradient_effect": str(effects["expected_gradient_effect"]),
+        "expected_feasibility_risk": _merge_feasibility_risk(
+            regression_risk,
+            spatial_row.get("expected_feasibility_risk"),
+        ),
+        "spatial_match_reason": str(
+            spatial_row.get("spatial_match_reason", "state provides only generic support for this operator.")
+        ),
+    }
+
+
+def _build_retrieval_panel(
+    *,
+    operator_summary: Mapping[str, Any],
+    candidate_operator_ids: Sequence[str],
+    regime_panel: Mapping[str, Any],
+    spatial_panel: Mapping[str, Any],
+) -> dict[str, Any]:
+    query_regime = {
+        "phase": str(regime_panel.get("phase") or ""),
+        "dominant_violation_family": str(regime_panel.get("dominant_violation_family") or ""),
+        "sink_budget_bucket": str(spatial_panel.get("sink_budget_bucket") or "unknown"),
+    }
+    candidate_set = {str(operator_id) for operator_id in candidate_operator_ids}
+    matched_episodes: list[dict[str, Any]] = []
+    positive_matches: list[dict[str, Any]] = []
+    negative_matches: list[dict[str, Any]] = []
+    for operator_id, summary in operator_summary.items():
+        normalized_operator_id = str(operator_id)
+        if normalized_operator_id not in candidate_set or not isinstance(summary, Mapping):
+            continue
+        credit_by_regime = summary.get("credit_by_regime", {})
+        if not isinstance(credit_by_regime, Mapping):
+            continue
+        for regime_key, evidence in credit_by_regime.items():
+            if not isinstance(regime_key, tuple) or len(regime_key) != 3 or not isinstance(evidence, Mapping):
+                continue
+            phase, dominant_violation_family, sink_budget_bucket = (str(value) for value in regime_key)
+            similarity_score = 0
+            if phase == query_regime["phase"]:
+                similarity_score += 3
+            if dominant_violation_family == query_regime["dominant_violation_family"]:
+                similarity_score += 2
+            if sink_budget_bucket == query_regime["sink_budget_bucket"]:
+                similarity_score += 1
+            if similarity_score <= 0:
+                continue
+            matched_episodes.append(
+                episode := {
+                    "operator_id": normalized_operator_id,
+                    "similarity_score": similarity_score,
+                    "regime": {
+                        "phase": phase,
+                        "dominant_violation_family": dominant_violation_family,
+                        "sink_budget_bucket": sink_budget_bucket,
+                    },
+                    "evidence": {
+                        "frontier_add_count": int(evidence.get("frontier_add_count", 0)),
+                        "feasible_preservation_count": int(evidence.get("feasible_preservation_count", 0)),
+                        "feasible_regression_count": int(evidence.get("feasible_regression_count", 0)),
+                        "avg_objective_delta": float(evidence.get("avg_objective_delta", 0.0)),
+                        "avg_total_violation_delta": float(evidence.get("avg_total_violation_delta", 0.0)),
+                    },
+                }
+            )
+            evidence_row = episode["evidence"]
+            if (
+                int(evidence_row["frontier_add_count"]) > 0
+                or int(evidence_row["feasible_preservation_count"]) > 0
+                or float(evidence_row["avg_objective_delta"]) < 0.0
+                or float(evidence_row["avg_total_violation_delta"]) < 0.0
+            ):
+                positive_matches.append(dict(episode))
+            if (
+                int(evidence_row["feasible_regression_count"]) > 0
+                or float(evidence_row["avg_objective_delta"]) > 0.0
+                or float(evidence_row["avg_total_violation_delta"]) > 0.0
+            ):
+                negative_matches.append(dict(episode))
+    matched_episodes.sort(
+        key=lambda row: (
+            -int(row["similarity_score"]),
+            -int(row["evidence"]["frontier_add_count"]),
+            -int(row["evidence"]["feasible_preservation_count"]),
+            float(row["evidence"]["avg_objective_delta"]),
+        )
+    )
+    positive_matches.sort(
+        key=lambda row: (
+            -int(row["similarity_score"]),
+            -int(row["evidence"]["frontier_add_count"]),
+            -int(row["evidence"]["feasible_preservation_count"]),
+            float(row["evidence"]["avg_objective_delta"]),
+        )
+    )
+    negative_matches.sort(
+        key=lambda row: (
+            -int(row["similarity_score"]),
+            -int(row["evidence"]["feasible_regression_count"]),
+            -float(row["evidence"]["avg_total_violation_delta"]),
+            -float(row["evidence"]["avg_objective_delta"]),
+        )
+    )
+    return {
+        "query_regime": query_regime,
+        "matched_episodes": matched_episodes[:3],
+        "positive_matches": positive_matches[:2],
+            "negative_matches": negative_matches[:1],
     }
 
 
@@ -450,6 +701,11 @@ def build_controller_state(
         normalized_generation_target_offsprings = None
     else:
         normalized_generation_target_offsprings = int(generation_target_offsprings)
+    sink_budget_limit = (
+        None
+        if state_metadata.get("radiator_span_max") is None
+        else float(state_metadata["radiator_span_max"])
+    )
     state_metadata["candidate_operator_ids"] = [str(operator_id) for operator_id in candidate_operator_ids]
     state_metadata["recent_decisions"] = _combined_recent_decisions(
         controller_rows,
@@ -462,6 +718,7 @@ def build_controller_state(
         recent_window=recent_window,
         history=history_rows,
         design_variable_ids=design_variable_ids,
+        sink_budget_limit=sink_budget_limit,
     )
     state_metadata["operator_summary"] = operator_summary
     state_metadata["historical_recent_operator_counts"] = _build_recent_operator_counts(operator_summary)
@@ -474,11 +731,6 @@ def build_controller_state(
     )
     state_metadata["generation_local_memory"] = generation_local_memory
     if history_rows:
-        sink_budget_limit = (
-            None
-            if state_metadata.get("radiator_span_max") is None
-            else float(state_metadata["radiator_span_max"])
-        )
         run_state = build_run_state(
             generation_index=generation_index,
             evaluation_index=evaluation_index,
@@ -525,13 +777,32 @@ def build_controller_state(
         state_metadata["domain_regime"] = domain_regime
         state_metadata["progress_state"] = progress_state
         state_metadata["search_phase"] = str(state_metadata.get("search_phase") or domain_regime["phase"])
+        focus_vector = (
+            decision_vector_from_values(parents.primary.tolist(), design_variable_ids)
+            if design_variable_ids is not None
+            else None
+        )
+        spatial_panel = build_spatial_motif_panel(
+            decision_vector=focus_vector,
+            sink_budget_limit=sink_budget_limit,
+            run_state=run_state,
+        )
+        retrieval_panel = _build_retrieval_panel(
+            operator_summary=operator_summary,
+            candidate_operator_ids=candidate_operator_ids,
+            regime_panel=regime_panel,
+            spatial_panel=spatial_panel,
+        )
         state_metadata["prompt_panels"] = {
             "run_panel": _build_prompt_run_panel(run_state=run_state, archive_state=archive_state),
             "regime_panel": regime_panel,
             "parent_panel": build_prompt_parent_panel(parent_state),
+            "spatial_panel": spatial_panel,
+            "retrieval_panel": retrieval_panel,
             "operator_panel": _build_prompt_operator_panel(
                 operator_summary=operator_summary,
                 candidate_operator_ids=candidate_operator_ids,
+                spatial_panel=spatial_panel,
                 regime_panel=regime_panel,
             ),
             "generation_panel": _build_prompt_generation_panel(generation_local_memory),

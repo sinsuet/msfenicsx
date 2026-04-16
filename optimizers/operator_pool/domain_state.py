@@ -13,6 +13,7 @@ from optimizers.operator_pool.operators import get_operator_behavior_profile
 _RECENT_FRONTIER_WINDOW = 4
 _OBJECTIVE_STAGNATION_THRESHOLD = 6
 _OBJECTIVE_BALANCE_STALENESS_GAP_THRESHOLD = 24
+_EXPAND_SATURATION_THRESHOLD = 24
 
 
 def vector_key(values: Sequence[float], *, ndigits: int = 12) -> tuple[float, ...]:
@@ -107,6 +108,174 @@ def _sink_span_from_record(record: Mapping[str, Any] | None) -> float | None:
     if record is None:
         return None
     return _sink_span_from_decision_vector(record.get("decision_vector"))
+
+
+def _component_point_rows(
+    decision_vector: Mapping[str, Any] | None,
+) -> list[tuple[str, float, float]]:
+    if not isinstance(decision_vector, Mapping):
+        return []
+    x_values: dict[str, float] = {}
+    y_values: dict[str, float] = {}
+    for key, value in decision_vector.items():
+        normalized_key = str(key)
+        if normalized_key.endswith("_x"):
+            x_values[normalized_key[:-2]] = float(value)
+        elif normalized_key.endswith("_y"):
+            y_values[normalized_key[:-2]] = float(value)
+    component_ids = sorted(set(x_values) & set(y_values))
+    return [
+        (component_id, float(x_values[component_id]), float(y_values[component_id]))
+        for component_id in component_ids
+    ]
+
+
+def _normalize_metric(values: np.ndarray) -> np.ndarray:
+    if values.size <= 0:
+        return values
+    span = float(np.max(values) - np.min(values))
+    if span <= 1.0e-12:
+        return np.zeros_like(values)
+    return (values - float(np.min(values))) / span
+
+
+def _nearest_neighbor_distances(points: np.ndarray) -> np.ndarray:
+    count = int(points.shape[0])
+    if count <= 1:
+        return np.ones(count, dtype=np.float64)
+    distances = np.full(count, np.inf, dtype=np.float64)
+    for index in range(count):
+        delta = points - points[index]
+        norms = np.linalg.norm(delta, axis=1)
+        norms[index] = np.inf
+        distances[index] = float(np.min(norms))
+    distances[~np.isfinite(distances)] = 1.0
+    return distances
+
+
+def _closest_pair_indices(points: np.ndarray) -> tuple[int, int] | None:
+    if int(points.shape[0]) < 2:
+        return None
+    best_pair: tuple[int, int] | None = None
+    best_distance = float("inf")
+    for left_index in range(points.shape[0]):
+        for right_index in range(left_index + 1, points.shape[0]):
+            distance = float(np.linalg.norm(points[right_index] - points[left_index]))
+            if distance < best_distance:
+                best_distance = distance
+                best_pair = (left_index, right_index)
+    return best_pair
+
+
+def _sink_interval_from_decision_vector(
+    decision_vector: Mapping[str, Any] | None,
+) -> tuple[float, float] | None:
+    if not isinstance(decision_vector, Mapping):
+        return None
+    if "sink_start" in decision_vector and "sink_end" in decision_vector:
+        return float(decision_vector["sink_start"]), float(decision_vector["sink_end"])
+    start_key = None
+    end_key = None
+    for key in decision_vector:
+        normalized = str(key).lower()
+        if start_key is None and normalized.endswith("start"):
+            start_key = str(key)
+        if end_key is None and normalized.endswith("end"):
+            end_key = str(key)
+    if start_key is None or end_key is None:
+        return None
+    return float(decision_vector[start_key]), float(decision_vector[end_key])
+
+
+def sink_budget_bucket(utilization: float | None) -> str | None:
+    if utilization is None:
+        return None
+    if float(utilization) >= 0.95:
+        return "full_sink"
+    if float(utilization) >= 0.75:
+        return "tight"
+    return "available"
+
+
+def build_spatial_motif_panel(
+    *,
+    decision_vector: Mapping[str, Any] | None,
+    sink_budget_limit: float | None,
+    run_state: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    component_rows = _component_point_rows(decision_vector)
+    if not component_rows:
+        return {}
+    component_ids = [component_id for component_id, _, _ in component_rows]
+    points = np.asarray([[x_value, y_value] for _, x_value, y_value in component_rows], dtype=np.float64)
+    sink_interval = _sink_interval_from_decision_vector(decision_vector)
+    sink_start = 0.0 if sink_interval is None else float(sink_interval[0])
+    sink_end = 1.0 if sink_interval is None else float(sink_interval[1])
+    sink_center = 0.5 * (sink_start + sink_end)
+    nearest_neighbor_distances = _nearest_neighbor_distances(points)
+    crowding = 1.0 / np.maximum(nearest_neighbor_distances, 1.0e-6)
+    y_distance_from_sink = float(np.max(points[:, 1])) - points[:, 1]
+    x_alignment = np.abs(points[:, 0] - sink_center)
+    scores = (
+        0.5 * _normalize_metric(crowding)
+        + 0.35 * _normalize_metric(y_distance_from_sink)
+        + 0.15 * _normalize_metric(x_alignment)
+    )
+    cluster_size = min(max(2, len(component_rows) // 5 + 1), len(component_rows))
+    cluster_indices = np.argsort(scores)[::-1][:cluster_size]
+    cluster_points = points[np.asarray(cluster_indices, dtype=np.int64)]
+    cluster_centroid = np.mean(cluster_points, axis=0)
+    cluster_compactness = float(np.mean(np.linalg.norm(cluster_points - cluster_centroid, axis=1)))
+    sink_span = max(0.0, sink_end - sink_start)
+    sink_utilization = (
+        None
+        if sink_budget_limit is None or float(sink_budget_limit) <= 0.0
+        else float(sink_span) / float(sink_budget_limit)
+    )
+    closest_pair = _closest_pair_indices(points)
+    nearest_neighbor_gap_min = float(np.min(nearest_neighbor_distances)) if nearest_neighbor_distances.size > 0 else None
+    layout_x_span = float(np.max(points[:, 0]) - np.min(points[:, 0]))
+    layout_y_span = float(np.max(points[:, 1]) - np.min(points[:, 1]))
+    layout_bbox_fill_ratio = float(
+        min(1.0, (layout_x_span * layout_y_span) / max(1.0e-6, 0.7 * 0.7))
+    )
+
+    if run_state is None:
+        frontier_tradeoff_direction = "balanced"
+    else:
+        peak_temperature = run_state.get("peak_temperature")
+        gradient_rms = run_state.get("temperature_gradient_rms")
+        if peak_temperature is None or gradient_rms is None:
+            frontier_tradeoff_direction = "balanced"
+        elif float(peak_temperature) >= 345.0 and float(gradient_rms) <= 9.5:
+            frontier_tradeoff_direction = "peak_pressure"
+        elif float(gradient_rms) >= 10.5 and float(peak_temperature) <= 345.0:
+            frontier_tradeoff_direction = "gradient_pressure"
+        else:
+            frontier_tradeoff_direction = "balanced"
+
+    spatial_panel: dict[str, Any] = {
+        "hotspot_to_sink_offset": float(cluster_centroid[0] - sink_center),
+        "hotspot_inside_sink_window": bool(sink_start <= float(cluster_centroid[0]) <= sink_end),
+        "hottest_cluster_centroid": {
+            "x": float(cluster_centroid[0]),
+            "y": float(cluster_centroid[1]),
+        },
+        "hottest_cluster_compactness": cluster_compactness,
+        "nearest_neighbor_gap_min": nearest_neighbor_gap_min,
+        "sink_budget_bucket": sink_budget_bucket(sink_utilization),
+        "sink_center": float(sink_center),
+        "sink_span": float(sink_span),
+        "layout_bbox_fill_ratio": layout_bbox_fill_ratio,
+        "frontier_tradeoff_direction": frontier_tradeoff_direction,
+    }
+    if closest_pair is not None and nearest_neighbor_gap_min is not None:
+        left_index, right_index = closest_pair
+        spatial_panel["local_congestion_pair"] = {
+            "component_ids": [component_ids[left_index], component_ids[right_index]],
+            "gap": nearest_neighbor_gap_min,
+        }
+    return spatial_panel
 
 
 def _reference_record_for_run_state(history: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
@@ -404,6 +573,48 @@ def build_run_state(
     return run_state
 
 
+def _build_objective_stagnation(
+    ordered_history: list[Mapping[str, Any]],
+    first_feasible_eval: int | None,
+    latest_completed_eval: int,
+) -> dict[str, dict[str, Any]]:
+    """Track per-objective stagnation across feasible evaluations."""
+    objective_keys = {
+        "temperature_max": "summary.temperature_max",
+        "gradient_rms": "summary.temperature_gradient_rms",
+    }
+    result: dict[str, dict[str, Any]] = {}
+    for short_key, metric_key in objective_keys.items():
+        best_value: float | None = None
+        last_improvement_eval: int | None = None
+        for row in ordered_history:
+            if not bool(row.get("feasible", False)):
+                continue
+            if str(row.get("source", "")).strip().lower() == "baseline":
+                continue
+            eval_index = int(row.get("evaluation_index", 0))
+            value = _metric_from_record(row, metric_key)
+            if value is None:
+                continue
+            if best_value is None or value < best_value:
+                best_value = value
+                last_improvement_eval = eval_index
+        if best_value is None or last_improvement_eval is None:
+            result[short_key] = {
+                "best_value": None,
+                "evaluations_since_improvement": None,
+                "stagnant": False,
+            }
+        else:
+            evals_since = max(0, latest_completed_eval - last_improvement_eval)
+            result[short_key] = {
+                "best_value": float(best_value),
+                "evaluations_since_improvement": int(evals_since),
+                "stagnant": evals_since >= _OBJECTIVE_STAGNATION_THRESHOLD,
+            }
+    return result
+
+
 def build_progress_state(
     *,
     history: Sequence[Mapping[str, Any]],
@@ -422,9 +633,12 @@ def build_progress_state(
             "evaluations_since_near_feasible_improvement": None,
             "recent_dominant_violation_family": None,
             "recent_dominant_violation_persistence_count": 0,
+            "stable_preservation_streak": 0,
+            "new_dominant_violation_family": False,
             "recent_frontier_stagnation_count": 0,
             "post_feasible_mode": None,
             "objective_stagnation": _empty_objective_stagnation(),
+            "expand_saturation_count": 0,
         }
 
     ordered_history = sorted(progress_history, key=lambda row: int(row.get("evaluation_index", 0)))
@@ -461,6 +675,7 @@ def build_progress_state(
                 last_progress_eval = row_eval
 
     recent_dominant_violation_family: str | None = None
+    previous_dominant_violation_family: str | None = None
     recent_dominant_violation_persistence_count = 0
     for row in reversed(ordered_history):
         if bool(row.get("feasible", False)):
@@ -471,8 +686,21 @@ def build_progress_state(
         if recent_dominant_violation_family is None:
             recent_dominant_violation_family = family
         if family != recent_dominant_violation_family:
+            previous_dominant_violation_family = family
             break
         recent_dominant_violation_persistence_count += 1
+    new_dominant_violation_family = previous_dominant_violation_family is not None
+
+    stable_preservation_evaluation_indices = {
+        int(evaluation_index)
+        for evaluation_index in frontier_summary["feasible_preservation_evaluation_indices"]
+    }
+    stable_preservation_streak = 0
+    for row in reversed(ordered_history):
+        evaluation_index = int(row.get("evaluation_index", 0))
+        if evaluation_index not in stable_preservation_evaluation_indices:
+            break
+        stable_preservation_streak += 1
 
     first_feasible_found = first_feasible_eval is not None
     if last_progress_eval is None:
@@ -490,7 +718,9 @@ def build_progress_state(
     )
     if first_feasible_found:
         phase = "post_feasible_progress" if recent_no_progress_count == 0 else "post_feasible_stagnation"
-        if int(frontier_summary["recent_feasible_regression_count"]) > 0:
+        recent_feasible_regression_count = int(frontier_summary["recent_feasible_regression_count"])
+        recent_feasible_preservation_count = int(frontier_summary["recent_feasible_preservation_count"])
+        if new_dominant_violation_family or recent_feasible_regression_count > recent_feasible_preservation_count:
             post_feasible_mode = "recover"
         elif int(frontier_summary["recent_frontier_stagnation_count"]) >= 2:
             post_feasible_mode = "expand"
@@ -504,6 +734,19 @@ def build_progress_state(
         first_feasible_eval=first_feasible_eval,
         latest_completed_eval=latest_completed_eval,
     )
+
+    expand_saturation_count = 0
+    if first_feasible_found and post_feasible_mode == "expand":
+        last_frontier_add_eval = (
+            None
+            if not frontier_summary["frontier_add_evaluation_indices"]
+            else frontier_summary["frontier_add_evaluation_indices"][-1]
+        )
+        if last_frontier_add_eval is not None:
+            expand_saturation_count = max(0, latest_completed_eval - int(last_frontier_add_eval))
+        elif first_feasible_eval is not None:
+            expand_saturation_count = max(0, latest_completed_eval - first_feasible_eval)
+
     return {
         "phase": phase,
         "first_feasible_found": first_feasible_found,
@@ -518,8 +761,11 @@ def build_progress_state(
         "evaluations_since_near_feasible_improvement": evaluations_since_near_feasible_improvement,
         "recent_dominant_violation_family": recent_dominant_violation_family,
         "recent_dominant_violation_persistence_count": int(recent_dominant_violation_persistence_count),
+        "stable_preservation_streak": int(stable_preservation_streak),
+        "new_dominant_violation_family": bool(new_dominant_violation_family),
         "recent_frontier_stagnation_count": int(frontier_summary["recent_frontier_stagnation_count"]),
         "post_feasible_mode": post_feasible_mode,
+        "expand_saturation_count": int(expand_saturation_count),
         "objective_stagnation": objective_stagnation,
     }
 
@@ -747,6 +993,8 @@ def build_prompt_regime_panel(
     first_feasible_eval = run_state.get("first_feasible_eval")
     recent_feasible_regression_count = int(archive_state.get("recent_feasible_regression_count", 0))
     recent_frontier_stagnation_count = int(progress_state.get("recent_frontier_stagnation_count", 0))
+    stable_preservation_streak = int(progress_state.get("stable_preservation_streak", 0))
+    new_dominant_violation_family = bool(progress_state.get("new_dominant_violation_family", False))
 
     entry_pressure_score = 0
     if first_feasible_eval is None:
@@ -774,12 +1022,24 @@ def build_prompt_regime_panel(
         "entry_pressure": _pressure_level(entry_pressure_score),
         "preservation_pressure": _pressure_level(preservation_pressure_score),
         "frontier_pressure": _pressure_level(frontier_pressure_score),
+        "recover_exit_ready": bool(
+            first_feasible_eval is not None
+            and stable_preservation_streak >= 3
+            and recent_feasible_regression_count <= 0
+            and not new_dominant_violation_family
+        ),
     }
     objective_stagnation = progress_state.get("objective_stagnation", {})
     if isinstance(objective_stagnation, Mapping):
         regime_panel["objective_balance"] = _build_objective_balance(objective_stagnation)
     if domain_regime.get("sink_budget_utilization") is not None:
         regime_panel["sink_budget_utilization"] = float(domain_regime["sink_budget_utilization"])
+
+    expand_saturation_count = int(progress_state.get("expand_saturation_count", 0))
+    if expand_saturation_count > 0:
+        regime_panel["expand_saturation_pressure"] = min(
+            1.0, float(expand_saturation_count) / float(_EXPAND_SATURATION_THRESHOLD)
+        )
     return regime_panel
 
 

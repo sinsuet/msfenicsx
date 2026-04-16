@@ -8,6 +8,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from optimizers.operator_pool.operators import get_operator_behavior_profile
+from optimizers.operator_pool.route_families import (
+    ROUTE_FAMILY_BY_OPERATOR,
+    expand_budget_family_metrics,
+    operator_route_family,
+)
 from optimizers.operator_pool.state import ControllerState
 
 _STABLE_FAMILIES = frozenset({"native_baseline", "global_explore", "local_refine"})
@@ -27,6 +32,14 @@ _PREFEASIBLE_CONVERT_PERSISTENCE_THRESHOLD = 2
 _PEAK_BALANCE_ESCAPE_OPERATORS = frozenset(
     {"slide_sink", "move_hottest_cluster_toward_sink", "repair_sink_budget"}
 )
+_POST_FEASIBLE_RECOVER_SEMANTIC_VISIBLE = 1
+_POST_FEASIBLE_EXPAND_SEMANTIC_VISIBLE = 2
+_ROUTE_COOLDOWN_MIN_COUNT = 4
+_ROUTE_COOLDOWN_MIN_SHARE = 0.75
+_POST_FEASIBLE_ROUTE_FAMILY_DOMINANCE_WINDOW = 6
+_POST_FEASIBLE_ROUTE_FAMILY_DOMINANCE_MIN_COUNT = 5
+_POST_FEASIBLE_ROUTE_FAMILY_DOMINANCE_MIN_SHARE = 0.75
+_EXPAND_SATURATION_THRESHOLD = 24
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,9 +59,15 @@ def detect_search_phase(state: ControllerState) -> str:
         if _prefeasible_convert_active(state):
             return "prefeasible_convert"
         post_feasible_mode = str(progress_state.get("post_feasible_mode", "")).strip()
+        if post_feasible_mode == "recover" and _post_feasible_recover_exit_ready(state):
+            return "post_feasible_preserve"
         if progress_phase.startswith("post_feasible") and not _has_real_feasible_entry(state):
             return "prefeasible_stagnation" if int(progress_state.get("recent_no_progress_count", 0)) > 0 else "prefeasible_progress"
-        if progress_phase.startswith("post_feasible") and post_feasible_mode in {"expand", "preserve", "recover"}:
+        if progress_phase.startswith("post_feasible") and post_feasible_mode == "expand":
+            if _expand_saturated(state):
+                return "post_feasible_preserve"
+            return "post_feasible_expand"
+        if progress_phase.startswith("post_feasible") and post_feasible_mode in {"preserve", "recover"}:
             return f"post_feasible_{post_feasible_mode}"
         if progress_phase:
             return progress_phase
@@ -73,6 +92,44 @@ def _has_real_feasible_entry(state: ControllerState) -> bool:
     return first_feasible_found is True
 
 
+def _expand_saturated(state: ControllerState) -> bool:
+    progress_state = state.metadata.get("progress_state")
+    if not isinstance(progress_state, dict):
+        return False
+    expand_saturation_count = int(progress_state.get("expand_saturation_count", 0))
+    return expand_saturation_count >= _EXPAND_SATURATION_THRESHOLD
+
+
+def _expand_saturation_demotion_active(state: ControllerState, resolved_phase: str) -> bool:
+    if resolved_phase != "post_feasible_preserve":
+        return False
+    progress_state = state.metadata.get("progress_state")
+    if not isinstance(progress_state, dict):
+        return False
+    return (
+        str(progress_state.get("post_feasible_mode", "")).strip() == "expand"
+        and _expand_saturated(state)
+    )
+
+
+def _post_feasible_recover_exit_ready(state: ControllerState) -> bool:
+    progress_state = state.metadata.get("progress_state")
+    archive_state = state.metadata.get("archive_state")
+    run_state = state.metadata.get("run_state")
+    if not isinstance(progress_state, dict) or not isinstance(archive_state, dict) or not isinstance(run_state, dict):
+        return False
+    if run_state.get("first_feasible_eval") is None:
+        return False
+    stable_preservation_streak = int(progress_state.get("stable_preservation_streak", 0))
+    recent_feasible_regression_count = int(archive_state.get("recent_feasible_regression_count", 0))
+    new_dominant_violation_family = bool(progress_state.get("new_dominant_violation_family", False))
+    return (
+        stable_preservation_streak >= 3
+        and recent_feasible_regression_count <= 0
+        and not new_dominant_violation_family
+    )
+
+
 def score_operator_evidence(state: ControllerState, operator_id: str) -> dict[str, Any]:
     summary = state.metadata.get("operator_summary", {})
     summary_row = dict(summary.get(operator_id, {})) if isinstance(summary, dict) else {}
@@ -85,6 +142,12 @@ def score_operator_evidence(state: ControllerState, operator_id: str) -> dict[st
     dominant_violation_relief_count = int(summary_row.get("dominant_violation_relief_count", 0))
     near_feasible_improvement_count = int(summary_row.get("near_feasible_improvement_count", 0))
     avg_near_feasible_violation_delta = float(summary_row.get("avg_near_feasible_violation_delta", 0.0))
+    recent_expand_selection_count = int(summary_row.get("recent_expand_selection_count", 0))
+    recent_expand_feasible_preservation_count = int(
+        summary_row.get("recent_expand_feasible_preservation_count", 0)
+    )
+    recent_expand_feasible_regression_count = int(summary_row.get("recent_expand_feasible_regression_count", 0))
+    recent_expand_frontier_add_count = int(summary_row.get("recent_expand_frontier_add_count", 0))
     support_count = max(
         int(summary_row.get("selection_count", 0)),
         int(summary_row.get("proposal_count", 0)),
@@ -117,6 +180,10 @@ def score_operator_evidence(state: ControllerState, operator_id: str) -> dict[st
         "dominant_violation_relief_count": dominant_violation_relief_count,
         "near_feasible_improvement_count": near_feasible_improvement_count,
         "avg_near_feasible_violation_delta": avg_near_feasible_violation_delta,
+        "recent_expand_selection_count": recent_expand_selection_count,
+        "recent_expand_feasible_preservation_count": recent_expand_feasible_preservation_count,
+        "recent_expand_feasible_regression_count": recent_expand_feasible_regression_count,
+        "recent_expand_frontier_add_count": recent_expand_frontier_add_count,
         "recent_entry_helpful_regimes": list(summary_row.get("recent_entry_helpful_regimes", [])),
         "post_feasible_avg_objective_delta": post_feasible_avg_objective_delta,
         "recent_family_share": float(summary_row.get("recent_family_share", 0.0)),
@@ -138,10 +205,22 @@ def build_policy_snapshot(
         candidate_annotations = _annotate_prefeasible_roles(candidate_annotations)
     if phase.startswith("post_feasible"):
         candidate_annotations = _annotate_post_feasible_roles(candidate_annotations)
+        candidate_annotations = _annotate_post_feasible_route_budget(
+            state,
+            candidate_ids,
+            candidate_annotations,
+        )
+        candidate_annotations = _annotate_post_feasible_expand_budget(
+            candidate_ids,
+            candidate_annotations,
+        )
     allowed_operator_ids = list(candidate_ids)
     suppressed_operator_ids: list[str] = []
     reason_codes: list[str] = []
     reset_active = False
+
+    if _expand_saturation_demotion_active(state, phase):
+        reason_codes.append("post_feasible_expand_saturation_demotion")
 
     if phase == "cold_start":
         filtered = _filter_to_stable_families(candidate_ids, candidate_annotations)
@@ -195,6 +274,22 @@ def build_policy_snapshot(
             reason_codes.append("prefeasible_forced_reset")
 
     if phase.startswith("post_feasible"):
+        if phase == "post_feasible_expand":
+            suppressed_route_family_members = _post_feasible_expand_route_family_dominance_suppression(
+                state,
+                tuple(allowed_operator_ids),
+                candidate_annotations,
+            )
+            if suppressed_route_family_members:
+                allowed_operator_ids = [
+                    operator_id for operator_id in allowed_operator_ids if operator_id not in suppressed_route_family_members
+                ]
+                suppressed_operator_ids.extend(
+                    operator_id
+                    for operator_id in suppressed_route_family_members
+                    if operator_id not in suppressed_operator_ids
+                )
+                reason_codes.append("post_feasible_expand_route_family_dominance_cap")
         current_allowed_operator_ids = tuple(allowed_operator_ids)
         filtered, post_feasible_reason_code = _post_feasible_candidate_filter(
             state,
@@ -228,6 +323,142 @@ def build_policy_snapshot(
         reset_active=reset_active,
         reason_codes=tuple(reason_codes),
         candidate_annotations=candidate_annotations,
+    )
+
+
+def _annotate_post_feasible_route_budget(
+    state: ControllerState,
+    candidate_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    recent_decisions = state.metadata.get("recent_decisions", [])
+    route_counter: Counter[str] = Counter()
+    recent_total = 0
+    candidate_set = {str(operator_id) for operator_id in candidate_operator_ids}
+    for row in recent_decisions:
+        operator_id = str(row.get("selected_operator_id", "")).strip()
+        if operator_id not in candidate_set:
+            continue
+        route_family = ROUTE_FAMILY_BY_OPERATOR.get(operator_id)
+        if route_family is None:
+            continue
+        route_counter[route_family] += 1
+        recent_total += 1
+
+    annotated: dict[str, dict[str, Any]] = {}
+    for operator_id, annotation in candidate_annotations.items():
+        enriched = dict(annotation)
+        route_family = ROUTE_FAMILY_BY_OPERATOR.get(str(operator_id), "stable_local")
+        route_count = int(route_counter.get(route_family, 0))
+        route_share = 0.0 if recent_total <= 0 else float(route_count) / float(recent_total)
+        cooldown_active = (
+            route_count >= _ROUTE_COOLDOWN_MIN_COUNT
+            and route_share >= _ROUTE_COOLDOWN_MIN_SHARE
+            and int(enriched.get("feasible_regression_count", 0)) > int(enriched.get("pareto_contribution_count", 0))
+        )
+        enriched["route_budget_state"] = {
+            "route_family": route_family,
+            "recent_family_count": route_count,
+            "recent_family_share": route_share,
+            "cooldown_active": cooldown_active,
+        }
+        annotated[operator_id] = enriched
+    return annotated
+
+
+def _annotate_post_feasible_expand_budget(
+    candidate_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    family_metrics = expand_budget_family_metrics(
+        candidate_operator_ids,
+        summary_by_operator=candidate_annotations,
+    )
+    annotated: dict[str, dict[str, Any]] = {}
+    for operator_id, annotation in candidate_annotations.items():
+        enriched = dict(annotation)
+        route_family = operator_route_family(str(operator_id))
+        enriched["expand_budget_state"] = dict(
+            family_metrics.get(
+                route_family,
+                {
+                    "route_family": route_family,
+                    "recent_expand_selection_count": 0,
+                    "recent_expand_feasible_preservation_count": 0,
+                    "recent_expand_feasible_regression_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                    "expand_budget_score": 0,
+                    "expand_budget_status": "neutral",
+                },
+            )
+        )
+        annotated[operator_id] = enriched
+    return annotated
+
+
+def _post_feasible_expand_route_family_dominance_suppression(
+    state: ControllerState,
+    candidate_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> tuple[str, ...]:
+    candidate_set = {str(operator_id) for operator_id in candidate_operator_ids}
+    recent_decisions = state.metadata.get("recent_decisions", [])
+    semantic_route_sequence: list[str] = []
+    for row in recent_decisions:
+        operator_id = str(row.get("selected_operator_id", "")).strip()
+        if operator_id not in candidate_set:
+            continue
+        if bool(row.get("fallback_used", False)):
+            continue
+        if row.get("llm_valid") is False:
+            continue
+        route_family = str(
+            dict(candidate_annotations.get(operator_id, {}))
+            .get("route_budget_state", {})
+            .get("route_family", "")
+        )
+        if not route_family or route_family in {"stable_local", "stable_global"}:
+            continue
+        semantic_route_sequence.append(route_family)
+    if not semantic_route_sequence:
+        return ()
+
+    recent_window = semantic_route_sequence[-_POST_FEASIBLE_ROUTE_FAMILY_DOMINANCE_WINDOW:]
+    family_counter = Counter(recent_window)
+    dominant_family, dominant_count = family_counter.most_common(1)[0]
+    dominant_share = float(dominant_count) / float(max(1, len(recent_window)))
+    if (
+        dominant_count < _POST_FEASIBLE_ROUTE_FAMILY_DOMINANCE_MIN_COUNT
+        or dominant_share < _POST_FEASIBLE_ROUTE_FAMILY_DOMINANCE_MIN_SHARE
+    ):
+        return ()
+
+    alternative_families = {
+        str(
+            dict(candidate_annotations.get(operator_id, {}))
+            .get("route_budget_state", {})
+            .get("route_family", "")
+        )
+        for operator_id in candidate_operator_ids
+        if str(
+            dict(candidate_annotations.get(operator_id, {}))
+            .get("route_budget_state", {})
+            .get("route_family", "")
+        )
+        not in {"", "stable_local", "stable_global", dominant_family}
+    }
+    if len(alternative_families) < 2:
+        return ()
+
+    return tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if str(
+            dict(candidate_annotations.get(operator_id, {}))
+            .get("route_budget_state", {})
+            .get("route_family", "")
+        )
+        == dominant_family
     )
 
 
@@ -453,7 +684,10 @@ def _post_feasible_candidate_filter(
         filtered = tuple(
             operator_id
             for operator_id in candidate_operator_ids
-            if str(candidate_annotations.get(operator_id, {}).get("post_feasible_role", "")) == "trusted_preserve"
+            if (
+                str(candidate_annotations.get(operator_id, {}).get("post_feasible_role", "")) == "trusted_preserve"
+                and str(candidate_annotations.get(operator_id, {}).get("operator_family", "")) in _STABLE_FAMILIES
+            )
         )
         filtered = _merge_required_candidates(
             filtered,
@@ -462,30 +696,70 @@ def _post_feasible_candidate_filter(
         )
         if not filtered:
             filtered = _filter_to_stable_families(candidate_operator_ids, candidate_annotations)
+        filtered, _ = _restore_semantic_visibility(
+            phase,
+            tuple(candidate_operator_ids),
+            tuple(filtered),
+            candidate_annotations,
+        )
         return (
             tuple(candidate_operator_ids) if not filtered else tuple(filtered),
             "post_feasible_recover_preserve_bias",
         )
 
     if phase in {"post_feasible_expand", "post_feasible_preserve"}:
-        filtered = tuple(
+        candidate_pool = tuple(candidate_operator_ids)
+        budget_filtered = False
+        if phase == "post_feasible_expand":
+            throttled_semantic = {
+                operator_id
+                for operator_id in candidate_pool
+                if _semantic_expand_budget_throttled(operator_id, candidate_annotations)
+            }
+            if throttled_semantic:
+                filtered_pool = tuple(
+                    operator_id for operator_id in candidate_pool if operator_id not in throttled_semantic
+                )
+                if filtered_pool:
+                    candidate_pool = filtered_pool
+                    budget_filtered = True
+        pre_visibility_filtered = tuple(
             operator_id
-            for operator_id in candidate_operator_ids
+            for operator_id in candidate_pool
             if str(candidate_annotations.get(operator_id, {}).get("post_feasible_role", "")) != "risky_expand"
         )
-        frontier_bias_active = filtered and len(filtered) < len(tuple(candidate_operator_ids))
+        filtered = tuple(
+            operator_id
+            for operator_id in candidate_pool
+            if str(candidate_annotations.get(operator_id, {}).get("post_feasible_role", "")) != "risky_expand"
+        )
+        filtered, route_rebalanced = _restore_semantic_visibility(
+            phase,
+            tuple(candidate_pool),
+            tuple(filtered),
+            candidate_annotations,
+        )
         if phase == "post_feasible_expand":
             filtered = _merge_required_candidates(
                 filtered,
                 candidate_operator_ids,
                 required_operator_ids=_peak_balance_escape_candidates(state, phase, candidate_operator_ids),
             )
-        if frontier_bias_active:
-            reason_code = (
-                "post_feasible_expand_frontier_bias"
-                if phase == "post_feasible_expand"
-                else "post_feasible_preserve_low_regression_bias"
-            )
+        if filtered and (
+            len(pre_visibility_filtered) < len(tuple(candidate_pool))
+            or tuple(filtered) != tuple(candidate_pool)
+            or budget_filtered
+        ):
+            if phase == "post_feasible_expand" and budget_filtered:
+                reason_code = "post_feasible_expand_semantic_budget"
+            elif phase == "post_feasible_expand" and route_rebalanced:
+                reason_code = "post_feasible_expand_route_rebalance"
+            else:
+                reason_code = (
+                    "post_feasible_expand_frontier_bias"
+                    if phase == "post_feasible_expand"
+                    else "post_feasible_preserve_low_regression_bias"
+                )
             return tuple(filtered), reason_code
 
     return tuple(candidate_operator_ids), None
@@ -530,3 +804,201 @@ def _merge_required_candidates(
         for operator_id in candidate_operator_ids
         if operator_id in filtered_operator_ids or operator_id in required_set
     )
+
+
+def _restore_semantic_visibility(
+    phase: str,
+    candidate_operator_ids: Sequence[str],
+    filtered_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> tuple[tuple[str, ...], bool]:
+    semantic_target = (
+        _POST_FEASIBLE_RECOVER_SEMANTIC_VISIBLE
+        if phase == "post_feasible_recover"
+        else _POST_FEASIBLE_EXPAND_SEMANTIC_VISIBLE
+    )
+    if semantic_target <= 0:
+        return tuple(filtered_operator_ids), False
+
+    original_order = {operator_id: index for index, operator_id in enumerate(candidate_operator_ids)}
+    stable_operator_ids = tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if str(candidate_annotations.get(operator_id, {}).get("operator_family", "")) in _STABLE_FAMILIES
+    )
+    semantic_operator_ids = tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if operator_id not in stable_operator_ids
+    )
+    if not semantic_operator_ids:
+        return tuple(filtered_operator_ids), False
+
+    selected_operator_ids = {str(operator_id) for operator_id in filtered_operator_ids}
+    if phase == "post_feasible_expand":
+        rebalanced = _rebalance_expand_route_visibility(
+            tuple(filtered_operator_ids),
+            stable_operator_ids,
+            semantic_operator_ids,
+            candidate_annotations,
+            original_order=original_order,
+        )
+        if rebalanced is not None:
+            return rebalanced, tuple(rebalanced) != tuple(filtered_operator_ids)
+
+    selected_semantic_count = sum(1 for operator_id in semantic_operator_ids if operator_id in selected_operator_ids)
+    if selected_semantic_count >= semantic_target:
+        return tuple(filtered_operator_ids), False
+
+    for operator_id in _rank_semantic_candidates(
+        phase,
+        semantic_operator_ids,
+        candidate_annotations,
+        original_order=original_order,
+    ):
+        selected_operator_ids.add(operator_id)
+        selected_semantic_count = sum(1 for candidate_id in semantic_operator_ids if candidate_id in selected_operator_ids)
+        if selected_semantic_count >= semantic_target:
+            break
+
+    stable_selected = [operator_id for operator_id in stable_operator_ids if operator_id in selected_operator_ids]
+    semantic_selected = [operator_id for operator_id in semantic_operator_ids if operator_id in selected_operator_ids]
+    restored = tuple(stable_selected + semantic_selected)
+    return restored, restored != tuple(filtered_operator_ids)
+
+
+def _rebalance_expand_route_visibility(
+    filtered_operator_ids: Sequence[str],
+    stable_operator_ids: Sequence[str],
+    semantic_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+    *,
+    original_order: dict[str, int],
+) -> tuple[str, ...] | None:
+    ranked_semantic = _rank_semantic_candidates(
+        "post_feasible_expand",
+        semantic_operator_ids,
+        candidate_annotations,
+        original_order=original_order,
+    )
+    if not ranked_semantic:
+        return None
+
+    cooled_route_families = {
+        str(
+            dict(candidate_annotations.get(operator_id, {}))
+            .get("route_budget_state", {})
+            .get("route_family", "")
+        )
+        for operator_id in ranked_semantic
+        if bool(
+            dict(candidate_annotations.get(operator_id, {}))
+            .get("route_budget_state", {})
+            .get("cooldown_active", False)
+        )
+    }
+    cooled_route_families.discard("")
+    if not cooled_route_families:
+        return None
+
+    non_cooled_family_order: list[str] = []
+    for operator_id in ranked_semantic:
+        route_family = str(
+            dict(candidate_annotations.get(operator_id, {}))
+            .get("route_budget_state", {})
+            .get("route_family", "")
+        )
+        if not route_family or route_family in cooled_route_families or route_family in non_cooled_family_order:
+            continue
+        non_cooled_family_order.append(route_family)
+    if len(non_cooled_family_order) < 2:
+        return None
+
+    semantic_selected: list[str] = []
+    for route_family in non_cooled_family_order[:2]:
+        for operator_id in ranked_semantic:
+            candidate_route_family = str(
+                dict(candidate_annotations.get(operator_id, {}))
+                .get("route_budget_state", {})
+                .get("route_family", "")
+            )
+            if candidate_route_family == route_family and operator_id not in semantic_selected:
+                semantic_selected.append(operator_id)
+                break
+    if len(semantic_selected) < 2:
+        return None
+
+    filtered_selected = {str(operator_id) for operator_id in filtered_operator_ids}
+    stable_selected = [operator_id for operator_id in stable_operator_ids if operator_id in filtered_selected]
+    return tuple(stable_selected + semantic_selected)
+
+
+def _rank_semantic_candidates(
+    phase: str,
+    semantic_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+    *,
+    original_order: dict[str, int],
+) -> tuple[str, ...]:
+    def _expand_budget_rank(annotation: dict[str, Any]) -> int:
+        budget_status = str(dict(annotation.get("expand_budget_state", {})).get("expand_budget_status", "neutral"))
+        priority = {
+            "preferred": 0,
+            "neutral": 1,
+            "throttled": 2,
+        }
+        return priority.get(budget_status, 1)
+
+    def _evidence_rank(annotation: dict[str, Any]) -> int:
+        evidence_level = str(annotation.get("evidence_level", ""))
+        if evidence_level == "trusted":
+            return 0
+        if evidence_level == "supported":
+            return 1
+        return 2
+
+    def _role_rank(annotation: dict[str, Any]) -> int:
+        role = str(annotation.get("post_feasible_role", ""))
+        if phase == "post_feasible_recover":
+            priority = {
+                "trusted_preserve": 0,
+                "fragile_preserve": 1,
+                "supported_expand": 2,
+                "risky_expand": 3,
+            }
+            return priority.get(role, 4)
+        priority = {
+            "supported_expand": 0,
+            "fragile_preserve": 1,
+            "trusted_preserve": 2,
+            "risky_expand": 3,
+        }
+        return priority.get(role, 4)
+
+    def _sort_key(operator_id: str) -> tuple[float, ...]:
+        annotation = dict(candidate_annotations.get(operator_id, {}))
+        return (
+            float(_expand_budget_rank(annotation)) if phase == "post_feasible_expand" else 0.0,
+            float(_role_rank(annotation)),
+            float(_evidence_rank(annotation)),
+            -float(annotation.get("pareto_contribution_count", 0)),
+            -float(dict(annotation.get("expand_budget_state", {})).get("recent_expand_frontier_add_count", 0)),
+            -float(dict(annotation.get("expand_budget_state", {})).get("recent_expand_feasible_preservation_count", 0)),
+            float(dict(annotation.get("expand_budget_state", {})).get("recent_expand_feasible_regression_count", 0)),
+            -float(annotation.get("feasible_preservation_count", 0)),
+            float(annotation.get("feasible_regression_count", 0)),
+            float(original_order.get(operator_id, 10**6)),
+        )
+
+    return tuple(sorted((str(operator_id) for operator_id in semantic_operator_ids), key=_sort_key))
+
+
+def _semantic_expand_budget_throttled(
+    operator_id: str,
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> bool:
+    if operator_route_family(str(operator_id)) in _STABLE_FAMILIES:
+        return False
+    annotation = dict(candidate_annotations.get(str(operator_id), {}))
+    expand_budget_state = dict(annotation.get("expand_budget_state", {}))
+    return str(expand_budget_state.get("expand_budget_status", "neutral")) == "throttled"

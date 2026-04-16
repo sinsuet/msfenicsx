@@ -310,7 +310,6 @@ def test_llm_spec_stays_controller_only_against_union() -> None:
     assert params["reasoning"]["effort"]
     assert params["retry"]["timeout_seconds"] > 0
 
-
 def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
     spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
 

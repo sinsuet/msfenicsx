@@ -105,6 +105,12 @@ def _project_prompt_panels(
     generation_panel = prompt_panels.get("generation_panel")
     if isinstance(generation_panel, Mapping):
         projected["generation_panel"] = dict(generation_panel)
+    spatial_panel = prompt_panels.get("spatial_panel")
+    if isinstance(spatial_panel, Mapping):
+        projected["spatial_panel"] = dict(spatial_panel)
+    retrieval_panel = prompt_panels.get("retrieval_panel")
+    if isinstance(retrieval_panel, Mapping):
+        projected["retrieval_panel"] = dict(retrieval_panel)
     operator_panel = prompt_panels.get("operator_panel")
     if isinstance(operator_panel, Mapping):
         projected_operator_panel: dict[str, dict[str, Any]] = {}

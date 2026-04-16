@@ -16,6 +16,7 @@ from optimizers.operator_pool.domain_state import (
     is_frontier_add_record,
     objective_score,
     outcome_regime,
+    sink_budget_bucket,
     total_violation,
     vector_key,
 )
@@ -130,6 +131,7 @@ def summarize_operator_history(
     recent_window: int,
     history: Sequence[Mapping[str, Any]] | None = None,
     design_variable_ids: Sequence[str] | None = None,
+    sink_budget_limit: float | None = None,
 ) -> dict[str, dict[str, Any]]:
     selected_operator_ids = [row.selected_operator_id for row in controller_trace]
     recent_controller_rows = controller_trace[-recent_window:] if recent_window > 0 else []
@@ -163,6 +165,16 @@ def summarize_operator_history(
         for row in recent_effective_rows
     )
     recent_effective_total = len(recent_effective_rows)
+    controller_phase_by_evaluation_index = {
+        int(row.evaluation_index): str(
+            row.metadata.get("policy_phase") or row.metadata.get("guardrail_policy_phase") or row.phase
+        )
+        for row in controller_trace
+    }
+    recent_evaluation_indices = {
+        int(row.evaluation_index)
+        for row in recent_controller_rows
+    }
 
     operator_ids = sorted(
         set(selection_counter)
@@ -177,6 +189,9 @@ def summarize_operator_history(
         operator_trace,
         history=history,
         design_variable_ids=design_variable_ids,
+        sink_budget_limit=sink_budget_limit,
+        controller_phase_by_evaluation_index=controller_phase_by_evaluation_index,
+        recent_evaluation_indices=recent_evaluation_indices,
     )
     summary: dict[str, dict[str, Any]] = {}
     for operator_id in operator_ids:
@@ -217,6 +232,12 @@ def summarize_operator_history(
                     "recent_helpful_regimes": [],
                     "recent_harmful_regimes": [],
                     "recent_entry_helpful_regimes": [],
+                    "recent_expand_selection_count": 0,
+                    "recent_expand_feasible_preservation_count": 0,
+                    "recent_expand_feasible_regression_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                    "credit_by_regime": {},
+                    "regime_episodes": [],
                 },
             ),
         }
@@ -239,6 +260,9 @@ def _summarize_operator_outcomes(
     *,
     history: Sequence[Mapping[str, Any]] | None,
     design_variable_ids: Sequence[str] | None,
+    sink_budget_limit: float | None,
+    controller_phase_by_evaluation_index: Mapping[int, str],
+    recent_evaluation_indices: set[int],
 ) -> dict[str, dict[str, Any]]:
     if not history or design_variable_ids is None:
         return {}
@@ -269,6 +293,12 @@ def _summarize_operator_outcomes(
                 "recent_helpful_regimes": [],
                 "recent_harmful_regimes": [],
                 "recent_entry_helpful_regimes": [],
+                "recent_expand_selection_count": 0,
+                "recent_expand_feasible_preservation_count": 0,
+                "recent_expand_feasible_regression_count": 0,
+                "recent_expand_frontier_add_count": 0,
+                "credit_by_regime": {},
+                "regime_episodes": [],
             },
         )
         child_record = history_by_evaluation_index.get(int(row.evaluation_index))
@@ -301,7 +331,8 @@ def _summarize_operator_outcomes(
             for evaluation_index, record in history_by_evaluation_index.items()
             if evaluation_index < int(row.evaluation_index) and bool(record.get("feasible", False))
         ]
-        if child_feasible and is_frontier_add_record(child_record, prior_feasible_records):
+        frontier_add = child_feasible and is_frontier_add_record(child_record, prior_feasible_records)
+        if frontier_add:
             operator_summary["pareto_contribution_count"] += 1
             operator_summary["frontier_novelty_count"] += 1
 
@@ -318,6 +349,19 @@ def _summarize_operator_outcomes(
             operator_summary["post_feasible_violation_deltas"].append(violation_delta)
         elif any(parent_feasible_flags):
             operator_summary["post_feasible_violation_deltas"].append(violation_delta)
+
+        controller_phase = str(controller_phase_by_evaluation_index.get(int(row.evaluation_index), "")).strip()
+        if (
+            int(row.evaluation_index) in recent_evaluation_indices
+            and controller_phase == "post_feasible_expand"
+        ):
+            operator_summary["recent_expand_selection_count"] += 1
+            if frontier_add:
+                operator_summary["recent_expand_frontier_add_count"] += 1
+            elif child_feasible and all(parent_feasible_flags):
+                operator_summary["recent_expand_feasible_preservation_count"] += 1
+            elif (not child_feasible) and any(parent_feasible_flags):
+                operator_summary["recent_expand_feasible_regression_count"] += 1
 
         regime = outcome_regime(parent_records=parent_records, child_record=child_record)
         regime_tags = [str(regime.get("phase", "")), str(regime.get("dominant_constraint_family", ""))]
@@ -361,6 +405,62 @@ def _summarize_operator_outcomes(
                 if dominant_family and dominant_family not in operator_summary["recent_entry_helpful_regimes"]:
                     operator_summary["recent_entry_helpful_regimes"].append(dominant_family)
 
+        credit_phase = _credit_phase(
+            parent_feasible_flags=parent_feasible_flags,
+            child_feasible=child_feasible,
+            frontier_add=frontier_add,
+            fallback_phase=str(regime.get("phase", "")),
+        )
+        credit_family = _credit_family(
+            parent_records=parent_records,
+            child_record=child_record,
+            fallback_family=str(regime.get("dominant_constraint_family", "")),
+        )
+        credit_sink_bucket = _credit_sink_bucket(
+            child_record=child_record,
+            parent_records=parent_records,
+            sink_budget_limit=sink_budget_limit,
+        )
+        credit_key = (credit_phase, credit_family, credit_sink_bucket)
+        credit_row = operator_summary["credit_by_regime"].setdefault(
+            credit_key,
+            {
+                "frontier_add_count": 0,
+                "feasible_preservation_count": 0,
+                "feasible_regression_count": 0,
+                "objective_deltas": [],
+                "violation_deltas": [],
+            },
+        )
+        if frontier_add:
+            credit_row["frontier_add_count"] += 1
+        if child_feasible and all(parent_feasible_flags):
+            credit_row["feasible_preservation_count"] += 1
+        if not child_feasible and any(parent_feasible_flags):
+            credit_row["feasible_regression_count"] += 1
+        if child_feasible and any(parent_feasible_flags):
+            parent_objective_scores = [
+                objective_score(record.get("objective_values"))
+                for record in parent_records
+                if bool(record.get("feasible", False))
+            ]
+            if parent_objective_scores:
+                credit_row["objective_deltas"].append(
+                    float(objective_score(child_record.get("objective_values")) - np.mean(parent_objective_scores))
+                )
+        credit_row["violation_deltas"].append(violation_delta)
+        operator_summary["regime_episodes"].append(
+            {
+                "phase": credit_phase,
+                "dominant_violation_family": credit_family,
+                "sink_budget_bucket": credit_sink_bucket,
+                "frontier_add": bool(frontier_add),
+                "feasible_preservation": bool(child_feasible and all(parent_feasible_flags)),
+                "feasible_regression": bool((not child_feasible) and any(parent_feasible_flags)),
+                "avg_total_violation_delta": float(violation_delta),
+            }
+        )
+
     return {
         operator_id: {
             "feasible_entry_count": int(summary["feasible_entry_count"]),
@@ -398,6 +498,109 @@ def _summarize_operator_outcomes(
             "recent_helpful_regimes": list(summary["recent_helpful_regimes"]),
             "recent_harmful_regimes": list(summary["recent_harmful_regimes"]),
             "recent_entry_helpful_regimes": list(summary["recent_entry_helpful_regimes"]),
+            "recent_expand_selection_count": int(summary["recent_expand_selection_count"]),
+            "recent_expand_feasible_preservation_count": int(
+                summary["recent_expand_feasible_preservation_count"]
+            ),
+            "recent_expand_feasible_regression_count": int(summary["recent_expand_feasible_regression_count"]),
+            "recent_expand_frontier_add_count": int(summary["recent_expand_frontier_add_count"]),
+            "credit_by_regime": {
+                regime_key: {
+                    "frontier_add_count": int(regime_summary["frontier_add_count"]),
+                    "feasible_preservation_count": int(regime_summary["feasible_preservation_count"]),
+                    "feasible_regression_count": int(regime_summary["feasible_regression_count"]),
+                    "avg_objective_delta": (
+                        0.0
+                        if not regime_summary["objective_deltas"]
+                        else float(np.mean(regime_summary["objective_deltas"]))
+                    ),
+                    "avg_total_violation_delta": (
+                        0.0
+                        if not regime_summary["violation_deltas"]
+                        else float(np.mean(regime_summary["violation_deltas"]))
+                    ),
+                }
+                for regime_key, regime_summary in summary["credit_by_regime"].items()
+            },
+            "regime_episodes": list(summary["regime_episodes"]),
         }
         for operator_id, summary in per_operator.items()
     }
+
+
+def _credit_phase(
+    *,
+    parent_feasible_flags: Sequence[bool],
+    child_feasible: bool,
+    frontier_add: bool,
+    fallback_phase: str,
+) -> str:
+    if any(parent_feasible_flags):
+        if child_feasible and frontier_add:
+            return "post_feasible_expand"
+        if child_feasible:
+            return "post_feasible_preserve"
+        return "post_feasible_recover"
+    if fallback_phase == "near_feasible":
+        return "prefeasible_convert"
+    if fallback_phase:
+        return str(fallback_phase)
+    return "prefeasible_search"
+
+
+def _credit_family(
+    *,
+    parent_records: Sequence[Mapping[str, Any]],
+    child_record: Mapping[str, Any],
+    fallback_family: str,
+) -> str:
+    parent_dominant_candidates = [
+        (str(parent_dominant["constraint_id"]), float(parent_dominant["violation"]))
+        for record in parent_records
+        for parent_dominant in [dominant_violation(record)]
+        if parent_dominant is not None and parent_dominant.get("constraint_id")
+    ]
+    if parent_dominant_candidates:
+        dominant_constraint_id = max(parent_dominant_candidates, key=lambda item: item[1])[0]
+        return classify_constraint_family(dominant_constraint_id)
+    child_dominant = dominant_violation(child_record)
+    if child_dominant is not None and child_dominant.get("constraint_id"):
+        return classify_constraint_family(str(child_dominant["constraint_id"]))
+    if bool(child_record.get("feasible", False)):
+        return "thermal_limit"
+    if fallback_family:
+        return fallback_family
+    return "mixed"
+
+
+def _record_sink_span(record: Mapping[str, Any] | None) -> float | None:
+    if record is None:
+        return None
+    decision_vector = record.get("decision_vector")
+    if not isinstance(decision_vector, Mapping):
+        return None
+    if "sink_start" in decision_vector and "sink_end" in decision_vector:
+        return float(decision_vector["sink_end"]) - float(decision_vector["sink_start"])
+    return None
+
+
+def _credit_sink_bucket(
+    *,
+    child_record: Mapping[str, Any],
+    parent_records: Sequence[Mapping[str, Any]],
+    sink_budget_limit: float | None,
+) -> str:
+    if sink_budget_limit is None or float(sink_budget_limit) <= 0.0:
+        return "unknown"
+    sink_span = _record_sink_span(child_record)
+    if sink_span is None:
+        parent_spans = [
+            span
+            for span in (_record_sink_span(record) for record in parent_records)
+            if span is not None
+        ]
+        sink_span = None if not parent_spans else float(np.mean(parent_spans))
+    if sink_span is None:
+        return "unknown"
+    bucket = sink_budget_bucket(float(sink_span) / float(sink_budget_limit))
+    return "unknown" if bucket is None else str(bucket)

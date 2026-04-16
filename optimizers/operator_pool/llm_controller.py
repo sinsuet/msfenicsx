@@ -15,6 +15,7 @@ from optimizers.operator_pool.decisions import ControllerDecision
 from optimizers.operator_pool.policy_kernel import PolicySnapshot, build_policy_snapshot
 from optimizers.operator_pool.prompt_projection import build_prompt_projection
 from optimizers.operator_pool.random_controller import RandomUniformController
+from optimizers.operator_pool.route_families import ROUTE_FAMILY_BY_OPERATOR, STABLE_ROUTE_FAMILIES
 from optimizers.operator_pool.state import ControllerState
 
 
@@ -62,8 +63,28 @@ _OPERATOR_STRATEGY_GROUPS: dict[str, str] = {
     "slide_sink": "sink_retarget",
     "rebalance_layout": "layout_rebalance",
 }
-
-
+_STABLE_PROMPT_OPERATOR_IDS = frozenset({"native_sbx_pm", "global_explore", "local_refine"})
+_OPERATOR_INTENTS: dict[str, str] = {
+    "native_sbx_pm": "native_baseline",
+    "global_explore": "frontier_expand",
+    "local_refine": "local_cleanup",
+    "move_hottest_cluster_toward_sink": "sink_retarget",
+    "spread_hottest_cluster": "hotspot_spread",
+    "smooth_high_gradient_band": "local_cleanup",
+    "reduce_local_congestion": "congestion_relief",
+    "repair_sink_budget": "preserve_feasible",
+    "slide_sink": "sink_retarget",
+    "rebalance_layout": "congestion_relief",
+}
+_INTENT_SUMMARIES: dict[str, str] = {
+    "native_baseline": "fall back to the matched native baseline proposal route.",
+    "frontier_expand": "seek new Pareto support while preserving acceptable feasibility stability.",
+    "local_cleanup": "make a low-risk local refinement around the incumbent basin.",
+    "sink_retarget": "retarget sink alignment toward the active hotspot geometry.",
+    "hotspot_spread": "disperse a compact hotspot cluster to reduce local thermal pressure.",
+    "congestion_relief": "open space in locally congested regions of the layout.",
+    "preserve_feasible": "protect feasibility and avoid sink-budget regressions.",
+}
 class LLMOperatorController:
     controller_id = "llm"
 
@@ -284,6 +305,7 @@ class LLMOperatorController:
                 "capability_profile": response.capability_profile,
                 "performance_profile": response.performance_profile,
                 "selected_operator_id": response.selected_operator_id,
+                "selected_intent": response.selected_intent,
                 "phase": policy_snapshot.phase,
                 "phase_source": "policy_kernel",
                 "model_phase": response.phase,
@@ -314,6 +336,7 @@ class LLMOperatorController:
             "capability_profile": response.capability_profile,
             "performance_profile": response.performance_profile,
             "raw_payload": dict(response.raw_payload),
+            "selected_intent": response.selected_intent,
             "fallback_used": False,
             "elapsed_seconds": elapsed_seconds,
             **self._decision_phase_metadata(
@@ -386,18 +409,30 @@ class LLMOperatorController:
         policy_snapshot: PolicySnapshot,
         guardrail: dict[str, Any] | None,
     ) -> str:
+        intent_panel = self._build_intent_panel(candidate_operator_ids)
+        intent_guidance = " ".join(
+            f"{intent_id}: {summary}"
+            for intent_id, summary in intent_panel.items()
+        )
         operator_guidance = " ".join(
             f"{operator_id}: {_OPERATOR_ROLE_SUMMARIES.get(operator_id, 'specialized numeric proposal operator.')}"
             for operator_id in candidate_operator_ids
         )
         prompt = (
             "You are an operator-selection controller for constrained multiobjective thermal optimization. "
-            "Select exactly one operator from the provided candidate_operator_ids. "
+            "First choose the operator intent that best matches metadata.intent_panel and metadata.decision_axes. "
+            "Then choose exactly one operator from the provided candidate_operator_ids that implements that intent. "
             "Do not emit raw design vectors. "
             "Treat metadata.prompt_panels as the primary decision surface and phase_policy as the active controller "
-            "policy context. Treat recent operator concentrations as context, not as an instruction to copy the most "
+            "policy context. Use preserve_score, frontier_score, and regression_risk as the main decision axes. "
+            "Treat recent operator concentrations as context, not as an instruction to copy the most "
             "recent dominant operator. Avoid repeatedly selecting the same operator when recent history is overly "
             "concentrated unless the current state makes that operator uniquely necessary. "
+            "If metadata.decision_axes.semantic_trial_mode is encourage_bounded_trial, allow one bounded semantic "
+            "trial from metadata.decision_axes.semantic_trial_candidates before defaulting back to native_baseline. "
+            "When the hotspot is already inside the sink corridor, hotspot_spread is a direct expand move rather "
+            "than a sink-retargeting detour. "
+            f"Intent menu: {intent_guidance} "
             f"Candidate operator semantics: {operator_guidance}"
         )
         phase_policy_guidance = self._build_phase_policy_guidance(policy_snapshot)
@@ -415,6 +450,12 @@ class LLMOperatorController:
                 "Before first feasible, prefer stable repeatable evidence over speculative one-off gains. "
                 "Do not over-weight one-off large total-violation improvements from low-support operators."
             )
+        route_family_guidance = self._build_route_family_guidance(
+            candidate_operator_ids,
+            policy_snapshot=policy_snapshot,
+        )
+        if route_family_guidance:
+            prompt = f"{prompt} {route_family_guidance}"
         if guardrail is None:
             return prompt
         dominant_operator_id = str(guardrail.get("dominant_operator_id", "")).strip()
@@ -471,8 +512,177 @@ class LLMOperatorController:
             policy_snapshot=policy_snapshot,
             guardrail=guardrail,
         )
+        metadata["intent_panel"] = LLMOperatorController._build_intent_panel(candidate_operator_ids)
         metadata["decision_axes"] = LLMOperatorController._build_decision_axes(metadata)
         return metadata
+
+    @staticmethod
+    def _build_intent_panel(candidate_operator_ids: Sequence[str]) -> dict[str, str]:
+        intent_ids = [
+            _OPERATOR_INTENTS.get(str(operator_id), "native_baseline")
+            for operator_id in candidate_operator_ids
+        ]
+        ordered_intent_ids = list(dict.fromkeys(intent_ids))
+        return {
+            intent_id: _INTENT_SUMMARIES.get(intent_id, "match the current controller regime.")
+            for intent_id in ordered_intent_ids
+        }
+
+    @staticmethod
+    def _build_decision_axes(metadata: Mapping[str, Any]) -> dict[str, Any]:
+        prompt_panels = metadata.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            prompt_panels = {}
+        regime_panel = prompt_panels.get("regime_panel")
+        if not isinstance(regime_panel, Mapping):
+            regime_panel = {}
+        operator_panel = prompt_panels.get("operator_panel")
+        if not isinstance(operator_panel, Mapping):
+            operator_panel = {}
+        spatial_panel = prompt_panels.get("spatial_panel")
+        if not isinstance(spatial_panel, Mapping):
+            spatial_panel = {}
+        generation_panel = prompt_panels.get("generation_panel")
+        if not isinstance(generation_panel, Mapping):
+            generation_panel = {}
+        objective_balance = regime_panel.get("objective_balance")
+        if not isinstance(objective_balance, Mapping):
+            objective_balance = {}
+
+        peak_improve_candidates: list[str] = []
+        gradient_improve_candidates: list[str] = []
+        for operator_id, operator_row in operator_panel.items():
+            if not isinstance(operator_row, Mapping):
+                continue
+            applicability = str(operator_row.get("applicability", "low"))
+            if applicability == "low":
+                continue
+            normalized_operator_id = str(operator_id)
+            if str(operator_row.get("expected_peak_effect", "")) == "improve":
+                peak_improve_candidates.append(normalized_operator_id)
+            if str(operator_row.get("expected_gradient_effect", "")) == "improve":
+                gradient_improve_candidates.append(normalized_operator_id)
+
+        pressure_to_score = {"low": 1, "medium": 2, "high": 3}
+        preserve_score = pressure_to_score.get(str(regime_panel.get("preservation_pressure", "low")), 1)
+        frontier_score = pressure_to_score.get(str(regime_panel.get("frontier_pressure", "low")), 1)
+        regression_risk_rank = {"low": 1, "medium": 2, "high": 3}
+        regression_risk = "low"
+        for row in operator_panel.values():
+            if not isinstance(row, Mapping):
+                continue
+            candidate_risk = str(
+                row.get("expected_feasibility_risk", row.get("recent_regression_risk", "low"))
+            )
+            if regression_risk_rank.get(candidate_risk, 0) > regression_risk_rank.get(regression_risk, 0):
+                regression_risk = candidate_risk
+        if preserve_score >= 3 and frontier_score <= 1:
+            primary_objective = "preserve_feasible"
+        elif frontier_score >= preserve_score:
+            primary_objective = "frontier_expand"
+        else:
+            primary_objective = "balanced"
+        semantic_trial_mode = "none"
+        semantic_trial_reason = ""
+        semantic_trial_candidates: list[str] = []
+        route_family_candidates: list[str] = []
+        route_stage = "direct_operator"
+        route_family_mode = "none"
+        if str(regime_panel.get("phase", "")) == "post_feasible_expand" and preserve_score >= 2:
+            semantic_trial_candidates = LLMOperatorController._build_semantic_trial_candidates(operator_panel)
+            if (
+                bool(spatial_panel.get("hotspot_inside_sink_window", False))
+                and "spread_hottest_cluster" in semantic_trial_candidates
+            ):
+                semantic_trial_mode = "encourage_bounded_trial"
+                semantic_trial_reason = "sink_aligned_compact_hotspot"
+                semantic_trial_candidates = [
+                    "spread_hottest_cluster",
+                    *[
+                        operator_id
+                        for operator_id in semantic_trial_candidates
+                        if operator_id != "spread_hottest_cluster"
+                    ],
+                ]
+            elif frontier_score >= 3 and semantic_trial_candidates:
+                semantic_trial_mode = "consider_semantic_expand"
+                semantic_trial_reason = "frontier_pressure_high"
+            route_family_candidates = LLMOperatorController._build_route_family_candidates(
+                operator_panel,
+                semantic_trial_candidates=semantic_trial_candidates,
+            )
+            if route_family_candidates:
+                route_stage = "family_then_operator"
+                route_family_mode = "bounded_expand_mix"
+        return {
+            "objective_balance_pressure": str(objective_balance.get("balance_pressure", "low")),
+            "preferred_effect": objective_balance.get("preferred_effect"),
+            "stagnant_objectives": [
+                str(objective_id) for objective_id in objective_balance.get("stagnant_objectives", [])
+            ],
+            "improving_objectives": [
+                str(objective_id) for objective_id in objective_balance.get("improving_objectives", [])
+            ],
+            "peak_improve_candidates": peak_improve_candidates,
+            "gradient_improve_candidates": gradient_improve_candidates,
+            "generation_dominant_operator_id": str(generation_panel.get("dominant_operator_id", "")),
+            "generation_dominant_operator_share": float(generation_panel.get("dominant_operator_share", 0.0)),
+            "generation_accepted_count": int(generation_panel.get("accepted_count", 0)),
+            "preserve_score": preserve_score,
+            "frontier_score": frontier_score,
+            "regression_risk": regression_risk,
+            "primary_objective": primary_objective,
+            "semantic_trial_mode": semantic_trial_mode,
+            "semantic_trial_reason": semantic_trial_reason,
+            "semantic_trial_candidates": semantic_trial_candidates,
+            "semantic_trial_limit": 1 if semantic_trial_mode == "encourage_bounded_trial" else 0,
+            "route_stage": route_stage,
+            "route_family_mode": route_family_mode,
+            "route_family_candidates": route_family_candidates,
+        }
+
+    @staticmethod
+    def _build_semantic_trial_candidates(operator_panel: dict[str, Any]) -> list[str]:
+        candidates: list[str] = []
+        rows = operator_panel.items() if isinstance(operator_panel, dict) else ()
+        for operator_id, row in rows:
+            normalized_operator_id = str(operator_id)
+            if normalized_operator_id in _STABLE_PROMPT_OPERATOR_IDS or not isinstance(row, dict):
+                continue
+            if str(row.get("applicability", "low")) != "high":
+                continue
+            expected_feasibility_risk = str(
+                row.get("expected_feasibility_risk", row.get("recent_regression_risk", "medium"))
+            )
+            if expected_feasibility_risk == "high":
+                continue
+            candidates.append(normalized_operator_id)
+        return candidates
+
+    @staticmethod
+    def _build_route_family_candidates(
+        operator_panel: dict[str, Any],
+        *,
+        semantic_trial_candidates: Sequence[str],
+    ) -> list[str]:
+        ordered_operator_ids: list[str] = []
+        for operator_id in semantic_trial_candidates:
+            normalized_operator_id = str(operator_id)
+            if normalized_operator_id not in ordered_operator_ids:
+                ordered_operator_ids.append(normalized_operator_id)
+        for operator_id in operator_panel.keys() if isinstance(operator_panel, dict) else ():
+            normalized_operator_id = str(operator_id)
+            if normalized_operator_id not in ordered_operator_ids:
+                ordered_operator_ids.append(normalized_operator_id)
+
+        route_family_candidates: list[str] = []
+        for operator_id in ordered_operator_ids:
+            route_family = ROUTE_FAMILY_BY_OPERATOR.get(operator_id)
+            if route_family is None or route_family in STABLE_ROUTE_FAMILIES:
+                continue
+            if route_family not in route_family_candidates:
+                route_family_candidates.append(route_family)
+        return route_family_candidates
 
     @staticmethod
     def _is_before_first_feasible(state: ControllerState) -> bool:
@@ -813,7 +1023,8 @@ class LLMOperatorController:
             )
         elif policy_snapshot.phase == "post_feasible_expand":
             guidance.append(
-                "Post-feasible expand policy: preserve feasibility first, then use trusted frontier evidence to restore Pareto growth without inviting avoidable regression."
+                "Post-feasible expand policy: preserve feasibility first, then use trusted frontier evidence to restore Pareto growth without inviting avoidable regression. "
+                "When hotspot geometry is already sink-aligned, a hotspot-spread move can be a bounded semantic trial rather than a speculative detour."
             )
         elif policy_snapshot.phase == "post_feasible_preserve":
             guidance.append(
@@ -839,69 +1050,21 @@ class LLMOperatorController:
             guidance.append(
                 "A frontier-growth filter removed high-regression families without positive frontier evidence."
             )
+        if "post_feasible_expand_semantic_budget" in policy_snapshot.reason_codes:
+            guidance.append(
+                "A recent expand-budget filter suppressed semantic route families that recently regressed feasibility without frontier return."
+            )
+        if "post_feasible_expand_saturation_demotion" in policy_snapshot.reason_codes:
+            guidance.append(
+                "An expand saturation governor demoted this decision from expand to preserve because the frontier "
+                "has not improved after a sustained expand window. Prioritize feasibility preservation and avoid "
+                "speculative expansion until the next frontier gain resets the saturation counter."
+            )
         if policy_snapshot.reset_active:
             guidance.append(
                 "A progress-reset window is active, so use trusted evidence to recover from a no-progress streak while preserving stable role diversity across baseline, global exploration, and local cleanup."
             )
         return " ".join(guidance)
-
-    @staticmethod
-    def _build_decision_axes(metadata: Mapping[str, Any]) -> dict[str, Any]:
-        prompt_panels = metadata.get("prompt_panels")
-        if not isinstance(prompt_panels, Mapping):
-            return {
-                "objective_balance_pressure": "low",
-                "preferred_effect": None,
-                "stagnant_objectives": [],
-                "improving_objectives": [],
-                "peak_improve_candidates": [],
-                "gradient_improve_candidates": [],
-                "generation_dominant_operator_id": "",
-                "generation_dominant_operator_share": 0.0,
-                "generation_accepted_count": 0,
-            }
-        regime_panel = prompt_panels.get("regime_panel")
-        if not isinstance(regime_panel, Mapping):
-            regime_panel = {}
-        operator_panel = prompt_panels.get("operator_panel")
-        if not isinstance(operator_panel, Mapping):
-            operator_panel = {}
-        generation_panel = prompt_panels.get("generation_panel")
-        if not isinstance(generation_panel, Mapping):
-            generation_panel = {}
-        objective_balance = regime_panel.get("objective_balance")
-        if not isinstance(objective_balance, Mapping):
-            objective_balance = {}
-
-        peak_improve_candidates: list[str] = []
-        gradient_improve_candidates: list[str] = []
-        for operator_id, operator_row in operator_panel.items():
-            if not isinstance(operator_row, Mapping):
-                continue
-            applicability = str(operator_row.get("applicability", "low"))
-            if applicability == "low":
-                continue
-            normalized_operator_id = str(operator_id)
-            if str(operator_row.get("expected_peak_effect", "")) == "improve":
-                peak_improve_candidates.append(normalized_operator_id)
-            if str(operator_row.get("expected_gradient_effect", "")) == "improve":
-                gradient_improve_candidates.append(normalized_operator_id)
-
-        return {
-            "objective_balance_pressure": str(objective_balance.get("balance_pressure", "low")),
-            "preferred_effect": objective_balance.get("preferred_effect"),
-            "stagnant_objectives": [
-                str(objective_id) for objective_id in objective_balance.get("stagnant_objectives", [])
-            ],
-            "improving_objectives": [
-                str(objective_id) for objective_id in objective_balance.get("improving_objectives", [])
-            ],
-            "peak_improve_candidates": peak_improve_candidates,
-            "gradient_improve_candidates": gradient_improve_candidates,
-            "generation_dominant_operator_id": str(generation_panel.get("dominant_operator_id", "")),
-            "generation_dominant_operator_share": float(generation_panel.get("dominant_operator_share", 0.0)),
-            "generation_accepted_count": int(generation_panel.get("accepted_count", 0)),
-        }
 
     @staticmethod
     def _operator_strategy_group(operator_id: str) -> str:
@@ -1062,6 +1225,29 @@ class LLMOperatorController:
                 "Diversify toward operators with credible applicability to break the current basin."
             )
         return ""
+
+    @staticmethod
+    def _build_route_family_guidance(
+        candidate_operator_ids: Sequence[str],
+        *,
+        policy_snapshot: PolicySnapshot,
+    ) -> str:
+        if policy_snapshot.phase != "post_feasible_expand":
+            return ""
+        route_families: list[str] = []
+        for operator_id in candidate_operator_ids:
+            route_family = ROUTE_FAMILY_BY_OPERATOR.get(str(operator_id))
+            if route_family is None or route_family in STABLE_ROUTE_FAMILIES:
+                continue
+            if route_family not in route_families:
+                route_families.append(route_family)
+        if len(route_families) < 2:
+            return ""
+        return (
+            "Bounded expand mix is active. Choose a route family before choosing the final operator. "
+            f"Available route families: {route_families}. "
+            "Prefer underused route families when they have comparable local evidence, and avoid reusing a cooled-down route family unless it is uniquely justified by the current spatial state."
+        )
 
     @staticmethod
     def _entry_convert_metadata(
