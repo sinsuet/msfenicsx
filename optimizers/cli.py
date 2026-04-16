@@ -70,6 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
     diagnostics_parser.add_argument("--llm-response-trace", required=False)
     diagnostics_parser.add_argument("--output", required=True)
 
+    render_parser = subparsers.add_parser("render-assets")
+    render_parser.add_argument("--run", required=True)
+    render_parser.add_argument("--hires", action="store_true")
+
     return parser
 
 
@@ -149,6 +153,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             llm_response_trace_path=None if args.llm_response_trace is None else Path(args.llm_response_trace),
         )
         save_controller_trace_summary(args.output, summary)
+        return 0
+    if args.command == "render-assets":
+        from optimizers.render_assets import render_run_assets
+        render_run_assets(Path(args.run), hires=args.hires)
         return 0
     parser.error(f"Unsupported command: {args.command}")
     return 0
