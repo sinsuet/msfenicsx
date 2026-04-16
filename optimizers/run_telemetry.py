@@ -8,13 +8,21 @@ from typing import Any
 from optimizers.problem import objective_to_minimization
 
 
-def build_evaluation_events(history: list[dict]) -> list[dict]:
+def build_evaluation_events(
+    history: list[dict],
+    *,
+    objective_definitions: Sequence[Mapping[str, Any]] | None = None,
+) -> list[dict]:
     """§ 4.1 evaluation_events rows — one per optimizer evaluation.
 
     Accepts the flat per-evaluation records that live on ``problem.history``.
     Baseline evaluations (``source == "baseline"``) are skipped so downstream
-    analytics bucket only true search iterations.
+    analytics bucket only true search iterations. When ``objective_definitions``
+    is supplied, objective values are re-keyed from the spec's ``objective_id``
+    onto the bare metric suffix (``summary.temperature_max`` →
+    ``temperature_max``) so analytics can read a stable, spec-agnostic name.
     """
+    objective_short_names = _objective_short_names(objective_definitions)
     rows: list[dict] = []
     eval_index = 0
     previous_generation: int | None = None
@@ -33,7 +41,7 @@ def build_evaluation_events(history: list[dict]) -> list[dict]:
                 "generation": generation,
                 "eval_index": eval_index,
                 "individual_id": str(individual_id),
-                "objectives": dict(record.get("objective_values", {})),
+                "objectives": _project_objectives(record.get("objective_values", {}), objective_short_names),
                 "constraints": dict(record.get("constraint_values", {})),
                 "status": _record_status(record),
                 "timing": dict(record.get("timing", {})),
@@ -42,6 +50,34 @@ def build_evaluation_events(history: list[dict]) -> list[dict]:
         eval_index += 1
         intra_generation_index += 1
     return rows
+
+
+def _objective_short_names(
+    objective_definitions: Sequence[Mapping[str, Any]] | None,
+) -> dict[str, str]:
+    if not objective_definitions:
+        return {}
+    mapping: dict[str, str] = {}
+    for definition in objective_definitions:
+        objective_id = str(definition.get("objective_id", "")).strip()
+        metric = str(definition.get("metric", "")).strip()
+        if not objective_id:
+            continue
+        short_name = metric.rsplit(".", 1)[-1] if metric else objective_id
+        mapping[objective_id] = short_name
+    return mapping
+
+
+def _project_objectives(
+    objective_values: Mapping[str, Any],
+    objective_short_names: Mapping[str, str],
+) -> dict[str, Any]:
+    if not objective_short_names:
+        return dict(objective_values)
+    return {
+        objective_short_names.get(str(key), str(key)): value
+        for key, value in objective_values.items()
+    }
 
 
 def _record_status(record: dict) -> str:

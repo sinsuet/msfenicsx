@@ -28,7 +28,10 @@ def write_optimization_artifacts(
     _initialize_seed_bundle_root(resolved_output_root)
     save_optimization_result(run.result, resolved_output_root / "optimization_result.json")
     save_optimization_result({"pareto_front": run.result.pareto_front}, resolved_output_root / "pareto_front.json")
-    evaluation_rows = build_evaluation_events(run.result.history)
+    evaluation_rows = build_evaluation_events(
+        run.result.history,
+        objective_definitions=objective_definitions,
+    )
     generation_rows = build_generation_summary_rows(
         run_id=str(run.result.run_meta["run_id"]),
         mode_id=mode_id,
@@ -43,6 +46,20 @@ def write_optimization_artifacts(
         "evaluation_events": "traces/evaluation_events.jsonl",
         "generation_summary": "traces/generation_summary.jsonl",
     }
+    operator_trace_rows = _coerce_operator_trace_rows(getattr(run, "operator_trace", ()))
+    if operator_trace_rows:
+        _write_jsonl_payload(
+            resolved_output_root / "traces" / "operator_trace.jsonl",
+            operator_trace_rows,
+        )
+        snapshots["operator_trace"] = "traces/operator_trace.jsonl"
+    controller_trace_rows = _coerce_controller_trace_rows(getattr(run, "controller_trace", ()))
+    if controller_trace_rows:
+        _write_jsonl_payload(
+            resolved_output_root / "traces" / "controller_trace.jsonl",
+            controller_trace_rows,
+        )
+        snapshots["controller_trace"] = "traces/controller_trace.jsonl"
     if getattr(run, "llm_request_trace", None):
         _write_jsonl_payload(resolved_output_root / "traces" / "llm_request_trace.jsonl", getattr(run, "llm_request_trace"))
         snapshots["llm_request_trace"] = "traces/llm_request_trace.jsonl"
@@ -158,5 +175,41 @@ def _write_manifest(path: Path, payload: dict[str, object]) -> None:
 def _write_jsonl_payload(path: Path, rows: list[Any]) -> None:
     serialized_rows = [json.dumps(row.to_dict() if hasattr(row, "to_dict") else row) for row in rows]
     path.write_text("\n".join(serialized_rows) + "\n", encoding="utf-8")
+
+
+def _coerce_operator_trace_rows(operator_trace: Any) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for entry in operator_trace or ():
+        if isinstance(entry, dict):
+            rows.append(dict(entry))
+            continue
+        payload = entry.to_dict() if hasattr(entry, "to_dict") else dict(entry)
+        generation = int(payload.get("generation_index", payload.get("generation", 0)))
+        evaluation_index = int(payload.get("evaluation_index", 0))
+        rows.append(
+            {
+                "decision_id": payload.get("decision_id"),
+                "generation": generation,
+                "operator_name": str(payload.get("operator_name") or payload.get("operator_id") or "unknown"),
+                "parents": list(payload.get("parents", [])),
+                "offspring": list(
+                    payload.get("offspring", [f"g{generation:03d}-e{evaluation_index:04d}"])
+                ),
+                "params_digest": str(payload.get("params_digest", "")),
+                "wall_ms": float(payload.get("wall_ms", 0.0)),
+            }
+        )
+    return rows
+
+
+def _coerce_controller_trace_rows(controller_trace: Any) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for entry in controller_trace or ():
+        if isinstance(entry, dict):
+            rows.append(dict(entry))
+            continue
+        payload = entry.to_dict() if hasattr(entry, "to_dict") else dict(entry)
+        rows.append(payload)
+    return rows
 
 

@@ -25,7 +25,22 @@ def test_build_evaluation_events_new_schema_has_required_fields() -> None:
             "timing": {"cheap_ms": 1.2, "solve_ms": 850.0},
         },
     ]
-    rows = build_evaluation_events(history)
+    objective_definitions = [
+        {"objective_id": "minimize_peak_temperature", "metric": "summary.temperature_max", "sense": "minimize"},
+        {
+            "objective_id": "minimize_temperature_gradient_rms",
+            "metric": "summary.temperature_gradient_rms",
+            "sense": "minimize",
+        },
+    ]
+    # history records use objective_id keys; the builder must re-key onto the
+    # spec's metric suffix so analytics see ``temperature_max`` rather than
+    # ``minimize_peak_temperature``.
+    history[1]["objective_values"] = {
+        "minimize_peak_temperature": 315.0,
+        "minimize_temperature_gradient_rms": 2.7,
+    }
+    rows = build_evaluation_events(history, objective_definitions=objective_definitions)
     assert len(rows) == 1
     row = rows[0]
     for key in (
@@ -43,6 +58,7 @@ def test_build_evaluation_events_new_schema_has_required_fields() -> None:
     assert row["eval_index"] == 0
     assert row["individual_id"] == "g001-i00"
     assert row["objectives"]["temperature_max"] == 315.0
+    assert row["objectives"]["temperature_gradient_rms"] == 2.7
     assert row["status"] == "ok"
 
 
