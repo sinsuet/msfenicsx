@@ -64,7 +64,7 @@ def test_load_provider_profile_requires_source_base_url(tmp_path: Path) -> None:
                 "qwen": {
                     "source_api_key_env_var": "QWEN_PROXY_API_KEY",
                     "source_base_url_env_var": "QWEN_PROXY_BASE_URL",
-                    "model": "qwen-max",
+                    "model": "qwen3.6-plus",
                 }
             },
         },
@@ -86,4 +86,54 @@ def test_bundled_profiles_support_default_profile_via_gpt_env(monkeypatch: pytes
         "LLM_API_KEY": "bundled-gpt-key",
         "LLM_BASE_URL": "https://bundled-gpt.example/v1",
         "LLM_MODEL": "gpt-5.4",
+    }
+
+
+@pytest.mark.parametrize(
+    ("profile_id", "api_key_env_var", "base_url_env_var", "api_key", "base_url", "expected_model"),
+    [
+        (
+            "gpt",
+            "GPT_PROXY_API_KEY",
+            "GPT_PROXY_BASE_URL",
+            "bundled-gpt-key",
+            "https://bundled-gpt.example/v1",
+            "gpt-5.4",
+        ),
+        (
+            "claude",
+            "CLAUDE_PROXY_API_KEY",
+            "CLAUDE_PROXY_BASE_URL",
+            "bundled-claude-key",
+            "https://bundled-claude.example/v1",
+            "claude-opus-4-6",
+        ),
+        (
+            "qwen",
+            "QWEN_PROXY_API_KEY",
+            "QWEN_PROXY_BASE_URL",
+            "bundled-qwen-key",
+            "https://bundled-qwen.example/v1",
+            "qwen3.6-plus",
+        ),
+    ],
+)
+def test_bundled_profiles_use_expected_default_models(
+    monkeypatch: pytest.MonkeyPatch,
+    profile_id: str,
+    api_key_env_var: str,
+    base_url_env_var: str,
+    api_key: str,
+    base_url: str,
+    expected_model: str,
+) -> None:
+    monkeypatch.setenv(api_key_env_var, api_key)
+    monkeypatch.setenv(base_url_env_var, base_url)
+
+    overlay = load_provider_profile_overlay(profile_id)
+
+    assert overlay == {
+        "LLM_API_KEY": api_key,
+        "LLM_BASE_URL": base_url,
+        "LLM_MODEL": expected_model,
     }

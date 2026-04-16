@@ -112,6 +112,10 @@ The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
 - `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to GPT
 - switch providers explicitly with `run-llm claude ...` or `run-llm qwen ...`
 - provider profile declarations live in `llm/openai_compatible/profiles.yaml`
+- bundled default models are:
+  - `gpt -> gpt-5.4`
+  - `claude -> claude-opus-4-6`
+  - `qwen -> qwen3.6-plus`
 - the active `scenarios/optimization/s1_typical_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
   - `LLM_BASE_URL`

@@ -79,7 +79,7 @@ Add focused tests in `tests/optimizers/test_llm_client.py` that require:
 ```python
 def test_config_resolves_model_from_model_env_var_before_literal(tmp_path: Path) -> None:
     dotenv_path = tmp_path / ".env"
-    dotenv_path.write_text("LLM_MODEL=qwen-max\n", encoding="utf-8")
+    dotenv_path.write_text("LLM_MODEL=qwen3.6-plus\n", encoding="utf-8")
     config = OpenAICompatibleConfig.from_dict(
         {
             "provider": "openai-compatible",
@@ -92,7 +92,7 @@ def test_config_resolves_model_from_model_env_var_before_literal(tmp_path: Path)
         }
     )
 
-    assert config.resolve_model(dotenv_path=dotenv_path) == "qwen-max"
+    assert config.resolve_model(dotenv_path=dotenv_path) == "qwen3.6-plus"
 ```
 
 ```python
@@ -234,7 +234,7 @@ def test_load_provider_profile_rejects_unknown_profile(tmp_path: Path) -> None:
 def test_load_provider_profile_requires_source_base_url(tmp_path: Path) -> None:
     profiles_path = tmp_path / "profiles.yaml"
     profiles_path.write_text(
-        "schema_version: '1.0'\nprofiles:\n  qwen:\n    source_api_key_env_var: QWEN_PROXY_API_KEY\n    source_base_url_env_var: QWEN_PROXY_BASE_URL\n    model: qwen-max\n",
+        "schema_version: '1.0'\nprofiles:\n  qwen:\n    source_api_key_env_var: QWEN_PROXY_API_KEY\n    source_base_url_env_var: QWEN_PROXY_BASE_URL\n    model: qwen3.6-plus\n",
         encoding="utf-8",
     )
     dotenv_path = tmp_path / ".env"
@@ -320,7 +320,7 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
         lambda profile, **_: {
             "LLM_API_KEY": "switch-key",
             "LLM_BASE_URL": "https://switch.example/v1",
-            "LLM_MODEL": "claude-sonnet-4",
+            "LLM_MODEL": "claude-opus-4-6",
         },
     )
 
@@ -344,7 +344,7 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
     )
 
     assert exit_code == 0
-    assert captured["LLM_MODEL"] == "claude-sonnet-4"
+    assert captured["LLM_MODEL"] == "claude-opus-4-6"
 ```
 
 ```python

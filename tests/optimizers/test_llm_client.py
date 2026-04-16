@@ -487,7 +487,7 @@ def test_config_resolves_api_key_from_dotenv_when_process_env_missing(tmp_path) 
 
 def test_config_resolves_model_from_model_env_var_before_literal(tmp_path) -> None:
     dotenv_path = tmp_path / ".env"
-    dotenv_path.write_text("LLM_MODEL=qwen-max\n", encoding="utf-8")
+    dotenv_path.write_text("LLM_MODEL=qwen3.6-plus\n", encoding="utf-8")
     config = OpenAICompatibleConfig.from_dict(
         {
             "provider": "openai-compatible",
@@ -500,7 +500,7 @@ def test_config_resolves_model_from_model_env_var_before_literal(tmp_path) -> No
         }
     )
 
-    assert config.resolve_model(dotenv_path=dotenv_path) == "qwen-max"
+    assert config.resolve_model(dotenv_path=dotenv_path) == "qwen3.6-plus"
 
 
 def test_config_raises_when_model_and_model_env_var_are_both_missing() -> None:

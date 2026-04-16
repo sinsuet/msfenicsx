@@ -11,8 +11,8 @@ profiles:
   claude:
     source_api_key_env_var: CLAUDE_PROXY_API_KEY
     source_base_url_env_var: CLAUDE_PROXY_BASE_URL
-    model: claude-sonnet-4
+    model: claude-opus-4-6
   qwen:
     source_api_key_env_var: QWEN_PROXY_API_KEY
     source_base_url_env_var: QWEN_PROXY_BASE_URL
-    model: qwen-max
+    model: qwen3.6-plus
