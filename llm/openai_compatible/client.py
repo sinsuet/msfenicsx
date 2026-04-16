@@ -128,12 +128,13 @@ class OpenAICompatibleClient:
         operator_ids: Sequence[str],
     ) -> OpenAICompatibleDecision:
         resolved_model = self.config.resolve_model(self._environ)
-        payload = json.loads(raw_text)
+        normalized_raw_text = self._unwrap_markdown_code_fence(raw_text)
+        payload = json.loads(normalized_raw_text)
         if "selected_operator_id" not in payload and "operator_id" in payload:
             payload["selected_operator_id"] = payload["operator_id"]
         selected_operator_id = str(payload["selected_operator_id"]).strip()
         if selected_operator_id not in operator_ids:
-            recovered_operator_id = self._recover_operator_id_from_text(raw_text, operator_ids)
+            recovered_operator_id = self._recover_operator_id_from_text(normalized_raw_text, operator_ids)
             if recovered_operator_id is not None:
                 selected_operator_id = recovered_operator_id
                 payload["selected_operator_id"] = recovered_operator_id
@@ -152,6 +153,25 @@ class OpenAICompatibleClient:
             performance_profile=self.config.performance_profile,
             raw_payload=dict(payload),
         )
+
+    @staticmethod
+    def _unwrap_markdown_code_fence(raw_text: str) -> str:
+        stripped = raw_text.strip()
+        if not stripped.startswith("```"):
+            return stripped
+
+        lines = stripped.splitlines()
+        if len(lines) < 3:
+            return stripped
+        if not lines[-1].strip().startswith("```"):
+            return stripped
+
+        first_line = lines[0].strip()
+        if first_line == "```" or first_line.startswith("```"):
+            unwrapped = "\n".join(lines[1:-1]).strip()
+            if unwrapped:
+                return unwrapped
+        return stripped
 
     def _request_via_responses_native(
         self,

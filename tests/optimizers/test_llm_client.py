@@ -151,6 +151,29 @@ def test_chat_compatible_json_client_normalizes_openai_compatible_json_payload(
     assert "json" in chat_api.last_kwargs["messages"][0]["content"].lower()
 
 
+def test_chat_compatible_json_client_accepts_markdown_fenced_json_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    chat_api = _FakeChatCompletionsAPI(
+        '```json\n{"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}\n```'
+    )
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    response = client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
+    )
+
+    assert response.selected_operator_id == "global_explore"
+    assert response.phase == "explore"
+    assert response.rationale == "widen search"
+
+
 def test_chat_compatible_json_client_can_use_direct_http_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
