@@ -9,16 +9,9 @@ __pycache__/
 .vscode/
 .superpowers/
 
-# Generated simulation outputs
-outputs/
-runs/
-# Phase 1 clean rebuild generated scenario artifacts
 scenario_runs/
-tests/artifacts/
 
 # Local environment and secrets
 .env
 .env.*
-radiation_gen/
-claude.md
-.env1
+.claude/
