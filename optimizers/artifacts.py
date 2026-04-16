@@ -14,7 +14,6 @@ from evaluation.io import save_report
 from optimizers.io import save_optimization_result
 from optimizers.problem import CandidateArtifacts
 from optimizers.run_telemetry import build_evaluation_events, build_generation_summary_rows
-from visualization.case_pages import render_case_page
 
 
 def write_optimization_artifacts(
@@ -51,12 +50,6 @@ def write_optimization_artifacts(
         "evaluation_events": "evaluation_events.jsonl",
         "generation_summary": "generation_summary.jsonl",
     }
-    if hasattr(run, "controller_trace"):
-        _write_trace_payload(resolved_output_root / "controller_trace.json", getattr(run, "controller_trace"))
-        snapshots["controller_trace"] = "controller_trace.json"
-    if hasattr(run, "operator_trace"):
-        _write_trace_payload(resolved_output_root / "operator_trace.json", getattr(run, "operator_trace"))
-        snapshots["operator_trace"] = "operator_trace.json"
     if getattr(run, "llm_request_trace", None):
         _write_jsonl_payload(resolved_output_root / "llm_request_trace.jsonl", getattr(run, "llm_request_trace"))
         snapshots["llm_request_trace"] = "llm_request_trace.jsonl"
@@ -69,9 +62,6 @@ def write_optimization_artifacts(
             getattr(run, "llm_reflection_trace"),
         )
         snapshots["llm_reflection_trace"] = "llm_reflection_trace.jsonl"
-    if getattr(run, "llm_metrics", None):
-        _write_json_payload(resolved_output_root / "llm_metrics.json", getattr(run, "llm_metrics"))
-        snapshots["llm_metrics"] = "llm_metrics.json"
     representatives_root = resolved_output_root / "representatives"
     for name, artifacts in run.representative_artifacts.items():
         _write_representative_bundle(representatives_root / name.replace("_", "-"), artifacts)
@@ -99,7 +89,6 @@ def _write_representative_bundle(bundle_root: Path, artifacts: CandidateArtifact
     exported_fields = None
     if artifacts.field_exports is not None:
         exported_fields = write_field_export_artifacts(bundle_root, artifacts.field_exports)
-        render_case_page(bundle_root)
     manifest = {
         "case_snapshot": case_snapshot,
         "solution_snapshot": solution_snapshot,
@@ -172,15 +161,8 @@ def _write_manifest(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def _write_trace_payload(path: Path, rows: list[Any]) -> None:
-    payload = [row.to_dict() if hasattr(row, "to_dict") else row for row in rows]
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-
-
 def _write_jsonl_payload(path: Path, rows: list[Any]) -> None:
     serialized_rows = [json.dumps(row.to_dict() if hasattr(row, "to_dict") else row) for row in rows]
     path.write_text("\n".join(serialized_rows) + "\n", encoding="utf-8")
 
 
-def _write_json_payload(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
