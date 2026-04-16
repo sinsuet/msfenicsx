@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import matplotlib
+import matplotlib as mpl
 
 FONT_FAMILY: list[str] = ["DejaVu Serif", "Noto Serif CJK SC", "serif"]
 FONT_FAMILY_MATH: str = "stix"
@@ -30,19 +30,16 @@ PALETTE_CATEGORICAL: list[str] = [
 
 def apply_baseline() -> None:
     """Apply the scientific baseline to matplotlib rcParams."""
-    matplotlib.rcParams["font.family"] = FONT_FAMILY
-    matplotlib.rcParams["font.serif"] = FONT_FAMILY
-    matplotlib.rcParams["font.size"] = BASE_FONT_SIZE
-    matplotlib.rcParams["mathtext.fontset"] = FONT_FAMILY_MATH
-    matplotlib.rcParams["axes.linewidth"] = 0.6
-    matplotlib.rcParams["axes.labelsize"] = BASE_FONT_SIZE
-    matplotlib.rcParams["axes.titlesize"] = BASE_FONT_SIZE + 1
-    matplotlib.rcParams["xtick.direction"] = "in"
-    matplotlib.rcParams["ytick.direction"] = "in"
-    matplotlib.rcParams["xtick.labelsize"] = BASE_FONT_SIZE - 1
-    matplotlib.rcParams["ytick.labelsize"] = BASE_FONT_SIZE - 1
-    matplotlib.rcParams["legend.frameon"] = False
-    matplotlib.rcParams["legend.fontsize"] = BASE_FONT_SIZE - 1
-    matplotlib.rcParams["figure.constrained_layout.use"] = True
-    matplotlib.rcParams["savefig.bbox"] = "tight"
-    matplotlib.rcParams["savefig.pad_inches"] = 0.02
+    mpl.rcParams["font.family"] = "serif"
+    mpl.rcParams["font.serif"] = FONT_FAMILY
+    mpl.rcParams["font.size"] = BASE_FONT_SIZE
+    mpl.rcParams["mathtext.fontset"] = FONT_FAMILY_MATH
+    mpl.rcParams["axes.linewidth"] = 0.6
+    mpl.rcParams["axes.labelsize"] = BASE_FONT_SIZE
+    mpl.rcParams["axes.titlesize"] = BASE_FONT_SIZE + 1
+    mpl.rcParams["xtick.direction"] = "in"
+    mpl.rcParams["ytick.direction"] = "in"
+    mpl.rcParams["legend.frameon"] = False
+    mpl.rcParams["figure.constrained_layout.use"] = True
+    mpl.rcParams["savefig.bbox"] = "tight"
+    mpl.rcParams["savefig.pad_inches"] = 0.02

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import matplotlib
 
 
@@ -13,7 +15,8 @@ def test_apply_baseline_sets_expected_rcparams() -> None:
     original = matplotlib.rcParams.copy()
     try:
         apply_baseline()
-        assert matplotlib.rcParams["font.family"][0] == "DejaVu Serif"
+        assert matplotlib.rcParams["font.family"] == ["serif"]
+        assert matplotlib.rcParams["font.serif"][0] == "DejaVu Serif"
         assert matplotlib.rcParams["mathtext.fontset"] == "stix"
         assert float(matplotlib.rcParams["font.size"]) == 9.0
         assert float(matplotlib.rcParams["axes.linewidth"]) == 0.6
@@ -30,8 +33,9 @@ def test_palette_categorical_has_eight_okabe_ito_hex_values() -> None:
     from visualization.style.baseline import PALETTE_CATEGORICAL
 
     assert len(PALETTE_CATEGORICAL) == 8
+    pattern = re.compile(r"^#[0-9A-Fa-f]{6}$")
     for entry in PALETTE_CATEGORICAL:
-        assert entry.startswith("#") and len(entry) == 7
+        assert pattern.match(entry), f"{entry!r} does not match #RRGGBB"
 
 
 def test_dpi_constants() -> None:
