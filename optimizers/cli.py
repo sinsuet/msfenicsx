@@ -46,6 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     optimize_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
     optimize_parser.add_argument("--population-size", type=_positive_int, default=None)
     optimize_parser.add_argument("--num-generations", type=_positive_int, default=None)
+    optimize_parser.add_argument("--skip-render", action="store_true")
 
     suite_parser = subparsers.add_parser("run-benchmark-suite")
     suite_parser.add_argument("--optimization-spec", required=True, action="append")
@@ -55,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     suite_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
     suite_parser.add_argument("--population-size", type=_positive_int, default=None)
     suite_parser.add_argument("--num-generations", type=_positive_int, default=None)
+    suite_parser.add_argument("--skip-render", action="store_true")
 
     replay_parser = subparsers.add_parser("replay-llm-trace")
     replay_parser.add_argument("--optimization-spec", required=True)
@@ -124,6 +126,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=int(optimization_spec.benchmark_source["seed"]),
             objective_definitions=list(evaluation_payload["objectives"]),
         )
+        if not args.skip_render:
+            from optimizers.render_assets import render_run_assets
+            render_run_assets(Path(args.output_root), hires=False)
         return 0
     if args.command == "run-benchmark-suite":
         run_benchmark_suite(
