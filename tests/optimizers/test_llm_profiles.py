@@ -106,7 +106,7 @@ def test_bundled_profiles_support_default_profile_via_gpt_env(monkeypatch: pytes
             "CLAUDE_PROXY_BASE_URL",
             "bundled-claude-key",
             "https://bundled-claude.example/v1",
-            "claude-opus-4-6",
+            "claude-sonnet-4-6",
         ),
         (
             "qwen",

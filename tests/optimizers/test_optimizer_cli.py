@@ -611,7 +611,7 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
         lambda profile, **kwargs: {
             "LLM_API_KEY": "switch-key",
             "LLM_BASE_URL": "https://switch.example/v1",
-            "LLM_MODEL": "claude-opus-4-6",
+            "LLM_MODEL": "claude-sonnet-4-6",
         },
         raising=False,
     )
@@ -640,7 +640,7 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
     assert captured == {
         "LLM_API_KEY": "switch-key",
         "LLM_BASE_URL": "https://switch.example/v1",
-        "LLM_MODEL": "claude-opus-4-6",
+        "LLM_MODEL": "claude-sonnet-4-6",
     }
 
 

@@ -219,7 +219,7 @@ QWEN_PROXY_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 The bundled provider registry maps:
 
 - `default -> gpt -> GPT_PROXY_* -> gpt-5.4`
-- `claude -> CLAUDE_PROXY_* -> claude-opus-4-6`
+- `claude -> CLAUDE_PROXY_* -> claude-sonnet-4-6`
 - `qwen -> QWEN_PROXY_* -> qwen3.6-plus`
 - edit `llm/openai_compatible/profiles.yaml` if you want to change the bundled default model names later
 

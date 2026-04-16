@@ -149,7 +149,7 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
 - provider profile declarations live in `llm/openai_compatible/profiles.yaml`
 - bundled default models are:
   - `gpt -> gpt-5.4`
-  - `claude -> claude-opus-4-6`
+  - `claude -> claude-sonnet-4-6`
   - `qwen -> qwen3.6-plus`
 - the active `scenarios/optimization/s1_typical_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
