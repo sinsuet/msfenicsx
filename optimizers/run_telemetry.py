@@ -9,87 +9,26 @@ from optimizers.operator_pool.domain_state import classify_constraint_family, do
 from optimizers.problem import objective_to_minimization
 
 
-def build_evaluation_events(
-    *,
-    run_id: str,
-    mode_id: str,
-    seed: int,
-    history: Sequence[Mapping[str, Any]],
-    objectives: Sequence[Mapping[str, Any]],
-    generation_rows: Sequence[Mapping[str, Any]] | None = None,
-) -> list[dict[str, Any]]:
-    objective_definitions = [
-        {
-            "objective_id": str(item["objective_id"]),
-            "sense": str(item.get("sense", "minimize")),
-        }
-        for item in objectives
-    ]
-    ordered_history = sorted(history, key=lambda row: int(row.get("evaluation_index", 0)))
-    generation_lookup = _build_generation_lookup(ordered_history, generation_rows or [])
-    rows: list[dict[str, Any]] = []
-    prior_optimizer_feasible_found = False
-
-    for index, record in enumerate(ordered_history):
-        prefix = ordered_history[: index + 1]
-        optimizer_prefix = [row for row in prefix if _counts_toward_optimizer_progress(row)]
-        dominant = dominant_violation(record)
-        pareto_members = {
-            int(item.get("evaluation_index", -1))
-            for item in _pareto_front(optimizer_prefix, objective_definitions)
-        }
-        counts_toward_progress = _counts_toward_optimizer_progress(record)
-        row = {
-            "run_id": str(run_id),
-            "mode_id": str(mode_id),
-            "seed": int(seed),
-            "generation_index": int(generation_lookup.get(int(record.get("evaluation_index", 0)), 0)),
-            "evaluation_index": int(record.get("evaluation_index", 0)),
-            "source": str(record.get("source", "")),
-            "decision_vector": {
-                str(key): float(value)
-                for key, value in dict(record.get("decision_vector", {})).items()
-            },
-            "objective_values": {
-                str(key): float(value)
-                for key, value in dict(record.get("objective_values", {})).items()
-            },
-            "constraint_values": {
-                str(key): float(value)
-                for key, value in dict(record.get("constraint_values", {})).items()
-            },
-            "feasible": bool(record.get("feasible", False)),
-            "total_constraint_violation": float(total_violation(record)),
-            "dominant_violation_constraint_id": None if dominant is None else str(dominant["constraint_id"]),
-            "dominant_violation_constraint_family": (
-                None
-                if dominant is None
-                else classify_constraint_family(str(dominant["constraint_id"]))
-            ),
-            "violation_count": int(
-                sum(
-                    1
-                    for value in dict(record.get("constraint_values", {})).values()
-                    if float(value) > 0.0
-                )
-            ),
-            "entered_feasible_region": (
-                counts_toward_progress
-                and bool(record.get("feasible", False))
-                and not prior_optimizer_feasible_found
-            ),
-            "preserved_feasibility": (
-                counts_toward_progress
-                and bool(record.get("feasible", False))
-                and prior_optimizer_feasible_found
-            ),
-            "pareto_membership_after_eval": int(record.get("evaluation_index", 0)) in pareto_members,
-            "failure_reason": record.get("failure_reason"),
-            "feasibility_phase": "post_feasible" if prior_optimizer_feasible_found else "prefeasible",
-        }
-        rows.append(row)
-        if counts_toward_progress and bool(record.get("feasible", False)):
-            prior_optimizer_feasible_found = True
+def build_evaluation_events(history: list[dict]) -> list[dict]:
+    """§ 4.1 evaluation_events rows — one per evaluation."""
+    rows: list[dict] = []
+    eval_index = 0
+    for generation_entry in history:
+        generation = int(generation_entry["generation"])
+        for individual in generation_entry["individuals"]:
+            rows.append(
+                {
+                    "decision_id": individual.get("decision_id"),
+                    "generation": generation,
+                    "eval_index": eval_index,
+                    "individual_id": str(individual["individual_id"]),
+                    "objectives": individual.get("objectives"),
+                    "constraints": individual.get("constraints"),
+                    "status": individual.get("status", "ok"),
+                    "timing": individual.get("timing", {}),
+                }
+            )
+            eval_index += 1
     return rows
 
 
