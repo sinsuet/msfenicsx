@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,7 @@ from optimizers.run_layout import (
     initialize_run_root,
     write_manifest,
 )
+from optimizers.run_manifest import write_run_manifest
 
 
 def run_benchmark_suite(
@@ -119,7 +121,9 @@ def run_benchmark_suite(
         for seed in effective_seeds:
             seeded_spec = _with_benchmark_seed(optimization_spec, seed)
             base_case = generate_benchmark_case(spec_path, seeded_spec)
-            evaluation_spec = load_spec(resolve_evaluation_spec_path(spec_path, seeded_spec))
+            evaluation_spec_path_for_seed = resolve_evaluation_spec_path(spec_path, seeded_spec)
+            evaluation_spec = load_spec(evaluation_spec_path_for_seed)
+            _wall_start = time.monotonic()
             run = _dispatch_run(
                 base_case,
                 seeded_spec,
@@ -127,6 +131,7 @@ def run_benchmark_suite(
                 spec_path,
                 evaluation_workers=evaluation_workers,
             )
+            _wall_seconds = time.monotonic() - _wall_start
             evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
             write_optimization_artifacts(
                 mode_root / "seeds" / f"seed-{seed}",
@@ -134,6 +139,17 @@ def run_benchmark_suite(
                 mode_id=mode,
                 seed=seed,
                 objective_definitions=list(evaluation_payload["objectives"]),
+            )
+            write_run_manifest(
+                mode_root / "seeds" / f"seed-{seed}" / "run.yaml",
+                mode=mode,
+                benchmark_seed=int(seed),
+                algorithm_seed=int(seeded_spec.algorithm["seed"]),
+                optimization_spec_path=str(spec_path),
+                evaluation_spec_path=str(evaluation_spec_path_for_seed),
+                population_size=int(seeded_spec.algorithm["population_size"]),
+                num_generations=int(seeded_spec.algorithm["num_generations"]),
+                wall_seconds=_wall_seconds,
             )
     return run_root
 

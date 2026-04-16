@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
 from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
+from optimizers.run_manifest import write_run_manifest
 from optimizers.run_suite import resolve_suite_mode_id, run_benchmark_suite
 
 
@@ -100,6 +102,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         evaluation_spec_path = resolve_evaluation_spec_path(args.optimization_spec, optimization_spec)
         evaluation_spec = load_spec(evaluation_spec_path)
         mode = optimization_spec.algorithm["mode"]
+        _wall_start = time.monotonic()
         if mode == "raw":
             run = run_raw_optimization(
                 base_case,
@@ -118,6 +121,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         else:
             raise ValueError(f"Unsupported optimizer mode {mode!r}.")
+        _wall_seconds = time.monotonic() - _wall_start
         evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
         write_optimization_artifacts(
             args.output_root,
@@ -125,6 +129,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             mode_id=resolve_suite_mode_id(optimization_spec),
             seed=int(optimization_spec.benchmark_source["seed"]),
             objective_definitions=list(evaluation_payload["objectives"]),
+        )
+        write_run_manifest(
+            Path(args.output_root) / "run.yaml",
+            mode=resolve_suite_mode_id(optimization_spec),
+            benchmark_seed=int(optimization_spec.benchmark_source["seed"]),
+            algorithm_seed=int(optimization_spec.algorithm["seed"]),
+            optimization_spec_path=args.optimization_spec,
+            evaluation_spec_path=str(evaluation_spec_path),
+            population_size=int(optimization_spec.algorithm["population_size"]),
+            num_generations=int(optimization_spec.algorithm["num_generations"]),
+            wall_seconds=_wall_seconds,
         )
         if not args.skip_render:
             from optimizers.render_assets import render_run_assets
