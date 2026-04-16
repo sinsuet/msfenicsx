@@ -74,6 +74,10 @@ def build_parser() -> argparse.ArgumentParser:
     render_parser.add_argument("--run", required=True)
     render_parser.add_argument("--hires", action="store_true")
 
+    compare_parser = subparsers.add_parser("compare-runs")
+    compare_parser.add_argument("--run", required=True, action="append")
+    compare_parser.add_argument("--output", required=True)
+
     return parser
 
 
@@ -157,6 +161,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "render-assets":
         from optimizers.render_assets import render_run_assets
         render_run_assets(Path(args.run), hires=args.hires)
+        return 0
+    if args.command == "compare-runs":
+        from optimizers.compare_runs import compare_runs
+        compare_runs(runs=[Path(r) for r in args.run], output=Path(args.output))
         return 0
     parser.error(f"Unsupported command: {args.command}")
     return 0
