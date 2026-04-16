@@ -102,6 +102,9 @@ def _project_prompt_panels(
     parent_panel = prompt_panels.get("parent_panel")
     if isinstance(parent_panel, Mapping):
         projected["parent_panel"] = dict(parent_panel)
+    generation_panel = prompt_panels.get("generation_panel")
+    if isinstance(generation_panel, Mapping):
+        projected["generation_panel"] = dict(generation_panel)
     operator_panel = prompt_panels.get("operator_panel")
     if isinstance(operator_panel, Mapping):
         projected_operator_panel: dict[str, dict[str, Any]] = {}

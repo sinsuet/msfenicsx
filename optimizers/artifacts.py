@@ -55,6 +55,18 @@ def write_optimization_artifacts(
     if hasattr(run, "operator_trace"):
         _write_trace_payload(resolved_output_root / "operator_trace.json", getattr(run, "operator_trace"))
         snapshots["operator_trace"] = "operator_trace.json"
+    if getattr(run, "controller_attempt_trace", None):
+        _write_trace_payload(
+            resolved_output_root / "controller_attempt_trace.json",
+            getattr(run, "controller_attempt_trace"),
+        )
+        snapshots["controller_attempt_trace"] = "controller_attempt_trace.json"
+    if getattr(run, "operator_attempt_trace", None):
+        _write_trace_payload(
+            resolved_output_root / "operator_attempt_trace.json",
+            getattr(run, "operator_attempt_trace"),
+        )
+        snapshots["operator_attempt_trace"] = "operator_attempt_trace.json"
     if getattr(run, "llm_request_trace", None):
         _write_jsonl_payload(resolved_output_root / "llm_request_trace.jsonl", getattr(run, "llm_request_trace"))
         snapshots["llm_request_trace"] = "llm_request_trace.jsonl"

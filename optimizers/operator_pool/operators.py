@@ -190,6 +190,24 @@ def _resolve_sink_budget_limit(
     return float(max(_MIN_SINK_SPAN, min(end_slot.upper_bound - start_slot.lower_bound, current_span)))
 
 
+def _sink_target_center_jitter(
+    proposal: np.ndarray,
+    layout: VariableLayout,
+    *,
+    rng: np.random.Generator,
+) -> float:
+    sink_state = _sink_state(proposal, layout)
+    if sink_state is None:
+        return 0.0
+    start_id, end_id, start, end, _ = sink_state
+    start_slot = layout.slot_for(start_id)
+    end_slot = layout.slot_for(end_id)
+    current_span = max(_MIN_SINK_SPAN, float(end - start))
+    usable_width = max(current_span, float(end_slot.upper_bound - start_slot.lower_bound))
+    jitter_radius = max(0.01 * usable_width, min(0.08 * current_span, 0.04 * usable_width))
+    return float(rng.uniform(-jitter_radius, jitter_radius))
+
+
 def _slide_sink_to_center(
     proposal: np.ndarray,
     state: ControllerState,
@@ -576,7 +594,6 @@ def _repair_sink_budget(
     variable_layout: VariableLayout,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    del rng
     proposal = _copy_primary(parents)
     components = _component_axes(variable_layout)
     cluster_indices = _select_hot_cluster_indices(proposal, variable_layout, components)
@@ -592,13 +609,19 @@ def _repair_sink_budget(
         end_id=end_id,
         current_span=float(end - start),
     )
+    target_span = max(_MIN_SINK_SPAN, min(float(end - start), sink_budget_limit))
+    target_span *= 0.92 + 0.08 * float(rng.random())
     _slide_sink_to_center(
         proposal,
         state,
         variable_layout,
-        target_center=float(cluster_center[0]),
+        target_center=float(cluster_center[0]) + _sink_target_center_jitter(
+            proposal,
+            variable_layout,
+            rng=rng,
+        ),
         preserve_span=False,
-        span_override=min(float(end - start), sink_budget_limit),
+        span_override=min(target_span, sink_budget_limit),
     )
     return variable_layout.clip(proposal)
 
@@ -609,7 +632,6 @@ def _slide_sink(
     variable_layout: VariableLayout,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    del rng
     proposal = _copy_primary(parents)
     components = _component_axes(variable_layout)
     cluster_indices = _select_hot_cluster_indices(proposal, variable_layout, components)
@@ -618,7 +640,11 @@ def _slide_sink(
         proposal,
         state,
         variable_layout,
-        target_center=float(cluster_center[0]),
+        target_center=float(cluster_center[0]) + _sink_target_center_jitter(
+            proposal,
+            variable_layout,
+            rng=rng,
+        ),
         preserve_span=True,
     )
     return variable_layout.clip(proposal)

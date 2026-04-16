@@ -23,6 +23,7 @@ from optimizers.operator_pool.operators import get_operator_behavior_profile
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 
 _SUPPORTED_SELECTION_THRESHOLD = 3
+_SPECULATIVE_FAMILY = "speculative_custom"
 
 
 def _is_fallback_selection(row: ControllerTraceRow) -> bool:
@@ -37,6 +38,7 @@ def _evidence_level(summary_row: Mapping[str, Any]) -> str:
     feasible_entry_count = int(summary_row.get("feasible_entry_count", 0))
     feasible_preservation_count = int(summary_row.get("feasible_preservation_count", 0))
     pareto_contribution_count = int(summary_row.get("pareto_contribution_count", 0))
+    operator_family = str(summary_row.get("operator_family", ""))
     support_count = max(
         int(summary_row.get("selection_count", 0)),
         int(summary_row.get("proposal_count", 0)),
@@ -44,7 +46,7 @@ def _evidence_level(summary_row: Mapping[str, Any]) -> str:
     )
     if feasible_entry_count > 0 or feasible_preservation_count > 0 or pareto_contribution_count > 0:
         return "trusted"
-    if support_count >= _SUPPORTED_SELECTION_THRESHOLD:
+    if support_count >= _SUPPORTED_SELECTION_THRESHOLD and operator_family != _SPECULATIVE_FAMILY:
         return "supported"
     return "speculative"
 

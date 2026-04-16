@@ -242,3 +242,211 @@ def test_genetic_union_llm_uses_configured_recent_window(monkeypatch: pytest.Mon
 
     assert captured["recent_window"] == 12
     assert record["operator_id"] == "native_sbx_pm"
+
+
+def test_genetic_union_do_records_attempts_separately_from_accepted_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pymoo.core.duplicate import DefaultDuplicateElimination
+    from pymoo.core.population import Population
+
+    from optimizers.adapters.genetic_family import GeneticFamilyUnionMating
+
+    def _fake_build_controller(*args, **kwargs):
+        del args, kwargs
+        return SimpleNamespace(controller_id="random_uniform")
+
+    def _fake_build_controller_state(parents, **kwargs):
+        del parents, kwargs
+        return SimpleNamespace()
+
+    def _fake_select_controller_decision(controller, state, operator_ids, rng):
+        del controller, state, operator_ids, rng
+        return SimpleNamespace(
+            selected_operator_id="local_refine",
+            metadata={},
+            phase="post_feasible_expand",
+            rationale="test",
+        )
+
+    monkeypatch.setattr("optimizers.adapters.genetic_family.build_controller", _fake_build_controller)
+    monkeypatch.setattr("optimizers.adapters.genetic_family.build_controller_state", _fake_build_controller_state)
+    monkeypatch.setattr(
+        "optimizers.adapters.genetic_family.select_controller_decision",
+        _fake_select_controller_decision,
+    )
+
+    raw_mating = SimpleNamespace(
+        repair=None,
+        eliminate_duplicates=DefaultDuplicateElimination(),
+        n_max_iterations=3,
+        crossover=SimpleNamespace(n_offsprings=1, n_parents=2),
+    )
+    mating = GeneticFamilyUnionMating(
+        operator_ids=_approved_union_operator_ids(),
+        controller_id="random_uniform",
+        variable_layout=None,
+        repair_reference_case=None,
+        optimization_spec={
+            "design_variables": [{"variable_id": "c01_x"}, {"variable_id": "c01_y"}],
+            "algorithm": {"population_size": 4, "num_generations": 2},
+        },
+        family="genetic",
+        backbone="nsga2",
+        selection=None,
+        raw_mating=raw_mating,
+        native_parameters={},
+        controller_parameters={},
+    )
+
+    monkeypatch.setattr(
+        mating,
+        "_repair_vector",
+        lambda vector: np.asarray(vector, dtype=np.float64),
+    )
+    monkeypatch.setattr(
+        mating,
+        "_select_parent_rows",
+        lambda problem, pop, n_select, rng, algorithm, **kwargs: np.asarray([[0, 1]] * n_select, dtype=np.int64),
+    )
+    proposals = iter(
+        [
+            np.asarray([0.15, 0.25], dtype=np.float64),
+            np.asarray([0.15, 0.25], dtype=np.float64),
+            np.asarray([0.35, 0.45], dtype=np.float64),
+        ]
+    )
+    monkeypatch.setattr(
+        mating,
+        "_event_proposals",
+        lambda problem, pop, record, rng, algorithm, **kwargs: [next(proposals)],
+    )
+
+    pop = Population.new(
+        "X",
+        np.asarray(
+            [
+                [0.2, 0.3],
+                [0.4, 0.5],
+            ],
+            dtype=np.float64,
+        ),
+    )
+    problem = SimpleNamespace(_next_evaluation_index=7, history=[])
+    algorithm = SimpleNamespace(random_state=np.random.default_rng(0), n_iter=1)
+
+    off = mating.do(problem, pop, 2, algorithm=algorithm, random_state=np.random.default_rng(0))
+
+    assert len(off) == 2
+    assert len(mating.controller_attempt_trace) == 3
+    assert len(mating.operator_attempt_trace) == 3
+    assert [row.accepted_for_evaluation for row in mating.controller_attempt_trace] == [True, False, True]
+    assert mating.controller_attempt_trace[0].accepted_evaluation_indices == [7]
+    assert mating.controller_attempt_trace[1].accepted_evaluation_indices == []
+    assert mating.controller_attempt_trace[2].accepted_evaluation_indices == [8]
+    assert mating.controller_attempt_trace[1].rejection_reason == "duplicate_within_batch"
+
+    assert [row.evaluation_index for row in mating.controller_trace] == [7, 8]
+    assert [row.evaluation_index for row in mating.operator_trace] == [7, 8]
+    assert [row.metadata["decision_index"] for row in mating.controller_trace] == [0, 2]
+    assert [row.metadata["attempt_index"] for row in mating.controller_trace] == [0, 2]
+
+
+def test_genetic_union_do_feeds_generation_local_memory_into_later_decisions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pymoo.core.duplicate import DefaultDuplicateElimination
+    from pymoo.core.population import Population
+
+    from optimizers.adapters.genetic_family import GeneticFamilyUnionMating
+
+    seen_local_accepted_counts: list[int] = []
+
+    def _fake_build_controller(*args, **kwargs):
+        del args, kwargs
+        return SimpleNamespace(controller_id="llm")
+
+    def _fake_build_controller_state(parents, **kwargs):
+        del parents
+        seen_local_accepted_counts.append(len(kwargs.get("local_controller_trace") or []))
+        return SimpleNamespace(generation_index=kwargs["generation_index"])
+
+    def _fake_select_controller_decision(controller, state, operator_ids, rng):
+        del controller, state, operator_ids, rng
+        return SimpleNamespace(
+            selected_operator_id="local_refine",
+            metadata={},
+            phase="post_feasible_expand",
+            rationale="test",
+        )
+
+    monkeypatch.setattr("optimizers.adapters.genetic_family.build_controller", _fake_build_controller)
+    monkeypatch.setattr("optimizers.adapters.genetic_family.build_controller_state", _fake_build_controller_state)
+    monkeypatch.setattr(
+        "optimizers.adapters.genetic_family.select_controller_decision",
+        _fake_select_controller_decision,
+    )
+
+    raw_mating = SimpleNamespace(
+        repair=None,
+        eliminate_duplicates=DefaultDuplicateElimination(),
+        n_max_iterations=4,
+        crossover=SimpleNamespace(n_offsprings=1, n_parents=2),
+    )
+    mating = GeneticFamilyUnionMating(
+        operator_ids=_approved_union_operator_ids(),
+        controller_id="llm",
+        variable_layout=None,
+        repair_reference_case=None,
+        optimization_spec={
+            "design_variables": [{"variable_id": "c01_x"}, {"variable_id": "c01_y"}],
+            "algorithm": {"population_size": 4, "num_generations": 2},
+        },
+        family="genetic",
+        backbone="nsga2",
+        selection=None,
+        raw_mating=raw_mating,
+        native_parameters={},
+        controller_parameters={},
+    )
+
+    monkeypatch.setattr(
+        mating,
+        "_repair_vector",
+        lambda vector: np.asarray(vector, dtype=np.float64),
+    )
+    monkeypatch.setattr(
+        mating,
+        "_select_parent_rows",
+        lambda problem, pop, n_select, rng, algorithm, **kwargs: np.asarray([[0, 1]] * n_select, dtype=np.int64),
+    )
+    proposals = iter(
+        [
+            np.asarray([0.15, 0.25], dtype=np.float64),
+            np.asarray([0.35, 0.45], dtype=np.float64),
+            np.asarray([0.55, 0.65], dtype=np.float64),
+        ]
+    )
+    monkeypatch.setattr(
+        mating,
+        "_event_proposals",
+        lambda problem, pop, record, rng, algorithm, **kwargs: [next(proposals)],
+    )
+
+    pop = Population.new(
+        "X",
+        np.asarray(
+            [
+                [0.2, 0.3],
+                [0.4, 0.5],
+            ],
+            dtype=np.float64,
+        ),
+    )
+    problem = SimpleNamespace(_next_evaluation_index=7, history=[])
+    algorithm = SimpleNamespace(random_state=np.random.default_rng(0), n_iter=1)
+
+    off = mating.do(problem, pop, 3, algorithm=algorithm, random_state=np.random.default_rng(0))
+
+    assert len(off) == 3
+    assert seen_local_accepted_counts == [0, 1, 2]

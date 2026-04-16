@@ -25,14 +25,8 @@ def build_llm_decision_summaries(mode_root: str | Path) -> dict[str, str]:
             int(row["evaluation_index"]): row
             for row in load_jsonl_rows(summaries_root / f"progress_timeline__seed-{seed}.jsonl")
         }
-        request_rows = {
-            int(row["evaluation_index"]): row
-            for row in load_jsonl_rows(seed_root / "llm_request_trace.jsonl")
-        }
-        response_rows = {
-            int(row["evaluation_index"]): row
-            for row in load_jsonl_rows(seed_root / "llm_response_trace.jsonl")
-        }
+        request_rows = _accepted_trace_lookup(load_jsonl_rows(seed_root / "llm_request_trace.jsonl"))
+        response_rows = _accepted_trace_lookup(load_jsonl_rows(seed_root / "llm_response_trace.jsonl"))
         controller_rows = {
             int(row["evaluation_index"]): row
             for row in _load_optional_json(seed_root / "controller_trace.json")
@@ -173,6 +167,29 @@ def _load_optional_json(path: Path) -> list[dict[str, Any]]:
         return []
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload if isinstance(payload, list) else []
+
+
+def _accepted_trace_lookup(rows: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
+    lookup: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        for evaluation_index in _accepted_evaluation_indices(row):
+            lookup[int(evaluation_index)] = row
+    return lookup
+
+
+def _accepted_evaluation_indices(row: dict[str, Any]) -> list[int]:
+    raw_indices = row.get("accepted_evaluation_indices")
+    if isinstance(raw_indices, list) and raw_indices:
+        return [int(value) for value in raw_indices]
+    accepted_index = row.get("accepted_evaluation_index")
+    if accepted_index is not None:
+        return [int(accepted_index)]
+    if row.get("accepted_for_evaluation") is False:
+        return []
+    evaluation_index = row.get("evaluation_index")
+    if evaluation_index is None:
+        return []
+    return [int(evaluation_index)]
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -37,6 +37,31 @@ _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_WINDOW = 4
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_COUNT = 4
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_SHARE = 0.75
 _NATIVE_BASELINE_OPERATOR_IDS = frozenset({"native_sbx_pm"})
+_GENERATION_LOCAL_DOMINANCE_PHASES = frozenset(
+    {"post_feasible_expand", "post_feasible_recover", "post_feasible_preserve"}
+)
+_GENERATION_LOCAL_DOMINANCE_THRESHOLDS = {
+    "post_feasible_expand": {"min_window": 4, "min_count": 4, "min_share": 0.75},
+    "post_feasible_recover": {"min_window": 4, "min_count": 4, "min_share": 0.75},
+    "post_feasible_preserve": {"min_window": 5, "min_count": 4, "min_share": 0.8},
+}
+_GENERATION_LOCAL_STRATEGY_GROUP_THRESHOLDS = {
+    "post_feasible_expand": {"min_window": 6, "min_count": 5, "min_share": 0.75},
+    "post_feasible_recover": {"min_window": 6, "min_count": 5, "min_share": 0.75},
+    "post_feasible_preserve": {"min_window": 6, "min_count": 5, "min_share": 0.8},
+}
+_OPERATOR_STRATEGY_GROUPS: dict[str, str] = {
+    "native_sbx_pm": "baseline",
+    "global_explore": "global_explore",
+    "local_refine": "local_peak_refine",
+    "move_hottest_cluster_toward_sink": "hotspot_shift",
+    "spread_hottest_cluster": "gradient_smoothing",
+    "smooth_high_gradient_band": "gradient_smoothing",
+    "reduce_local_congestion": "gradient_smoothing",
+    "repair_sink_budget": "sink_retarget",
+    "slide_sink": "sink_retarget",
+    "rebalance_layout": "layout_rebalance",
+}
 
 
 class LLMOperatorController:
@@ -94,15 +119,31 @@ class LLMOperatorController:
         if not original_candidate_operator_ids:
             raise ValueError("LLMOperatorController requires at least one candidate operator.")
         policy_snapshot = build_policy_snapshot(state, original_candidate_operator_ids)
-        candidate_operator_ids, dominance_guardrail = self._apply_recent_dominance_guardrail(
+        candidate_operator_ids, recent_dominance_guardrail = self._apply_recent_dominance_guardrail(
             state,
             policy_snapshot.allowed_operator_ids,
+        )
+        candidate_operator_ids, generation_local_dominance_guardrail = (
+            self._apply_generation_local_dominance_guardrail(
+                state,
+                candidate_operator_ids,
+            )
+        )
+        candidate_operator_ids, generation_local_strategy_group_guardrail = (
+            self._apply_generation_local_strategy_group_guardrail(
+                state,
+                candidate_operator_ids,
+            )
         )
         guardrail = self._merge_guardrail_metadata(
             original_candidate_operator_ids=original_candidate_operator_ids,
             effective_candidate_operator_ids=candidate_operator_ids,
             policy_snapshot=policy_snapshot,
-            dominance_guardrail=dominance_guardrail,
+            dominance_guardrails=[
+                recent_dominance_guardrail,
+                generation_local_dominance_guardrail,
+                generation_local_strategy_group_guardrail,
+            ],
         )
         entry_convert_metadata = self._entry_convert_metadata(
             state=state,
@@ -127,6 +168,11 @@ class LLMOperatorController:
             {
                 "generation_index": state.generation_index,
                 "evaluation_index": state.evaluation_index,
+                "decision_index": (
+                    None
+                    if state.metadata.get("decision_index") is None
+                    else int(state.metadata.get("decision_index"))
+                ),
                 "provider": self.config.provider,
                 "model": self.config.model,
                 "capability_profile": self.config.capability_profile,
@@ -140,6 +186,10 @@ class LLMOperatorController:
                 "guardrail": None if guardrail is None else dict(guardrail),
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
+                "accepted_for_evaluation": False,
+                "accepted_evaluation_indices": [],
+                "accepted_evaluation_index": None,
+                "rejection_reason": "",
                 **entry_convert_metadata,
             }
         )
@@ -162,6 +212,11 @@ class LLMOperatorController:
                 {
                     "generation_index": state.generation_index,
                     "evaluation_index": state.evaluation_index,
+                    "decision_index": (
+                        None
+                        if state.metadata.get("decision_index") is None
+                        else int(state.metadata.get("decision_index"))
+                    ),
                     "provider": self.config.provider,
                     "model": self.config.model,
                     "candidate_operator_ids": list(candidate_operator_ids),
@@ -178,6 +233,10 @@ class LLMOperatorController:
                     "attempt_count": int(len(attempt_trace)),
                     "retry_count": int(max(0, len(attempt_trace) - 1)),
                     "elapsed_seconds": elapsed_seconds,
+                    "accepted_for_evaluation": False,
+                    "accepted_evaluation_indices": [],
+                    "accepted_evaluation_index": None,
+                    "rejection_reason": str(exc),
                     **entry_convert_metadata,
                 }
             )
@@ -215,6 +274,11 @@ class LLMOperatorController:
             {
                 "generation_index": state.generation_index,
                 "evaluation_index": state.evaluation_index,
+                "decision_index": (
+                    None
+                    if state.metadata.get("decision_index") is None
+                    else int(state.metadata.get("decision_index"))
+                ),
                 "provider": response.provider,
                 "model": response.model,
                 "capability_profile": response.capability_profile,
@@ -236,6 +300,10 @@ class LLMOperatorController:
                 "attempt_count": int(len(attempt_trace)),
                 "retry_count": int(max(0, len(attempt_trace) - 1)),
                 "elapsed_seconds": elapsed_seconds,
+                "accepted_for_evaluation": False,
+                "accepted_evaluation_indices": [],
+                "accepted_evaluation_index": None,
+                "rejection_reason": "",
                 **entry_convert_metadata,
                 **self._selected_entry_metadata(policy_snapshot, response.selected_operator_id),
             }
@@ -335,6 +403,12 @@ class LLMOperatorController:
         phase_policy_guidance = self._build_phase_policy_guidance(policy_snapshot)
         if phase_policy_guidance:
             prompt = f"{prompt} {phase_policy_guidance}"
+        objective_balance_guidance = self._build_objective_balance_guidance(state, candidate_operator_ids)
+        if objective_balance_guidance:
+            prompt = f"{prompt} {objective_balance_guidance}"
+        generation_local_guidance = self._build_generation_local_guidance(state, candidate_operator_ids)
+        if generation_local_guidance:
+            prompt = f"{prompt} {generation_local_guidance}"
         if self._is_before_first_feasible(state):
             prompt = (
                 f"{prompt} "
@@ -349,7 +423,7 @@ class LLMOperatorController:
         dominant_share = float(guardrail.get("dominant_operator_share", 0.0))
         return (
             f"{prompt} "
-            f"A recent-dominance guardrail removed {dominant_operator_id} from the current candidate set after "
+            f"A dominance guardrail removed {dominant_operator_id} from the current candidate set after "
             f"{dominant_share:.0%} recent concentration."
         )
 
@@ -390,13 +464,15 @@ class LLMOperatorController:
         policy_snapshot: PolicySnapshot,
         guardrail: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        return build_prompt_projection(
+        metadata = build_prompt_projection(
             state,
             candidate_operator_ids=candidate_operator_ids,
             original_candidate_operator_ids=original_candidate_operator_ids,
             policy_snapshot=policy_snapshot,
             guardrail=guardrail,
         )
+        metadata["decision_axes"] = LLMOperatorController._build_decision_axes(metadata)
+        return metadata
 
     @staticmethod
     def _is_before_first_feasible(state: ControllerState) -> bool:
@@ -522,6 +598,157 @@ class LLMOperatorController:
         }
 
     @staticmethod
+    def _apply_generation_local_dominance_guardrail(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+    ) -> tuple[tuple[str, ...], dict[str, Any] | None]:
+        if len(candidate_operator_ids) <= 1:
+            return tuple(candidate_operator_ids), None
+        progress_state = state.metadata.get("progress_state")
+        phase = str(state.metadata.get("search_phase", "")).strip()
+        if isinstance(progress_state, Mapping):
+            phase = str(progress_state.get("phase") or state.metadata.get("search_phase", "")).strip()
+            post_feasible_mode = str(progress_state.get("post_feasible_mode", "")).strip()
+            if phase.startswith("post_feasible") and post_feasible_mode:
+                phase = f"post_feasible_{post_feasible_mode}"
+        if phase not in _GENERATION_LOCAL_DOMINANCE_PHASES:
+            return tuple(candidate_operator_ids), None
+        generation_local_memory = state.metadata.get("generation_local_memory")
+        if not isinstance(generation_local_memory, Mapping):
+            return tuple(candidate_operator_ids), None
+        accepted_count = int(generation_local_memory.get("accepted_count", 0))
+        dominant_operator_id = str(generation_local_memory.get("dominant_operator_id", "")).strip()
+        dominant_operator_count = int(generation_local_memory.get("dominant_operator_count", 0))
+        dominant_share = float(generation_local_memory.get("dominant_operator_share", 0.0))
+        if accepted_count <= 0 or dominant_operator_id not in candidate_operator_ids:
+            return tuple(candidate_operator_ids), None
+        thresholds = _GENERATION_LOCAL_DOMINANCE_THRESHOLDS.get(
+            phase,
+            _GENERATION_LOCAL_DOMINANCE_THRESHOLDS["post_feasible_expand"],
+        )
+        min_window = int(thresholds["min_window"])
+        min_count = int(thresholds["min_count"])
+        min_share = float(thresholds["min_share"])
+        if accepted_count < min_window or dominant_operator_count < min_count or dominant_share < min_share:
+            return tuple(candidate_operator_ids), None
+        viable_alternatives = LLMOperatorController._generation_local_viable_alternative_candidate_ids(
+            state,
+            candidate_operator_ids,
+            excluded_operator_id=dominant_operator_id,
+        )
+        if not viable_alternatives:
+            return tuple(candidate_operator_ids), None
+        filtered_candidate_operator_ids = tuple(
+            operator_id for operator_id in candidate_operator_ids if operator_id != dominant_operator_id
+        )
+        if not filtered_candidate_operator_ids:
+            return tuple(candidate_operator_ids), None
+        operator_counts = generation_local_memory.get("operator_counts")
+        if not isinstance(operator_counts, Mapping):
+            operator_counts = {}
+        return filtered_candidate_operator_ids, {
+            "applied": True,
+            "reason": "generation_local_operator_dominance",
+            "recent_window_size": int(accepted_count),
+            "dominant_operator_id": dominant_operator_id,
+            "dominant_operator_count": int(dominant_operator_count),
+            "dominant_operator_share": float(dominant_share),
+            "threshold_profile": f"generation_local_{phase}",
+            "recent_counts": {
+                str(operator_id): int(dict(summary).get("accepted_count", 0))
+                for operator_id, summary in operator_counts.items()
+                if isinstance(summary, Mapping) and int(dict(summary).get("accepted_count", 0)) > 0
+            },
+            "filtered_operator_ids": [dominant_operator_id],
+            "original_candidate_operator_ids": list(candidate_operator_ids),
+            "effective_candidate_operator_ids": list(filtered_candidate_operator_ids),
+            "viable_alternative_operator_ids": list(viable_alternatives),
+        }
+
+    @staticmethod
+    def _apply_generation_local_strategy_group_guardrail(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+    ) -> tuple[tuple[str, ...], dict[str, Any] | None]:
+        if len(candidate_operator_ids) <= 1:
+            return tuple(candidate_operator_ids), None
+        progress_state = state.metadata.get("progress_state")
+        phase = str(state.metadata.get("search_phase", "")).strip()
+        if isinstance(progress_state, Mapping):
+            phase = str(progress_state.get("phase") or state.metadata.get("search_phase", "")).strip()
+            post_feasible_mode = str(progress_state.get("post_feasible_mode", "")).strip()
+            if phase.startswith("post_feasible") and post_feasible_mode:
+                phase = f"post_feasible_{post_feasible_mode}"
+        if phase not in _GENERATION_LOCAL_DOMINANCE_PHASES:
+            return tuple(candidate_operator_ids), None
+        generation_local_memory = state.metadata.get("generation_local_memory")
+        if not isinstance(generation_local_memory, Mapping):
+            return tuple(candidate_operator_ids), None
+        accepted_count = int(generation_local_memory.get("accepted_count", 0))
+        operator_counts = generation_local_memory.get("operator_counts")
+        if not isinstance(operator_counts, Mapping) or accepted_count <= 0:
+            return tuple(candidate_operator_ids), None
+        strategy_group_counter: Counter[str] = Counter()
+        for operator_id, summary in operator_counts.items():
+            if not isinstance(summary, Mapping):
+                continue
+            strategy_group_counter[LLMOperatorController._operator_strategy_group(str(operator_id))] += int(
+                dict(summary).get("accepted_count", 0)
+            )
+        if not strategy_group_counter:
+            return tuple(candidate_operator_ids), None
+        dominant_group_id, dominant_group_count = strategy_group_counter.most_common(1)[0]
+        dominant_group_share = float(dominant_group_count) / float(max(1, accepted_count))
+        thresholds = _GENERATION_LOCAL_STRATEGY_GROUP_THRESHOLDS.get(
+            phase,
+            _GENERATION_LOCAL_STRATEGY_GROUP_THRESHOLDS["post_feasible_expand"],
+        )
+        min_window = int(thresholds["min_window"])
+        min_count = int(thresholds["min_count"])
+        min_share = float(thresholds["min_share"])
+        if accepted_count < min_window or dominant_group_count < min_count or dominant_group_share < min_share:
+            return tuple(candidate_operator_ids), None
+        dominant_group_operator_ids = [
+            str(operator_id)
+            for operator_id in candidate_operator_ids
+            if LLMOperatorController._operator_strategy_group(str(operator_id)) == dominant_group_id
+        ]
+        if not dominant_group_operator_ids or len(dominant_group_operator_ids) == len(candidate_operator_ids):
+            return tuple(candidate_operator_ids), None
+        viable_alternatives = LLMOperatorController._generation_local_viable_alternative_candidate_ids(
+            state,
+            candidate_operator_ids,
+            excluded_operator_id=dominant_group_operator_ids[0],
+            excluded_strategy_groups=[dominant_group_id],
+        )
+        if not viable_alternatives:
+            return tuple(candidate_operator_ids), None
+        filtered_candidate_operator_ids = tuple(
+            operator_id
+            for operator_id in candidate_operator_ids
+            if LLMOperatorController._operator_strategy_group(str(operator_id)) != dominant_group_id
+        )
+        if not filtered_candidate_operator_ids:
+            return tuple(candidate_operator_ids), None
+        return filtered_candidate_operator_ids, {
+            "applied": True,
+            "reason": "generation_local_strategy_group_dominance",
+            "recent_window_size": int(accepted_count),
+            "dominant_operator_id": dominant_group_operator_ids[0],
+            "dominant_operator_share": float(dominant_group_share),
+            "threshold_profile": f"generation_local_strategy_group_{phase}",
+            "recent_counts": {
+                str(group_id): int(count)
+                for group_id, count in strategy_group_counter.items()
+                if int(count) > 0
+            },
+            "filtered_operator_ids": list(dominant_group_operator_ids),
+            "original_candidate_operator_ids": list(candidate_operator_ids),
+            "effective_candidate_operator_ids": list(filtered_candidate_operator_ids),
+            "viable_alternative_operator_ids": list(viable_alternatives),
+        }
+
+    @staticmethod
     def _decision_guardrail_metadata(guardrail: dict[str, Any] | None) -> dict[str, Any]:
         if guardrail is None:
             return {}
@@ -531,6 +758,9 @@ class LLMOperatorController:
             "guardrail_reason_codes": list(guardrail.get("reason_codes", [])),
             "guardrail_threshold_profile": str(guardrail.get("threshold_profile", "")),
             "guardrail_filtered_operator_ids": list(guardrail.get("filtered_operator_ids", [])),
+            "guardrail_viable_alternative_operator_ids": list(
+                guardrail.get("viable_alternative_operator_ids", [])
+            ),
             "guardrail_dominant_operator_id": str(guardrail.get("dominant_operator_id", "")),
             "guardrail_dominant_operator_share": float(guardrail.get("dominant_operator_share", 0.0)),
             "guardrail_recent_window_size": int(guardrail.get("recent_window_size", 0)),
@@ -616,6 +846,224 @@ class LLMOperatorController:
         return " ".join(guidance)
 
     @staticmethod
+    def _build_decision_axes(metadata: Mapping[str, Any]) -> dict[str, Any]:
+        prompt_panels = metadata.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            return {
+                "objective_balance_pressure": "low",
+                "preferred_effect": None,
+                "stagnant_objectives": [],
+                "improving_objectives": [],
+                "peak_improve_candidates": [],
+                "gradient_improve_candidates": [],
+                "generation_dominant_operator_id": "",
+                "generation_dominant_operator_share": 0.0,
+                "generation_accepted_count": 0,
+            }
+        regime_panel = prompt_panels.get("regime_panel")
+        if not isinstance(regime_panel, Mapping):
+            regime_panel = {}
+        operator_panel = prompt_panels.get("operator_panel")
+        if not isinstance(operator_panel, Mapping):
+            operator_panel = {}
+        generation_panel = prompt_panels.get("generation_panel")
+        if not isinstance(generation_panel, Mapping):
+            generation_panel = {}
+        objective_balance = regime_panel.get("objective_balance")
+        if not isinstance(objective_balance, Mapping):
+            objective_balance = {}
+
+        peak_improve_candidates: list[str] = []
+        gradient_improve_candidates: list[str] = []
+        for operator_id, operator_row in operator_panel.items():
+            if not isinstance(operator_row, Mapping):
+                continue
+            applicability = str(operator_row.get("applicability", "low"))
+            if applicability == "low":
+                continue
+            normalized_operator_id = str(operator_id)
+            if str(operator_row.get("expected_peak_effect", "")) == "improve":
+                peak_improve_candidates.append(normalized_operator_id)
+            if str(operator_row.get("expected_gradient_effect", "")) == "improve":
+                gradient_improve_candidates.append(normalized_operator_id)
+
+        return {
+            "objective_balance_pressure": str(objective_balance.get("balance_pressure", "low")),
+            "preferred_effect": objective_balance.get("preferred_effect"),
+            "stagnant_objectives": [
+                str(objective_id) for objective_id in objective_balance.get("stagnant_objectives", [])
+            ],
+            "improving_objectives": [
+                str(objective_id) for objective_id in objective_balance.get("improving_objectives", [])
+            ],
+            "peak_improve_candidates": peak_improve_candidates,
+            "gradient_improve_candidates": gradient_improve_candidates,
+            "generation_dominant_operator_id": str(generation_panel.get("dominant_operator_id", "")),
+            "generation_dominant_operator_share": float(generation_panel.get("dominant_operator_share", 0.0)),
+            "generation_accepted_count": int(generation_panel.get("accepted_count", 0)),
+        }
+
+    @staticmethod
+    def _operator_strategy_group(operator_id: str) -> str:
+        return _OPERATOR_STRATEGY_GROUPS.get(str(operator_id), str(operator_id))
+
+    @staticmethod
+    def _generation_local_viable_alternative_candidate_ids(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+        *,
+        excluded_operator_id: str,
+        excluded_strategy_groups: Sequence[str] = (),
+    ) -> tuple[str, ...]:
+        prompt_panels = state.metadata.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            return ()
+        operator_panel = prompt_panels.get("operator_panel")
+        if not isinstance(operator_panel, Mapping):
+            return ()
+        regime_panel = prompt_panels.get("regime_panel")
+        if not isinstance(regime_panel, Mapping):
+            regime_panel = {}
+        objective_balance = regime_panel.get("objective_balance")
+        if not isinstance(objective_balance, Mapping):
+            objective_balance = {}
+        preferred_effect = str(objective_balance.get("preferred_effect") or "")
+        excluded_strategy_group_set = {str(group_id) for group_id in excluded_strategy_groups}
+        dominant_strategy_group = LLMOperatorController._operator_strategy_group(excluded_operator_id)
+        if dominant_strategy_group:
+            excluded_strategy_group_set.add(dominant_strategy_group)
+        prioritized_operator_ids: list[str] = []
+        fallback_operator_ids: list[str] = []
+        cross_strategy_operator_ids: list[str] = []
+        cross_strategy_fallback_operator_ids: list[str] = []
+        for operator_id in candidate_operator_ids:
+            normalized_operator_id = str(operator_id)
+            if normalized_operator_id == excluded_operator_id:
+                continue
+            operator_row = operator_panel.get(normalized_operator_id)
+            if not isinstance(operator_row, Mapping):
+                continue
+            applicability = str(operator_row.get("applicability", "low"))
+            if applicability not in {"medium", "high"}:
+                continue
+            alternative_strategy_group = LLMOperatorController._operator_strategy_group(normalized_operator_id)
+            fallback_operator_ids.append(normalized_operator_id)
+            if alternative_strategy_group not in excluded_strategy_group_set:
+                cross_strategy_fallback_operator_ids.append(normalized_operator_id)
+            if preferred_effect == "peak_improve" and str(operator_row.get("expected_peak_effect", "")) == "improve":
+                prioritized_operator_ids.append(normalized_operator_id)
+                if alternative_strategy_group not in excluded_strategy_group_set:
+                    cross_strategy_operator_ids.append(normalized_operator_id)
+            elif (
+                preferred_effect == "gradient_improve"
+                and str(operator_row.get("expected_gradient_effect", "")) == "improve"
+            ):
+                prioritized_operator_ids.append(normalized_operator_id)
+                if alternative_strategy_group not in excluded_strategy_group_set:
+                    cross_strategy_operator_ids.append(normalized_operator_id)
+            elif preferred_effect in {"balanced", ""}:
+                prioritized_operator_ids.append(normalized_operator_id)
+                if alternative_strategy_group not in excluded_strategy_group_set:
+                    cross_strategy_operator_ids.append(normalized_operator_id)
+        if cross_strategy_operator_ids:
+            return tuple(cross_strategy_operator_ids)
+        if prioritized_operator_ids:
+            return tuple(prioritized_operator_ids)
+        if cross_strategy_fallback_operator_ids:
+            return tuple(cross_strategy_fallback_operator_ids)
+        return tuple(fallback_operator_ids)
+
+    @staticmethod
+    def _build_generation_local_guidance(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+    ) -> str:
+        generation_local_memory = state.metadata.get("generation_local_memory")
+        if not isinstance(generation_local_memory, Mapping):
+            return ""
+        accepted_count = int(generation_local_memory.get("accepted_count", 0))
+        dominant_operator_id = str(generation_local_memory.get("dominant_operator_id", "")).strip()
+        dominant_share = float(generation_local_memory.get("dominant_operator_share", 0.0))
+        if accepted_count < 3 or not dominant_operator_id or dominant_operator_id not in candidate_operator_ids:
+            return ""
+        viable_alternatives = LLMOperatorController._generation_local_viable_alternative_candidate_ids(
+            state,
+            candidate_operator_ids,
+            excluded_operator_id=dominant_operator_id,
+        )
+        if not viable_alternatives:
+            return ""
+        return (
+            "Current-generation mix alert: "
+            f"{dominant_operator_id} already accounts for {dominant_share:.0%} of the {accepted_count} accepted "
+            "offspring in this generation. "
+            f"Prefer viable alternatives such as {', '.join(viable_alternatives)} instead of copying the current "
+            "dominant operator again unless it is uniquely required."
+        )
+
+    @staticmethod
+    def _build_objective_balance_guidance(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+    ) -> str:
+        prompt_panels = state.metadata.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            return ""
+        regime_panel = prompt_panels.get("regime_panel")
+        if not isinstance(regime_panel, Mapping):
+            return ""
+        objective_balance = regime_panel.get("objective_balance")
+        if not isinstance(objective_balance, Mapping):
+            return ""
+        pressure = str(objective_balance.get("balance_pressure", "low"))
+        if pressure not in {"high", "medium"}:
+            return ""
+
+        preferred_effect = str(objective_balance.get("preferred_effect") or "")
+        stagnant_objectives = [str(item) for item in objective_balance.get("stagnant_objectives", [])]
+        improving_objectives = [str(item) for item in objective_balance.get("improving_objectives", [])]
+        operator_panel = prompt_panels.get("operator_panel")
+        if not isinstance(operator_panel, Mapping):
+            operator_panel = {}
+
+        effect_key = ""
+        if preferred_effect == "peak_improve":
+            effect_key = "expected_peak_effect"
+        elif preferred_effect == "gradient_improve":
+            effect_key = "expected_gradient_effect"
+        candidates = [
+            str(operator_id)
+            for operator_id in candidate_operator_ids
+            if isinstance(operator_panel.get(operator_id), Mapping)
+            and str(dict(operator_panel[operator_id]).get(effect_key, "")) == "improve"
+        ]
+        candidate_text = f" especially {', '.join(candidates)}" if candidates else ""
+        stagnant_text = ", ".join(stagnant_objectives) if stagnant_objectives else "one objective"
+        improving_text = ", ".join(improving_objectives) if improving_objectives else "the other objective"
+
+        if preferred_effect == "peak_improve":
+            return (
+                "Objective balance alert: "
+                f"{stagnant_text} has stagnated while {improving_text} continues improving. "
+                f"Prefer operators with expected_peak_effect=improve and usable applicability{candidate_text} "
+                "over operators that only improve gradient. "
+                "A bounded temperature_max-focused trial is justified if it preserves feasibility."
+            )
+        if preferred_effect == "gradient_improve":
+            return (
+                "Objective balance alert: "
+                f"{stagnant_text} has stagnated while {improving_text} continues improving. "
+                f"Prefer operators with expected_gradient_effect=improve and usable applicability{candidate_text} "
+                "over operators that only improve peak temperature."
+            )
+        if preferred_effect == "balanced":
+            return (
+                "Objective balance alert: both objectives look stagnant. "
+                "Diversify toward operators with credible applicability to break the current basin."
+            )
+        return ""
+
+    @staticmethod
     def _entry_convert_metadata(
         *,
         state: ControllerState,
@@ -679,47 +1127,54 @@ class LLMOperatorController:
         original_candidate_operator_ids: Sequence[str],
         effective_candidate_operator_ids: Sequence[str],
         policy_snapshot: PolicySnapshot,
-        dominance_guardrail: dict[str, Any] | None,
+        dominance_guardrails: Sequence[dict[str, Any] | None],
     ) -> dict[str, Any] | None:
+        active_dominance_guardrails = [guardrail for guardrail in dominance_guardrails if guardrail is not None]
         filtered_operator_ids = list(policy_snapshot.suppressed_operator_ids)
-        if dominance_guardrail is not None:
+        for dominance_guardrail in active_dominance_guardrails:
             for operator_id in dominance_guardrail.get("filtered_operator_ids", []):
                 normalized = str(operator_id)
                 if normalized not in filtered_operator_ids:
                     filtered_operator_ids.append(normalized)
         reason_codes = list(policy_snapshot.reason_codes)
-        if dominance_guardrail is not None and dominance_guardrail.get("reason"):
-            reason_codes.append(str(dominance_guardrail["reason"]))
-        applied = bool(filtered_operator_ids or policy_snapshot.reset_active or dominance_guardrail)
+        for dominance_guardrail in active_dominance_guardrails:
+            if dominance_guardrail.get("reason"):
+                reason_codes.append(str(dominance_guardrail["reason"]))
+        primary_dominance_guardrail = (
+            None
+            if not active_dominance_guardrails
+            else active_dominance_guardrails[-1]
+        )
+        applied = bool(filtered_operator_ids or policy_snapshot.reset_active or active_dominance_guardrails)
         if not applied:
             return None
         return {
             "applied": True,
             "reason": (
-                str(dominance_guardrail.get("reason", ""))
-                if dominance_guardrail is not None
+                str(primary_dominance_guardrail.get("reason", ""))
+                if primary_dominance_guardrail is not None
                 else ("phase_policy" if reason_codes else "")
             ),
             "reason_codes": reason_codes,
             "threshold_profile": (
-                str(dominance_guardrail.get("threshold_profile", ""))
-                if dominance_guardrail is not None
+                str(primary_dominance_guardrail.get("threshold_profile", ""))
+                if primary_dominance_guardrail is not None
                 else "policy_kernel"
             ),
             "filtered_operator_ids": filtered_operator_ids,
             "dominant_operator_id": (
-                str(dominance_guardrail.get("dominant_operator_id", ""))
-                if dominance_guardrail is not None
+                str(primary_dominance_guardrail.get("dominant_operator_id", ""))
+                if primary_dominance_guardrail is not None
                 else ""
             ),
             "dominant_operator_share": (
-                float(dominance_guardrail.get("dominant_operator_share", 0.0))
-                if dominance_guardrail is not None
+                float(primary_dominance_guardrail.get("dominant_operator_share", 0.0))
+                if primary_dominance_guardrail is not None
                 else 0.0
             ),
             "recent_window_size": (
-                int(dominance_guardrail.get("recent_window_size", 0))
-                if dominance_guardrail is not None
+                int(primary_dominance_guardrail.get("recent_window_size", 0))
+                if primary_dominance_guardrail is not None
                 else 0
             ),
             "policy_phase": policy_snapshot.phase,
@@ -729,9 +1184,14 @@ class LLMOperatorController:
             "recent_counts": (
                 {
                     str(operator_id): int(count)
-                    for operator_id, count in dict(dominance_guardrail.get("recent_counts", {})).items()
+                    for operator_id, count in dict(primary_dominance_guardrail.get("recent_counts", {})).items()
                 }
-                if dominance_guardrail is not None
+                if primary_dominance_guardrail is not None
                 else {}
+            ),
+            "viable_alternative_operator_ids": (
+                [str(operator_id) for operator_id in primary_dominance_guardrail.get("viable_alternative_operator_ids", [])]
+                if primary_dominance_guardrail is not None
+                else []
             ),
         }

@@ -24,6 +24,9 @@ _NO_PROGRESS_RESET_THRESHOLD = 5
 _SUPPORTED_SELECTION_THRESHOLD = 3
 _PREFEASIBLE_CONVERT_STALL_THRESHOLD = 3
 _PREFEASIBLE_CONVERT_PERSISTENCE_THRESHOLD = 2
+_PEAK_BALANCE_ESCAPE_OPERATORS = frozenset(
+    {"slide_sink", "move_hottest_cluster_toward_sink", "repair_sink_budget"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,7 +92,7 @@ def score_operator_evidence(state: ControllerState, operator_id: str) -> dict[st
     )
     if feasible_entry_count > 0 or feasible_preservation_count > 0:
         evidence_level = "trusted"
-    elif support_count >= _SUPPORTED_SELECTION_THRESHOLD:
+    elif support_count >= _SUPPORTED_SELECTION_THRESHOLD and profile.family != _SPECULATIVE_FAMILY:
         evidence_level = "supported"
     else:
         evidence_level = "speculative"
@@ -192,18 +195,25 @@ def build_policy_snapshot(
             reason_codes.append("prefeasible_forced_reset")
 
     if phase.startswith("post_feasible"):
+        current_allowed_operator_ids = tuple(allowed_operator_ids)
         filtered, post_feasible_reason_code = _post_feasible_candidate_filter(
+            state,
             phase,
-            tuple(allowed_operator_ids),
+            current_allowed_operator_ids,
             candidate_annotations,
         )
-        if filtered != tuple(allowed_operator_ids):
+        peak_balance_escape_active = bool(
+            _peak_balance_escape_candidates(state, phase, current_allowed_operator_ids)
+        )
+        if filtered != current_allowed_operator_ids:
             allowed_operator_ids = list(filtered)
             suppressed_operator_ids.extend(
                 operator_id for operator_id in candidate_ids if operator_id not in allowed_operator_ids
             )
-            if post_feasible_reason_code:
-                reason_codes.append(post_feasible_reason_code)
+        if post_feasible_reason_code and (
+            filtered != current_allowed_operator_ids or peak_balance_escape_active
+        ):
+            reason_codes.append(post_feasible_reason_code)
 
     if not allowed_operator_ids:
         allowed_operator_ids = list(candidate_ids)
@@ -434,6 +444,7 @@ def _post_feasible_role(annotation: dict[str, Any]) -> str:
 
 
 def _post_feasible_candidate_filter(
+    state: ControllerState,
     phase: str,
     candidate_operator_ids: Sequence[str],
     candidate_annotations: dict[str, dict[str, Any]],
@@ -443,6 +454,11 @@ def _post_feasible_candidate_filter(
             operator_id
             for operator_id in candidate_operator_ids
             if str(candidate_annotations.get(operator_id, {}).get("post_feasible_role", "")) == "trusted_preserve"
+        )
+        filtered = _merge_required_candidates(
+            filtered,
+            candidate_operator_ids,
+            required_operator_ids=_peak_balance_escape_candidates(state, phase, candidate_operator_ids),
         )
         if not filtered:
             filtered = _filter_to_stable_families(candidate_operator_ids, candidate_annotations)
@@ -457,7 +473,14 @@ def _post_feasible_candidate_filter(
             for operator_id in candidate_operator_ids
             if str(candidate_annotations.get(operator_id, {}).get("post_feasible_role", "")) != "risky_expand"
         )
-        if filtered and len(filtered) < len(tuple(candidate_operator_ids)):
+        frontier_bias_active = filtered and len(filtered) < len(tuple(candidate_operator_ids))
+        if phase == "post_feasible_expand":
+            filtered = _merge_required_candidates(
+                filtered,
+                candidate_operator_ids,
+                required_operator_ids=_peak_balance_escape_candidates(state, phase, candidate_operator_ids),
+            )
+        if frontier_bias_active:
             reason_code = (
                 "post_feasible_expand_frontier_bias"
                 if phase == "post_feasible_expand"
@@ -466,3 +489,44 @@ def _post_feasible_candidate_filter(
             return tuple(filtered), reason_code
 
     return tuple(candidate_operator_ids), None
+
+
+def _peak_balance_escape_candidates(
+    state: ControllerState,
+    phase: str,
+    candidate_operator_ids: Sequence[str],
+) -> tuple[str, ...]:
+    if phase not in {"post_feasible_recover", "post_feasible_expand"}:
+        return ()
+    prompt_panels = state.metadata.get("prompt_panels")
+    if not isinstance(prompt_panels, dict):
+        return ()
+    regime_panel = prompt_panels.get("regime_panel")
+    if not isinstance(regime_panel, dict):
+        return ()
+    objective_balance = regime_panel.get("objective_balance")
+    if not isinstance(objective_balance, dict):
+        return ()
+    if str(objective_balance.get("balance_pressure", "")).strip() != "high":
+        return ()
+    if str(objective_balance.get("preferred_effect", "")).strip() != "peak_improve":
+        return ()
+    return tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if operator_id in _PEAK_BALANCE_ESCAPE_OPERATORS
+    )
+
+
+def _merge_required_candidates(
+    filtered_operator_ids: Sequence[str],
+    candidate_operator_ids: Sequence[str],
+    *,
+    required_operator_ids: Sequence[str] = (),
+) -> tuple[str, ...]:
+    required_set = {str(operator_id) for operator_id in required_operator_ids}
+    return tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if operator_id in filtered_operator_ids or operator_id in required_set
+    )

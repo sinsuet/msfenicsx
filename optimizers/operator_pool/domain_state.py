@@ -11,6 +11,8 @@ import numpy as np
 from optimizers.operator_pool.operators import get_operator_behavior_profile
 
 _RECENT_FRONTIER_WINDOW = 4
+_OBJECTIVE_STAGNATION_THRESHOLD = 6
+_OBJECTIVE_BALANCE_STALENESS_GAP_THRESHOLD = 24
 
 
 def vector_key(values: Sequence[float], *, ndigits: int = 12) -> tuple[float, ...]:
@@ -422,6 +424,7 @@ def build_progress_state(
             "recent_dominant_violation_persistence_count": 0,
             "recent_frontier_stagnation_count": 0,
             "post_feasible_mode": None,
+            "objective_stagnation": _empty_objective_stagnation(),
         }
 
     ordered_history = sorted(progress_history, key=lambda row: int(row.get("evaluation_index", 0)))
@@ -496,6 +499,11 @@ def build_progress_state(
     else:
         phase = "prefeasible_progress" if recent_no_progress_count == 0 else "prefeasible_stagnation"
         post_feasible_mode = None
+    objective_stagnation = _build_objective_stagnation(
+        ordered_history,
+        first_feasible_eval=first_feasible_eval,
+        latest_completed_eval=latest_completed_eval,
+    )
     return {
         "phase": phase,
         "first_feasible_found": first_feasible_found,
@@ -512,7 +520,62 @@ def build_progress_state(
         "recent_dominant_violation_persistence_count": int(recent_dominant_violation_persistence_count),
         "recent_frontier_stagnation_count": int(frontier_summary["recent_frontier_stagnation_count"]),
         "post_feasible_mode": post_feasible_mode,
+        "objective_stagnation": objective_stagnation,
     }
+
+
+def _empty_objective_stagnation() -> dict[str, dict[str, Any]]:
+    return {
+        "temperature_max": {
+            "best_value": None,
+            "evaluations_since_improvement": None,
+            "stagnant": False,
+        },
+        "gradient_rms": {
+            "best_value": None,
+            "evaluations_since_improvement": None,
+            "stagnant": False,
+        },
+    }
+
+
+def _build_objective_stagnation(
+    ordered_history: Sequence[Mapping[str, Any]],
+    *,
+    first_feasible_eval: int | None,
+    latest_completed_eval: int,
+) -> dict[str, dict[str, Any]]:
+    """Track per-objective stagnation across feasible optimizer evaluations."""
+    del first_feasible_eval
+    objective_keys = {
+        "temperature_max": "summary.temperature_max",
+        "gradient_rms": "summary.temperature_gradient_rms",
+    }
+    result = _empty_objective_stagnation()
+    for short_key, metric_key in objective_keys.items():
+        best_value: float | None = None
+        last_improvement_eval: int | None = None
+        for row in ordered_history:
+            if not bool(row.get("feasible", False)):
+                continue
+            if str(row.get("source", "")).strip().lower() == "baseline":
+                continue
+            eval_index = int(row.get("evaluation_index", 0))
+            value = _metric_from_record(row, metric_key)
+            if value is None:
+                continue
+            if best_value is None or value < best_value:
+                best_value = float(value)
+                last_improvement_eval = eval_index
+        if best_value is None or last_improvement_eval is None:
+            continue
+        evals_since = max(0, latest_completed_eval - last_improvement_eval)
+        result[short_key] = {
+            "best_value": float(best_value),
+            "evaluations_since_improvement": int(evals_since),
+            "stagnant": evals_since >= _OBJECTIVE_STAGNATION_THRESHOLD,
+        }
+    return result
 
 
 def build_prefeasible_reset_summary(
@@ -712,9 +775,77 @@ def build_prompt_regime_panel(
         "preservation_pressure": _pressure_level(preservation_pressure_score),
         "frontier_pressure": _pressure_level(frontier_pressure_score),
     }
+    objective_stagnation = progress_state.get("objective_stagnation", {})
+    if isinstance(objective_stagnation, Mapping):
+        regime_panel["objective_balance"] = _build_objective_balance(objective_stagnation)
     if domain_regime.get("sink_budget_utilization") is not None:
         regime_panel["sink_budget_utilization"] = float(domain_regime["sink_budget_utilization"])
     return regime_panel
+
+
+def _build_objective_balance(
+    objective_stagnation: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Derive prompt-layer objective balance pressure from per-objective stagnation.
+
+    In generation-batched controllers, both objectives can look stale at the start of a
+    generation even when one just improved near the end of the previous generation.
+    A large staleness gap restores directional pressure in those cases.
+    """
+    tmax_state = objective_stagnation.get("temperature_max")
+    grad_state = objective_stagnation.get("gradient_rms")
+    tmax_stagnant = bool(isinstance(tmax_state, Mapping) and tmax_state.get("stagnant", False))
+    grad_stagnant = bool(isinstance(grad_state, Mapping) and grad_state.get("stagnant", False))
+    tmax_since = (
+        None
+        if not isinstance(tmax_state, Mapping) or tmax_state.get("evaluations_since_improvement") is None
+        else int(tmax_state["evaluations_since_improvement"])
+    )
+    grad_since = (
+        None
+        if not isinstance(grad_state, Mapping) or grad_state.get("evaluations_since_improvement") is None
+        else int(grad_state["evaluations_since_improvement"])
+    )
+
+    if tmax_stagnant and not grad_stagnant:
+        balance_pressure = "high"
+        preferred_effect = "peak_improve"
+        stagnant_objectives = ["temperature_max"]
+        improving_objectives = ["gradient_rms"]
+    elif grad_stagnant and not tmax_stagnant:
+        balance_pressure = "high"
+        preferred_effect = "gradient_improve"
+        stagnant_objectives = ["gradient_rms"]
+        improving_objectives = ["temperature_max"]
+    elif tmax_stagnant and grad_stagnant:
+        staleness_gap = None if tmax_since is None or grad_since is None else tmax_since - grad_since
+        if staleness_gap is not None and staleness_gap >= _OBJECTIVE_BALANCE_STALENESS_GAP_THRESHOLD:
+            balance_pressure = "high"
+            preferred_effect = "peak_improve"
+            stagnant_objectives = ["temperature_max"]
+            improving_objectives = ["gradient_rms"]
+        elif staleness_gap is not None and staleness_gap <= -_OBJECTIVE_BALANCE_STALENESS_GAP_THRESHOLD:
+            balance_pressure = "high"
+            preferred_effect = "gradient_improve"
+            stagnant_objectives = ["gradient_rms"]
+            improving_objectives = ["temperature_max"]
+        else:
+            balance_pressure = "medium"
+            preferred_effect = "balanced"
+            stagnant_objectives = ["temperature_max", "gradient_rms"]
+            improving_objectives = []
+    else:
+        balance_pressure = "low"
+        preferred_effect = None
+        stagnant_objectives = []
+        improving_objectives = ["temperature_max", "gradient_rms"]
+
+    return {
+        "stagnant_objectives": stagnant_objectives,
+        "improving_objectives": improving_objectives,
+        "balance_pressure": balance_pressure,
+        "preferred_effect": preferred_effect,
+    }
 
 
 def build_domain_regime(

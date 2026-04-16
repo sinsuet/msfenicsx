@@ -200,9 +200,67 @@ def test_registered_operators_propose_bounded_numeric_vectors_without_mutating_p
     assert np.allclose(parents.secondary, secondary_before)
 
 
-def test_trace_rows_round_trip_through_dict_payloads() -> None:
-    from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
+def test_sink_peak_operators_add_bounded_rng_variation() -> None:
+    from optimizers.operator_pool.operators import get_operator_definition
 
+    layout = _layout()
+    parents = _parent_bundle()
+    state = _controller_state()
+
+    slide_a = get_operator_definition("slide_sink").propose(
+        parents=parents,
+        state=state,
+        variable_layout=layout,
+        rng=np.random.default_rng(17),
+    )
+    slide_b = get_operator_definition("slide_sink").propose(
+        parents=parents,
+        state=state,
+        variable_layout=layout,
+        rng=np.random.default_rng(18),
+    )
+    repair_a = get_operator_definition("repair_sink_budget").propose(
+        parents=parents,
+        state=state,
+        variable_layout=layout,
+        rng=np.random.default_rng(17),
+    )
+    repair_b = get_operator_definition("repair_sink_budget").propose(
+        parents=parents,
+        state=state,
+        variable_layout=layout,
+        rng=np.random.default_rng(18),
+    )
+
+    sink_start_index = layout.index_of("sink_start")
+    sink_end_index = layout.index_of("sink_end")
+
+    assert not np.allclose(slide_a[[sink_start_index, sink_end_index]], slide_b[[sink_start_index, sink_end_index]])
+    assert not np.allclose(repair_a[[sink_start_index, sink_end_index]], repair_b[[sink_start_index, sink_end_index]])
+
+
+def test_trace_rows_round_trip_through_dict_payloads() -> None:
+    from optimizers.operator_pool.trace import (
+        ControllerAttemptTraceRow,
+        ControllerTraceRow,
+        OperatorAttemptTraceRow,
+        OperatorTraceRow,
+    )
+
+    controller_attempt_row = ControllerAttemptTraceRow(
+        generation_index=2,
+        provisional_evaluation_index=9,
+        decision_index=4,
+        attempt_index=7,
+        family="genetic",
+        backbone="nsga2",
+        controller_id="llm",
+        candidate_operator_ids=APPROVED_UNION_OPERATOR_IDS,
+        selected_operator_id="slide_sink",
+        accepted_for_evaluation=True,
+        accepted_evaluation_indices=[9],
+        metadata={"seed": 7},
+    )
     controller_row = ControllerTraceRow(
         generation_index=2,
         evaluation_index=9,
@@ -212,6 +270,20 @@ def test_trace_rows_round_trip_through_dict_payloads() -> None:
         candidate_operator_ids=APPROVED_UNION_OPERATOR_IDS,
         selected_operator_id="reduce_local_congestion",
         metadata={"seed": 7},
+    )
+    operator_attempt_row = OperatorAttemptTraceRow(
+        generation_index=2,
+        provisional_evaluation_index=9,
+        decision_index=4,
+        attempt_index=7,
+        operator_id="slide_sink",
+        parent_count=2,
+        parent_vectors=((0.1, 0.2), (0.3, 0.4)),
+        proposal_vector=(0.2, 0.25),
+        repaired_vector=(0.21, 0.26),
+        accepted_for_evaluation=True,
+        accepted_evaluation_indices=[9],
+        metadata={"family": "genetic"},
     )
     operator_row = OperatorTraceRow(
         generation_index=2,
@@ -223,5 +295,7 @@ def test_trace_rows_round_trip_through_dict_payloads() -> None:
         metadata={"family": "genetic"},
     )
 
+    assert ControllerAttemptTraceRow.from_dict(controller_attempt_row.to_dict()) == controller_attempt_row
     assert ControllerTraceRow.from_dict(controller_row.to_dict()) == controller_row
+    assert OperatorAttemptTraceRow.from_dict(operator_attempt_row.to_dict()) == operator_attempt_row
     assert OperatorTraceRow.from_dict(operator_row.to_dict()) == operator_row

@@ -253,6 +253,260 @@ def _post_feasible_recover_state() -> ControllerState:
     )
 
 
+def _post_feasible_recover_peak_balance_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=102,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 42,
+                "evaluations_used": 101,
+                "evaluations_remaining": 100,
+                "feasible_rate": 1.0,
+                "first_feasible_eval": 21,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+                "recent_no_progress_count": 8,
+                "recent_frontier_stagnation_count": 10,
+                "last_progress_eval": 94,
+                "objective_stagnation": {
+                    "temperature_max": {
+                        "best_value": 307.0,
+                        "evaluations_since_improvement": 12,
+                        "stagnant": True,
+                    },
+                    "gradient_rms": {
+                        "best_value": 10.8,
+                        "evaluations_since_improvement": 1,
+                        "stagnant": False,
+                    },
+                },
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_recover",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "high",
+                    "objective_balance": {
+                        "stagnant_objectives": ["temperature_max"],
+                        "improving_objectives": ["gradient_rms"],
+                        "balance_pressure": "high",
+                        "preferred_effect": "peak_improve",
+                    },
+                }
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 20,
+                    "recent_selection_count": 2,
+                    "proposal_count": 20,
+                    "feasible_preservation_count": 8,
+                },
+                "local_refine": {
+                    "selection_count": 18,
+                    "recent_selection_count": 3,
+                    "proposal_count": 18,
+                    "feasible_preservation_count": 6,
+                },
+                "slide_sink": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_expand_peak_balance_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=132,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 58,
+                "evaluations_used": 131,
+                "evaluations_remaining": 70,
+                "feasible_rate": 1.0,
+                "first_feasible_eval": 21,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 5,
+                "recent_frontier_stagnation_count": 6,
+                "last_progress_eval": 126,
+                "objective_stagnation": {
+                    "temperature_max": {
+                        "best_value": 306.6,
+                        "evaluations_since_improvement": 10,
+                        "stagnant": True,
+                    },
+                    "gradient_rms": {
+                        "best_value": 11.2,
+                        "evaluations_since_improvement": 1,
+                        "stagnant": False,
+                    },
+                },
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "preservation_pressure": "medium",
+                    "frontier_pressure": "high",
+                    "objective_balance": {
+                        "stagnant_objectives": ["temperature_max"],
+                        "improving_objectives": ["gradient_rms"],
+                        "balance_pressure": "high",
+                        "preferred_effect": "peak_improve",
+                    },
+                }
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 28,
+                    "recent_selection_count": 3,
+                    "proposal_count": 28,
+                    "feasible_preservation_count": 10,
+                    "feasible_regression_count": 3,
+                    "pareto_contribution_count": 4,
+                },
+                "local_refine": {
+                    "selection_count": 26,
+                    "recent_selection_count": 4,
+                    "proposal_count": 26,
+                    "feasible_preservation_count": 9,
+                    "feasible_regression_count": 2,
+                    "pareto_contribution_count": 3,
+                },
+                "slide_sink": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_expand_peak_balance_support_only_slide_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=132,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 58,
+                "evaluations_used": 131,
+                "evaluations_remaining": 70,
+                "feasible_rate": 1.0,
+                "first_feasible_eval": 21,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 5,
+                "recent_frontier_stagnation_count": 6,
+                "last_progress_eval": 126,
+                "objective_stagnation": {
+                    "temperature_max": {
+                        "best_value": 306.6,
+                        "evaluations_since_improvement": 10,
+                        "stagnant": True,
+                    },
+                    "gradient_rms": {
+                        "best_value": 11.2,
+                        "evaluations_since_improvement": 1,
+                        "stagnant": False,
+                    },
+                },
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "preservation_pressure": "medium",
+                    "frontier_pressure": "high",
+                    "objective_balance": {
+                        "stagnant_objectives": ["temperature_max"],
+                        "improving_objectives": ["gradient_rms"],
+                        "balance_pressure": "high",
+                        "preferred_effect": "peak_improve",
+                    },
+                }
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 28,
+                    "recent_selection_count": 3,
+                    "proposal_count": 28,
+                    "feasible_preservation_count": 10,
+                    "feasible_regression_count": 3,
+                    "pareto_contribution_count": 4,
+                },
+                "local_refine": {
+                    "selection_count": 26,
+                    "recent_selection_count": 4,
+                    "proposal_count": 26,
+                    "feasible_preservation_count": 9,
+                    "feasible_regression_count": 2,
+                    "pareto_contribution_count": 3,
+                },
+                "slide_sink": {
+                    "selection_count": 4,
+                    "recent_selection_count": 3,
+                    "proposal_count": 4,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+            },
+        },
+    )
+
+
 def test_cold_start_bootstraps_only_stable_semantic_families() -> None:
     policy_kernel = _policy_kernel_module()
 
@@ -342,3 +596,62 @@ def test_post_feasible_recover_keeps_only_trusted_preserve_roles() -> None:
     assert policy.phase == "post_feasible_recover"
     assert "post_feasible_recover_preserve_bias" in policy.reason_codes
     assert policy.allowed_operator_ids == ("native_sbx_pm", "local_refine")
+
+
+def test_post_feasible_recover_peak_balance_keeps_peak_escape_candidates() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_recover_peak_balance_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "slide_sink",
+            "move_hottest_cluster_toward_sink",
+            "repair_sink_budget",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_recover"
+    assert "post_feasible_recover_preserve_bias" in policy.reason_codes
+    assert "slide_sink" in policy.allowed_operator_ids
+    assert "move_hottest_cluster_toward_sink" in policy.allowed_operator_ids
+
+
+def test_post_feasible_expand_peak_balance_keeps_peak_escape_candidates() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_peak_balance_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "slide_sink",
+            "move_hottest_cluster_toward_sink",
+            "repair_sink_budget",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+    assert "post_feasible_expand_frontier_bias" in policy.reason_codes
+    assert "slide_sink" in policy.allowed_operator_ids
+    assert "move_hottest_cluster_toward_sink" in policy.allowed_operator_ids
+
+
+def test_post_feasible_expand_peak_balance_does_not_upgrade_support_only_slide_sink() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_peak_balance_support_only_slide_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "slide_sink",
+            "move_hottest_cluster_toward_sink",
+            "repair_sink_budget",
+        ),
+    )
+
+    assert policy.candidate_annotations["slide_sink"]["evidence_level"] == "speculative"
+    assert policy.candidate_annotations["slide_sink"]["post_feasible_role"] == "risky_expand"
+    assert "slide_sink" in policy.allowed_operator_ids

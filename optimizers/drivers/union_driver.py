@@ -22,7 +22,12 @@ from optimizers.drivers.raw_driver import (
 from optimizers.generation_callback import GenerationSummaryCallback
 from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.models import OptimizationResult
-from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
+from optimizers.operator_pool.trace import (
+    ControllerAttemptTraceRow,
+    ControllerTraceRow,
+    OperatorAttemptTraceRow,
+    OperatorTraceRow,
+)
 from optimizers.problem import CandidateArtifacts, ThermalOptimizationProblem
 
 
@@ -32,6 +37,8 @@ class UnionOptimizationRun:
     representative_artifacts: dict[str, CandidateArtifacts]
     controller_trace: list[ControllerTraceRow]
     operator_trace: list[OperatorTraceRow]
+    controller_attempt_trace: list[ControllerAttemptTraceRow] = field(default_factory=list)
+    operator_attempt_trace: list[OperatorAttemptTraceRow] = field(default_factory=list)
     generation_summary_rows: list[dict[str, Any]] = field(default_factory=list)
     llm_request_trace: list[dict[str, Any]] | None = None
     llm_response_trace: list[dict[str, Any]] | None = None
@@ -104,6 +111,8 @@ def run_union_optimization(
         representative_artifacts=representative_artifacts,
         controller_trace=list(adapter.controller_trace),
         operator_trace=list(adapter.operator_trace),
+        controller_attempt_trace=list(getattr(adapter, "controller_attempt_trace", [])),
+        operator_attempt_trace=list(getattr(adapter, "operator_attempt_trace", [])),
         generation_summary_rows=list(generation_callback.rows),
         llm_request_trace=None if getattr(adapter, "llm_request_trace", None) is None else list(adapter.llm_request_trace),
         llm_response_trace=None if getattr(adapter, "llm_response_trace", None) is None else list(adapter.llm_response_trace),

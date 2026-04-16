@@ -128,6 +128,257 @@ def _dominance_state() -> ControllerState:
     )
 
 
+def _generation_local_dominance_state(*, viable_alternative: bool) -> ControllerState:
+    operator_panel = {
+        "native_sbx_pm": {
+            "applicability": "low",
+            "expected_peak_effect": "neutral",
+            "expected_gradient_effect": "neutral",
+            "expected_feasibility_risk": "low",
+            "recent_regression_risk": "low",
+        },
+        "local_refine": {
+            "applicability": "high" if viable_alternative else "low",
+            "expected_peak_effect": "improve",
+            "expected_gradient_effect": "neutral",
+            "expected_feasibility_risk": "low",
+            "recent_regression_risk": "low",
+        },
+        "slide_sink": {
+            "applicability": "high",
+            "expected_peak_effect": "improve",
+            "expected_gradient_effect": "neutral",
+            "expected_feasibility_risk": "low",
+            "recent_regression_risk": "low",
+        },
+    }
+    generation_panel = {
+        "accepted_count": 4,
+        "target_offsprings": 20,
+        "accepted_share": 0.2,
+        "dominant_operator_id": "slide_sink",
+        "dominant_operator_count": 4,
+        "dominant_operator_share": 1.0,
+        "dominant_operator_streak": 4,
+        "operator_counts": {
+            "slide_sink": {
+                "accepted_count": 4,
+                "accepted_share": 1.0,
+            }
+        },
+    }
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=162,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "candidate_operator_ids": [
+                "native_sbx_pm",
+                "local_refine",
+                "slide_sink",
+            ],
+            "run_state": {
+                "decision_index": 58,
+                "evaluations_used": 161,
+                "evaluations_remaining": 40,
+                "feasible_rate": 1.0,
+                "first_feasible_eval": 21,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 4,
+                "recent_frontier_stagnation_count": 8,
+            },
+            "generation_local_memory": generation_panel,
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "preservation_pressure": "medium",
+                    "frontier_pressure": "high",
+                    "objective_balance": {
+                        "stagnant_objectives": ["temperature_max", "gradient_rms"],
+                        "improving_objectives": [],
+                        "balance_pressure": "medium",
+                        "preferred_effect": "balanced",
+                    },
+                },
+                "operator_panel": operator_panel,
+                "generation_panel": generation_panel,
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 10,
+                    "recent_selection_count": 0,
+                    "proposal_count": 10,
+                    "feasible_preservation_count": 4,
+                },
+                "local_refine": {
+                    "selection_count": 12,
+                    "recent_selection_count": 1,
+                    "proposal_count": 12,
+                    "feasible_preservation_count": 4,
+                },
+                "slide_sink": {
+                    "selection_count": 18,
+                    "recent_selection_count": 4,
+                    "proposal_count": 18,
+                    "pareto_contribution_count": 3,
+                    "post_feasible_avg_objective_delta": -0.2,
+                },
+            },
+            "recent_decisions": [],
+            "recent_operator_counts": {},
+        },
+    )
+
+
+def _generation_local_strategy_group_state() -> ControllerState:
+    generation_panel = {
+        "accepted_count": 6,
+        "target_offsprings": 20,
+        "accepted_share": 0.3,
+        "dominant_operator_id": "slide_sink",
+        "dominant_operator_count": 3,
+        "dominant_operator_share": 0.5,
+        "dominant_operator_streak": 1,
+        "operator_counts": {
+            "slide_sink": {
+                "accepted_count": 3,
+                "accepted_share": 0.5,
+            },
+            "repair_sink_budget": {
+                "accepted_count": 3,
+                "accepted_share": 0.5,
+            },
+        },
+    }
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=168,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "candidate_operator_ids": [
+                "native_sbx_pm",
+                "local_refine",
+                "move_hottest_cluster_toward_sink",
+                "repair_sink_budget",
+                "slide_sink",
+            ],
+            "run_state": {
+                "decision_index": 64,
+                "evaluations_used": 167,
+                "evaluations_remaining": 34,
+                "feasible_rate": 1.0,
+                "first_feasible_eval": 21,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 4,
+                "recent_frontier_stagnation_count": 9,
+            },
+            "generation_local_memory": generation_panel,
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "preservation_pressure": "medium",
+                    "frontier_pressure": "high",
+                    "objective_balance": {
+                        "stagnant_objectives": ["temperature_max"],
+                        "improving_objectives": ["gradient_rms"],
+                        "balance_pressure": "high",
+                        "preferred_effect": "peak_improve",
+                    },
+                },
+                "operator_panel": {
+                    "native_sbx_pm": {
+                        "applicability": "medium",
+                        "expected_peak_effect": "neutral",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "local_refine": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "medium",
+                        "recent_regression_risk": "high",
+                    },
+                    "move_hottest_cluster_toward_sink": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "medium",
+                        "recent_regression_risk": "high",
+                    },
+                    "repair_sink_budget": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "slide_sink": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                },
+                "generation_panel": generation_panel,
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 12,
+                    "recent_selection_count": 0,
+                    "proposal_count": 12,
+                    "feasible_preservation_count": 5,
+                },
+                "local_refine": {
+                    "selection_count": 11,
+                    "recent_selection_count": 1,
+                    "proposal_count": 11,
+                    "feasible_preservation_count": 4,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 3,
+                    "recent_selection_count": 0,
+                    "proposal_count": 3,
+                    "pareto_contribution_count": 1,
+                    "post_feasible_avg_objective_delta": -0.1,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 9,
+                    "recent_selection_count": 3,
+                    "proposal_count": 9,
+                    "pareto_contribution_count": 2,
+                    "post_feasible_avg_objective_delta": -0.2,
+                },
+                "slide_sink": {
+                    "selection_count": 14,
+                    "recent_selection_count": 3,
+                    "proposal_count": 14,
+                    "pareto_contribution_count": 3,
+                    "post_feasible_avg_objective_delta": -0.25,
+                },
+            },
+            "recent_decisions": [],
+            "recent_operator_counts": {},
+        },
+    )
+
+
 def _domain_grounded_state() -> ControllerState:
     return ControllerState(
         family="genetic",
@@ -397,6 +648,50 @@ def _prefeasible_convert_state() -> ControllerState:
     )
 
 
+def _make_minimal_llm_state(*, objective_balance: dict[str, object] | None = None) -> ControllerState:
+    metadata: dict[str, object] = {
+        "run_state": {"first_feasible_eval": 10},
+        "prompt_panels": {
+            "regime_panel": {
+                "phase": "post_feasible_expand",
+                "preservation_pressure": "medium",
+                "frontier_pressure": "high",
+            },
+            "operator_panel": {
+                "slide_sink": {
+                    "applicability": "high",
+                    "expected_peak_effect": "improve",
+                    "expected_gradient_effect": "neutral",
+                    "expected_feasibility_risk": "low",
+                    "recent_regression_risk": "low",
+                },
+                "native_sbx_pm": {
+                    "applicability": "medium",
+                    "expected_peak_effect": "neutral",
+                    "expected_gradient_effect": "neutral",
+                    "expected_feasibility_risk": "low",
+                    "recent_regression_risk": "low",
+                },
+            },
+            "spatial_panel": {},
+        },
+    }
+    if objective_balance is not None:
+        regime_panel = dict(metadata["prompt_panels"]["regime_panel"])
+        regime_panel["objective_balance"] = objective_balance
+        metadata["prompt_panels"] = dict(metadata["prompt_panels"])
+        metadata["prompt_panels"]["regime_panel"] = regime_panel
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=5,
+        evaluation_index=80,
+        parent_count=2,
+        vector_size=32,
+        metadata=metadata,
+    )
+
+
 def test_llm_controller_metrics_count_retries_and_invalid_attempts() -> None:
     controller = LLMOperatorController(
         controller_parameters={
@@ -562,3 +857,235 @@ def test_llm_controller_recent_dominance_guardrail_filters_repeated_semantic_ope
     assert client.last_kwargs is not None
     assert client.last_kwargs["candidate_operator_ids"] == ("native_sbx_pm", "local_refine")
     assert controller.request_trace[0]["guardrail"]["filtered_operator_ids"] == ["move_hottest_cluster_toward_sink"]
+
+
+def test_llm_controller_generation_local_guardrail_filters_current_generation_monopoly() -> None:
+    client = _FakeLLMClient(
+        OpenAICompatibleDecision(
+            selected_operator_id="local_refine",
+            phase="post_feasible_expand",
+            rationale="The generation is already saturated with slide_sink, so diversify into another viable peak improver.",
+            provider="openai-compatible",
+            model="GPT-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "local_refine"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=client,
+    )
+
+    decision = controller.select_decision(
+        _generation_local_dominance_state(viable_alternative=True),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "slide_sink",
+        ),
+        np.random.default_rng(23),
+    )
+
+    assert decision.selected_operator_id == "local_refine"
+    assert decision.metadata["guardrail_reason"] == "generation_local_operator_dominance"
+    assert decision.metadata["guardrail_filtered_operator_ids"] == ["slide_sink"]
+    assert decision.metadata["guardrail_viable_alternative_operator_ids"] == ["local_refine"]
+    assert client.last_kwargs is not None
+    assert client.last_kwargs["candidate_operator_ids"] == ("native_sbx_pm", "local_refine")
+
+
+def test_llm_controller_generation_local_guardrail_keeps_unique_viable_operator() -> None:
+    client = _FakeLLMClient(
+        OpenAICompatibleDecision(
+            selected_operator_id="slide_sink",
+            phase="post_feasible_expand",
+            rationale="slide_sink is still the only viable peak-improving option here.",
+            provider="openai-compatible",
+            model="GPT-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "slide_sink"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=client,
+    )
+
+    decision = controller.select_decision(
+        _generation_local_dominance_state(viable_alternative=False),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "slide_sink",
+        ),
+        np.random.default_rng(29),
+    )
+
+    assert decision.selected_operator_id == "slide_sink"
+    assert "guardrail_reason" not in decision.metadata
+    assert client.last_kwargs is not None
+    assert client.last_kwargs["candidate_operator_ids"] == ("native_sbx_pm", "local_refine", "slide_sink")
+
+
+def test_llm_controller_generation_local_strategy_group_guardrail_filters_sink_rotation() -> None:
+    client = _FakeLLMClient(
+        OpenAICompatibleDecision(
+            selected_operator_id="local_refine",
+            phase="post_feasible_expand",
+            rationale="The generation is over-concentrated in sink retargeting moves, so switch to a different peak-improving pathway.",
+            provider="openai-compatible",
+            model="GPT-5.4",
+            capability_profile="responses_native",
+            performance_profile="balanced",
+            raw_payload={"selected_operator_id": "local_refine"},
+        )
+    )
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=client,
+    )
+
+    decision = controller.select_decision(
+        _generation_local_strategy_group_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "move_hottest_cluster_toward_sink",
+            "repair_sink_budget",
+            "slide_sink",
+        ),
+        np.random.default_rng(31),
+    )
+
+    assert decision.selected_operator_id == "local_refine"
+    assert decision.metadata["guardrail_reason"] == "generation_local_strategy_group_dominance"
+    assert decision.metadata["guardrail_filtered_operator_ids"] == ["repair_sink_budget", "slide_sink"]
+    assert decision.metadata["guardrail_viable_alternative_operator_ids"] == [
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+    ]
+    assert client.last_kwargs is not None
+    assert client.last_kwargs["candidate_operator_ids"] == (
+        "native_sbx_pm",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+    )
+
+
+def test_decision_axes_objective_balance_fields() -> None:
+    """decision_axes should include objective_balance_pressure and preferred_effect from regime_panel."""
+    metadata = {
+        "prompt_panels": {
+            "regime_panel": {
+                "phase": "post_feasible_expand",
+                "preservation_pressure": "medium",
+                "frontier_pressure": "high",
+                "objective_balance": {
+                    "stagnant_objectives": ["temperature_max"],
+                    "improving_objectives": ["gradient_rms"],
+                    "balance_pressure": "high",
+                    "preferred_effect": "peak_improve",
+                },
+            },
+            "operator_panel": {
+                "slide_sink": {
+                    "applicability": "high",
+                    "expected_peak_effect": "improve",
+                    "expected_gradient_effect": "neutral",
+                    "expected_feasibility_risk": "low",
+                    "recent_regression_risk": "low",
+                },
+                "native_sbx_pm": {
+                    "applicability": "medium",
+                    "expected_peak_effect": "neutral",
+                    "expected_gradient_effect": "neutral",
+                    "expected_feasibility_risk": "low",
+                    "recent_regression_risk": "low",
+                },
+            },
+            "spatial_panel": {"hotspot_inside_sink_window": False},
+        },
+    }
+
+    axes = LLMOperatorController._build_decision_axes(metadata)
+
+    assert axes["objective_balance_pressure"] == "high"
+    assert axes["preferred_effect"] == "peak_improve"
+    assert "slide_sink" in axes["peak_improve_candidates"]
+
+
+def test_system_prompt_objective_balance_guidance() -> None:
+    """system_prompt should mention objective balance alert when balance_pressure is high."""
+    from optimizers.operator_pool.policy_kernel import PolicySnapshot
+
+    policy_snapshot = PolicySnapshot(
+        phase="post_feasible_expand",
+        allowed_operator_ids=("native_sbx_pm", "slide_sink"),
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=(),
+        candidate_annotations={},
+    )
+    state = _make_minimal_llm_state(
+        objective_balance={
+            "balance_pressure": "high",
+            "preferred_effect": "peak_improve",
+            "stagnant_objectives": ["temperature_max"],
+            "improving_objectives": ["gradient_rms"],
+        }
+    )
+
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=_FakeLLMClient(
+            OpenAICompatibleDecision(
+                selected_operator_id="slide_sink",
+                phase="post_feasible_expand",
+                rationale="Favor peak improvement.",
+                provider="openai-compatible",
+                model="GPT-5.4",
+                capability_profile="responses_native",
+                performance_profile="balanced",
+                raw_payload={"selected_operator_id": "slide_sink"},
+            )
+        ),
+    )
+    prompt = controller._build_system_prompt(
+        state,
+        ("native_sbx_pm", "slide_sink"),
+        policy_snapshot=policy_snapshot,
+        guardrail=None,
+    )
+
+    assert "Objective balance alert" in prompt
+    assert "temperature_max" in prompt
