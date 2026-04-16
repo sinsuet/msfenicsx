@@ -25,19 +25,19 @@ def test_build_parser_accepts_pop_gen_overrides() -> None:
     assert args.num_generations == 5
 
 
-def test_apply_algorithm_overrides_mutates_spec_dict() -> None:
+def test_apply_algorithm_overrides_mutates_algorithm_dict() -> None:
     from optimizers.cli import apply_algorithm_overrides
 
-    spec_dict = {"algorithm": {"population_size": 32, "num_generations": 16}}
-    apply_algorithm_overrides(spec_dict, population_size=10, num_generations=5)
-    assert spec_dict["algorithm"]["population_size"] == 10
-    assert spec_dict["algorithm"]["num_generations"] == 5
+    algorithm_dict = {"population_size": 32, "num_generations": 16}
+    apply_algorithm_overrides(algorithm_dict, population_size=10, num_generations=5)
+    assert algorithm_dict["population_size"] == 10
+    assert algorithm_dict["num_generations"] == 5
 
 
 def test_apply_algorithm_overrides_noop_when_absent() -> None:
     from optimizers.cli import apply_algorithm_overrides
 
-    spec_dict = {"algorithm": {"population_size": 32, "num_generations": 16}}
-    apply_algorithm_overrides(spec_dict, population_size=None, num_generations=None)
-    assert spec_dict["algorithm"]["population_size"] == 32
-    assert spec_dict["algorithm"]["num_generations"] == 16
+    algorithm_dict = {"population_size": 32, "num_generations": 16}
+    apply_algorithm_overrides(algorithm_dict, population_size=None, num_generations=None)
+    assert algorithm_dict["population_size"] == 32
+    assert algorithm_dict["num_generations"] == 16

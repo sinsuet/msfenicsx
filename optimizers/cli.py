@@ -26,16 +26,16 @@ def _positive_int(value: str) -> int:
 
 
 def apply_algorithm_overrides(
-    spec_dict: dict,
+    algorithm_dict: dict,
     *,
     population_size: int | None,
     num_generations: int | None,
 ) -> None:
-    """Overwrite `algorithm.population_size` / `num_generations` when provided."""
+    """Overwrite ``population_size`` / ``num_generations`` on an algorithm dict when provided."""
     if population_size is not None:
-        spec_dict.setdefault("algorithm", {})["population_size"] = int(population_size)
+        algorithm_dict["population_size"] = int(population_size)
     if num_generations is not None:
-        spec_dict.setdefault("algorithm", {})["num_generations"] = int(num_generations)
+        algorithm_dict["num_generations"] = int(num_generations)
 
 
 def build_parser() -> argparse.ArgumentParser:
