@@ -72,6 +72,7 @@ class ThermalOptimizationProblem(Problem):
         self.history: list[dict[str, Any]] = []
         self.artifacts_by_index: dict[int, CandidateArtifacts] = {}
         self._next_evaluation_index = 1
+        self.current_generation: int = 0
         self.evaluation_workers = resolve_evaluation_workers(evaluation_workers)
         self._executor: ProcessPoolExecutor | None = None
 
@@ -147,6 +148,7 @@ class ThermalOptimizationProblem(Problem):
         out["F"] = objective_matrix[0] if is_single else objective_matrix
         if self.n_ieq_constr:
             out["G"] = constraint_matrix[0] if is_single else constraint_matrix
+        self.current_generation += 1
 
     def close(self) -> None:
         if self._executor is not None:
@@ -336,6 +338,7 @@ class ThermalOptimizationProblem(Problem):
     ) -> dict[str, Any]:
         record = {
             "evaluation_index": evaluation_index,
+            "generation": int(self.current_generation),
             "source": source,
             "feasible": feasible,
             "decision_vector": decision_vector,

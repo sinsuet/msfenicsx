@@ -18,7 +18,7 @@ done
 
 echo "=== verifying outputs ==="
 for mode in "${MODES[@]}"; do
-    run_dir=$(find "${SCENARIO_ROOT}-${mode}" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+    run_dir="${SCENARIO_ROOT}-${mode}"
     for required in \
         "traces/evaluation_events.jsonl" \
         "traces/operator_trace.jsonl" \

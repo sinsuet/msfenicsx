@@ -9,26 +9,49 @@ from optimizers.problem import objective_to_minimization
 
 
 def build_evaluation_events(history: list[dict]) -> list[dict]:
-    """§ 4.1 evaluation_events rows — one per evaluation."""
+    """§ 4.1 evaluation_events rows — one per optimizer evaluation.
+
+    Accepts the flat per-evaluation records that live on ``problem.history``.
+    Baseline evaluations (``source == "baseline"``) are skipped so downstream
+    analytics bucket only true search iterations.
+    """
     rows: list[dict] = []
     eval_index = 0
-    for generation_entry in history:
-        generation = int(generation_entry["generation"])
-        for individual in generation_entry["individuals"]:
-            rows.append(
-                {
-                    "decision_id": individual.get("decision_id"),
-                    "generation": generation,
-                    "eval_index": eval_index,
-                    "individual_id": str(individual["individual_id"]),
-                    "objectives": individual.get("objectives"),
-                    "constraints": individual.get("constraints"),
-                    "status": individual.get("status", "ok"),
-                    "timing": individual.get("timing", {}),
-                }
-            )
-            eval_index += 1
+    previous_generation: int | None = None
+    intra_generation_index = 0
+    for record in history:
+        if str(record.get("source", "")).strip().lower() == "baseline":
+            continue
+        generation = int(record.get("generation", 0))
+        if previous_generation is None or generation != previous_generation:
+            intra_generation_index = 0
+            previous_generation = generation
+        individual_id = record.get("individual_id") or f"g{generation:03d}-i{intra_generation_index:02d}"
+        rows.append(
+            {
+                "decision_id": record.get("decision_id"),
+                "generation": generation,
+                "eval_index": eval_index,
+                "individual_id": str(individual_id),
+                "objectives": dict(record.get("objective_values", {})),
+                "constraints": dict(record.get("constraint_values", {})),
+                "status": _record_status(record),
+                "timing": dict(record.get("timing", {})),
+            }
+        )
+        eval_index += 1
+        intra_generation_index += 1
     return rows
+
+
+def _record_status(record: dict) -> str:
+    explicit_status = record.get("status")
+    if explicit_status is not None:
+        return str(explicit_status)
+    failure_reason = record.get("failure_reason")
+    if failure_reason:
+        return "failed"
+    return "ok" if bool(record.get("feasible", False)) else "infeasible"
 
 
 def build_generation_summary_rows(
