@@ -5,92 +5,89 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from optimizers.operator_pool.domain_state import classify_constraint_family, dominant_violation, total_violation
 from optimizers.problem import objective_to_minimization
 
 
 def build_evaluation_events(
+    history: list[dict],
     *,
-    run_id: str,
-    mode_id: str,
-    seed: int,
-    history: Sequence[Mapping[str, Any]],
-    objectives: Sequence[Mapping[str, Any]],
-    generation_rows: Sequence[Mapping[str, Any]] | None = None,
-) -> list[dict[str, Any]]:
-    objective_definitions = [
-        {
-            "objective_id": str(item["objective_id"]),
-            "sense": str(item.get("sense", "minimize")),
-        }
-        for item in objectives
-    ]
-    ordered_history = sorted(history, key=lambda row: int(row.get("evaluation_index", 0)))
-    generation_lookup = _build_generation_lookup(ordered_history, generation_rows or [])
-    rows: list[dict[str, Any]] = []
-    prior_optimizer_feasible_found = False
+    objective_definitions: Sequence[Mapping[str, Any]] | None = None,
+) -> list[dict]:
+    """§ 4.1 evaluation_events rows — one per optimizer evaluation.
 
-    for index, record in enumerate(ordered_history):
-        prefix = ordered_history[: index + 1]
-        optimizer_prefix = [row for row in prefix if _counts_toward_optimizer_progress(row)]
-        dominant = dominant_violation(record)
-        pareto_members = {
-            int(item.get("evaluation_index", -1))
-            for item in _pareto_front(optimizer_prefix, objective_definitions)
-        }
-        counts_toward_progress = _counts_toward_optimizer_progress(record)
-        row = {
-            "run_id": str(run_id),
-            "mode_id": str(mode_id),
-            "seed": int(seed),
-            "generation_index": int(generation_lookup.get(int(record.get("evaluation_index", 0)), 0)),
-            "evaluation_index": int(record.get("evaluation_index", 0)),
-            "source": str(record.get("source", "")),
-            "decision_vector": {
-                str(key): float(value)
-                for key, value in dict(record.get("decision_vector", {})).items()
-            },
-            "objective_values": {
-                str(key): float(value)
-                for key, value in dict(record.get("objective_values", {})).items()
-            },
-            "constraint_values": {
-                str(key): float(value)
-                for key, value in dict(record.get("constraint_values", {})).items()
-            },
-            "feasible": bool(record.get("feasible", False)),
-            "total_constraint_violation": float(total_violation(record)),
-            "dominant_violation_constraint_id": None if dominant is None else str(dominant["constraint_id"]),
-            "dominant_violation_constraint_family": (
-                None
-                if dominant is None
-                else classify_constraint_family(str(dominant["constraint_id"]))
-            ),
-            "violation_count": int(
-                sum(
-                    1
-                    for value in dict(record.get("constraint_values", {})).values()
-                    if float(value) > 0.0
-                )
-            ),
-            "entered_feasible_region": (
-                counts_toward_progress
-                and bool(record.get("feasible", False))
-                and not prior_optimizer_feasible_found
-            ),
-            "preserved_feasibility": (
-                counts_toward_progress
-                and bool(record.get("feasible", False))
-                and prior_optimizer_feasible_found
-            ),
-            "pareto_membership_after_eval": int(record.get("evaluation_index", 0)) in pareto_members,
-            "failure_reason": record.get("failure_reason"),
-            "feasibility_phase": "post_feasible" if prior_optimizer_feasible_found else "prefeasible",
-        }
-        rows.append(row)
-        if counts_toward_progress and bool(record.get("feasible", False)):
-            prior_optimizer_feasible_found = True
+    Accepts the flat per-evaluation records that live on ``problem.history``.
+    Baseline evaluations (``source == "baseline"``) are skipped so downstream
+    analytics bucket only true search iterations. When ``objective_definitions``
+    is supplied, objective values are re-keyed from the spec's ``objective_id``
+    onto the bare metric suffix (``summary.temperature_max`` →
+    ``temperature_max``) so analytics can read a stable, spec-agnostic name.
+    """
+    objective_short_names = _objective_short_names(objective_definitions)
+    rows: list[dict] = []
+    eval_index = 0
+    previous_generation: int | None = None
+    intra_generation_index = 0
+    for record in history:
+        if str(record.get("source", "")).strip().lower() == "baseline":
+            continue
+        generation = int(record.get("generation", 0))
+        if previous_generation is None or generation != previous_generation:
+            intra_generation_index = 0
+            previous_generation = generation
+        individual_id = record.get("individual_id") or f"g{generation:03d}-i{intra_generation_index:02d}"
+        rows.append(
+            {
+                "decision_id": record.get("decision_id"),
+                "generation": generation,
+                "eval_index": eval_index,
+                "individual_id": str(individual_id),
+                "objectives": _project_objectives(record.get("objective_values", {}), objective_short_names),
+                "constraints": dict(record.get("constraint_values", {})),
+                "status": _record_status(record),
+                "timing": dict(record.get("timing", {})),
+            }
+        )
+        eval_index += 1
+        intra_generation_index += 1
     return rows
+
+
+def _objective_short_names(
+    objective_definitions: Sequence[Mapping[str, Any]] | None,
+) -> dict[str, str]:
+    if not objective_definitions:
+        return {}
+    mapping: dict[str, str] = {}
+    for definition in objective_definitions:
+        objective_id = str(definition.get("objective_id", "")).strip()
+        metric = str(definition.get("metric", "")).strip()
+        if not objective_id:
+            continue
+        short_name = metric.rsplit(".", 1)[-1] if metric else objective_id
+        mapping[objective_id] = short_name
+    return mapping
+
+
+def _project_objectives(
+    objective_values: Mapping[str, Any],
+    objective_short_names: Mapping[str, str],
+) -> dict[str, Any]:
+    if not objective_short_names:
+        return dict(objective_values)
+    return {
+        objective_short_names.get(str(key), str(key)): value
+        for key, value in objective_values.items()
+    }
+
+
+def _record_status(record: dict) -> str:
+    explicit_status = record.get("status")
+    if explicit_status is not None:
+        return str(explicit_status)
+    failure_reason = record.get("failure_reason")
+    if failure_reason:
+        return "failed"
+    return "ok" if bool(record.get("feasible", False)) else "infeasible"
 
 
 def build_generation_summary_rows(
@@ -265,36 +262,6 @@ def _extract_objective_value(
         if any(token in key_text for token in fallback_tokens):
             return float(value)
     return None
-
-
-def _build_generation_lookup(
-    history: Sequence[Mapping[str, Any]],
-    generation_rows: Sequence[Mapping[str, Any]],
-) -> dict[int, int]:
-    lookup: dict[int, int] = {}
-    boundaries = sorted(
-        (
-            int(row.get("num_evaluations_so_far", 0)),
-            int(row.get("generation_index", 0)),
-        )
-        for row in generation_rows
-    )
-    boundary_index = 0
-    last_generation = 0
-    for position, record in enumerate(history, start=1):
-        evaluation_index = int(record.get("evaluation_index", 0))
-        if str(record.get("source", "")) == "baseline":
-            lookup[evaluation_index] = 0
-            continue
-        while boundary_index < len(boundaries) and position > boundaries[boundary_index][0]:
-            last_generation = boundaries[boundary_index][1]
-            boundary_index += 1
-        if boundary_index < len(boundaries):
-            lookup[evaluation_index] = boundaries[boundary_index][1]
-            last_generation = boundaries[boundary_index][1]
-        else:
-            lookup[evaluation_index] = last_generation
-    return lookup
 
 
 def _pareto_front(

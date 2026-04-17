@@ -6,6 +6,7 @@ import json
 import time
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -17,6 +18,8 @@ from optimizers.operator_pool.prompt_projection import build_prompt_projection
 from optimizers.operator_pool.random_controller import RandomUniformController
 from optimizers.operator_pool.route_families import ROUTE_FAMILY_BY_OPERATOR, STABLE_ROUTE_FAMILIES
 from optimizers.operator_pool.state import ControllerState
+from optimizers.traces.jsonl_writer import append_jsonl
+from optimizers.traces.prompt_store import PromptStore
 
 
 _OPERATOR_ROLE_SUMMARIES: dict[str, str] = {
@@ -105,6 +108,10 @@ class LLMOperatorController:
         self.request_trace: list[dict[str, Any]] = []
         self.response_trace: list[dict[str, Any]] = []
         self.reflection_trace: list[dict[str, Any]] = []
+        self._controller_trace_path: Path | None = None
+        self._llm_request_trace_path: Path | None = None
+        self._llm_response_trace_path: Path | None = None
+        self._prompt_store: PromptStore | None = None
         self.metrics: dict[str, Any] = {
             "provider": self.config.provider,
             "model": self.config.model,
@@ -362,6 +369,93 @@ class LLMOperatorController:
         self.metrics["elapsed_seconds_total"] = total
         self.metrics["elapsed_seconds_avg"] = 0.0 if count <= 0 else total / count
         self.metrics["elapsed_seconds_max"] = max(float(self.metrics.get("elapsed_seconds_max", 0.0)), elapsed_seconds)
+
+    def configure_trace_outputs(
+        self,
+        *,
+        controller_trace_path: Path,
+        llm_request_trace_path: Path,
+        llm_response_trace_path: Path,
+        prompt_store: PromptStore,
+    ) -> None:
+        """Wire § 4.4 JSONL trace outputs. When unset, controller only buffers in-memory (legacy mode)."""
+        self._controller_trace_path = Path(controller_trace_path)
+        self._llm_request_trace_path = Path(llm_request_trace_path)
+        self._llm_response_trace_path = Path(llm_response_trace_path)
+        self._prompt_store = prompt_store
+
+    def _emit_controller_trace(
+        self,
+        *,
+        decision_id: str,
+        phase: str,
+        operator_selected: str,
+        operator_pool_snapshot: list[str],
+        input_state_digest: str,
+        system_prompt: str,
+        user_prompt: str,
+        response_body: str,
+        rationale: str,
+        fallback_used: bool,
+        latency_ms: float,
+        http_status: int | None,
+        retries: int,
+        tokens: dict | None,
+        finish_reason: str | None,
+    ) -> None:
+        """Emit § 4.4 controller_trace row + § 4.5 request/response rows when trace outputs are configured."""
+        if self._controller_trace_path is None or self._prompt_store is None:
+            return  # legacy mode
+        prompt_ref = self._prompt_store.store(
+            kind="request",
+            body=system_prompt + "\n\n" + user_prompt,
+            model=self.config.model,
+            decision_id=decision_id,
+        )
+        response_ref = self._prompt_store.store(
+            kind="response",
+            body=response_body,
+            model=self.config.model,
+            decision_id=decision_id,
+        )
+        append_jsonl(
+            self._controller_trace_path,
+            {
+                "decision_id": decision_id,
+                "phase": phase,
+                "operator_selected": operator_selected,
+                "operator_pool_snapshot": list(operator_pool_snapshot),
+                "input_state_digest": input_state_digest,
+                "prompt_ref": prompt_ref,
+                "rationale": rationale,
+                "fallback_used": fallback_used,
+                "latency_ms": float(latency_ms),
+            },
+        )
+        append_jsonl(
+            self._llm_request_trace_path,
+            {
+                "decision_id": decision_id,
+                "prompt_ref": prompt_ref,
+                "model": self.config.model,
+                "http_status": http_status,
+                "retries": int(retries),
+                "latency_ms": float(latency_ms),
+            },
+        )
+        append_jsonl(
+            self._llm_response_trace_path,
+            {
+                "decision_id": decision_id,
+                "response_ref": response_ref,
+                "model": self.config.model,
+                "tokens": dict(tokens) if tokens else {},
+                "finish_reason": finish_reason,
+                "http_status": http_status,
+                "retries": int(retries),
+                "latency_ms": float(latency_ms),
+            },
+        )
 
     def _request_operator_decision(
         self,

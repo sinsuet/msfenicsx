@@ -24,6 +24,7 @@ class OptimizationRun:
     result: OptimizationResult
     representative_artifacts: dict[str, CandidateArtifacts]
     generation_summary_rows: list[dict[str, Any]] = field(default_factory=list)
+    operator_trace: list[dict[str, Any]] = field(default_factory=list)
 
 
 def run_raw_optimization(
@@ -78,10 +79,12 @@ def run_raw_optimization(
         for name, candidate in representative_candidates.items()
         if candidate["evaluation_index"] in problem.artifacts_by_index
     }
+    operator_trace = _build_native_operator_trace(problem.history)
     return OptimizationRun(
         result=OptimizationResult.from_dict(result_payload),
         representative_artifacts=representative_artifacts,
         generation_summary_rows=list(generation_callback.rows),
+        operator_trace=operator_trace,
     )
 
 
@@ -256,3 +259,36 @@ def _representative_key(objective: dict[str, Any]) -> str:
 
 def _counts_toward_optimizer_progress(record: dict[str, Any]) -> bool:
     return str(record.get("source", "")).strip().lower() != "baseline"
+
+
+def _build_native_operator_trace(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Synthesize § 4.3 operator_trace rows for raw pymoo SBX+PM runs.
+
+    Raw mode uses pymoo's native SBX crossover + polynomial mutation which has
+    no explicit operator registry, so emit one row per optimizer offspring with
+    ``operator_name="native_sbx_pm"``. Baseline evaluations are skipped.
+    """
+    rows: list[dict[str, Any]] = []
+    intra_generation_index = 0
+    previous_generation: int | None = None
+    for record in history:
+        if not _counts_toward_optimizer_progress(record):
+            continue
+        generation = int(record.get("generation", 0))
+        if previous_generation is None or generation != previous_generation:
+            intra_generation_index = 0
+            previous_generation = generation
+        individual_id = record.get("individual_id") or f"g{generation:03d}-i{intra_generation_index:02d}"
+        rows.append(
+            {
+                "decision_id": record.get("decision_id"),
+                "generation": generation,
+                "operator_name": "native_sbx_pm",
+                "parents": [],
+                "offspring": [str(individual_id)],
+                "params_digest": "",
+                "wall_ms": 0.0,
+            }
+        )
+        intra_generation_index += 1
+    return rows

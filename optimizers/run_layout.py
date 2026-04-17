@@ -53,3 +53,21 @@ def write_manifest(path: str | Path, payload: dict[str, object]) -> Path:
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return manifest_path
+
+
+def resolve_seed_run_root(run_root: Path, *, seed: int, total_seeds: int) -> Path:
+    """Return the directory a single seed's artifacts live under.
+
+    - N=1: flat (run_root itself)
+    - N>=2: run_root / "seeds" / "seed-<n>"
+    """
+    if total_seeds < 1:
+        raise ValueError(f"total_seeds must be >= 1; got {total_seeds}")
+    if total_seeds == 1:
+        return Path(run_root)
+    return Path(run_root) / "seeds" / f"seed-{int(seed)}"
+
+
+def should_write_aggregate(*, total_seeds: int) -> bool:
+    """Aggregate statistics are only meaningful with >=3 seeds."""
+    return total_seeds >= 3

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -9,7 +10,6 @@ from typing import Any, Sequence
 
 from evaluation.io import load_spec
 from optimizers.artifacts import write_optimization_artifacts
-from optimizers.comparison_summary import build_comparison_summaries
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
 from optimizers.io import (
@@ -18,8 +18,6 @@ from optimizers.io import (
     resolve_benchmark_template_path,
     resolve_evaluation_spec_path,
 )
-from optimizers.llm_decision_summary import build_llm_decision_summaries
-from optimizers.mode_summary import build_mode_summaries
 from optimizers.models import OptimizationSpec
 from optimizers.run_layout import (
     build_run_id,
@@ -28,10 +26,7 @@ from optimizers.run_layout import (
     initialize_run_root,
     write_manifest,
 )
-from visualization.comparison_pages import render_comparison_pages
-from visualization.llm_pages import render_llm_pages
-from visualization.llm_reports import render_llm_reports
-from visualization.mode_pages import render_mode_pages
+from optimizers.run_manifest import write_run_manifest
 
 
 def run_benchmark_suite(
@@ -41,6 +36,8 @@ def run_benchmark_suite(
     scenario_runs_root: Path,
     modes: Sequence[str] | None = None,
     evaluation_workers: int | None = None,
+    population_size: int | None = None,
+    num_generations: int | None = None,
     started_at: datetime | None = None,
 ) -> Path:
     if not optimization_spec_paths:
@@ -50,6 +47,13 @@ def run_benchmark_suite(
         (Path(spec_path), load_optimization_spec(spec_path))
         for spec_path in optimization_spec_paths
     ]
+    from optimizers.cli import apply_algorithm_overrides
+    for _, spec in loaded_specs:
+        apply_algorithm_overrides(
+            spec.algorithm,
+            population_size=population_size,
+            num_generations=num_generations,
+        )
     selected_modes = _normalize_modes(modes or [resolve_suite_mode_id(spec) for _, spec in loaded_specs])
     spec_by_mode = {
         resolve_suite_mode_id(spec): (spec_path, spec)
@@ -117,7 +121,9 @@ def run_benchmark_suite(
         for seed in effective_seeds:
             seeded_spec = _with_benchmark_seed(optimization_spec, seed)
             base_case = generate_benchmark_case(spec_path, seeded_spec)
-            evaluation_spec = load_spec(resolve_evaluation_spec_path(spec_path, seeded_spec))
+            evaluation_spec_path_for_seed = resolve_evaluation_spec_path(spec_path, seeded_spec)
+            evaluation_spec = load_spec(evaluation_spec_path_for_seed)
+            _wall_start = time.monotonic()
             run = _dispatch_run(
                 base_case,
                 seeded_spec,
@@ -125,6 +131,7 @@ def run_benchmark_suite(
                 spec_path,
                 evaluation_workers=evaluation_workers,
             )
+            _wall_seconds = time.monotonic() - _wall_start
             evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
             write_optimization_artifacts(
                 mode_root / "seeds" / f"seed-{seed}",
@@ -133,18 +140,17 @@ def run_benchmark_suite(
                 seed=seed,
                 objective_definitions=list(evaluation_payload["objectives"]),
             )
-        build_mode_summaries(mode_root)
-        render_mode_pages(mode_root)
-        if mode == "llm":
-            build_llm_decision_summaries(mode_root)
-            render_llm_pages(mode_root)
-            render_llm_reports(
-                mode_root,
-                comparison_root=(run_root / "comparison") if len(selected_modes) > 1 else None,
+            write_run_manifest(
+                mode_root / "seeds" / f"seed-{seed}" / "run.yaml",
+                mode=mode,
+                benchmark_seed=int(seed),
+                algorithm_seed=int(seeded_spec.algorithm["seed"]),
+                optimization_spec_path=str(spec_path),
+                evaluation_spec_path=str(evaluation_spec_path_for_seed),
+                population_size=int(seeded_spec.algorithm["population_size"]),
+                num_generations=int(seeded_spec.algorithm["num_generations"]),
+                wall_seconds=_wall_seconds,
             )
-    if len(selected_modes) > 1:
-        build_comparison_summaries(run_root)
-        render_comparison_pages(run_root)
     return run_root
 
 

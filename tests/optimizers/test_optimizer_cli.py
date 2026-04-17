@@ -460,17 +460,17 @@ def test_optimizer_cli_optimize_benchmark_writes_result_and_pareto_artifacts(tmp
     assert exit_code == 0
     assert (output_root / "optimization_result.json").exists()
     assert (output_root / "pareto_front.json").exists()
-    assert (output_root / "evaluation_events.jsonl").exists()
-    assert (output_root / "generation_summary.jsonl").exists()
+    assert (output_root / "traces" / "evaluation_events.jsonl").exists()
+    assert (output_root / "traces" / "generation_summary.jsonl").exists()
     assert (output_root / "manifest.json").exists()
-    for directory_name in ("logs", "summaries", "representatives"):
+    for directory_name in ("logs", "summaries", "representatives", "traces"):
         assert (output_root / directory_name).is_dir()
     assert not (output_root / "tensors").exists()
 
     result_payload = json.loads((output_root / "optimization_result.json").read_text(encoding="utf-8"))
     generation_summary_rows = [
         json.loads(line)
-        for line in (output_root / "generation_summary.jsonl").read_text(encoding="utf-8").splitlines()
+        for line in (output_root / "traces" / "generation_summary.jsonl").read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
     assert result_payload["run_meta"]["optimization_spec_id"] == _optimization_spec_payload()["spec_meta"]["spec_id"]
@@ -515,8 +515,6 @@ def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_
         assert (representative_root / "fields" / "gradient_magnitude_grid.npz").exists()
         assert (representative_root / "summaries" / "field_view.json").exists()
         assert (representative_root / "pages").is_dir()
-        assert (representative_root / "pages" / "index.html").exists()
-        assert (representative_root / "figures" / "layout.svg").exists()
         assert not (representative_root / "tensors").exists()
     manifest_payload = json.loads(
         (output_root / "representatives" / "min-peak-temperature" / "manifest.json").read_text(encoding="utf-8")
@@ -546,8 +544,8 @@ def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(
     assert exit_code == 0
     assert (output_root / "optimization_result.json").exists()
     assert (output_root / "pareto_front.json").exists()
-    assert (output_root / "evaluation_events.jsonl").exists()
-    assert (output_root / "generation_summary.jsonl").exists()
+    assert (output_root / "traces" / "evaluation_events.jsonl").exists()
+    assert (output_root / "traces" / "generation_summary.jsonl").exists()
     assert (output_root / "controller_trace.json").exists()
     assert (output_root / "operator_trace.json").exists()
 
@@ -623,22 +621,22 @@ def test_optimizer_cli_llm_union_mode_writes_llm_sidecars(
     assert exit_code == 0
     assert (output_root / "controller_trace.json").exists()
     assert (output_root / "operator_trace.json").exists()
-    assert (output_root / "llm_request_trace.jsonl").exists()
-    assert (output_root / "llm_response_trace.jsonl").exists()
+    assert (output_root / "traces" / "llm_request_trace.jsonl").exists()
+    assert (output_root / "traces" / "llm_response_trace.jsonl").exists()
     assert (output_root / "llm_metrics.json").exists()
-    assert (output_root / "evaluation_events.jsonl").exists()
-    assert (output_root / "generation_summary.jsonl").exists()
+    assert (output_root / "traces" / "evaluation_events.jsonl").exists()
+    assert (output_root / "traces" / "generation_summary.jsonl").exists()
 
     manifest_payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
     llm_response_trace = [
         json.loads(line)
-        for line in (output_root / "llm_response_trace.jsonl").read_text(encoding="utf-8").splitlines()
+        for line in (output_root / "traces" / "llm_response_trace.jsonl").read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
     llm_metrics = json.loads((output_root / "llm_metrics.json").read_text(encoding="utf-8"))
 
-    assert manifest_payload["snapshots"]["llm_request_trace"] == "llm_request_trace.jsonl"
-    assert manifest_payload["snapshots"]["llm_response_trace"] == "llm_response_trace.jsonl"
+    assert manifest_payload["snapshots"]["llm_request_trace"] == "traces/llm_request_trace.jsonl"
+    assert manifest_payload["snapshots"]["llm_response_trace"] == "traces/llm_response_trace.jsonl"
     assert manifest_payload["snapshots"]["llm_metrics"] == "llm_metrics.json"
     assert llm_response_trace
     assert "elapsed_seconds" in llm_response_trace[0]
@@ -1191,8 +1189,7 @@ def test_optimizer_cli_run_benchmark_suite_single_mode_writes_run_root(tmp_path:
     assert run_root.name.endswith("__raw")
     assert (run_root / "shared").is_dir()
     assert (run_root / "raw").is_dir()
-    assert (run_root / "raw" / "summaries" / "mode_summary.json").exists()
-    assert (run_root / "raw" / "pages" / "index.html").exists()
+    assert (run_root / "raw" / "manifest.json").exists()
     assert not (run_root / "comparison").exists()
 
 
@@ -1226,8 +1223,6 @@ def test_optimizer_cli_run_benchmark_suite_mixed_mode_writes_comparison_root(tmp
     assert (run_root / "raw").is_dir()
     assert (run_root / "union").is_dir()
     assert (run_root / "comparison").is_dir()
-    assert (run_root / "comparison" / "summaries" / "seed_delta_table.json").exists()
-    assert (run_root / "comparison" / "pages" / "progress.html").exists()
 
 
 def test_optimizer_cli_run_benchmark_suite_rejects_multiple_benchmark_seeds_for_s1_typical(tmp_path: Path) -> None:
@@ -1366,9 +1361,10 @@ def test_optimizer_cli_run_benchmark_suite_llm_mode_writes_llm_pages_and_reports
 
     assert exit_code == 0
     run_root = next((scenario_runs_root / "s1_typical").iterdir())
-    assert (run_root / "llm" / "summaries" / "llm_decision_log.jsonl").exists()
-    assert (run_root / "llm" / "pages" / "llm_decisions.html").exists()
-    assert (run_root / "llm" / "reports" / "llm_experiment_summary.md").exists()
+    assert (run_root / "llm").is_dir()
+    assert (run_root / "llm" / "manifest.json").exists()
+    assert (run_root / "llm" / "seeds" / "seed-11" / "traces" / "llm_request_trace.jsonl").exists()
+    assert (run_root / "llm" / "seeds" / "seed-11" / "traces" / "llm_response_trace.jsonl").exists()
 
 
 def test_optimizer_cli_does_not_expose_legacy_template_comparison_command() -> None:
