@@ -99,8 +99,12 @@ Preferred commands:
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/union-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/llm-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
-- `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s1_typical_llm.yaml --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/llm_request_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
+- `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s1_typical_llm.yaml --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
 - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s1_typical/<run_id>/union/seeds/seed-11/controller_trace.json --output ./scenario_runs/s1_typical/<run_id>/union/reports/<summary>.json`
+- `conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s1_typical/<run_id> [--hires]`
+- `conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s1_typical/<run_a> --run ./scenario_runs/s1_typical/<run_b> --output ./compare.json`
+- `bash scripts/smoke_render_assets.sh` (10×5 local smoke harness covering raw/union/llm + render-assets + compare-runs)
+- Budget / render overrides (work on `optimize-benchmark` and `run-llm`): `--population-size`, `--num-generations`, `--skip-render`
 - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
 The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
@@ -158,15 +162,22 @@ The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
 - Representative bundles must preserve:
   - `fields/*.npz`
   - `summaries/field_view.json`
-  - `pages/index.html`
-- Keep controller-guided raw traces:
-  - `controller_trace.json`
-  - `operator_trace.json`
-  - `llm_request_trace.jsonl`
-  - `llm_response_trace.jsonl`
-- Keep shared compact sidecars:
-  - `evaluation_events.jsonl`
-  - `generation_summary.jsonl`
+  - `pages/` (reserved directory for downstream rendering; empty by default)
+- Run-root dual-write policy for trace artifacts (logging/viz refactor):
+  - Flat JSON at run root: `controller_trace.json`, `operator_trace.json`, `llm_metrics.json`
+  - Spec-§3.1 JSONL sidecars under `traces/`:
+    - `traces/evaluation_events.jsonl`
+    - `traces/generation_summary.jsonl`
+    - `traces/controller_trace.jsonl`
+    - `traces/operator_trace.jsonl`
+    - `traces/llm_request_trace.jsonl`
+    - `traces/llm_response_trace.jsonl`
+    - `traces/llm_reflection_trace.jsonl`
+  - Operator trace rows follow §4.3 schema: `decision_id, generation, operator_name, parents, offspring, params_digest, wall_ms`
+  - Per-seed `run.yaml` manifest captures mode, seeds, spec paths, population/generation size, wall-clock seconds
+- Central rendered assets live beside traces (written by `render-assets`):
+  - `analytics/*.csv`
+  - `figures/*.png` (hi-res PDF variants when `--hires`)
 - Remove temporary scripts, debug files, caches, and one-off intermediate outputs after validation when they are not intended repository state.
 - Do not manually edit generated artifacts to change conclusions.
 
@@ -232,7 +243,19 @@ Current maintained test areas are:
 - `optimizers/cheap_constraints.py`
 - `optimizers/operator_pool/operators.py`
 - `optimizers/operator_pool/domain_state.py`
+- `optimizers/artifacts.py`
+- `optimizers/render_assets.py`
+- `optimizers/compare_runs.py`
+- `optimizers/run_manifest.py`
+- `optimizers/analytics/` (decisions, loaders, pareto, rollups)
+- `optimizers/traces/` (jsonl_writer, operator_trace, correlation, prompt_store)
+- `visualization/figures/` (pareto, temperature_field, gradient_field, hypervolume, layout_evolution, operator_heatmap)
+- `visualization/style/baseline.py`
+- `scripts/smoke_render_assets.sh`
 - `llm/openai_compatible/client.py`
 - `llm/openai_compatible/profiles.yaml`
 - `tests/optimizers/test_raw_driver_matrix.py`
 - `tests/optimizers/test_repair.py`
+- `tests/optimizers/test_representative_layout.py`
+- `tests/optimizers/test_multi_seed_layout.py`
+- `tests/visualization/test_render_assets_fixtures.py`

@@ -50,9 +50,9 @@ The only active paper-facing mainline is `s1_typical`.
 
 - `core/`: schema, geometry, generator, solver, artifact I/O, and CLI
 - `evaluation/`: single-case evaluation specs, metrics, reports, and CLI
-- `optimizers/`: decision encoding, repair, cheap constraints, raw/union/llm drivers, run-suite orchestration, summaries, and optimizer CLI
+- `optimizers/`: decision encoding, repair, cheap constraints, raw/union/llm drivers, run-suite orchestration, analytics/trace subpackages, render-assets/compare-runs, and optimizer CLI
 - `llm/`: OpenAI-compatible controller client boundary
-- `visualization/`: single-case pages, mode indexes, mixed-mode comparisons, and LLM reports
+- `visualization/`: figures subpackage (pareto, temperature_field, gradient_field, hypervolume, layout_evolution, operator_heatmap) and centralized baseline style
 - `scenarios/`: hand-authored scenario, evaluation, and optimization inputs
 - `tests/`: maintained automated verification
 - `docs/`: active specs, plans, and reports
@@ -96,17 +96,41 @@ evaluation.yaml
 fields/temperature_grid.npz
 fields/gradient_magnitude_grid.npz
 summaries/field_view.json
-pages/index.html
+pages/                              # reserved, empty by default
 ```
 
-Scientific figure exports under each representative, mode, and comparison page now follow these rules:
+Trace artifacts live at the seed run root under a dual-write policy (flat
+JSON for legacy consumers, spec-§3.1 JSONL sidecars for the analytics/render
+layer):
 
-- representative layout figures render real component footprints from exported outlines instead of rectangle bounds only
-- `figures/layout.svg`, `temperature-field.svg`, `temperature-contours.svg`, and `gradient-field.svg` are white-background single-case scientific figures
-- `figures/mode-summary.svg` is a progress-first mode figure with evaluation-index panels for best peak, best gradient, feasible rate, and Pareto size
-- `comparison/figures/progress.svg` compares the same four progress metrics across `raw`, `union`, and `llm`
-- `comparison/figures/fields.svg` renders actual temperature and gradient field panels with shared color scales instead of hotspot-only surrogate charts
-- long interpretation prose belongs in HTML tables and reports, not inside the SVG figure body
+```text
+controller_trace.json
+operator_trace.json
+llm_metrics.json
+traces/evaluation_events.jsonl
+traces/generation_summary.jsonl
+traces/controller_trace.jsonl
+traces/operator_trace.jsonl
+traces/llm_request_trace.jsonl
+traces/llm_response_trace.jsonl
+traces/llm_reflection_trace.jsonl
+run.yaml                            # per-seed manifest
+```
+
+Operator trace rows follow the §4.3 schema
+(`decision_id, generation, operator_name, parents, offspring, params_digest, wall_ms`).
+
+Central rendered assets (written by `optimizers.cli render-assets`) live
+beside the traces:
+
+- `analytics/*.csv` — progress, Pareto, operator usage, decision rollups
+- `figures/*.png` — hi-res PDF variants when `--hires` is passed
+- figures consumed from `visualization/figures/` (pareto, temperature_field, gradient_field, hypervolume, layout_evolution, operator_heatmap)
+- baseline style centralized in `visualization/style/baseline.py`
+
+`optimize-benchmark` / `run-llm` auto-invoke `render-assets` unless
+`--skip-render` is passed. Budget knobs `--population-size` and
+`--num-generations` apply the same override on both commands.
 
 ## CLI
 
@@ -165,13 +189,32 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli replay-llm-trace \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
-  --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/llm_request_trace.jsonl \
+  --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl \
   --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace \
   --controller-trace ./scenario_runs/s1_typical/<run_id>/union/seeds/seed-11/controller_trace.json \
   --output ./scenario_runs/s1_typical/<run_id>/union/reports/controller_trace_summary.json
+
+# Render analytics CSV + figures PNG from an existing run (hi-res optional)
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli render-assets \
+  --run ./scenario_runs/s1_typical/<run_id> [--hires]
+
+# Compare two or more runs into a single diff JSON
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli compare-runs \
+  --run ./scenario_runs/s1_typical/<run_a> \
+  --run ./scenario_runs/s1_typical/<run_b> \
+  --output ./compare.json
+
+# 10x5 smoke harness (raw/union/llm + render-assets + compare-runs)
+bash scripts/smoke_render_assets.sh
 ```
+
+Budget / render overrides apply to both `optimize-benchmark` and `run-llm`:
+
+- `--population-size <int>` — override algorithm.population_size
+- `--num-generations <int>` — override algorithm.num_generations
+- `--skip-render` — skip the auto-invoked `render-assets` pass
 
 `s1_typical` is a fixed single-case benchmark. Repeat experiments by varying `algorithm.seed`, not by passing multiple `benchmark_seed` values.
 
