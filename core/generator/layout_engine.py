@@ -387,7 +387,11 @@ def _strategy_regions_for_profile(
     elif placement_hint == "top_band":
         candidates = [zones.get("top_sink_band")]
     elif placement_hint == "bottom_band":
-        candidates = [_strategy_bottom_band(zones)]
+        adversarial_core = zones.get("adversarial_core")
+        if adversarial_core is not None:
+            candidates = [adversarial_core]
+        else:
+            candidates = [_strategy_bottom_band(zones)]
     elif placement_hint == "center_mass":
         candidates = [dense_core, active_deck]
     else:
