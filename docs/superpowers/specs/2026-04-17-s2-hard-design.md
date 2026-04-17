@@ -250,14 +250,13 @@ Its responsibilities:
 - honor `placement_hint` values (`top_band`, `bottom_band`, `center_mass`,
   `left_edge`, `right_edge`, `adversarial_core`) already present on each
   component family
-- route `top_band` placements through the `top_sink_band` zone
-- route `adversarial_core` placements directly into the `adversarial_core`
-  zone (used only by the four amplified power-dense / sink-coupled families
-  c02 / c04 / c06 / c12)
-- keep `bottom_band` placements on the derived bottom-band region for
-  c05 / c10 / c14 (continuing to mirror `s1_typical` semantics); when the
-  `adversarial_core` zone is also declared, `bottom_band` will prefer it as a
-  fallback for scenarios that do not opt into the new explicit hint
+- map each `placement_hint` to a single intended region:
+  - `top_band` routes to the `top_sink_band` zone
+  - `adversarial_core` routes to the `adversarial_core` zone (used only by
+    the four amplified power-dense / sink-coupled families
+    c02 / c04 / c06 / c12)
+  - `bottom_band` routes to the derived bottom-band region (the same as
+    `s1_typical`), used by c05 / c10 / c14
 - continue to respect `keep_out_regions`, per-component `clearance`, and the
   `max_placement_attempts` budget
 

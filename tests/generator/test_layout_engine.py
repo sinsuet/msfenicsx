@@ -96,24 +96,6 @@ def test_components_conflict_with_clearance_detects_nearby_non_overlapping_parts
     assert _components_conflict_with_clearance(left, right, family_profiles)
 
 
-def test_strategy_regions_for_profile_prefers_adversarial_core_for_bottom_band() -> None:
-    from core.generator.layout_engine import _strategy_regions_for_profile
-
-    layout_strategy = {
-        "kind": "s2_adversarial_v1",
-        "zones": {
-            "active_deck": {"x_min": 0.08, "x_max": 0.92, "y_min": 0.08, "y_max": 0.68},
-            "adversarial_core": {"x_min": 0.15, "x_max": 0.85, "y_min": 0.10, "y_max": 0.35},
-            "top_sink_band": {"x_min": 0.20, "x_max": 0.80, "y_min": 0.55, "y_max": 0.68},
-        },
-    }
-    profile = {"placement_hint": "bottom_band"}
-    regions = _strategy_regions_for_profile(layout_strategy, profile)
-
-    assert len(regions) == 1
-    assert regions[0] == {"x_min": 0.15, "x_max": 0.85, "y_min": 0.10, "y_max": 0.35}
-
-
 def test_strategy_regions_for_profile_falls_back_to_derived_bottom_band_without_adversarial_core() -> None:
     from core.generator.layout_engine import _strategy_regions_for_profile
 
