@@ -203,7 +203,11 @@ def _validate_physics(payload: Any, label: str) -> None:
 
 def _validate_background_boundary_cooling(payload: Any, label: str) -> None:
     _require_mapping(payload, label)
-    _require_positive_real(payload.get("transfer_coefficient"), f"{label}.transfer_coefficient")
+    transfer_coefficient = _require_real(
+        payload.get("transfer_coefficient"), f"{label}.transfer_coefficient"
+    )
+    if transfer_coefficient < 0.0:
+        raise SchemaValidationError(f"{label}.transfer_coefficient must be >= 0.")
     emissivity = _require_real(payload.get("emissivity"), f"{label}.emissivity")
     if not 0.0 < emissivity <= 1.0:
         raise SchemaValidationError(f"{label}.emissivity must satisfy 0 < value <= 1.")

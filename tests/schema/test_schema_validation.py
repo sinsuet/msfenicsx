@@ -2,6 +2,7 @@ import pytest
 
 from core.schema.validation import (
     SchemaValidationError,
+    _validate_background_boundary_cooling,
     validate_scenario_template_payload,
     validate_thermal_case_payload,
 )
@@ -235,3 +236,15 @@ def test_validate_scenario_template_rejects_invalid_background_boundary_emissivi
 
     with pytest.raises(SchemaValidationError, match="background_boundary_cooling"):
         validate_scenario_template_payload(payload)
+
+
+def test_background_boundary_cooling_accepts_zero_transfer_coefficient() -> None:
+    """transfer_coefficient=0 is a legitimate 'no convective cooling' configuration and must be accepted."""
+    payload = {"transfer_coefficient": 0.0, "emissivity": 0.02}
+    _validate_background_boundary_cooling(payload, "physics.background_boundary_cooling")
+
+
+def test_background_boundary_cooling_rejects_negative_transfer_coefficient() -> None:
+    payload = {"transfer_coefficient": -0.1, "emissivity": 0.02}
+    with pytest.raises(SchemaValidationError, match="transfer_coefficient"):
+        _validate_background_boundary_cooling(payload, "physics.background_boundary_cooling")
