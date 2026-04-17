@@ -9,7 +9,7 @@
 
 ## Active Mainline
 
-The only active paper-facing mainline is `s1_typical`.
+The primary paper-facing mainline is `s1_typical`. A harder companion benchmark `s2_hard` is approved per `docs/superpowers/specs/2026-04-17-s2-hard-design.md` and pending implementation; it shares the semantic shared operator registry and the same `raw / union / llm` ladder. The frame described below applies to `s1_typical` as the implemented reference; `s2_hard` will expose it as a second instance with adjusted sink, heat load, and layout-strategy zones.
 
 - one operating case
 - fifteen fixed named components
@@ -38,6 +38,8 @@ The only active paper-facing mainline is `s1_typical`.
 
 ## Active Inputs
 
+Implemented (`s1_typical`):
+
 - template: `scenarios/templates/s1_typical.yaml`
 - evaluation spec: `scenarios/evaluation/s1_typical_eval.yaml`
 - raw spec: `scenarios/optimization/s1_typical_raw.yaml`
@@ -45,6 +47,13 @@ The only active paper-facing mainline is `s1_typical`.
 - llm spec: `scenarios/optimization/s1_typical_llm.yaml`
 - raw profile: `scenarios/optimization/profiles/s1_typical_raw.yaml`
 - union profile: `scenarios/optimization/profiles/s1_typical_union.yaml`
+
+Approved-but-pending-implementation (`s2_hard`, per `docs/superpowers/specs/2026-04-17-s2-hard-design.md`):
+
+- template: `scenarios/templates/s2_hard.yaml`
+- evaluation spec: `scenarios/evaluation/s2_hard_eval.yaml`
+- raw/union/llm specs: `scenarios/optimization/s2_hard_{raw,union,llm}.yaml`
+- raw/union profiles: `scenarios/optimization/profiles/s2_hard_{raw,union}.yaml`
 
 ## Module Boundaries
 

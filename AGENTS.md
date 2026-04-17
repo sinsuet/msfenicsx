@@ -5,7 +5,8 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 ## Repository Status
 
 - `main` already contains the clean rebuild baseline.
-- The only active paper-facing mainline is `s1_typical`.
+- The primary paper-facing mainline is `s1_typical`.
+- A harder companion benchmark `s2_hard` is approved per `docs/superpowers/specs/2026-04-17-s2-hard-design.md` and pending implementation; it will share the semantic shared operator registry and the same `raw / union / llm` ladder as `s1_typical`.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
@@ -42,13 +43,21 @@ The active optimizer mainline is:
 
 `s1_typical case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
 
-The only active paper-facing inputs are:
+The implemented paper-facing inputs are:
 
 - `scenarios/templates/s1_typical.yaml`
 - `scenarios/evaluation/s1_typical_eval.yaml`
 - `scenarios/optimization/s1_typical_raw.yaml`
 - `scenarios/optimization/s1_typical_union.yaml`
 - `scenarios/optimization/s1_typical_llm.yaml`
+
+Approved-but-not-yet-implemented `s2_hard` inputs (see design spec for exact shape):
+
+- `scenarios/templates/s2_hard.yaml`
+- `scenarios/evaluation/s2_hard_eval.yaml`
+- `scenarios/optimization/s2_hard_raw.yaml`
+- `scenarios/optimization/s2_hard_union.yaml`
+- `scenarios/optimization/s2_hard_llm.yaml`
 
 The fixed benchmark decisions are:
 
