@@ -38,13 +38,13 @@ def write_optimization_artifacts(
         seed=seed,
         rows=getattr(run, "generation_summary_rows", []),
     )
-    _write_jsonl_payload(resolved_output_root / "traces" / "evaluation_events.jsonl", evaluation_rows)
-    _write_jsonl_payload(resolved_output_root / "traces" / "generation_summary.jsonl", generation_rows)
+    _write_jsonl_payload(resolved_output_root / "evaluation_events.jsonl", evaluation_rows)
+    _write_jsonl_payload(resolved_output_root / "generation_summary.jsonl", generation_rows)
     snapshots = {
         "optimization_result": "optimization_result.json",
         "pareto_front": "pareto_front.json",
-        "evaluation_events": "traces/evaluation_events.jsonl",
-        "generation_summary": "traces/generation_summary.jsonl",
+        "evaluation_events": "evaluation_events.jsonl",
+        "generation_summary": "generation_summary.jsonl",
     }
     if hasattr(run, "controller_trace"):
         _write_trace_payload(resolved_output_root / "controller_trace.json", getattr(run, "controller_trace"))

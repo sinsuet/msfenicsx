@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +9,7 @@ from typing import Any, Sequence
 
 from evaluation.io import load_spec
 from optimizers.artifacts import write_optimization_artifacts
+from optimizers.comparison_summary import build_comparison_summaries
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
 from optimizers.io import (
@@ -18,6 +18,7 @@ from optimizers.io import (
     resolve_benchmark_template_path,
     resolve_evaluation_spec_path,
 )
+from optimizers.mode_summary import build_mode_summaries
 from optimizers.models import OptimizationSpec
 from optimizers.run_layout import (
     build_run_id,
@@ -26,7 +27,6 @@ from optimizers.run_layout import (
     initialize_run_root,
     write_manifest,
 )
-from optimizers.run_manifest import write_run_manifest
 
 
 def run_benchmark_suite(
@@ -36,9 +36,8 @@ def run_benchmark_suite(
     scenario_runs_root: Path,
     modes: Sequence[str] | None = None,
     evaluation_workers: int | None = None,
-    population_size: int | None = None,
-    num_generations: int | None = None,
     started_at: datetime | None = None,
+    algorithm_seeds: Sequence[int] | None = None,
 ) -> Path:
     if not optimization_spec_paths:
         raise ValueError("run_benchmark_suite requires at least one optimization spec path.")
@@ -47,13 +46,6 @@ def run_benchmark_suite(
         (Path(spec_path), load_optimization_spec(spec_path))
         for spec_path in optimization_spec_paths
     ]
-    from optimizers.cli import apply_algorithm_overrides
-    for _, spec in loaded_specs:
-        apply_algorithm_overrides(
-            spec.algorithm,
-            population_size=population_size,
-            num_generations=num_generations,
-        )
     selected_modes = _normalize_modes(modes or [resolve_suite_mode_id(spec) for _, spec in loaded_specs])
     spec_by_mode = {
         resolve_suite_mode_id(spec): (spec_path, spec)
@@ -83,6 +75,9 @@ def run_benchmark_suite(
         initialize_comparison_root(run_root)
 
     _snapshot_shared_inputs(run_root, spec_by_mode, selected_modes)
+    global_algorithm_seeds = (
+        [int(aseed) for aseed in algorithm_seeds] if algorithm_seeds else None
+    )
     write_manifest(
         run_root / "manifest.json",
         {
@@ -90,6 +85,7 @@ def run_benchmark_suite(
             "run_id": run_id,
             "mode_ids": list(selected_modes),
             "benchmark_seeds": list(effective_seeds),
+            "algorithm_seeds": global_algorithm_seeds,
             "created_at": effective_started_at.isoformat(),
             "directories": {
                 "shared": "shared",
@@ -102,12 +98,19 @@ def run_benchmark_suite(
     for mode in selected_modes:
         spec_path, optimization_spec = spec_by_mode[mode]
         mode_root = initialize_mode_root(run_root, mode=mode)
+        default_algorithm_seed = int(optimization_spec.algorithm["seed"])
+        effective_algorithm_seeds = (
+            [int(aseed) for aseed in algorithm_seeds]
+            if algorithm_seeds
+            else [default_algorithm_seed]
+        )
         write_manifest(
             mode_root / "manifest.json",
             {
                 "mode_id": mode,
                 "optimization_spec_path": str(spec_path),
                 "benchmark_seeds": list(effective_seeds),
+                "algorithm_seeds": list(effective_algorithm_seeds),
                 "directories": {
                     "logs": "logs",
                     "summaries": "summaries",
@@ -119,38 +122,54 @@ def run_benchmark_suite(
             },
         )
         for seed in effective_seeds:
-            seeded_spec = _with_benchmark_seed(optimization_spec, seed)
-            base_case = generate_benchmark_case(spec_path, seeded_spec)
-            evaluation_spec_path_for_seed = resolve_evaluation_spec_path(spec_path, seeded_spec)
-            evaluation_spec = load_spec(evaluation_spec_path_for_seed)
-            _wall_start = time.monotonic()
-            run = _dispatch_run(
-                base_case,
-                seeded_spec,
-                evaluation_spec,
-                spec_path,
-                evaluation_workers=evaluation_workers,
-            )
-            _wall_seconds = time.monotonic() - _wall_start
-            evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
-            write_optimization_artifacts(
-                mode_root / "seeds" / f"seed-{seed}",
-                run,
-                mode_id=mode,
-                seed=seed,
-                objective_definitions=list(evaluation_payload["objectives"]),
-            )
-            write_run_manifest(
-                mode_root / "seeds" / f"seed-{seed}" / "run.yaml",
-                mode=mode,
-                benchmark_seed=int(seed),
-                algorithm_seed=int(seeded_spec.algorithm["seed"]),
-                optimization_spec_path=str(spec_path),
-                evaluation_spec_path=str(evaluation_spec_path_for_seed),
-                population_size=int(seeded_spec.algorithm["population_size"]),
-                num_generations=int(seeded_spec.algorithm["num_generations"]),
-                wall_seconds=_wall_seconds,
-            )
+            for aseed in effective_algorithm_seeds:
+                seeded_spec = _with_algorithm_seed(
+                    _with_benchmark_seed(optimization_spec, seed),
+                    aseed,
+                )
+                base_case = generate_benchmark_case(spec_path, seeded_spec)
+                evaluation_spec = load_spec(resolve_evaluation_spec_path(spec_path, seeded_spec))
+                run = _dispatch_run(
+                    base_case,
+                    seeded_spec,
+                    evaluation_spec,
+                    spec_path,
+                    evaluation_workers=evaluation_workers,
+                )
+                evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
+                write_optimization_artifacts(
+                    mode_root / "seeds" / f"seed-{seed}" / f"opt-{aseed}",
+                    run,
+                    mode_id=mode,
+                    seed=seed,
+                    objective_definitions=list(evaluation_payload["objectives"]),
+                )
+        build_mode_summaries(mode_root)
+        try:
+            from visualization.mode_pages import render_mode_pages
+            render_mode_pages(mode_root)
+        except (ModuleNotFoundError, Exception):
+            pass
+        if mode == "llm":
+            try:
+                from optimizers.llm_decision_summary import build_llm_decision_summaries
+                from visualization.llm_pages import render_llm_pages
+                from visualization.llm_reports import render_llm_reports
+                build_llm_decision_summaries(mode_root)
+                render_llm_pages(mode_root)
+                render_llm_reports(
+                    mode_root,
+                    comparison_root=(run_root / "comparison") if len(selected_modes) > 1 else None,
+                )
+            except (ModuleNotFoundError, Exception):
+                pass
+    if len(selected_modes) > 1:
+        build_comparison_summaries(run_root)
+        try:
+            from visualization.comparison_pages import render_comparison_pages
+            render_comparison_pages(run_root)
+        except (ModuleNotFoundError, Exception):
+            pass
     return run_root
 
 
@@ -248,4 +267,10 @@ def _dispatch_run(
 def _with_benchmark_seed(spec: OptimizationSpec, benchmark_seed: int) -> OptimizationSpec:
     payload = deepcopy(spec.to_dict())
     payload["benchmark_source"]["seed"] = int(benchmark_seed)
+    return OptimizationSpec.from_dict(payload)
+
+
+def _with_algorithm_seed(spec: OptimizationSpec, algorithm_seed: int) -> OptimizationSpec:
+    payload = deepcopy(spec.to_dict())
+    payload["algorithm"]["seed"] = int(algorithm_seed)
     return OptimizationSpec.from_dict(payload)

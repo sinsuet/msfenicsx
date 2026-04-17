@@ -16,21 +16,22 @@ def build_mode_summaries(mode_root: str | Path) -> dict[str, str]:
     seed_rows: list[dict[str, Any]] = []
     written: dict[str, str] = {}
 
-    for seed_root in _iter_seed_roots(root):
-        seed_name = seed_root.name
-        evaluation_rows = load_jsonl_rows(seed_root / "evaluation_events.jsonl")
+    for benchmark_seed, algorithm_seed, opt_root in _iter_seed_roots(root):
+        label = f"seed-{benchmark_seed}__opt-{algorithm_seed}"
+        evaluation_rows = load_jsonl_rows(opt_root / "evaluation_events.jsonl")
         timeline = build_progress_timeline(evaluation_rows)
         milestones = build_progress_milestones(timeline)
-        timeline_path = summaries_root / f"progress_timeline__{seed_name}.jsonl"
-        milestones_path = summaries_root / f"milestones__{seed_name}.json"
+        timeline_path = summaries_root / f"progress_timeline__{label}.jsonl"
+        milestones_path = summaries_root / f"milestones__{label}.json"
         _write_jsonl(timeline_path, timeline)
         _write_json(milestones_path, milestones)
-        written[f"progress_timeline__{seed_name}"] = str(timeline_path.relative_to(root).as_posix())
-        written[f"milestones__{seed_name}"] = str(milestones_path.relative_to(root).as_posix())
-        result_payload = _load_json(seed_root / "optimization_result.json")
+        written[f"progress_timeline__{label}"] = str(timeline_path.relative_to(root).as_posix())
+        written[f"milestones__{label}"] = str(milestones_path.relative_to(root).as_posix())
+        result_payload = _load_json(opt_root / "optimization_result.json")
         seed_rows.append(
             {
-                "seed": int(seed_name.removeprefix("seed-")),
+                "seed": benchmark_seed,
+                "algorithm_seed": algorithm_seed,
                 "run_id": str(result_payload["run_meta"]["run_id"]),
                 "progress_timeline": str(timeline_path.relative_to(root).as_posix()),
                 "milestones": str(milestones_path.relative_to(root).as_posix()),
@@ -42,16 +43,20 @@ def build_mode_summaries(mode_root: str | Path) -> dict[str, str]:
                 ),
                 "pareto_size": int(result_payload["aggregate_metrics"].get("pareto_size", 0)),
                 "final_timeline": timeline[-1] if timeline else {},
-                "representatives": _discover_representatives(seed_root),
+                "representatives": _discover_representatives(opt_root),
             }
         )
 
-    seed_rows.sort(key=lambda row: int(row["seed"]))
+    seed_rows.sort(key=lambda row: (int(row["seed"]), int(row["algorithm_seed"])))
     seed_summary_payload = {"rows": seed_rows}
     mode_summary_payload = {
         "mode_id": _resolve_mode_id(root),
         "seed_count": int(len(seed_rows)),
-        "seeds": [int(row["seed"]) for row in seed_rows],
+        "seed_pairs": [
+            {"benchmark_seed": int(row["seed"]), "algorithm_seed": int(row["algorithm_seed"])}
+            for row in seed_rows
+        ],
+        "seeds": sorted({int(row["seed"]) for row in seed_rows}),
         "baseline_feasible_count": int(sum(1 for row in seed_rows if row.get("baseline_feasible", False))),
         "first_feasible_eval_stats": _metric_stats(
             [float(row["first_feasible_eval"]) for row in seed_rows if row.get("first_feasible_eval") is not None]
@@ -84,14 +89,24 @@ def build_mode_summaries(mode_root: str | Path) -> dict[str, str]:
     return written
 
 
-def _iter_seed_roots(mode_root: Path) -> list[Path]:
+def _iter_seed_roots(mode_root: Path) -> list[tuple[int, int, Path]]:
     seeds_root = mode_root / "seeds"
     if not seeds_root.exists():
         return []
-    return sorted(
+    entries: list[tuple[int, int, Path]] = []
+    for seed_dir in sorted(
         [path for path in seeds_root.iterdir() if path.is_dir() and path.name.startswith("seed-")],
         key=lambda path: int(path.name.removeprefix("seed-")),
-    )
+    ):
+        benchmark_seed = int(seed_dir.name.removeprefix("seed-"))
+        opt_dirs = sorted(
+            [path for path in seed_dir.iterdir() if path.is_dir() and path.name.startswith("opt-")],
+            key=lambda path: int(path.name.removeprefix("opt-")),
+        )
+        for opt_dir in opt_dirs:
+            algorithm_seed = int(opt_dir.name.removeprefix("opt-"))
+            entries.append((benchmark_seed, algorithm_seed, opt_dir))
+    return entries
 
 
 def _resolve_mode_id(mode_root: Path) -> str:
