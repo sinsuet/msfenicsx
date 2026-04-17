@@ -132,3 +132,38 @@ def test_strategy_regions_for_profile_falls_back_to_derived_bottom_band_without_
     assert region["x_min"] > 0.12 - 1e-6
     assert region["x_max"] < 0.88 + 1e-6
     assert region["y_min"] < region["y_max"]
+
+
+def test_strategy_regions_for_profile_routes_adversarial_core_hint_to_zone() -> None:
+    from core.generator.layout_engine import _strategy_regions_for_profile
+
+    layout_strategy = {
+        "kind": "s2_adversarial_v1",
+        "zones": {
+            "active_deck": {"x_min": 0.08, "x_max": 0.92, "y_min": 0.08, "y_max": 0.68},
+            "adversarial_core": {"x_min": 0.15, "x_max": 0.85, "y_min": 0.10, "y_max": 0.35},
+        },
+    }
+    profile = {"placement_hint": "adversarial_core"}
+    regions = _strategy_regions_for_profile(layout_strategy, profile)
+
+    assert len(regions) == 1
+    assert regions[0] == {"x_min": 0.15, "x_max": 0.85, "y_min": 0.10, "y_max": 0.35}
+
+
+def test_strategy_regions_for_profile_adversarial_core_hint_without_zone_returns_empty() -> None:
+    from core.generator.layout_engine import _strategy_regions_for_profile
+
+    layout_strategy = {
+        "kind": "legacy_aligned_dense_core_v1",
+        "zones": {
+            "active_deck": {"x_min": 0.12, "x_max": 0.88, "y_min": 0.10, "y_max": 0.67},
+            "dense_core": {"x_min": 0.22, "x_max": 0.78, "y_min": 0.17, "y_max": 0.56},
+        },
+    }
+    profile = {"placement_hint": "adversarial_core"}
+    regions = _strategy_regions_for_profile(layout_strategy, profile)
+
+    # When the hinted zone is absent, no candidates are produced - the engine falls through to
+    # the generic placement_regions path for this family.
+    assert regions == []

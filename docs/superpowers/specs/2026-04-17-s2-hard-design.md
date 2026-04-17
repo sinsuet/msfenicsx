@@ -153,10 +153,10 @@ sink. All other placement hints are preserved.
 
 | Component | `s1_typical` hint | `s2_hard` hint |
 |---|---|---|
-| c02 | `top_band` | `bottom_band` |
-| c04 | `top_band` | `bottom_band` |
-| c06 | `top_band` | `bottom_band` |
-| c12 | `top_band` | `bottom_band` |
+| c02 | `top_band` | `adversarial_core` |
+| c04 | `top_band` | `adversarial_core` |
+| c06 | `top_band` | `adversarial_core` |
+| c12 | `top_band` | `adversarial_core` |
 | c01, c03, c07 | `center_mass` | `center_mass` (unchanged) |
 | c05, c10, c14 | `bottom_band` | `bottom_band` (unchanged) |
 | c08, c13 | `right_edge` | `right_edge` (unchanged) |
@@ -248,12 +248,31 @@ Its responsibilities:
 
 - read the same `zones` map as `legacy_aligned_dense_core_v1`
 - honor `placement_hint` values (`top_band`, `bottom_band`, `center_mass`,
-  `left_edge`, `right_edge`) already present on each component family
+  `left_edge`, `right_edge`, `adversarial_core`) already present on each
+  component family
 - route `top_band` placements through the `top_sink_band` zone
-- route `bottom_band` placements through the `adversarial_core` zone (new),
-  falling back to `active_deck` if `adversarial_core` is full
+- route `adversarial_core` placements directly into the `adversarial_core`
+  zone (used only by the four amplified power-dense / sink-coupled families
+  c02 / c04 / c06 / c12)
+- keep `bottom_band` placements on the derived bottom-band region for
+  c05 / c10 / c14 (continuing to mirror `s1_typical` semantics); when the
+  `adversarial_core` zone is also declared, `bottom_band` will prefer it as a
+  fallback for scenarios that do not opt into the new explicit hint
 - continue to respect `keep_out_regions`, per-component `clearance`, and the
   `max_placement_attempts` budget
+
+The split between the new `adversarial_core` hint and the existing
+`bottom_band` hint exists to avoid zone-capacity overflow: the
+`adversarial_core` zone has finite area (`~0.175` in normalized panel units)
+and cannot legally host all seven families in the bottom half under
+per-component clearance. Routing all seven through `bottom_band` caused the
+generator to overflow, spilling the later-placed amplified modules into the
+full placement region and landing them near the sink — which inverts the
+spec's intent that the four amplified modules occupy the adversarial zone
+far from the sink to drive the `c02_peak_temperature_limit` violation. The
+explicit `adversarial_core` hint narrows zone competition to exactly the
+four amplified families and preserves the cross-category infeasibility
+narrative.
 
 No changes to the thermal_case schema, solver contracts, repair logic,
 cheap-constraint module, evaluation runner, optimizer backbones, or trace/

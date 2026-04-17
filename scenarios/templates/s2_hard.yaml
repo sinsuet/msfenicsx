@@ -45,7 +45,7 @@ component_families:
     material_ref: electronics_housing
     thermal_tags: [payload, high_power]
     layout_tags: [power_dense, sink_aware]
-    placement_hint: bottom_band
+    placement_hint: adversarial_core
     adjacency_group: thermal-cluster
     clearance: 0.016
   - family_id: c03
@@ -71,7 +71,7 @@ component_families:
     material_ref: electronics_housing
     thermal_tags: [payload, high_power]
     layout_tags: [power_dense, sink_aware]
-    placement_hint: bottom_band
+    placement_hint: adversarial_core
     adjacency_group: thermal-cluster
     clearance: 0.016
   - family_id: c05
@@ -97,7 +97,7 @@ component_families:
     material_ref: electronics_housing
     thermal_tags: [payload, high_power]
     layout_tags: [power_dense, sink_aware]
-    placement_hint: bottom_band
+    placement_hint: adversarial_core
     adjacency_group: thermal-cluster
     clearance: 0.018
   - family_id: c07
@@ -177,7 +177,7 @@ component_families:
     rotation_deg: 0.0
     thermal_tags: [payload, sink_coupled]
     layout_tags: [elongated, sink_aware]
-    placement_hint: bottom_band
+    placement_hint: adversarial_core
     adjacency_group: thermal-cluster
     clearance: 0.014
   - family_id: c13

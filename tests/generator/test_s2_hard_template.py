@@ -39,24 +39,15 @@ def test_s2_hard_power_dense_families_land_inside_adversarial_core() -> None:
     placed = place_components(template=template, sampled_components=sampled["components"], seed=11)
     by_family = {c["family_id"]: c for c in placed}
 
-    # adversarial_core has finite capacity and competes with the other three
-    # bottom_band families (c05, c10, c14) for the same zone; the engine routes
-    # those that fit first and the rest fall back to the broader placement
-    # regions. The test therefore asserts that at least two of the four
-    # power-dense families land inside the adversarial_core band, which is
-    # enough to prove the routing path is active.
-    inside_count = 0
     for family_id in POWER_DENSE_FAMILIES:
         x = float(by_family[family_id]["pose"]["x"])
         y = float(by_family[family_id]["pose"]["y"])
-        x_ok = ADVERSARIAL_CORE["x_min"] - 0.05 <= x <= ADVERSARIAL_CORE["x_max"] + 0.05
-        y_ok = ADVERSARIAL_CORE["y_min"] - 0.02 <= y <= ADVERSARIAL_CORE["y_max"] + 0.05
-        if x_ok and y_ok:
-            inside_count += 1
-    assert inside_count >= 2, (
-        f"only {inside_count}/4 power-dense families routed into adversarial_core; "
-        f"positions={ {fid: by_family[fid]['pose'] for fid in POWER_DENSE_FAMILIES} }"
-    )
+        assert ADVERSARIAL_CORE["x_min"] - 0.05 <= x <= ADVERSARIAL_CORE["x_max"] + 0.05, (
+            f"{family_id} x={x} outside adversarial_core x-band"
+        )
+        assert ADVERSARIAL_CORE["y_min"] - 0.02 <= y <= ADVERSARIAL_CORE["y_max"] + 0.05, (
+            f"{family_id} y={y} outside adversarial_core y-band"
+        )
 
 
 def test_s2_hard_load_rules_amplified_totals_match_spec() -> None:

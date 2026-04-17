@@ -392,6 +392,12 @@ def _strategy_regions_for_profile(
             candidates = [adversarial_core]
         else:
             candidates = [_strategy_bottom_band(zones)]
+    elif placement_hint == "adversarial_core":
+        adversarial_core = zones.get("adversarial_core")
+        if adversarial_core is not None:
+            candidates = [adversarial_core]
+        else:
+            candidates = []
     elif placement_hint == "center_mass":
         candidates = [dense_core, active_deck]
     else:
@@ -453,6 +459,7 @@ def _placement_priority(profile: dict[str, Any]) -> tuple[int, int]:
         "top_band": 0,
         "left_edge": 0,
         "right_edge": 0,
+        "adversarial_core": 0,
         "center_mass": 1,
         "bottom_band": 1,
     }.get(placement_hint, 3)
