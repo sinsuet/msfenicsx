@@ -103,17 +103,20 @@ The fixed benchmark decisions are:
   - Service name: `mihomo.service` (via `systemctl --user`)
   - Status check: `systemctl --user is-active mihomo`
   - Subscription refresh: `~/.local/bin/mihomo-update-sub.sh`
+- Default behavior is direct networking. Do not enable shell proxy environment variables for normal repository work.
 - Claude's `Bash` calls are non-interactive shells, so `~/.bashrc` proxy toggle helpers (`proxy_on` / `proxy_off`) do not apply automatically. Bash subcommands must opt in explicitly.
-- For any outbound network call that targets resources typically blocked from mainland China (github.com non-CDN, raw.githubusercontent.com, google.com, huggingface.co, openai.com, arxiv.org non-mirror, npm registry, pypi.org without a domestic mirror, etc.), prepend the proxy environment inline, for example:
+- Only add proxy settings inline for explicit outbound tasks such as network search, web lookup, GitHub / Google / `raw.githubusercontent.com` access, or other clearly blocked external resources, for example:
   - `curl -x http://127.0.0.1:7890 https://raw.githubusercontent.com/...`
   - `http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890 git clone https://github.com/...`
   - `HTTPS_PROXY=http://127.0.0.1:7890 pip install <pkg-from-pypi.org>`
 - Do not route through the proxy for:
+  - normal local development, tests, solver runs, and artifact rendering
   - loopback / `127.0.0.1` / `localhost`
   - domestic mirrors already configured in the environment (Tsinghua, Aliyun, USTC, etc.)
   - conda/pip/apt operations that already use a domestic mirror
+  - normal LLM provider requests that use the configured base URLs in `.env`
 - Before a proxy-dependent command, quickly verify the service is up (`ss -ltn | grep 7890` or `systemctl --user is-active mihomo`). If the proxy is unreachable, fall back to a direct attempt and flag the degraded state instead of silently retrying.
-- Do not hardcode proxy credentials or endpoints into repository files; the `127.0.0.1:7890` endpoint is a local-only development convenience and must not leak into scenario YAMLs, optimizer specs, or solver defaults.
+- Do not hardcode proxy credentials or endpoints into repository files; the `127.0.0.1:7890` endpoint is a local-only development convenience and must not leak into scenario YAMLs, optimizer specs, solver defaults, or committed agent settings.
 
 ### Preferred Commands
 

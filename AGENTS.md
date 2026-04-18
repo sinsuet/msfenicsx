@@ -96,6 +96,29 @@ The fixed benchmark decisions are:
 - Repository text artifacts should use UTF-8 without BOM.
 - Treat terminal-side mojibake from the host bridge as environment noise unless the saved file itself is corrupted.
 
+### Outbound Network / Proxy
+
+- A local mihomo proxy is already provisioned in this WSL instance and managed as a systemd user service.
+  - Mixed HTTP+SOCKS endpoint: `http://127.0.0.1:7890`
+  - RESTful control: `http://127.0.0.1:9090`
+  - Service name: `mihomo.service` (via `systemctl --user`)
+  - Status check: `systemctl --user is-active mihomo`
+  - Subscription refresh: `~/.local/bin/mihomo-update-sub.sh`
+- Default behavior is direct networking. Do not enable shell proxy environment variables for normal repository work.
+- Only add proxy settings inline for explicit outbound tasks such as network search, web lookup, GitHub / Google / `raw.githubusercontent.com` access, or other clearly blocked external resources.
+- Do not route through the proxy for:
+  - normal local development, tests, solver runs, and artifact rendering
+  - loopback / `127.0.0.1` / `localhost`
+  - domestic mirrors already configured in the environment (Tsinghua, Aliyun, USTC, etc.)
+  - conda/pip/apt operations that already use a domestic mirror
+  - normal LLM provider requests that use the configured base URLs in `.env`
+- When a proxy is needed, prepend it on the specific command instead of enabling it globally, for example:
+  - `curl -x http://127.0.0.1:7890 https://raw.githubusercontent.com/...`
+  - `http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890 git clone https://github.com/...`
+  - `HTTPS_PROXY=http://127.0.0.1:7890 pip install <pkg-from-pypi.org>`
+- Before a proxy-dependent command, quickly verify the service is up (`ss -ltn | grep 7890` or `systemctl --user is-active mihomo`). If the proxy is unreachable, fall back to a direct attempt and flag the degraded state instead of silently retrying.
+- Do not hardcode proxy credentials or endpoints into repository files; the `127.0.0.1:7890` endpoint is a local-only development convenience and must not leak into scenario YAMLs, optimizer specs, solver defaults, or committed agent settings.
+
 Preferred commands:
 
 - `conda run -n msfenicsx pytest -v`

@@ -237,6 +237,9 @@ The optimizer CLI uses a desktop-safe default worker budget when `--evaluation-w
 - canonical execution context: WSL2 Ubuntu
 - preferred environment: `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
 - repository text files should use UTF-8 without BOM
+- default networking is direct; do not enable `HTTP(S)_PROXY` / `ALL_PROXY` globally for normal repository work
+- only add proxy settings inline for explicit outbound tasks such as network search, web lookup, or access to blocked external resources like GitHub / Google / `raw.githubusercontent.com`
+- keep the LLM provider base URLs declared in `.env` as-is; they are normal runtime endpoints, not shell proxy settings
 
 The `nsga2_llm` route uses the OpenAI-compatible client in `llm/openai_compatible/` and expects:
 
