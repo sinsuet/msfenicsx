@@ -8,6 +8,10 @@ from evaluation.cli import build_parser as build_evaluation_parser
 
 
 def test_generate_case_then_solve_cli_smoke(tmp_path: Path) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+
     generated_cases = tmp_path / "generated_case"
     run_root = tmp_path / "scenario_runs"
 
@@ -45,6 +49,9 @@ def test_generate_case_then_solve_cli_smoke(tmp_path: Path) -> None:
     assert any(run_root.rglob("manifest.json"))
     assert any(run_root.rglob("summaries/field_view.json"))
     assert any(run_root.rglob("fields/temperature_grid.npz"))
+    assert any(run_root.rglob("figures/layout.png"))
+    assert any(run_root.rglob("figures/temperature_field.png"))
+    assert any(run_root.rglob("figures/gradient_field.png"))
 
 
 def test_generate_case_is_the_only_mainline_generation_command() -> None:

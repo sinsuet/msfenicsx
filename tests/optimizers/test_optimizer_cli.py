@@ -85,6 +85,22 @@ def _write_small_llm_spec(tmp_path: Path) -> Path:
     return _write_small_union_spec(tmp_path, controller="llm")
 
 
+def _write_small_env_backed_llm_spec(tmp_path: Path) -> Path:
+    spec_path = _write_small_union_spec(tmp_path, controller="llm")
+    payload = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+    payload["operator_control"]["controller_parameters"] = {
+        "provider": "openai-compatible",
+        "capability_profile": "chat_compatible_json",
+        "performance_profile": "balanced",
+        "model_env_var": "LLM_MODEL",
+        "api_key_env_var": "LLM_API_KEY",
+        "base_url_env_var": "LLM_BASE_URL",
+        "max_output_tokens": 256,
+    }
+    spec_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    return spec_path
+
+
 def _write_small_raw_spec(tmp_path: Path) -> Path:
     spec_path = tmp_path / "nsga2_raw.yaml"
     save_optimization_spec(_optimization_spec_payload(), spec_path)
@@ -92,17 +108,46 @@ def _write_small_raw_spec(tmp_path: Path) -> Path:
 
 
 def _write_controller_trace(path: Path, rows: list[ControllerTraceRow]) -> None:
-    path.write_text(
-        json.dumps([row.to_dict() for row in rows], ensure_ascii=True, indent=2),
-        encoding="utf-8",
-    )
+    payload_rows = []
+    for row in rows:
+        metadata = dict(row.metadata)
+        selected_operator_id = str(row.selected_operator_id)
+        payload_rows.append(
+            {
+                "decision_id": f"g{int(row.generation_index):03d}-e{int(row.evaluation_index):04d}-d00",
+                "generation_index": int(row.generation_index),
+                "evaluation_index": int(row.evaluation_index),
+                "phase": str(row.phase or metadata.get("policy_phase") or metadata.get("guardrail_policy_phase") or ""),
+                "operator_selected": selected_operator_id,
+                "selected_operator_id": selected_operator_id,
+                "candidate_operator_ids": list(row.candidate_operator_ids),
+                "operator_pool_snapshot": list(row.candidate_operator_ids),
+                "input_state_digest": "",
+                "prompt_ref": str(metadata.get("prompt_ref", "")),
+                "rationale": str(row.rationale),
+                "fallback_used": bool(metadata.get("fallback_used", False)),
+                "latency_ms": float(metadata.get("latency_ms", 0.0)),
+                "metadata": metadata,
+            }
+        )
+    _write_jsonl(path, payload_rows)
 
 
 def _write_operator_trace(path: Path, rows: list[OperatorTraceRow]) -> None:
-    path.write_text(
-        json.dumps([row.to_dict() for row in rows], ensure_ascii=True, indent=2),
-        encoding="utf-8",
-    )
+    payload_rows = []
+    for row in rows:
+        payload_rows.append(
+            {
+                "decision_id": f"g{int(row.generation_index):03d}-e{int(row.evaluation_index):04d}-d00",
+                "generation": int(row.generation_index),
+                "operator_name": str(row.operator_id),
+                "parents": [f"parent-{index}" for index in range(int(row.parent_count))],
+                "offspring": [f"g{int(row.generation_index):03d}-e{int(row.evaluation_index):04d}"],
+                "params_digest": "",
+                "wall_ms": float(row.metadata.get("wall_ms", 0.0)),
+            }
+        )
+    _write_jsonl(path, payload_rows)
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -113,11 +158,15 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
 
 
 def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
-    controller_trace_path = tmp_path / "controller_trace.json"
-    operator_trace_path = tmp_path / "operator_trace.json"
+    traces_root = tmp_path / "traces"
+    traces_root.mkdir(parents=True, exist_ok=True)
+    controller_trace_path = traces_root / "controller_trace.jsonl"
+    operator_trace_path = traces_root / "operator_trace.jsonl"
     optimization_result_path = tmp_path / "optimization_result.json"
-    request_trace_path = tmp_path / "llm_request_trace.jsonl"
-    response_trace_path = tmp_path / "llm_response_trace.jsonl"
+    request_trace_path = traces_root / "llm_request_trace.jsonl"
+    response_trace_path = traces_root / "llm_response_trace.jsonl"
+    prompts_root = tmp_path / "prompts"
+    prompts_root.mkdir(parents=True, exist_ok=True)
 
     _write_controller_trace(
         controller_trace_path,
@@ -263,54 +312,88 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
         request_trace_path,
         [
             {
+                "decision_id": "g004-e0058-d00",
                 "evaluation_index": 58,
                 "policy_phase": "post_feasible_expand",
                 "candidate_operator_ids": ["local_refine", "slide_sink", "spread_hottest_cluster"],
-                "user_prompt": json.dumps(
-                    {
-                        "metadata": {
-                            "prompt_panels": {
-                                "regime_panel": {"phase": "post_feasible_expand"},
-                                "operator_panel": {
-                                    "local_refine": {"expand_budget_status": "preferred"},
-                                    "slide_sink": {"expand_budget_status": "neutral"},
-                                    "spread_hottest_cluster": {"expand_budget_status": "throttled"},
-                                },
-                            }
-                        }
-                    },
-                    ensure_ascii=True,
-                    sort_keys=True,
-                ),
+                "prompt_ref": "prompts/request-58.md",
             },
             {
+                "decision_id": "g004-e0059-d00",
                 "evaluation_index": 59,
                 "policy_phase": "post_feasible_expand",
                 "candidate_operator_ids": ["slide_sink", "native_sbx_pm"],
-                "user_prompt": json.dumps(
-                    {
-                        "metadata": {
-                            "prompt_panels": {
-                                "regime_panel": {"phase": "post_feasible_expand"},
-                                "operator_panel": {
-                                    "slide_sink": {"expand_budget_status": "preferred"},
-                                    "native_sbx_pm": {"expand_budget_status": "preferred"},
-                                },
-                            }
-                        }
-                    },
-                    ensure_ascii=True,
-                    sort_keys=True,
-                ),
+                "prompt_ref": "prompts/request-59.md",
             },
         ],
     )
     _write_jsonl(
         response_trace_path,
         [
-            {"evaluation_index": 58, "selected_operator_id": "local_refine", "elapsed_seconds": 1.2},
-            {"evaluation_index": 59, "selected_operator_id": "slide_sink", "elapsed_seconds": 1.4},
+            {
+                "decision_id": "g004-e0058-d00",
+                "evaluation_index": 58,
+                "selected_operator_id": "local_refine",
+                "latency_ms": 1200.0,
+                "response_ref": "prompts/response-58.md",
+            },
+            {
+                "decision_id": "g004-e0059-d00",
+                "evaluation_index": 59,
+                "selected_operator_id": "slide_sink",
+                "latency_ms": 1400.0,
+                "response_ref": "prompts/response-59.md",
+            },
         ],
+    )
+    (prompts_root / "request-58.md").write_text(
+        "---\nkind: request\nsha1: request-58\n---\n# System\nchoose a route\n# User\n"
+        + json.dumps(
+            {
+                "metadata": {
+                    "prompt_panels": {
+                        "regime_panel": {"phase": "post_feasible_expand"},
+                        "operator_panel": {
+                            "local_refine": {"expand_budget_status": "preferred"},
+                            "slide_sink": {"expand_budget_status": "neutral"},
+                            "spread_hottest_cluster": {"expand_budget_status": "throttled"},
+                        },
+                    }
+                }
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (prompts_root / "request-59.md").write_text(
+        "---\nkind: request\nsha1: request-59\n---\n# System\nchoose a route\n# User\n"
+        + json.dumps(
+            {
+                "metadata": {
+                    "prompt_panels": {
+                        "regime_panel": {"phase": "post_feasible_expand"},
+                        "operator_panel": {
+                            "slide_sink": {"expand_budget_status": "preferred"},
+                            "native_sbx_pm": {"expand_budget_status": "preferred"},
+                        },
+                    }
+                }
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (prompts_root / "response-58.md").write_text(
+        "---\nkind: response\nsha1: response-58\n---\nlocal_refine\n",
+        encoding="utf-8",
+    )
+    (prompts_root / "response-59.md").write_text(
+        "---\nkind: response\nsha1: response-59\n---\nslide_sink\n",
+        encoding="utf-8",
     )
     return {
         "controller_trace": controller_trace_path,
@@ -436,9 +519,35 @@ def _fake_union_run(*, include_llm_sidecars: bool = False) -> SimpleNamespace:
         llm_metrics=None,
     )
     if include_llm_sidecars:
-        run.llm_request_trace = [{"evaluation_index": 2, "candidate_operator_ids": ["native_sbx_pm", "local_refine"]}]
-        run.llm_response_trace = [{"evaluation_index": 2, "selected_operator_id": "local_refine", "elapsed_seconds": 1.2}]
-        run.llm_metrics = {"elapsed_seconds_total": 1.2, "elapsed_seconds_avg": 1.2}
+        run.llm_request_trace = [
+            {
+                "decision_id": "g001-e0002-d00",
+                "generation_index": 1,
+                "evaluation_index": 2,
+                "model": "glm-5",
+                "candidate_operator_ids": ["native_sbx_pm", "local_refine"],
+                "policy_phase": "prefeasible_progress",
+                "prompt_ref": "prompts/request.md",
+                "http_status": 200,
+                "retries": 0,
+                "latency_ms": 1200.0,
+            }
+        ]
+        run.llm_response_trace = [
+            {
+                "decision_id": "g001-e0002-d00",
+                "generation_index": 1,
+                "evaluation_index": 2,
+                "model": "glm-5",
+                "selected_operator_id": "local_refine",
+                "response_ref": "prompts/response.md",
+                "tokens": {"total": 240},
+                "finish_reason": "stop",
+                "http_status": 200,
+                "retries": 0,
+                "latency_ms": 1200.0,
+            }
+        ]
     return run
 
 
@@ -454,6 +563,7 @@ def test_optimizer_cli_optimize_benchmark_writes_result_and_pareto_artifacts(tmp
             str(spec_path),
             "--output-root",
             str(output_root),
+            "--skip-render",
         ]
     )
 
@@ -463,7 +573,7 @@ def test_optimizer_cli_optimize_benchmark_writes_result_and_pareto_artifacts(tmp
     assert (output_root / "traces" / "evaluation_events.jsonl").exists()
     assert (output_root / "traces" / "generation_summary.jsonl").exists()
     assert (output_root / "manifest.json").exists()
-    for directory_name in ("logs", "summaries", "representatives", "traces"):
+    for directory_name in ("analytics", "figures", "representatives", "tables", "traces"):
         assert (output_root / directory_name).is_dir()
     assert not (output_root / "tensors").exists()
 
@@ -513,18 +623,20 @@ def test_optimizer_cli_optimize_benchmark_writes_manifest_backed_representative_
         assert (representative_root / "solution.yaml").exists()
         assert (representative_root / "fields" / "temperature_grid.npz").exists()
         assert (representative_root / "fields" / "gradient_magnitude_grid.npz").exists()
-        assert (representative_root / "summaries" / "field_view.json").exists()
-        assert (representative_root / "pages").is_dir()
+        assert not (representative_root / "summaries").exists()
+        assert not (representative_root / "pages").exists()
+        assert not (representative_root / "figures").exists()
         assert not (representative_root / "tensors").exists()
     manifest_payload = json.loads(
         (output_root / "representatives" / "min-peak-temperature" / "manifest.json").read_text(encoding="utf-8")
     )
     assert manifest_payload["case_snapshot"] == "case.yaml"
     assert manifest_payload["evaluation_snapshot"] == "evaluation.yaml"
-    assert manifest_payload["field_exports"]["field_view"] == "summaries/field_view.json"
+    assert manifest_payload["field_exports"]["temperature_grid"] == "fields/temperature_grid.npz"
+    assert manifest_payload["field_exports"]["gradient_magnitude_grid"] == "fields/gradient_magnitude_grid.npz"
 
 
-def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(tmp_path: Path, monkeypatch) -> None:
+def test_optimizer_cli_union_mode_writes_jsonl_operator_trace_only(tmp_path: Path, monkeypatch) -> None:
     import optimizers.cli as cli_module
 
     output_root = tmp_path / "union_optimizer_run"
@@ -538,6 +650,7 @@ def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(
             str(spec_path),
             "--output-root",
             str(output_root),
+            "--skip-render",
         ]
     )
 
@@ -546,17 +659,21 @@ def test_optimizer_cli_union_mode_writes_controller_and_operator_trace_sidecars(
     assert (output_root / "pareto_front.json").exists()
     assert (output_root / "traces" / "evaluation_events.jsonl").exists()
     assert (output_root / "traces" / "generation_summary.jsonl").exists()
-    assert (output_root / "controller_trace.json").exists()
-    assert (output_root / "operator_trace.json").exists()
+    assert (output_root / "traces" / "operator_trace.jsonl").exists()
+    assert not (output_root / "traces" / "controller_trace.jsonl").exists()
+    assert not (output_root / "controller_trace.json").exists()
+    assert not (output_root / "operator_trace.json").exists()
 
-    controller_trace = json.loads((output_root / "controller_trace.json").read_text(encoding="utf-8"))
-    operator_trace = json.loads((output_root / "operator_trace.json").read_text(encoding="utf-8"))
+    operator_trace = [
+        json.loads(line)
+        for line in (output_root / "traces" / "operator_trace.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     manifest_payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
 
-    assert controller_trace
     assert operator_trace
-    assert manifest_payload["snapshots"]["controller_trace"] == "controller_trace.json"
-    assert manifest_payload["snapshots"]["operator_trace"] == "operator_trace.json"
+    assert "controller_trace" not in manifest_payload["snapshots"]
+    assert manifest_payload["snapshots"]["operator_trace"] == "traces/operator_trace.jsonl"
 
 
 def test_optimizer_cli_union_mode_writes_single_case_history_records(tmp_path: Path, monkeypatch) -> None:
@@ -573,6 +690,7 @@ def test_optimizer_cli_union_mode_writes_single_case_history_records(tmp_path: P
             str(spec_path),
             "--output-root",
             str(output_root),
+            "--skip-render",
         ]
     )
 
@@ -606,7 +724,81 @@ def test_optimizer_cli_llm_union_mode_writes_llm_sidecars(
 
     spec_path = _write_small_llm_spec(tmp_path)
     output_root = tmp_path / "llm_union_optimizer_run"
-    monkeypatch.setattr(cli_module, "run_union_optimization", lambda *args, **kwargs: _fake_union_run(include_llm_sidecars=True))
+
+    def _fake_run_union_with_live_llm_sidecars(*args, **kwargs):
+        del args
+        trace_output_root = kwargs.get("trace_output_root")
+        if trace_output_root is not None:
+            traces_root = Path(trace_output_root) / "traces"
+            traces_root.mkdir(parents=True, exist_ok=True)
+            prompts_root = Path(trace_output_root) / "prompts"
+            prompts_root.mkdir(parents=True, exist_ok=True)
+            _write_jsonl(
+                traces_root / "controller_trace.jsonl",
+                [
+                    {
+                        "decision_id": "g001-e0002-d00",
+                        "generation_index": 1,
+                        "evaluation_index": 2,
+                        "phase": "prefeasible_progress",
+                        "operator_selected": "local_refine",
+                        "selected_operator_id": "local_refine",
+                        "candidate_operator_ids": ["native_sbx_pm", "local_refine"],
+                        "operator_pool_snapshot": ["native_sbx_pm", "local_refine"],
+                        "input_state_digest": "abc123",
+                        "prompt_ref": "prompts/request.md",
+                        "rationale": "bias toward local operator",
+                        "fallback_used": False,
+                        "latency_ms": 1200.0,
+                    }
+                ],
+            )
+            _write_jsonl(
+                traces_root / "llm_request_trace.jsonl",
+                [
+                    {
+                        "decision_id": "g001-e0002-d00",
+                        "generation_index": 1,
+                        "evaluation_index": 2,
+                        "model": "glm-5",
+                        "candidate_operator_ids": ["native_sbx_pm", "local_refine"],
+                        "policy_phase": "prefeasible_progress",
+                        "prompt_ref": "prompts/request.md",
+                        "http_status": 200,
+                        "retries": 0,
+                        "latency_ms": 1200.0,
+                    }
+                ],
+            )
+            _write_jsonl(
+                traces_root / "llm_response_trace.jsonl",
+                [
+                    {
+                        "decision_id": "g001-e0002-d00",
+                        "generation_index": 1,
+                        "evaluation_index": 2,
+                        "model": "glm-5",
+                        "selected_operator_id": "local_refine",
+                        "response_ref": "prompts/response.md",
+                        "tokens": {"total": 240},
+                        "finish_reason": "stop",
+                        "http_status": 200,
+                        "retries": 0,
+                        "latency_ms": 1200.0,
+                    }
+                ],
+            )
+            (prompts_root / "request.md").write_text(
+                "---\nkind: request\nsha1: request\n---\n# System\nchoose\n# User\n{}\n",
+                encoding="utf-8",
+            )
+            (prompts_root / "response.md").write_text(
+                "---\nkind: response\nsha1: response\n---\nlocal_refine\n",
+                encoding="utf-8",
+            )
+        return _fake_union_run(include_llm_sidecars=True)
+
+    monkeypatch.setattr(cli_module, "run_union_optimization", _fake_run_union_with_live_llm_sidecars)
 
     exit_code = main(
         [
@@ -615,17 +807,20 @@ def test_optimizer_cli_llm_union_mode_writes_llm_sidecars(
             str(spec_path),
             "--output-root",
             str(output_root),
+            "--skip-render",
         ]
     )
 
     assert exit_code == 0
-    assert (output_root / "controller_trace.json").exists()
-    assert (output_root / "operator_trace.json").exists()
+    assert (output_root / "traces" / "controller_trace.jsonl").exists()
+    assert (output_root / "traces" / "operator_trace.jsonl").exists()
     assert (output_root / "traces" / "llm_request_trace.jsonl").exists()
     assert (output_root / "traces" / "llm_response_trace.jsonl").exists()
-    assert (output_root / "llm_metrics.json").exists()
     assert (output_root / "traces" / "evaluation_events.jsonl").exists()
     assert (output_root / "traces" / "generation_summary.jsonl").exists()
+    assert not (output_root / "controller_trace.json").exists()
+    assert not (output_root / "operator_trace.json").exists()
+    assert not (output_root / "llm_metrics.json").exists()
 
     manifest_payload = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
     llm_response_trace = [
@@ -633,15 +828,13 @@ def test_optimizer_cli_llm_union_mode_writes_llm_sidecars(
         for line in (output_root / "traces" / "llm_response_trace.jsonl").read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    llm_metrics = json.loads((output_root / "llm_metrics.json").read_text(encoding="utf-8"))
 
+    assert manifest_payload["snapshots"]["controller_trace"] == "traces/controller_trace.jsonl"
+    assert manifest_payload["snapshots"]["operator_trace"] == "traces/operator_trace.jsonl"
     assert manifest_payload["snapshots"]["llm_request_trace"] == "traces/llm_request_trace.jsonl"
     assert manifest_payload["snapshots"]["llm_response_trace"] == "traces/llm_response_trace.jsonl"
-    assert manifest_payload["snapshots"]["llm_metrics"] == "llm_metrics.json"
     assert llm_response_trace
-    assert "elapsed_seconds" in llm_response_trace[0]
-    assert "elapsed_seconds_total" in llm_metrics
-    assert "elapsed_seconds_avg" in llm_metrics
+    assert "latency_ms" in llm_response_trace[0]
 
 
 def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_path: Path, monkeypatch) -> None:
@@ -687,6 +880,60 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
         "LLM_API_KEY": "switch-key",
         "LLM_BASE_URL": "https://switch.example/v1",
         "LLM_MODEL": "claude-sonnet-4-6",
+    }
+
+
+def test_optimizer_cli_optimize_benchmark_llm_uses_default_profile_overlay_when_runtime_env_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import optimizers.cli as cli_module
+
+    spec_path = _write_small_env_backed_llm_spec(tmp_path)
+    output_root = tmp_path / "optimize_benchmark_llm_overlay_run"
+    captured: dict[str, str] = {}
+
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.setattr(
+        cli_module,
+        "load_provider_profile_overlay",
+        lambda profile, **kwargs: {
+            "LLM_API_KEY": "overlay-key",
+            "LLM_BASE_URL": "https://overlay.example/v1",
+            "LLM_MODEL": "gpt-5.4",
+        },
+        raising=False,
+    )
+
+    def _fake_run_union_optimization(*args, **kwargs):
+        del args, kwargs
+        captured["LLM_API_KEY"] = os.environ["LLM_API_KEY"]
+        captured["LLM_BASE_URL"] = os.environ["LLM_BASE_URL"]
+        captured["LLM_MODEL"] = os.environ["LLM_MODEL"]
+        return _fake_union_run(include_llm_sidecars=True)
+
+    monkeypatch.setattr(cli_module, "run_union_optimization", _fake_run_union_optimization)
+    monkeypatch.setattr(cli_module, "write_optimization_artifacts", lambda *args, **kwargs: Path(args[0]))
+    monkeypatch.setattr(cli_module, "write_run_manifest", lambda *args, **kwargs: Path(args[0]))
+
+    exit_code = main(
+        [
+            "optimize-benchmark",
+            "--optimization-spec",
+            str(spec_path),
+            "--output-root",
+            str(output_root),
+            "--skip-render",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured == {
+        "LLM_API_KEY": "overlay-key",
+        "LLM_BASE_URL": "https://overlay.example/v1",
+        "LLM_MODEL": "gpt-5.4",
     }
 
 
@@ -824,7 +1071,7 @@ def test_optimizer_cli_replay_llm_trace_writes_summary_artifact(
 
 def test_analyze_controller_trace_reports_speculative_family_collapse(tmp_path: Path) -> None:
     diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
-    controller_trace_path = tmp_path / "controller_trace.json"
+    controller_trace_path = tmp_path / "controller_trace.jsonl"
     _write_controller_trace(
         controller_trace_path,
         [
@@ -887,7 +1134,7 @@ def test_analyze_controller_trace_reports_speculative_family_collapse(tmp_path: 
 
 def test_analyze_controller_trace_reports_prefeasible_stable_family_monopoly_metrics(tmp_path: Path) -> None:
     diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
-    controller_trace_path = tmp_path / "controller_trace.json"
+    controller_trace_path = tmp_path / "controller_trace.jsonl"
     _write_controller_trace(
         controller_trace_path,
         [
@@ -931,7 +1178,7 @@ def test_analyze_controller_trace_reports_prefeasible_stable_family_monopoly_met
 
 def test_analyze_controller_trace_reports_near_feasible_conversion_metrics(tmp_path: Path) -> None:
     diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
-    controller_trace_path = tmp_path / "controller_trace.json"
+    controller_trace_path = tmp_path / "controller_trace.jsonl"
     _write_controller_trace(
         controller_trace_path,
         [
@@ -970,7 +1217,7 @@ def test_analyze_controller_trace_reports_near_feasible_conversion_metrics(tmp_p
 
 def test_analyze_controller_trace_prefers_local_policy_phase_over_empty_provider_phase(tmp_path: Path) -> None:
     diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
-    controller_trace_path = tmp_path / "controller_trace.json"
+    controller_trace_path = tmp_path / "controller_trace.jsonl"
     _write_controller_trace(
         controller_trace_path,
         [
@@ -1063,7 +1310,7 @@ def test_controller_trace_summary_reports_stable_vs_semantic_pareto_ownership(tm
 
 def test_analyze_controller_trace_reports_route_family_entropy_and_expand_mix(tmp_path: Path) -> None:
     diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
-    controller_trace_path = tmp_path / "controller_trace.json"
+    controller_trace_path = tmp_path / "controller_trace.jsonl"
     _write_controller_trace(
         controller_trace_path,
         [
@@ -1112,7 +1359,7 @@ def test_analyze_controller_trace_reports_route_family_entropy_and_expand_mix(tm
 
 
 def test_optimizer_cli_analyze_controller_trace_writes_summary_artifact(tmp_path: Path) -> None:
-    controller_trace_path = tmp_path / "controller_trace.json"
+    controller_trace_path = tmp_path / "controller_trace.jsonl"
     _write_controller_trace(
         controller_trace_path,
         [
@@ -1191,9 +1438,10 @@ def test_optimizer_cli_run_benchmark_suite_single_mode_writes_run_root(tmp_path:
     assert (run_root / "raw").is_dir()
     assert (run_root / "raw" / "manifest.json").exists()
     assert not (run_root / "comparison").exists()
+    assert not (run_root / "comparisons").exists()
 
 
-def test_optimizer_cli_run_benchmark_suite_mixed_mode_writes_comparison_root(tmp_path: Path) -> None:
+def test_optimizer_cli_run_benchmark_suite_mixed_mode_writes_suite_comparisons(tmp_path: Path) -> None:
     raw_spec_path = _write_small_raw_spec(tmp_path)
     union_spec_path = _write_small_union_spec(tmp_path, controller="random_uniform")
     scenario_runs_root = tmp_path / "scenario_runs"
@@ -1222,7 +1470,8 @@ def test_optimizer_cli_run_benchmark_suite_mixed_mode_writes_comparison_root(tmp
     assert (run_root / "shared").is_dir()
     assert (run_root / "raw").is_dir()
     assert (run_root / "union").is_dir()
-    assert (run_root / "comparison").is_dir()
+    assert not (run_root / "comparison").exists()
+    assert (run_root / "comparisons" / "manifest.json").exists()
 
 
 def test_optimizer_cli_run_benchmark_suite_rejects_multiple_benchmark_seeds_for_s1_typical(tmp_path: Path) -> None:
@@ -1365,6 +1614,7 @@ def test_optimizer_cli_run_benchmark_suite_llm_mode_writes_llm_pages_and_reports
     assert (run_root / "llm" / "manifest.json").exists()
     assert (run_root / "llm" / "seeds" / "seed-11" / "traces" / "llm_request_trace.jsonl").exists()
     assert (run_root / "llm" / "seeds" / "seed-11" / "traces" / "llm_response_trace.jsonl").exists()
+    assert (run_root / "llm" / "seeds" / "seed-11" / "figures" / "hypervolume_progress.png").exists()
 
 
 def test_optimizer_cli_does_not_expose_legacy_template_comparison_command() -> None:

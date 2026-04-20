@@ -1,5 +1,5 @@
 # tests/optimizers/test_multi_seed_layout.py
-"""Flat for N=1, seeds/seed-<n>/ for N>=2, aggregate/ only for N>=3."""
+"""Flat for N=1, seeds/seed-<n>/ for N>=2, aggregate rollups for any multi-seed suite."""
 
 from __future__ import annotations
 
@@ -22,10 +22,10 @@ def test_resolve_seed_run_root_wraps_for_multiple_seeds(tmp_path: Path) -> None:
     assert path == run_root / "seeds" / "seed-11"
 
 
-def test_should_write_aggregate_true_only_for_three_or_more(tmp_path: Path) -> None:
+def test_should_write_aggregate_true_for_two_or_more(tmp_path: Path) -> None:
     from optimizers.run_layout import should_write_aggregate
 
     assert should_write_aggregate(total_seeds=1) is False
-    assert should_write_aggregate(total_seeds=2) is False
+    assert should_write_aggregate(total_seeds=2) is True
     assert should_write_aggregate(total_seeds=3) is True
     assert should_write_aggregate(total_seeds=30) is True

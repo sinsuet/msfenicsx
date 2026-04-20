@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from llm.openai_compatible.client import OpenAICompatibleDecision
 from optimizers.operator_pool.llm_controller import LLMOperatorController
+from optimizers.operator_pool.policy_kernel import PolicySnapshot
 from optimizers.operator_pool.state import ControllerState
+from optimizers.traces.prompt_store import PromptStore
 
 
 class _FakeLLMClient:
@@ -692,6 +695,89 @@ def _make_minimal_llm_state(*, objective_balance: dict[str, object] | None = Non
     )
 
 
+def _recover_gradient_pressure_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=8,
+        evaluation_index=88,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "decision_index": 11,
+            "run_state": {
+                "first_feasible_eval": 12,
+                "evaluations_used": 87,
+                "evaluations_remaining": 40,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_recover",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                    "objective_balance": {
+                        "balance_pressure": "high",
+                        "preferred_effect": "gradient_improve",
+                        "stagnant_objectives": ["gradient_rms"],
+                        "improving_objectives": [],
+                    },
+                },
+                "generation_panel": {
+                    "accepted_count": 0,
+                    "dominant_operator_id": "",
+                    "dominant_operator_share": 0.0,
+                },
+                "operator_panel": {
+                    "native_sbx_pm": {
+                        "applicability": "medium",
+                        "expected_peak_effect": "neutral",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "local_refine": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "smooth_high_gradient_band": {
+                        "applicability": "high",
+                        "expected_peak_effect": "neutral",
+                        "expected_gradient_effect": "improve",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "reduce_local_congestion": {
+                        "applicability": "high",
+                        "expected_peak_effect": "neutral",
+                        "expected_gradient_effect": "improve",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "move_hottest_cluster_toward_sink": {
+                        "applicability": "medium",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "medium",
+                        "recent_regression_risk": "medium",
+                    },
+                },
+                "spatial_panel": {
+                    "hotspot_inside_sink_window": False,
+                    "nearest_neighbor_gap_min": 0.04,
+                    "hottest_cluster_compactness": 0.11,
+                },
+            },
+        },
+    )
+
+
 def test_llm_controller_metrics_count_retries_and_invalid_attempts() -> None:
     controller = LLMOperatorController(
         controller_parameters={
@@ -1037,6 +1123,20 @@ def test_decision_axes_objective_balance_fields() -> None:
     assert "slide_sink" in axes["peak_improve_candidates"]
 
 
+def test_decision_axes_enable_route_family_reasoning_during_recover_gradient_pressure() -> None:
+    axes = LLMOperatorController._build_decision_axes(
+        {"prompt_panels": dict(_recover_gradient_pressure_state().metadata["prompt_panels"])}
+    )
+
+    assert axes["preferred_effect"] == "gradient_improve"
+    assert axes["route_stage"] == "family_then_operator"
+    assert axes["route_family_mode"] == "recover_family_mix"
+    assert axes["semantic_trial_mode"] == "encourage_bounded_trial"
+    assert "congestion_relief" in axes["route_family_candidates"]
+    assert "smooth_high_gradient_band" in axes["semantic_trial_candidates"]
+    assert "reduce_local_congestion" in axes["semantic_trial_candidates"]
+
+
 def test_system_prompt_objective_balance_guidance() -> None:
     """system_prompt should mention objective balance alert when balance_pressure is high."""
     from optimizers.operator_pool.policy_kernel import PolicySnapshot
@@ -1089,3 +1189,109 @@ def test_system_prompt_objective_balance_guidance() -> None:
 
     assert "Objective balance alert" in prompt
     assert "temperature_max" in prompt
+
+
+def test_llm_controller_input_state_digest_accepts_tuple_key_metadata() -> None:
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=17,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "near_feasible",
+            "candidate_operator_ids": ["native_sbx_pm", "local_refine"],
+            "route_family_counts": {
+                ("sink_retarget", "hotspot_shift"): {
+                    "count": 3,
+                }
+            },
+        },
+    )
+    policy_snapshot = PolicySnapshot(
+        phase="prefeasible_progress",
+        allowed_operator_ids=("native_sbx_pm", "local_refine"),
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=("policy_kernel",),
+        candidate_annotations={},
+    )
+
+    digest = LLMOperatorController._input_state_digest(
+        state,
+        candidate_operator_ids=("native_sbx_pm", "local_refine"),
+        policy_snapshot=policy_snapshot,
+        guardrail={
+            "filtered_operator_ids": ["local_refine"],
+            "generation_local_memory": {("sink", "budget"): 2},
+        },
+    )
+
+    assert isinstance(digest, str)
+    assert len(digest) == 40
+
+
+def test_llm_controller_request_trace_exposes_route_visibility_fields(tmp_path: Path) -> None:
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=_FakeLLMClient(
+            OpenAICompatibleDecision(
+                selected_operator_id="reduce_local_congestion",
+                phase="post_feasible_recover",
+                rationale="Gradient pressure favors a bounded congestion-relief move.",
+                provider="openai-compatible",
+                model="GPT-5.4",
+                capability_profile="responses_native",
+                performance_profile="balanced",
+                raw_payload={"selected_operator_id": "reduce_local_congestion"},
+            )
+        ),
+    )
+    run_root = tmp_path / "run"
+    controller.configure_trace_outputs(
+        controller_trace_path=run_root / "traces" / "controller_trace.jsonl",
+        llm_request_trace_path=run_root / "traces" / "llm_request_trace.jsonl",
+        llm_response_trace_path=run_root / "traces" / "llm_response_trace.jsonl",
+        prompt_store=PromptStore(run_root / "prompts"),
+    )
+
+    controller.select_decision(
+        _recover_gradient_pressure_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "smooth_high_gradient_band",
+            "reduce_local_congestion",
+            "move_hottest_cluster_toward_sink",
+        ),
+        np.random.default_rng(13),
+    )
+
+    request_entry = controller.request_trace[0]
+    assert request_entry["route_family_mode"] == "recover_family_mix"
+    assert request_entry["semantic_trial_mode"] == "encourage_bounded_trial"
+    assert "stable_local" in request_entry["original_route_families"]
+    assert "congestion_relief" in request_entry["visible_route_families"]
+    assert request_entry["preferred_effect"] == "gradient_improve"
+    assert request_entry["recover_exit_ready"] is False
+    assert request_entry["effective_candidate_pool_size"] >= 3
+
+    request_rows = [
+        json.loads(line)
+        for line in (run_root / "traces" / "llm_request_trace.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert request_rows[0]["route_family_mode"] == "recover_family_mix"
+    assert request_rows[0]["semantic_trial_mode"] == "encourage_bounded_trial"
+    assert "stable_local" in request_rows[0]["original_route_families"]
+    assert "congestion_relief" in request_rows[0]["visible_route_families"]
+    assert request_rows[0]["preferred_effect"] == "gradient_improve"
+    assert request_rows[0]["recover_exit_ready"] is False
+    assert request_rows[0]["effective_candidate_pool_size"] >= 3

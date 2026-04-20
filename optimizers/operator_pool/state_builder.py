@@ -609,6 +609,7 @@ def _build_retrieval_panel(
             matched_episodes.append(
                 episode := {
                     "operator_id": normalized_operator_id,
+                    "route_family": operator_route_family(normalized_operator_id),
                     "similarity_score": similarity_score,
                     "regime": {
                         "phase": phase,
@@ -619,13 +620,14 @@ def _build_retrieval_panel(
                         "frontier_add_count": int(evidence.get("frontier_add_count", 0)),
                         "feasible_preservation_count": int(evidence.get("feasible_preservation_count", 0)),
                         "feasible_regression_count": int(evidence.get("feasible_regression_count", 0)),
+                        "penalty_event_count": int(evidence.get("penalty_event_count", 0)),
                         "avg_objective_delta": float(evidence.get("avg_objective_delta", 0.0)),
                         "avg_total_violation_delta": float(evidence.get("avg_total_violation_delta", 0.0)),
                     },
                 }
             )
             evidence_row = episode["evidence"]
-            if (
+            if int(evidence_row["penalty_event_count"]) <= 0 and (
                 int(evidence_row["frontier_add_count"]) > 0
                 or int(evidence_row["feasible_preservation_count"]) > 0
                 or float(evidence_row["avg_objective_delta"]) < 0.0
@@ -634,6 +636,7 @@ def _build_retrieval_panel(
                 positive_matches.append(dict(episode))
             if (
                 int(evidence_row["feasible_regression_count"]) > 0
+                or int(evidence_row["penalty_event_count"]) > 0
                 or float(evidence_row["avg_objective_delta"]) > 0.0
                 or float(evidence_row["avg_total_violation_delta"]) > 0.0
             ):
@@ -658,6 +661,7 @@ def _build_retrieval_panel(
         key=lambda row: (
             -int(row["similarity_score"]),
             -int(row["evidence"]["feasible_regression_count"]),
+            -int(row["evidence"]["penalty_event_count"]),
             -float(row["evidence"]["avg_total_violation_delta"]),
             -float(row["evidence"]["avg_objective_delta"]),
         )

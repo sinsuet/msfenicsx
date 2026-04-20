@@ -19,7 +19,7 @@ def test_render_pareto_front_writes_pdf_and_png(tmp_path: Path) -> None:
         output=output,
     )
     assert output.exists()
-    assert (tmp_path / "pareto_front.pdf").exists()
+    assert (tmp_path / "pdf" / "pareto_front.pdf").exists()
 
 
 def test_render_pareto_front_overlay_multiple_modes(tmp_path: Path) -> None:

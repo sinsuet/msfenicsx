@@ -1,0 +1,13 @@
+schema_version: "1.0"
+profile_meta:
+  profile_id: s2_staged_nsga2_raw_profile
+  description: Active S2 staged tuning for NSGA-II raw variation. Parameters mirror the shared ladder so benchmark and controller behavior, not algorithm retuning, explain differences.
+family: genetic
+backbone: nsga2
+mode: raw
+parameters:
+  crossover:
+    eta: 10
+    prob: 0.9
+  mutation:
+    eta: 15

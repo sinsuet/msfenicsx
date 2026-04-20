@@ -32,6 +32,9 @@ _PREFEASIBLE_CONVERT_PERSISTENCE_THRESHOLD = 2
 _PEAK_BALANCE_ESCAPE_OPERATORS = frozenset(
     {"slide_sink", "move_hottest_cluster_toward_sink", "repair_sink_budget"}
 )
+_GRADIENT_BALANCE_ESCAPE_OPERATORS = frozenset(
+    {"smooth_high_gradient_band", "reduce_local_congestion", "rebalance_layout"}
+)
 _POST_FEASIBLE_RECOVER_SEMANTIC_VISIBLE = 1
 _POST_FEASIBLE_EXPAND_SEMANTIC_VISIBLE = 2
 _ROUTE_COOLDOWN_MIN_COUNT = 4
@@ -300,15 +303,23 @@ def build_policy_snapshot(
         peak_balance_escape_active = bool(
             _peak_balance_escape_candidates(state, phase, current_allowed_operator_ids)
         )
+        gradient_balance_escape_active = bool(
+            _gradient_balance_escape_candidates(state, phase, current_allowed_operator_ids)
+        )
         if filtered != current_allowed_operator_ids:
             allowed_operator_ids = list(filtered)
             suppressed_operator_ids.extend(
                 operator_id for operator_id in candidate_ids if operator_id not in allowed_operator_ids
             )
         if post_feasible_reason_code and (
-            filtered != current_allowed_operator_ids or peak_balance_escape_active
+            filtered != current_allowed_operator_ids
+            or peak_balance_escape_active
+            or gradient_balance_escape_active
         ):
             reason_codes.append(post_feasible_reason_code)
+        gradient_escape_reason_code = _gradient_escape_reason_code(phase)
+        if gradient_escape_reason_code and gradient_balance_escape_active:
+            reason_codes.append(gradient_escape_reason_code)
 
     if not allowed_operator_ids:
         allowed_operator_ids = list(candidate_ids)
@@ -681,6 +692,11 @@ def _post_feasible_candidate_filter(
     candidate_annotations: dict[str, dict[str, Any]],
 ) -> tuple[tuple[str, ...], str | None]:
     if phase == "post_feasible_recover":
+        gradient_escape_candidates = _gradient_balance_escape_candidates(
+            state,
+            phase,
+            candidate_operator_ids,
+        )
         filtered = tuple(
             operator_id
             for operator_id in candidate_operator_ids
@@ -692,7 +708,10 @@ def _post_feasible_candidate_filter(
         filtered = _merge_required_candidates(
             filtered,
             candidate_operator_ids,
-            required_operator_ids=_peak_balance_escape_candidates(state, phase, candidate_operator_ids),
+            required_operator_ids=(
+                *_peak_balance_escape_candidates(state, phase, candidate_operator_ids),
+                *gradient_escape_candidates,
+            ),
         )
         if not filtered:
             filtered = _filter_to_stable_families(candidate_operator_ids, candidate_annotations)
@@ -743,7 +762,20 @@ def _post_feasible_candidate_filter(
             filtered = _merge_required_candidates(
                 filtered,
                 candidate_operator_ids,
-                required_operator_ids=_peak_balance_escape_candidates(state, phase, candidate_operator_ids),
+                required_operator_ids=(
+                    *_peak_balance_escape_candidates(state, phase, candidate_operator_ids),
+                    *_gradient_balance_escape_candidates(state, phase, candidate_operator_ids),
+                ),
+            )
+        elif phase == "post_feasible_preserve":
+            filtered = _merge_required_candidates(
+                filtered,
+                candidate_operator_ids,
+                required_operator_ids=_gradient_balance_escape_candidates(
+                    state,
+                    phase,
+                    candidate_operator_ids,
+                ),
             )
         if filtered and (
             len(pre_visibility_filtered) < len(tuple(candidate_pool))
@@ -790,6 +822,55 @@ def _peak_balance_escape_candidates(
         for operator_id in candidate_operator_ids
         if operator_id in _PEAK_BALANCE_ESCAPE_OPERATORS
     )
+
+
+def _gradient_balance_escape_candidates(
+    state: ControllerState,
+    phase: str,
+    candidate_operator_ids: Sequence[str],
+) -> tuple[str, ...]:
+    if phase not in {"post_feasible_recover", "post_feasible_preserve", "post_feasible_expand"}:
+        return ()
+    prompt_panels = state.metadata.get("prompt_panels")
+    if not isinstance(prompt_panels, dict):
+        return ()
+    regime_panel = prompt_panels.get("regime_panel")
+    spatial_panel = prompt_panels.get("spatial_panel")
+    if not isinstance(regime_panel, dict) or not isinstance(spatial_panel, dict):
+        return ()
+    objective_balance = regime_panel.get("objective_balance")
+    if not isinstance(objective_balance, dict):
+        return ()
+    if str(objective_balance.get("preferred_effect", "")).strip() != "gradient_improve":
+        return ()
+    if str(objective_balance.get("balance_pressure", "")).strip() not in {"high", "medium"}:
+        return ()
+
+    nearest_neighbor_gap_min = float(spatial_panel.get("nearest_neighbor_gap_min", 1.0))
+    hottest_cluster_compactness = float(spatial_panel.get("hottest_cluster_compactness", 1.0))
+    hotspot_inside_sink_window = bool(spatial_panel.get("hotspot_inside_sink_window", False))
+    if (
+        nearest_neighbor_gap_min >= 0.11
+        and hottest_cluster_compactness >= 0.13
+        and hotspot_inside_sink_window
+    ):
+        return ()
+
+    return tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if operator_id in _GRADIENT_BALANCE_ESCAPE_OPERATORS
+    )
+
+
+def _gradient_escape_reason_code(phase: str) -> str | None:
+    if phase == "post_feasible_recover":
+        return "post_feasible_recover_gradient_escape_floor"
+    if phase == "post_feasible_preserve":
+        return "post_feasible_preserve_gradient_escape_floor"
+    if phase == "post_feasible_expand":
+        return "post_feasible_expand_gradient_escape_floor"
+    return None
 
 
 def _merge_required_candidates(

@@ -1,3 +1,4 @@
+.worktree/
 .worktrees/
 __pycache__/
 *.py[cod]
@@ -15,3 +16,6 @@ scenario_runs/
 .env
 .env.*
 .claude/
+
+#paper writting
+paper/

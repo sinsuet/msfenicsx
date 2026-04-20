@@ -8,7 +8,6 @@ import numpy as np
 import yaml
 
 from optimizers.run_layout import initialize_run_root
-from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 
 
 def create_run_root(
@@ -44,7 +43,7 @@ def create_mode_root(
         include_comparison=include_comparison,
     )
     mode_root = run_root / mode
-    for directory_name in ("logs", "summaries", "pages", "figures", "reports", "seeds"):
+    for directory_name in ("seeds", "summaries"):
         (mode_root / directory_name).mkdir(parents=True, exist_ok=True)
     return mode_root
 
@@ -62,11 +61,7 @@ def create_mode_root_with_seed_bundles(
             "mode_id": mode,
             "benchmark_seeds": list(seeds),
             "directories": {
-                "logs": "logs",
                 "summaries": "summaries",
-                "pages": "pages",
-                "figures": "figures",
-                "reports": "reports",
                 "seeds": "seeds",
             },
         },
@@ -87,7 +82,6 @@ def create_mixed_run_root(
         tmp_path,
         run_id=f"0401_1430__{mode_slug}",
         modes=modes,
-        include_comparison=len(modes) > 1,
     )
     _write_json(
         run_root / "manifest.json",
@@ -99,13 +93,12 @@ def create_mixed_run_root(
             "directories": {
                 "shared": "shared",
                 **{mode: mode for mode in modes},
-                **({"comparison": "comparison"} if len(modes) > 1 else {}),
             },
         },
     )
     for mode in modes:
         mode_root = run_root / mode
-        for directory_name in ("logs", "summaries", "pages", "figures", "reports", "seeds"):
+        for directory_name in ("seeds", "summaries"):
             (mode_root / directory_name).mkdir(parents=True, exist_ok=True)
         _write_json(
             mode_root / "manifest.json",
@@ -113,38 +106,19 @@ def create_mixed_run_root(
                 "mode_id": mode,
                 "benchmark_seeds": list(seeds),
                 "directories": {
-                    "logs": "logs",
                     "summaries": "summaries",
-                    "pages": "pages",
-                    "figures": "figures",
-                    "reports": "reports",
                     "seeds": "seeds",
                 },
             },
         )
         for seed in seeds:
             _create_mode_seed_bundle(mode_root / "seeds" / f"seed-{seed}", mode=mode, seed=seed)
-    if len(modes) > 1:
-        for directory_name in ("summaries", "pages", "figures", "reports"):
-            (run_root / "comparison" / directory_name).mkdir(parents=True, exist_ok=True)
-        _write_json(
-            run_root / "comparison" / "manifest.json",
-            {
-                "mode_ids": list(modes),
-                "directories": {
-                    "summaries": "summaries",
-                    "pages": "pages",
-                    "figures": "figures",
-                    "reports": "reports",
-                },
-            },
-        )
     return run_root
 
 
 def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
     seed_root.mkdir(parents=True, exist_ok=True)
-    for directory_name in ("logs", "summaries", "representatives"):
+    for directory_name in ("analytics", "figures", "representatives", "tables", "traces"):
         (seed_root / directory_name).mkdir(parents=True, exist_ok=True)
     history = [
         _record(
@@ -227,7 +201,7 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
         },
     )
     _write_jsonl(
-        seed_root / "evaluation_events.jsonl",
+        seed_root / "traces" / "evaluation_events.jsonl",
         [
             _evaluation_event(mode, seed, history[0], 0, 0.8, False, False, False),
             _evaluation_event(mode, seed, history[1], 1, 0.2, False, False, False),
@@ -236,7 +210,7 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
         ],
     )
     _write_jsonl(
-        seed_root / "generation_summary.jsonl",
+        seed_root / "traces" / "generation_summary.jsonl",
         [
             {
                 "run_id": f"{mode}-seed-{seed}-run",
@@ -283,60 +257,83 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
         )
 
     if mode in {"union", "llm"}:
-        controller_rows = [
-            ControllerTraceRow(
-                generation_index=1,
-                evaluation_index=3,
-                family="genetic",
-                backbone="nsga2",
-                controller_id="llm" if mode == "llm" else "random_uniform",
-                candidate_operator_ids=("native_sbx_pm", "local_refine"),
-                selected_operator_id="local_refine",
-                phase="prefeasible_progress",
-                rationale="reduced hotspot",
-                metadata={"fallback_used": False},
-            ),
-            ControllerTraceRow(
-                generation_index=2,
-                evaluation_index=4,
-                family="genetic",
-                backbone="nsga2",
-                controller_id="llm" if mode == "llm" else "random_uniform",
-                candidate_operator_ids=("slide_sink", "local_refine"),
-                selected_operator_id="slide_sink",
-                phase="post_feasible_tradeoff",
-                rationale="expand pareto front",
-                metadata={"fallback_used": False},
-            ),
-        ]
-        operator_rows = [
-            OperatorTraceRow(
-                generation_index=1,
-                evaluation_index=3,
-                operator_id="local_refine",
-                parent_count=2,
-                parent_vectors=((0.2, 0.3), (0.24, 0.34)),
-                proposal_vector=(0.4, 0.5),
-                metadata={},
-            ),
-            OperatorTraceRow(
-                generation_index=2,
-                evaluation_index=4,
-                operator_id="slide_sink",
-                parent_count=2,
-                parent_vectors=((0.4, 0.5), (0.24, 0.34)),
-                proposal_vector=(0.44, 0.56),
-                metadata={},
-            ),
-        ]
-        _write_json(seed_root / "controller_trace.json", [row.to_dict() for row in controller_rows])
-        _write_json(seed_root / "operator_trace.json", [row.to_dict() for row in operator_rows])
-
-    if mode == "llm":
         _write_jsonl(
-            seed_root / "llm_request_trace.jsonl",
+            seed_root / "traces" / "operator_trace.jsonl",
             [
                 {
+                    "decision_id": "g001-e0003-d00",
+                    "generation": 1,
+                    "operator_name": "local_refine",
+                    "parents": ["baseline", "g001-i00"],
+                    "offspring": ["g001-i01"],
+                    "params_digest": "a" * 40,
+                    "wall_ms": 12.5,
+                },
+                {
+                    "decision_id": "g002-e0004-d00",
+                    "generation": 2,
+                    "operator_name": "slide_sink",
+                    "parents": ["g001-i01", "g001-i00"],
+                    "offspring": ["g002-i00"],
+                    "params_digest": "b" * 40,
+                    "wall_ms": 14.0,
+                },
+            ],
+        )
+
+    if mode == "llm":
+        prompt_ref_a = _write_prompt_markdown(
+            seed_root / "prompts" / "request-a.md",
+            kind="request",
+            body="# System\n\nsystem prompt\n\n# User\n\nuser prompt about first feasible\n",
+        )
+        prompt_ref_b = _write_prompt_markdown(
+            seed_root / "prompts" / "request-b.md",
+            kind="request",
+            body="# System\n\nsystem prompt\n\n# User\n\nuser prompt about pareto expansion\n",
+        )
+        response_ref_a = _write_prompt_markdown(
+            seed_root / "prompts" / "response-a.md",
+            kind="response",
+            body='{"selected_operator_id":"local_refine","rationale":"Choose local_refine to reach the first feasible layout."}\n',
+        )
+        response_ref_b = _write_prompt_markdown(
+            seed_root / "prompts" / "response-b.md",
+            kind="response",
+            body='{"selected_operator_id":"slide_sink","rationale":"Choose slide_sink to improve peak temperature and expand pareto coverage."}\n',
+        )
+        _write_jsonl(
+            seed_root / "traces" / "controller_trace.jsonl",
+            [
+                {
+                    "decision_id": "g001-e0003-d00",
+                    "phase": "prefeasible_progress",
+                    "operator_selected": "local_refine",
+                    "operator_pool_snapshot": ["native_sbx_pm", "local_refine"],
+                    "input_state_digest": "a" * 40,
+                    "prompt_ref": prompt_ref_a,
+                    "rationale": "reduced hotspot",
+                    "fallback_used": False,
+                    "latency_ms": 1250.0,
+                },
+                {
+                    "decision_id": "g002-e0004-d00",
+                    "phase": "post_feasible_tradeoff",
+                    "operator_selected": "slide_sink",
+                    "operator_pool_snapshot": ["slide_sink", "local_refine"],
+                    "input_state_digest": "b" * 40,
+                    "prompt_ref": prompt_ref_b,
+                    "rationale": "expand pareto front",
+                    "fallback_used": False,
+                    "latency_ms": 1400.0,
+                },
+            ],
+        )
+        _write_jsonl(
+            seed_root / "traces" / "llm_request_trace.jsonl",
+            [
+                {
+                    "decision_id": "g001-e0003-d00",
                     "generation_index": 1,
                     "evaluation_index": 3,
                     "provider": "openai-compatible",
@@ -345,11 +342,14 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
                     "performance_profile": "balanced",
                     "candidate_operator_ids": ["native_sbx_pm", "local_refine"],
                     "policy_phase": "prefeasible_progress",
-                    "system_prompt": "system prompt",
-                    "user_prompt": "user prompt about first feasible",
+                    "prompt_ref": prompt_ref_a,
                     "guardrail": {"dominant_operator_id": "local_refine"},
+                    "http_status": 200,
+                    "retries": 0,
+                    "latency_ms": 1250.0,
                 },
                 {
+                    "decision_id": "g002-e0004-d00",
                     "generation_index": 2,
                     "evaluation_index": 4,
                     "provider": "openai-compatible",
@@ -358,16 +358,19 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
                     "performance_profile": "balanced",
                     "candidate_operator_ids": ["slide_sink", "local_refine"],
                     "policy_phase": "post_feasible_tradeoff",
-                    "system_prompt": "system prompt",
-                    "user_prompt": "user prompt about pareto expansion",
+                    "prompt_ref": prompt_ref_b,
                     "guardrail": {"dominant_operator_id": "slide_sink"},
+                    "http_status": 200,
+                    "retries": 0,
+                    "latency_ms": 1400.0,
                 },
             ],
         )
         _write_jsonl(
-            seed_root / "llm_response_trace.jsonl",
+            seed_root / "traces" / "llm_response_trace.jsonl",
             [
                 {
+                    "decision_id": "g001-e0003-d00",
                     "generation_index": 1,
                     "evaluation_index": 3,
                     "provider": "openai-compatible",
@@ -375,10 +378,15 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
                     "capability_profile": "responses_native",
                     "performance_profile": "balanced",
                     "selected_operator_id": "local_refine",
-                    "response_text": "Choose local_refine to reach the first feasible layout.",
-                    "elapsed_seconds": 1.25,
+                    "response_ref": response_ref_a,
+                    "tokens": {"total": 280},
+                    "finish_reason": "stop",
+                    "http_status": 200,
+                    "retries": 0,
+                    "latency_ms": 1250.0,
                 },
                 {
+                    "decision_id": "g002-e0004-d00",
                     "generation_index": 2,
                     "evaluation_index": 4,
                     "provider": "openai-compatible",
@@ -386,30 +394,33 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
                     "capability_profile": "responses_native",
                     "performance_profile": "balanced",
                     "selected_operator_id": "slide_sink",
-                    "response_text": "Choose slide_sink to improve peak temperature and expand pareto coverage.",
-                    "elapsed_seconds": 1.4,
+                    "response_ref": response_ref_b,
+                    "tokens": {"total": 300},
+                    "finish_reason": "stop",
+                    "http_status": 200,
+                    "retries": 0,
+                    "latency_ms": 1400.0,
                 },
             ],
         )
-        _write_json(
-            seed_root / "llm_metrics.json",
-            {
-                "provider": "openai-compatible",
-                "model": "GPT-5.4",
-                "capability_profile": "responses_native",
-                "performance_profile": "balanced",
-                "request_count": 2,
-                "response_count": 2,
-                "fallback_count": 0,
-                "retry_count": 0,
-                "invalid_response_count": 0,
-                "schema_invalid_count": 0,
-                "semantic_invalid_count": 0,
-                "elapsed_seconds_total": 2.65,
-                "elapsed_seconds_avg": 1.325,
-                "elapsed_seconds_max": 1.4,
-            },
-        )
+
+
+def _write_prompt_markdown(path: Path, *, kind: str, body: str) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        (
+            "---\n"
+            f"kind: {kind}\n"
+            f"sha1: {path.stem}\n"
+            "model: GPT-5.4\n"
+            "decision_ids: [fixture]\n"
+            "first_seen_at: 2026-04-16T08:21:03Z\n"
+            "---\n\n"
+            f"{body}"
+        ),
+        encoding="utf-8",
+    )
+    return f"prompts/{path.name}"
 
 
 def _evaluation_event(
@@ -421,6 +432,7 @@ def _evaluation_event(
     entered_feasible_region: bool,
     pareto_membership_after_eval: bool,
     preserved_feasibility: bool,
+    solver_skipped: bool = False,
 ) -> dict[str, Any]:
     return {
         "run_id": f"{mode}-seed-{seed}-run",
@@ -446,6 +458,7 @@ def _evaluation_event(
         "pareto_membership_after_eval": pareto_membership_after_eval,
         "failure_reason": None,
         "feasibility_phase": "post_feasible" if record["evaluation_index"] >= 4 else "prefeasible",
+        "solver_skipped": solver_skipped,
     }
 
 
@@ -456,13 +469,39 @@ def _create_representative_bundle(
     peak_value: float,
     gradient_value: float,
 ) -> None:
-    for directory_name in ("logs", "fields", "summaries", "figures", "pages"):
+    for directory_name in ("fields",):
         (bundle_root / directory_name).mkdir(parents=True, exist_ok=True)
     _write_yaml(
         bundle_root / "case.yaml",
         {
             "schema_version": "1.0",
             "case_meta": {"case_id": case_id, "scenario_id": "s1_typical"},
+            "panel_domain": {"width": 1.0, "height": 0.8},
+            "boundary_features": [
+                {
+                    "feature_id": "sink-top",
+                    "kind": "line_sink",
+                    "edge": "top",
+                    "start": 0.2,
+                    "end": 0.58,
+                }
+            ],
+            "components": [
+                {
+                    "component_id": "c01-001",
+                    "family_id": "chip",
+                    "shape": "rect",
+                    "geometry": {"width": 0.18, "height": 0.12},
+                    "pose": {"x": 0.22, "y": 0.18, "rotation_deg": 0.0},
+                },
+                {
+                    "component_id": "c02-001",
+                    "family_id": "chip",
+                    "shape": "capsule",
+                    "geometry": {"length": 0.24, "radius": 0.035},
+                    "pose": {"x": 0.68, "y": 0.46, "rotation_deg": 90.0},
+                },
+            ],
         },
     )
     _write_yaml(
@@ -509,34 +548,6 @@ def _create_representative_bundle(
         values=np.linspace(0.0, 3.0, 16, dtype=np.float64).reshape(4, 4),
     )
     _write_json(
-        bundle_root / "summaries" / "field_view.json",
-        {
-            "panel_domain": {"width": 1.0, "height": 0.8},
-            "temperature": {
-                "grid_shape": [4, 4],
-                "min": peak_value - 15.0,
-                "max": peak_value,
-                "hotspot": {"x": 0.8, "y": 0.6, "value": peak_value},
-                "contour_levels": [peak_value - 15.0, peak_value - 8.0, peak_value],
-            },
-            "gradient_magnitude": {
-                "grid_shape": [4, 4],
-                "min": 0.0,
-                "max": gradient_value,
-            },
-            "layout": {
-                "components": [
-                    {
-                        "component_id": "comp-001",
-                        "bounds": {"x_min": 0.2, "y_min": 0.2, "x_max": 0.4, "y_max": 0.4},
-                        "outline": [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.4]],
-                    }
-                ],
-                "line_sinks": [{"feature_id": "sink-top-window", "edge": "top", "start_x": 0.25, "end_x": 0.55}],
-            },
-        },
-    )
-    _write_json(
         bundle_root / "manifest.json",
         {
             "case_snapshot": "case.yaml",
@@ -545,14 +556,9 @@ def _create_representative_bundle(
             "field_exports": {
                 "temperature_grid": "fields/temperature_grid.npz",
                 "gradient_magnitude_grid": "fields/gradient_magnitude_grid.npz",
-                "field_view": "summaries/field_view.json",
             },
             "directories": {
-                "logs": "logs",
                 "fields": "fields",
-                "summaries": "summaries",
-                "figures": "figures",
-                "pages": "pages",
             },
         },
     )

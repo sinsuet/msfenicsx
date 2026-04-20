@@ -5,8 +5,8 @@ This file gives Claude Code repository-specific guidance for `msfenicsx`.
 ## Repository Status
 
 - `main` already contains the clean rebuild baseline.
-- The primary paper-facing mainline is `s1_typical`.
-- A harder companion benchmark `s2_hard` is active per `docs/superpowers/specs/2026-04-17-s2-hard-design.md`; it shares the semantic shared operator registry and the same `raw / union / llm` ladder as `s1_typical`.
+- The active paper-facing mainlines are `s1_typical` and `s2_staged`.
+- `s2_staged` is the current controller-sensitive S2 companion benchmark. It shares the semantic shared operator registry and the same `raw / union / llm` ladder as `s1_typical`.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
@@ -41,7 +41,7 @@ The active derived evaluation flow is:
 
 The active optimizer mainline is:
 
-`s1_typical case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
+`paper-facing scenario case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
 
 The implemented paper-facing inputs are:
 
@@ -50,13 +50,13 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s1_typical_raw.yaml`
 - `scenarios/optimization/s1_typical_union.yaml`
 - `scenarios/optimization/s1_typical_llm.yaml`
-- `scenarios/templates/s2_hard.yaml`
-- `scenarios/evaluation/s2_hard_eval.yaml`
-- `scenarios/optimization/s2_hard_raw.yaml`
-- `scenarios/optimization/s2_hard_union.yaml`
-- `scenarios/optimization/s2_hard_llm.yaml`
-- `scenarios/optimization/profiles/s2_hard_raw.yaml`
-- `scenarios/optimization/profiles/s2_hard_union.yaml`
+- `scenarios/templates/s2_staged.yaml`
+- `scenarios/evaluation/s2_staged_eval.yaml`
+- `scenarios/optimization/s2_staged_raw.yaml`
+- `scenarios/optimization/s2_staged_union.yaml`
+- `scenarios/optimization/s2_staged_llm.yaml`
+- `scenarios/optimization/profiles/s2_staged_raw.yaml`
+- `scenarios/optimization/profiles/s2_staged_union.yaml`
 
 The fixed benchmark decisions are:
 
@@ -90,6 +90,7 @@ The fixed benchmark decisions are:
 
 - Canonical execution context is WSL2 Ubuntu.
 - Even if the workspace is opened through `\\wsl$\Ubuntu\home\hymn\msfenicsx`, treat the repo as Linux-first and use `/home/hymn/msfenicsx`.
+- When worktrees are needed for this repository, create them under the repo-root `.worktree/` directory. Do not use `.claude/worktrees/`; keep the location shared with Codex for a single convention.
 - Use the `msfenicsx` conda environment for Python, CLI, and tests.
 - Prefer: `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
 - Repository text artifacts should use UTF-8 without BOM.
@@ -233,9 +234,9 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
 - Repository-wide backbone defaults belong in `optimizers/algorithm_config.py`.
 - Benchmark-specific tuning belongs in `scenarios/optimization/profiles/` and `algorithm.parameters`.
 - Active runtime outputs should go to `scenario_runs/`, not source folders.
-- Active optimizer runs should write under `scenario_runs/s1_typical/<run_id>/`.
+- Active optimizer runs should write under `scenario_runs/<scenario_id>/<run_id>/`.
 - The canonical paper-facing run layout is:
-  - `scenario_runs/s1_typical/<MMDD_HHMM>__<mode_slug>/`
+  - `scenario_runs/<scenario_id>/<MMDD_HHMM>__<mode_slug>/`
 - `mode_slug` must use the stable order: `raw`, `union`, `llm`.
 - Mixed-mode runs keep sibling mode directories plus optional `comparison/`.
 - Representative solved-case bundles live under:

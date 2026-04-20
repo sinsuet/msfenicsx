@@ -36,14 +36,7 @@ def initialize_run_root(
 
 def initialize_mode_root(run_root: str | Path, *, mode: str) -> Path:
     root = Path(run_root) / mode
-    for directory_name in ("logs", "summaries", "pages", "figures", "reports", "seeds"):
-        (root / directory_name).mkdir(parents=True, exist_ok=True)
-    return root
-
-
-def initialize_comparison_root(run_root: str | Path) -> Path:
-    root = Path(run_root) / "comparison"
-    for directory_name in ("summaries", "pages", "figures", "reports"):
+    for directory_name in ("seeds", "summaries"):
         (root / directory_name).mkdir(parents=True, exist_ok=True)
     return root
 
@@ -69,5 +62,5 @@ def resolve_seed_run_root(run_root: Path, *, seed: int, total_seeds: int) -> Pat
 
 
 def should_write_aggregate(*, total_seeds: int) -> bool:
-    """Aggregate statistics are only meaningful with >=3 seeds."""
-    return total_seeds >= 3
+    """Across-seed rollups are useful for any multi-seed suite."""
+    return total_seeds >= 2

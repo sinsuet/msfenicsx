@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
 
 from optimizers.operator_pool.decisions import ControllerDecision
 from optimizers.operator_pool.state import ControllerState
+from optimizers.traces.prompt_store import PromptStore
 
 
 class OperatorController(Protocol):
@@ -45,6 +47,22 @@ def build_controller(controller_id: str, controller_parameters: dict[str, Any] |
             raise ValueError("The llm controller requires controller_parameters.")
         return LLMOperatorController(controller_parameters=controller_parameters)
     raise KeyError(f"Unsupported operator-pool controller '{controller_id}'.")
+
+
+def configure_controller_trace_outputs(controller: Any, *, output_root: str | Path | None) -> None:
+    if getattr(controller, "controller_id", None) != "llm":
+        return
+    if output_root is None:
+        raise ValueError("The llm controller requires trace_output_root.")
+    if not hasattr(controller, "configure_trace_outputs"):
+        return
+    root = Path(output_root)
+    controller.configure_trace_outputs(
+        controller_trace_path=root / "traces" / "controller_trace.jsonl",
+        llm_request_trace_path=root / "traces" / "llm_request_trace.jsonl",
+        llm_response_trace_path=root / "traces" / "llm_response_trace.jsonl",
+        prompt_store=PromptStore(root / "prompts"),
+    )
 
 
 def select_controller_decision(

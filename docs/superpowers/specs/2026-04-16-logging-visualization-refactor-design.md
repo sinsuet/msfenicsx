@@ -48,13 +48,27 @@ scenario_runs/s1_typical/<MMDD_HHMM>__<mode>/
 │   ├── cost_per_improvement.csv    # llm only
 │   ├── guardrail_timeline.csv      # llm only
 │   └── operator_phase_heatmap.csv
-├── figures/                    # matplotlib-rendered PDFs (vector) + PNGs (600dpi)
-│   ├── pareto_front.pdf / .png
-│   ├── hypervolume_progress.pdf / .png
-│   ├── operator_phase_heatmap.pdf / .png
-│   ├── temperature_field_<repr>.pdf / .png
-│   ├── gradient_field_<repr>.pdf / .png
-│   └── layout_evolution.gif        # animated layout progression
+├── figures/                    # raster figures for browsing; vector companions live under figures/pdf/
+│   ├── pareto_front.png
+│   ├── hypervolume_progress.png
+│   ├── objective_progress.png
+│   ├── temperature_trace.png
+│   ├── gradient_trace.png
+│   ├── constraint_violation_progress.png
+│   ├── operator_phase_heatmap.png
+│   ├── temperature_field_<repr>.png
+│   ├── gradient_field_<repr>.png
+│   ├── layout_evolution.gif        # animated layout progression
+│   └── pdf/
+│       ├── pareto_front.pdf
+│       ├── hypervolume_progress.pdf
+│       ├── objective_progress.pdf
+│       ├── temperature_trace.pdf
+│       ├── gradient_trace.pdf
+│       ├── constraint_violation_progress.pdf
+│       ├── operator_phase_heatmap.pdf
+│       ├── temperature_field_<repr>.pdf
+│       └── gradient_field_<repr>.pdf
 ├── tables/                     # CSV + LaTeX booktabs
 │   ├── summary_statistics.csv / .tex
 │   └── representative_points.csv / .tex
@@ -87,28 +101,49 @@ scenario_runs/s1_typical/<MMDD_HHMM>__<mode>/
 │   │   ├── run.yaml, results.yaml, traces/, analytics/, figures/, representatives/
 │   └── seed-11/
 │       └── ...
-└── aggregate/                  # written only when N>=3; see § 5.4
+└── aggregate/                  # descriptive across-seeds rollup; see § 5.4
     ├── hypervolume_iqr.csv
-    ├── hypervolume_iqr.pdf / .png
-    ├── attainment_surface.pdf / .png
+    ├── hypervolume_iqr.png
+    ├── attainment_surface.png
+    ├── pdf/
+    │   ├── hypervolume_iqr.pdf
+    │   └── attainment_surface.pdf
     └── mann_whitney.csv
 ```
 
-Flat vs wrapped is a pure directory-level switch — same file names inside. `aggregate/` statistics (Mann-Whitney, IGD bands) are only meaningful with >=3 seeds and are skipped otherwise.
+Flat vs wrapped is a pure directory-level switch — same file names inside. Later extensions may write an `aggregate/` descriptive rollup for `N>=2`; inferential-statistics claims remain meaningful only with >=3 seeds.
 
-### 3.3 Cross-mode comparison (`compare-runs`)
+### 3.3 Cross-mode comparison (`compare-runs`) and suite-owned `comparisons/`
 
-Cross-mode artifacts live outside any single-mode run:
+Standalone `compare-runs` accepts only concrete single-mode run roots and must write an external bundle outside all source runs:
 
 ```
-scenario_runs/s1_typical/comparisons/<MMDD_HHMM>__raw_vs_union_vs_llm/
-├── inputs.yaml                  # lists source run IDs
-├── pareto_overlay.pdf / .png
-├── hypervolume_comparison.pdf / .png
-└── summary_table.csv / .tex
+scenario_runs/compare_reports/<compare_id>/
+├── manifest.json
+├── analytics/
+│   ├── summary_rows.json
+│   └── timeline_rollups.json
+├── figures/
+│   ├── pareto_overlay.png
+│   ├── hypervolume_comparison.png
+│   ├── objective_progress_comparison.png
+│   ├── temperature_trace_comparison.png
+│   ├── gradient_trace_comparison.png
+│   ├── constraint_violation_comparison.png
+│   ├── feasible_progress_comparison.png
+│   └── pdf/
+└── tables/
+    ├── summary_table.csv / .tex
+    ├── mode_metrics.csv / .tex
+    └── pairwise_deltas.csv / .tex
 ```
 
-Invoked via `python -m optimizers.cli compare-runs --run <path> --run <path> ...`; does not modify source runs.
+When `run-benchmark-suite` finishes a suite with two or more participating modes, it additionally auto-writes a suite-owned `comparisons/` subtree:
+
+- single-seed suite: `<suite_root>/comparisons/`
+- multi-seed suite: `<suite_root>/comparisons/by_seed/seed-<n>/` plus `<suite_root>/comparisons/aggregate/`
+
+Neither path revives legacy `comparison/`, and neither path writes comparison artifacts back into source mode seed roots.
 
 ### 3.4 Multi-seed template changes — DEFERRED (Option B chosen)
 
@@ -125,16 +160,19 @@ All traces are JSONL (UTF-8, no BOM). Correlation across traces uses a single `d
 
 ### 4.1 evaluation_events.jsonl
 
-One record per PDE evaluation. Fields:
+One record per non-baseline optimizer evaluation. Fields:
 
 - `decision_id` (may be null for seed population)
 - `generation` (int)
-- `eval_index` (int, monotonic across the run)
+- `eval_index` (int, monotonic across the non-baseline run; this is the optimizer evaluation sequence, not the paper-facing PDE budget)
 - `individual_id` (str)
 - `objectives`: `{ temperature_max, temperature_gradient_rms }`
 - `constraints`: `{ total_radiator_span, radiator_span_max, violation }`
-- `status`: one of `ok`, `infeasible_cheap`, `solver_failed`, `repaired`
+- `status`: one of `ok`, `infeasible`, `failed`
+- `solver_skipped` (bool; `true` means cheap constraints rejected the candidate before any PDE solve was attempted)
 - `timing`: `{ cheap_ms, solve_ms }`
+
+Paper-facing `PDE evaluations` are derived downstream as the cumulative count of rows with `solver_skipped == false`. This keeps cheap-reject evidence visible in the trace while preventing figures and compare tables from overstating expensive solver usage.
 
 ### 4.2 generation_summary.jsonl
 
@@ -248,13 +286,13 @@ optimizers/analytics/
 - **`cost_per_improvement.csv`** — (tokens / HV gain) per decision; low is good.
 - **`guardrail_timeline.csv`** — timeline of fallback activations, operator-pool-shrink events, JSON-parse failures.
 
-### 5.4 Multi-seed aggregation (N>=3 only)
+### 5.4 Multi-seed aggregation
 
 - **`hypervolume_iqr.csv`** — per-generation median + 25/75 percentiles across seeds.
 - **`attainment_surface`** — 50% / 75% / 90% attainment surfaces in objective space.
 - **`mann_whitney.csv`** — pairwise mode comparisons (raw-vs-union, union-vs-llm, raw-vs-llm) with U statistic, p-value, effect size.
 
-Written only when the run contains >=3 seed subdirs; otherwise `aggregate/` is absent. This prevents misleading two-seed "statistics".
+Descriptive across-seeds rollups can exist for `N>=2`, but inferential-statistics language should be reserved for `N>=3`. This prevents misleading two-seed “statistics” while still allowing useful paired summaries for small local runs.
 
 ## 6. Visualization Style Baseline
 
@@ -314,7 +352,14 @@ All field figures use `fig.colorbar(im, ax=ax)` directly — matplotlib handles 
 
 ### 7.3 Layout evolution GIF
 
-For each run, emit `figures/layout_evolution.gif` showing component positions across generations. Individual frames preserved as `figures/layout_evolution_frames/gen_<NNN>.png` so reviewers can inspect any step. Built with `matplotlib.animation.PillowWriter` at 2 fps.
+For each run, emit `figures/layout_evolution.gif` as a replay of **best-so-far spatial milestones**, not per-generation representative snapshots. The milestone sequence is:
+
+- `initial layout`
+- first feasible best-so-far layout (or best-near-feasible fallback if the run never becomes feasible)
+- any later best-so-far frame that introduces a material component-placement shift
+- `final layout`
+
+This keeps the figure mode-agnostic across `raw`, `union`, and `llm`, while avoiding misleading sink-only frame churn. Individual frames are preserved as `figures/layout_evolution_frames/step_<NNN>.png`; titles carry the actual generation / evaluation provenance when needed. Built with `matplotlib.animation.PillowWriter` at 2 fps.
 
 ## 8. CLI Integration
 
@@ -335,10 +380,10 @@ python -m optimizers.cli compare-runs \
   --run scenario_runs/s1_typical/0416_2030__raw \
   --run scenario_runs/s1_typical/0416_2033__union \
   --run scenario_runs/s1_typical/0416_2041__llm \
-  --output scenario_runs/s1_typical/comparisons/0416_2100__raw_vs_union_vs_llm
+  --output scenario_runs/compare_reports/0416_2100__raw_vs_union_vs_llm
 ```
 
-Produces Pareto overlay, HV comparison, and a LaTeX summary table. Does not modify source runs.
+Produces a structured compare bundle (`analytics/`, `figures/`, `tables/`) and does not modify source runs.
 
 ### 8.3 Driver integration
 
@@ -363,7 +408,7 @@ Applied after `load_optimization_spec()` via `algorithm_config._deep_merge` — 
 |---|---|
 | `tests/visualization/test_heatfield_orientation.py` | regression lock for the colorbar-inversion bug |
 | `tests/visualization/test_render_assets_fixtures.py` | end-to-end: synthetic trace bundle → `render-assets` → assert all outputs exist + deterministic hashes |
-| `tests/optimizers/test_multi_seed_layout.py` | asserts flat layout for N=1, `seeds/seed-<n>/` wrapping for N>=2, `aggregate/` only when N>=3 |
+| `tests/optimizers/test_multi_seed_layout.py` | asserts flat layout for N=1, `seeds/seed-<n>/` wrapping for N>=2, and the current aggregate gate semantics |
 
 Explicitly NOT added (previously proposed, dropped as over-granular): separate `test_loaders`, `test_correlate`, `test_rollups`, `test_prompt_dedup`, `test_style_baseline`, `test_aggregate_multi_seed`. The end-to-end fixture test exercises these paths.
 

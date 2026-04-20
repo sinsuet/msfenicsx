@@ -1,7 +1,11 @@
 schema_version: "1.0"
 spec_meta:
-  spec_id: s2_hard_eval
-  description: Single-case evaluation spec for the S2 hard paper-facing baseline. Tightened radiator-span budget and c02 peak make the baseline violate exactly two constraints drawn from disjoint operator categories (sink-budget + thermal-peak). Wider limits on the five cluster-sibling / neighbour peaks stay slack under the calibrated baseline but still flag pathological layouts during search.
+  spec_id: s2_staged_eval
+  description: >-
+    Single-case evaluation spec for the S2 staged companion benchmark.
+    Acceptance is calibrated on the repaired optimizer baseline so the shared
+    prefix stays infeasible longer, while c02 remains the only dominant
+    positive violation at seed-11 baseline.
 objectives:
   - objective_id: minimize_peak_temperature
     metric: summary.temperature_max
@@ -17,27 +21,27 @@ constraints:
   - constraint_id: c02_peak_temperature_limit
     metric: component.c02-001.temperature_max
     relation: "<="
-    limit: 320.0
+    limit: 323.0
   - constraint_id: c04_peak_temperature_limit
     metric: component.c04-001.temperature_max
     relation: "<="
-    limit: 345.0
+    limit: 334.0
   - constraint_id: c06_peak_temperature_limit
     metric: component.c06-001.temperature_max
     relation: "<="
-    limit: 345.0
+    limit: 334.0
   - constraint_id: c12_peak_temperature_limit
     metric: component.c12-001.temperature_max
     relation: "<="
-    limit: 345.0
+    limit: 334.0
   - constraint_id: c01_peak_temperature_limit
     metric: component.c01-001.temperature_max
     relation: "<="
-    limit: 340.0
+    limit: 333.0
   - constraint_id: c08_peak_temperature_limit
     metric: component.c08-001.temperature_max
     relation: "<="
-    limit: 340.0
+    limit: 333.0
   - constraint_id: panel_temperature_spread_limit
     metric: components.max_temperature_spread
     relation: "<="

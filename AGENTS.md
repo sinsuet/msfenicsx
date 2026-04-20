@@ -5,8 +5,8 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 ## Repository Status
 
 - `main` already contains the clean rebuild baseline.
-- The primary paper-facing mainline is `s1_typical`.
-- A harder companion benchmark `s2_hard` is active per `docs/superpowers/specs/2026-04-17-s2-hard-design.md`; it shares the semantic shared operator registry and the same `raw / union / llm` ladder as `s1_typical`.
+- The active paper-facing mainlines are `s1_typical` and `s2_staged`.
+- `s2_staged` is the current controller-sensitive S2 companion benchmark. It shares the semantic shared operator registry and the same `raw / union / llm` ladder as `s1_typical`.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
@@ -41,7 +41,7 @@ The active derived evaluation flow is:
 
 The active optimizer mainline is:
 
-`s1_typical case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
+`paper-facing scenario case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
 
 The implemented paper-facing inputs are:
 
@@ -50,13 +50,13 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s1_typical_raw.yaml`
 - `scenarios/optimization/s1_typical_union.yaml`
 - `scenarios/optimization/s1_typical_llm.yaml`
-- `scenarios/templates/s2_hard.yaml`
-- `scenarios/evaluation/s2_hard_eval.yaml`
-- `scenarios/optimization/s2_hard_raw.yaml`
-- `scenarios/optimization/s2_hard_union.yaml`
-- `scenarios/optimization/s2_hard_llm.yaml`
-- `scenarios/optimization/profiles/s2_hard_raw.yaml`
-- `scenarios/optimization/profiles/s2_hard_union.yaml`
+- `scenarios/templates/s2_staged.yaml`
+- `scenarios/evaluation/s2_staged_eval.yaml`
+- `scenarios/optimization/s2_staged_raw.yaml`
+- `scenarios/optimization/s2_staged_union.yaml`
+- `scenarios/optimization/s2_staged_llm.yaml`
+- `scenarios/optimization/profiles/s2_staged_raw.yaml`
+- `scenarios/optimization/profiles/s2_staged_union.yaml`
 
 The fixed benchmark decisions are:
 
@@ -90,6 +90,7 @@ The fixed benchmark decisions are:
 
 - Canonical execution context is WSL2 Ubuntu.
 - Even if the workspace is opened through `\\wsl$\\Ubuntu\\home\\hymn\\msfenicsx`, agents should treat the repo as Linux-first and use `/home/hymn/msfenicsx`.
+- When worktrees are needed for this repository, create them under the repo-root `.worktree/` directory. Do not use `.claude/worktrees/`; keep the location shared with Claude and Codex for a single convention.
 - Use the `msfenicsx` conda environment for Python, CLI, and tests.
 - Prefer:
   - `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
@@ -129,13 +130,13 @@ Preferred commands:
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/union-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/llm-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs` (auto-writes suite-owned `comparisons/` when 2+ modes participate)
 - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s1_typical_llm.yaml --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
-- `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s1_typical/<run_id>/union/seeds/seed-11/controller_trace.json --output ./scenario_runs/s1_typical/<run_id>/union/reports/<summary>.json`
-- `conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s1_typical/<run_id> [--hires]`
-- `conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s1_typical/<run_a> --run ./scenario_runs/s1_typical/<run_b> --output ./compare.json`
+- `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/controller_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
+- `conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s1_typical/<run_id> [--hires]` (accepts a suite root, a mode root, or a concrete single-mode seed run root)
+- `conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s1_typical/<run_a> --run ./scenario_runs/s1_typical/<run_b> --output ./scenario_runs/compare_reports/<compare_id>` (accepts only concrete single-mode run roots and must write outside source runs)
 - `bash scripts/smoke_render_assets.sh` (10×5 local smoke harness covering raw/union/llm + render-assets + compare-runs)
-- Budget / render overrides (work on `optimize-benchmark` and `run-llm`): `--population-size`, `--num-generations`, `--skip-render`
+- Budget / render overrides (work on `optimize-benchmark`, `run-llm`, and `run-benchmark-suite`): `--population-size`, `--num-generations`, `--skip-render`
 - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
 The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
@@ -180,35 +181,45 @@ The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
 - Repository-wide backbone defaults belong in `optimizers/algorithm_config.py`.
 - Benchmark-specific tuning belongs in `scenarios/optimization/profiles/` and `algorithm.parameters`.
 - Active runtime outputs should go to `scenario_runs/`, not source folders.
-- Active optimizer runs should write under `scenario_runs/s1_typical/<run_id>/`.
+- Single solved-case bundles written by `solve-case` should keep `fields/*.npz` + `summaries/field_view.json` and render `figures/layout.png`, `figures/temperature_field.png`, and `figures/gradient_field.png`.
+- Active optimizer runs should write under `scenario_runs/<scenario_id>/<run_id>/`.
 - The canonical paper-facing run layout is:
-  - `scenario_runs/s1_typical/<MMDD_HHMM>__<mode_slug>/`
+  - `scenario_runs/<scenario_id>/<MMDD_HHMM>__<mode_slug>/`
 - `mode_slug` must use the stable order:
   - `raw`
   - `union`
   - `llm`
-- Mixed-mode runs keep sibling mode directories plus optional `comparison/`.
+- Suite-owned comparisons live only under:
+  - single-seed suite: `<suite_root>/comparisons/`
+  - multi-seed suite: `<suite_root>/comparisons/by_seed/seed-<n>/` and `<suite_root>/comparisons/aggregate/`
+- `by_seed/seed-<n>/` means same benchmark seed across modes; `aggregate/` is the across-seeds rollup layer for those same modes.
+- `aggregate/` may exist for any multi-seed suite with `N>=2`; keep the wording descriptive unless the bundle has `N>=3` seeds.
+- Standalone `compare-runs` accepts only concrete single-mode run roots and must write an external bundle outside all source run roots.
+- Never revive legacy `comparison/`.
 - Representative solved-case bundles live under:
   - `<mode>/seeds/seed-<n>/representatives/<representative_id>/`
 - Representative bundles must preserve:
   - `fields/*.npz`
-  - `summaries/field_view.json`
-  - `pages/` (reserved directory for downstream rendering; empty by default)
-- Run-root dual-write policy for trace artifacts (logging/viz refactor):
-  - Flat JSON at run root: `controller_trace.json`, `operator_trace.json`, `llm_metrics.json`
-  - Spec-§3.1 JSONL sidecars under `traces/`:
-    - `traces/evaluation_events.jsonl`
-    - `traces/generation_summary.jsonl`
-    - `traces/controller_trace.jsonl`
-    - `traces/operator_trace.jsonl`
-    - `traces/llm_request_trace.jsonl`
-    - `traces/llm_response_trace.jsonl`
-    - `traces/llm_reflection_trace.jsonl`
+  - top-level `case.yaml`
+  - top-level `solution.yaml`
+  - top-level `evaluation.yaml`
+- Seed-run trace artifacts are JSONL-only under `traces/`:
+  - `traces/evaluation_events.jsonl`
+  - `traces/generation_summary.jsonl`
+  - `traces/controller_trace.jsonl` (llm only)
+  - `traces/operator_trace.jsonl`
+  - `traces/llm_request_trace.jsonl` (llm only)
+  - `traces/llm_response_trace.jsonl` (llm only)
   - Operator trace rows follow §4.3 schema: `decision_id, generation, operator_name, parents, offspring, params_digest, wall_ms`
   - Per-seed `run.yaml` manifest captures mode, seeds, spec paths, population/generation size, wall-clock seconds
 - Central rendered assets live beside traces (written by `render-assets`):
   - `analytics/*.csv`
-  - `figures/*.png` (hi-res PDF variants when `--hires`)
+  - `figures/*.png`
+  - `figures/pdf/*.pdf`
+  - run-level figure set includes `pareto_front`, `hypervolume_progress`, `objective_progress`, `temperature_trace`, `gradient_trace`, `constraint_violation_progress`, `layout_initial`, `layout_final`, `layout_evolution`, `temperature_field_<repr>`, `gradient_field_<repr>`, `operator_phase_heatmap`
+  - `layout_evolution` is a best-so-far spatial-milestone replay; preserved frame PNGs live under `figures/layout_evolution_frames/step-<n>` or `step_<NNN>.png`-style names rather than per-generation `gen_*`
+  - layout figures are clean publication panels with internal component labels, explicit sink ribbon, and a compact right-side metadata strip
+  - field figures keep mandatory top titles, explicit sink rendering, internal white label chips, and aligned colorbar composition
 - Remove temporary scripts, debug files, caches, and one-off intermediate outputs after validation when they are not intended repository state.
 - Do not manually edit generated artifacts to change conclusions.
 

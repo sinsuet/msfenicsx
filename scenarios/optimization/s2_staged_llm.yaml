@@ -1,9 +1,9 @@
 schema_version: "1.0"
 spec_meta:
-  spec_id: s2_hard_nsga2_llm
-  description: S2 hard single-case NSGA-II union-llm mode with the same shared mixed action registry as s1_typical_llm and an OpenAI-compatible controller.
+  spec_id: s2_staged_nsga2_llm
+  description: S2 staged single-case NSGA-II union-llm mode with the same shared mixed action registry as union, calibrated for controller-sensitive staged recovery and finishing.
 benchmark_source:
-  template_path: scenarios/templates/s2_hard.yaml
+  template_path: scenarios/templates/s2_staged.yaml
   seed: 11
 design_variables:
   - variable_id: c01_x
@@ -16,11 +16,11 @@ design_variables:
     upper_bound: 0.68
   - variable_id: c02_x
     path: components[1].pose.x
-    lower_bound: 0.1
+    lower_bound: 0.45
     upper_bound: 0.9
   - variable_id: c02_y
     path: components[1].pose.y
-    lower_bound: 0.1
+    lower_bound: 0.11
     upper_bound: 0.68
   - variable_id: c03_x
     path: components[2].pose.x
@@ -32,7 +32,7 @@ design_variables:
     upper_bound: 0.68
   - variable_id: c04_x
     path: components[3].pose.x
-    lower_bound: 0.1
+    lower_bound: 0.45
     upper_bound: 0.9
   - variable_id: c04_y
     path: components[3].pose.y
@@ -48,7 +48,7 @@ design_variables:
     upper_bound: 0.68
   - variable_id: c06_x
     path: components[5].pose.x
-    lower_bound: 0.1
+    lower_bound: 0.45
     upper_bound: 0.9
   - variable_id: c06_y
     path: components[5].pose.y
@@ -96,7 +96,7 @@ design_variables:
     upper_bound: 0.68
   - variable_id: c12_x
     path: components[11].pose.x
-    lower_bound: 0.1
+    lower_bound: 0.45
     upper_bound: 0.9
   - variable_id: c12_y
     path: components[11].pose.y
@@ -141,7 +141,7 @@ algorithm:
   population_size: 20
   num_generations: 10
   seed: 7
-  profile_path: scenarios/optimization/profiles/s2_hard_union.yaml
+  profile_path: scenarios/optimization/profiles/s2_staged_union.yaml
 operator_control:
   controller: llm
   operator_pool:
@@ -174,4 +174,4 @@ operator_control:
       reflection_interval: 1
     fallback_controller: random_uniform
 evaluation_protocol:
-  evaluation_spec_path: scenarios/evaluation/s2_hard_eval.yaml
+  evaluation_spec_path: scenarios/evaluation/s2_staged_eval.yaml

@@ -53,6 +53,7 @@ def run_union_optimization(
     *,
     spec_path: str | Path | None = None,
     evaluation_workers: int | None = None,
+    trace_output_root: str | Path | None = None,
 ) -> UnionOptimizationRun:
     spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
     evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
@@ -69,11 +70,26 @@ def run_union_optimization(
 
     family = str(algorithm_config["family"])
     if family == "genetic":
-        adapter = build_genetic_union_algorithm(problem, spec_payload, algorithm_config)
+        adapter = build_genetic_union_algorithm(
+            problem,
+            spec_payload,
+            algorithm_config,
+            trace_output_root=trace_output_root,
+        )
     elif family == "decomposition":
-        adapter = build_decomposition_union_algorithm(problem, spec_payload, algorithm_config)
+        adapter = build_decomposition_union_algorithm(
+            problem,
+            spec_payload,
+            algorithm_config,
+            trace_output_root=trace_output_root,
+        )
     elif family == "swarm":
-        adapter = build_swarm_union_algorithm(problem, spec_payload, algorithm_config)
+        adapter = build_swarm_union_algorithm(
+            problem,
+            spec_payload,
+            algorithm_config,
+            trace_output_root=trace_output_root,
+        )
     else:
         raise ValueError(f"Unsupported union-driver family {family!r}.")
     generation_callback = GenerationSummaryCallback(objective_definitions=evaluation_payload["objectives"])

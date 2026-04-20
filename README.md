@@ -9,7 +9,7 @@
 
 ## Active Mainline
 
-The primary paper-facing mainline is `s1_typical`. A harder companion benchmark `s2_hard` is active per `docs/superpowers/specs/2026-04-17-s2-hard-design.md`; it shares the semantic shared operator registry and the same `raw / union / llm` ladder. The frame described below applies to both: `s2_hard` exposes it as a second instance with a tightened top-edge sink, amplified cluster heat load, and an adversarial-core layout-strategy zone.
+The active paper-facing mainlines are `s1_typical` and `s2_staged`. `s2_staged` is the current controller-sensitive S2 companion benchmark; it shares the semantic shared operator registry and the same `raw / union / llm` ladder while keeping the benchmark/controller comparison boundary aligned with the active staged analysis line.
 
 - one operating case
 - fifteen fixed named components
@@ -48,15 +48,15 @@ Implemented (`s1_typical`):
 - raw profile: `scenarios/optimization/profiles/s1_typical_raw.yaml`
 - union profile: `scenarios/optimization/profiles/s1_typical_union.yaml`
 
-Implemented (`s2_hard`, per `docs/superpowers/specs/2026-04-17-s2-hard-design.md`):
+Implemented (`s2_staged`):
 
-- template: `scenarios/templates/s2_hard.yaml`
-- evaluation spec: `scenarios/evaluation/s2_hard_eval.yaml`
-- raw spec: `scenarios/optimization/s2_hard_raw.yaml`
-- union spec: `scenarios/optimization/s2_hard_union.yaml`
-- llm spec: `scenarios/optimization/s2_hard_llm.yaml`
-- raw profile: `scenarios/optimization/profiles/s2_hard_raw.yaml`
-- union profile: `scenarios/optimization/profiles/s2_hard_union.yaml`
+- template: `scenarios/templates/s2_staged.yaml`
+- evaluation spec: `scenarios/evaluation/s2_staged_eval.yaml`
+- raw spec: `scenarios/optimization/s2_staged_raw.yaml`
+- union spec: `scenarios/optimization/s2_staged_union.yaml`
+- llm spec: `scenarios/optimization/s2_staged_llm.yaml`
+- raw profile: `scenarios/optimization/profiles/s2_staged_raw.yaml`
+- union profile: `scenarios/optimization/profiles/s2_staged_union.yaml`
 
 ## Module Boundaries
 
@@ -81,14 +81,14 @@ Derived evaluation flow:
 
 Active optimizer flow:
 
-`s1_typical benchmark case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle`
+`paper-facing scenario case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle`
 
 ## Run Layout
 
 Paper-facing optimization and visualization outputs now live under:
 
 ```text
-scenario_runs/s1_typical/<MMDD_HHMM>__<mode_slug>/
+scenario_runs/<scenario_id>/<MMDD_HHMM>__<mode_slug>/
 ```
 
 `mode_slug` always follows the stable order `raw`, `union`, `llm`.
@@ -107,25 +107,31 @@ solution.yaml
 evaluation.yaml
 fields/temperature_grid.npz
 fields/gradient_magnitude_grid.npz
-summaries/field_view.json
-pages/                              # reserved, empty by default
 ```
 
-Trace artifacts live at the seed run root under a dual-write policy (flat
-JSON for legacy consumers, spec-§3.1 JSONL sidecars for the analytics/render
-layer):
+Standalone solved-case bundles written by `core.cli.main solve-case` live under:
 
 ```text
-controller_trace.json
-operator_trace.json
-llm_metrics.json
+scenario_runs/<scenario_id>/<case_id>/
+```
+
+and, when field exports are present, also render:
+
+```text
+figures/layout.png
+figures/temperature_field.png
+figures/gradient_field.png
+```
+
+Trace artifacts live at the seed run root as canonical JSONL sidecars:
+
+```text
 traces/evaluation_events.jsonl
 traces/generation_summary.jsonl
 traces/controller_trace.jsonl
 traces/operator_trace.jsonl
 traces/llm_request_trace.jsonl
 traces/llm_response_trace.jsonl
-traces/llm_reflection_trace.jsonl
 run.yaml                            # per-seed manifest
 ```
 
@@ -135,14 +141,29 @@ Operator trace rows follow the §4.3 schema
 Central rendered assets (written by `optimizers.cli render-assets`) live
 beside the traces:
 
-- `analytics/*.csv` — progress, Pareto, operator usage, decision rollups
-- `figures/*.png` — hi-res PDF variants when `--hires` is passed
-- figures consumed from `visualization/figures/` (pareto, temperature_field, gradient_field, hypervolume, layout_evolution, operator_heatmap)
+- `analytics/*.csv` — hypervolume, Pareto front, progress timeline, operator usage, decision rollups
+- `figures/*.png` — raster figures for quick browsing
+- `figures/pdf/*.pdf` — vector companions kept in a dedicated subdirectory
+- figure outputs include `pareto_front`, `hypervolume_progress`, `objective_progress`, `temperature_trace`, `gradient_trace`, `constraint_violation_progress`, `layout_initial`, `layout_final`, `layout_evolution`, `temperature_field_<repr>`, `gradient_field_<repr>`, and `operator_phase_heatmap`
+- `layout_evolution` is a best-so-far spatial-milestone replay; preserved frame PNGs live under `figures/layout_evolution_frames/step_<NNN>.png`
+- layout figures are publication panels: clean board on the left, compact run metadata on the right, internal `C01..C15` labels, and an explicit sink ribbon
+- field figures keep a mandatory top title, explicit sink rendering, internal white label chips, and aligned colorbar composition
+- `tables/*.csv` / `tables/*.tex` — summary statistics and representative-point tables
 - baseline style centralized in `visualization/style/baseline.py`
 
-`optimize-benchmark` / `run-llm` auto-invoke `render-assets` unless
-`--skip-render` is passed. Budget knobs `--population-size` and
-`--num-generations` apply the same override on both commands.
+`optimize-benchmark`, `run-llm`, and `run-benchmark-suite` auto-invoke
+`render-assets` unless `--skip-render` is passed. Budget knobs
+`--population-size` and `--num-generations` apply to all three commands.
+When a suite run includes at least two modes, `run-benchmark-suite` also auto-writes a suite-owned `comparisons/` bundle:
+
+- single-seed suite: `<run_root>/comparisons/`
+- multi-seed suite: `<run_root>/comparisons/by_seed/seed-<n>/` plus `<run_root>/comparisons/aggregate/`
+
+Interpretation:
+
+- `comparisons/by_seed/seed-<n>/` = same benchmark seed across modes
+- `comparisons/aggregate/` = across-seeds descriptive rollup for those same compared modes
+- per-seed compare bundles should lead with `summary_overview`, `final_layout_comparison`, `temperature_field_comparison`, `gradient_field_comparison`, and `progress_dashboard`
 
 ## CLI
 
@@ -205,18 +226,18 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
   --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace \
-  --controller-trace ./scenario_runs/s1_typical/<run_id>/union/seeds/seed-11/controller_trace.json \
-  --output ./scenario_runs/s1_typical/<run_id>/union/reports/controller_trace_summary.json
+  --controller-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/controller_trace.jsonl \
+  --output ./scenario_runs/s1_typical/<run_id>/llm/reports/controller_trace_summary.json
 
-# Render analytics CSV + figures PNG from an existing run (hi-res optional)
+# Render analytics/tables/figures from an existing suite root, mode root, or concrete single-mode run root
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli render-assets \
   --run ./scenario_runs/s1_typical/<run_id> [--hires]
 
-# Compare two or more runs into a single diff JSON
+# Compare two or more concrete single-mode run roots into an external structured bundle
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli compare-runs \
   --run ./scenario_runs/s1_typical/<run_a> \
   --run ./scenario_runs/s1_typical/<run_b> \
-  --output ./compare.json
+  --output ./scenario_runs/compare_reports/<compare_id>
 
 # 10x5 smoke harness (raw/union/llm + render-assets + compare-runs)
 bash scripts/smoke_render_assets.sh

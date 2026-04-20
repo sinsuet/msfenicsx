@@ -10,43 +10,46 @@ from typing import Any
 
 from optimizers.operator_pool.route_families import route_family_counts, route_family_entropy
 from optimizers.run_telemetry import load_jsonl_rows
+from optimizers.traces.llm_trace_io import (
+    iter_mode_seed_roots,
+    materialize_request_trace_rows,
+    materialize_response_trace_rows,
+    resolve_seed_trace_path,
+)
 
 
 def build_mode_llm_summaries(mode_root: str | Path) -> dict[str, str]:
     root = Path(mode_root)
     summaries_root = root / "summaries"
     summaries_root.mkdir(parents=True, exist_ok=True)
-    metrics_rows: list[dict[str, Any]] = []
     request_rows: list[dict[str, Any]] = []
     response_rows: list[dict[str, Any]] = []
-    reflection_rows: list[dict[str, Any]] = []
     controller_rows: list[dict[str, Any]] = []
 
-    for seed_root in _iter_seed_roots(root):
-        if (seed_root / "llm_metrics.json").exists():
-            metrics_rows.append(_load_json(seed_root / "llm_metrics.json"))
-        if (seed_root / "llm_request_trace.jsonl").exists():
-            request_rows.extend(load_jsonl_rows(seed_root / "llm_request_trace.jsonl"))
-        if (seed_root / "llm_response_trace.jsonl").exists():
-            response_rows.extend(load_jsonl_rows(seed_root / "llm_response_trace.jsonl"))
-        if (seed_root / "llm_reflection_trace.jsonl").exists():
-            reflection_rows.extend(load_jsonl_rows(seed_root / "llm_reflection_trace.jsonl"))
-        if (seed_root / "controller_trace.json").exists():
-            controller_rows.extend(_load_json(seed_root / "controller_trace.json"))
+    for seed_root in iter_mode_seed_roots(root):
+        request_trace_path = resolve_seed_trace_path(seed_root, "llm_request_trace.jsonl")
+        if request_trace_path.exists():
+            request_rows.extend(
+                materialize_request_trace_rows(seed_root, load_jsonl_rows(request_trace_path))
+            )
+        response_trace_path = resolve_seed_trace_path(seed_root, "llm_response_trace.jsonl")
+        if response_trace_path.exists():
+            response_rows.extend(
+                materialize_response_trace_rows(seed_root, load_jsonl_rows(response_trace_path))
+            )
+        controller_rows.extend(_load_controller_rows(seed_root))
 
     payloads = {
         "llm_runtime_summary": build_llm_runtime_summary(
-            metrics_rows=metrics_rows,
             request_rows=request_rows,
             response_rows=response_rows,
-            reflection_rows=reflection_rows,
+            controller_rows=controller_rows,
         ),
         "llm_prompt_summary": build_llm_prompt_summary(request_rows=request_rows),
         "llm_decision_summary": build_llm_decision_summary(
             controller_rows=controller_rows,
             response_rows=response_rows,
         ),
-        "llm_reflection_summary": build_llm_reflection_summary(reflection_rows=reflection_rows),
     }
     written: dict[str, str] = {}
     for summary_name, payload in payloads.items():
@@ -57,41 +60,40 @@ def build_mode_llm_summaries(mode_root: str | Path) -> dict[str, str]:
 
 def build_llm_runtime_summary(
     *,
-    metrics_rows: Sequence[Mapping[str, Any]],
     request_rows: Sequence[Mapping[str, Any]],
     response_rows: Sequence[Mapping[str, Any]],
-    reflection_rows: Sequence[Mapping[str, Any]] | None = None,
+    controller_rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
-    reflection_rows = [] if reflection_rows is None else list(reflection_rows)
     providers = _sorted_unique(
-        list(_values(metrics_rows, "provider"))
-        + list(_values(request_rows, "provider"))
+        list(_values(request_rows, "provider"))
         + list(_values(response_rows, "provider"))
     )
     models = _sorted_unique(
-        list(_values(metrics_rows, "model"))
-        + list(_values(request_rows, "model"))
+        list(_values(request_rows, "model"))
         + list(_values(response_rows, "model"))
     )
     capability_profiles = _sorted_unique(
-        list(_values(metrics_rows, "capability_profile"))
-        + list(_values(request_rows, "capability_profile"))
+        list(_values(request_rows, "capability_profile"))
         + list(_values(response_rows, "capability_profile"))
     )
     performance_profiles = _sorted_unique(
-        list(_values(metrics_rows, "performance_profile"))
-        + list(_values(request_rows, "performance_profile"))
+        list(_values(request_rows, "performance_profile"))
         + list(_values(response_rows, "performance_profile"))
     )
     elapsed_values = [
-        float(row.get("elapsed_seconds", 0.0))
+        float(row.get("latency_ms", 0.0)) / 1000.0
         for row in response_rows
-        if row.get("elapsed_seconds") is not None
+        if row.get("latency_ms") is not None
     ]
-    request_count = int(sum(int(row.get("request_count", 0)) for row in metrics_rows) or len(request_rows))
-    elapsed_total = float(
-        sum(float(row.get("elapsed_seconds_total", 0.0)) for row in metrics_rows)
-        or sum(elapsed_values)
+    request_count = int(len(request_rows))
+    elapsed_total = float(sum(elapsed_values))
+    fallback_count = sum(
+        1
+        for row in controller_rows
+        if bool(
+            row.get("fallback_used", False)
+            or dict(row.get("metadata", {})).get("fallback_used", False)
+        )
     )
     return {
         "provider": providers[0] if len(providers) == 1 else providers,
@@ -99,23 +101,14 @@ def build_llm_runtime_summary(
         "capability_profile": capability_profiles[0] if len(capability_profiles) == 1 else capability_profiles,
         "performance_profile": performance_profiles[0] if len(performance_profiles) == 1 else performance_profiles,
         "request_count": request_count,
-        "response_count": int(sum(int(row.get("response_count", 0)) for row in metrics_rows) or len(response_rows)),
-        "fallback_count": int(sum(int(row.get("fallback_count", 0)) for row in metrics_rows)),
-        "retry_count": int(sum(int(row.get("retry_count", 0)) for row in metrics_rows)),
-        "invalid_response_count": int(sum(int(row.get("invalid_response_count", 0)) for row in metrics_rows)),
-        "schema_invalid_count": int(sum(int(row.get("schema_invalid_count", 0)) for row in metrics_rows)),
-        "semantic_invalid_count": int(sum(int(row.get("semantic_invalid_count", 0)) for row in metrics_rows)),
+        "response_count": int(len(response_rows)),
+        "fallback_count": int(fallback_count),
+        "retry_count": int(sum(int(row.get("retries", 0)) for row in response_rows)),
         "elapsed_seconds_total": elapsed_total,
         "elapsed_seconds_avg": float(elapsed_total / float(max(1, request_count))),
         "elapsed_seconds_max": float(
-            max(
-                [float(row.get("elapsed_seconds_max", 0.0)) for row in metrics_rows]
-                + elapsed_values
-                + [0.0]
-            )
+            max(elapsed_values + [0.0])
         ),
-        "reflection_trace_present": bool(reflection_rows),
-        "reflection_row_count": int(len(reflection_rows)),
     }
 
 
@@ -127,6 +120,9 @@ def build_llm_decision_summary(
     normalized_controller_rows = [
         {
             **dict(row),
+            "selected_operator_id": str(
+                row.get("selected_operator_id") or row.get("operator_selected") or ""
+            ),
             "policy_phase": str(
                 dict(row.get("metadata", {})).get("policy_phase")
                 or dict(row.get("metadata", {})).get("guardrail_policy_phase")
@@ -148,7 +144,10 @@ def build_llm_decision_summary(
     fallback_count = sum(
         1
         for row in normalized_controller_rows
-        if bool(dict(row.get("metadata", {})).get("fallback_used", False))
+        if bool(
+            row.get("fallback_used", False)
+            or dict(row.get("metadata", {})).get("fallback_used", False)
+        )
     )
     guardrail_reason_counts: Counter[str] = Counter()
     for row in normalized_controller_rows:
@@ -180,17 +179,37 @@ def build_llm_prompt_summary(
     *,
     request_rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
-    candidate_sizes = [len(list(row.get("candidate_operator_ids", []))) for row in request_rows]
-    policy_phase_counts = Counter(
-        str(row.get("policy_phase", ""))
-        for row in request_rows
-        if row.get("policy_phase")
-    )
+    candidate_sizes: list[int] = []
+    policy_phase_counts: Counter[str] = Counter()
     dominant_counts = Counter(
         str(dict(row.get("guardrail", {})).get("dominant_operator_id", ""))
         for row in request_rows
         if row.get("guardrail")
     )
+    for row in request_rows:
+        candidate_operator_ids = row.get("candidate_operator_ids")
+        if isinstance(candidate_operator_ids, Sequence) and not isinstance(candidate_operator_ids, (str, bytes)):
+            candidate_sizes.append(len(list(candidate_operator_ids)))
+        elif row.get("effective_candidate_pool_size") is not None:
+            candidate_sizes.append(int(row.get("effective_candidate_pool_size", 0)))
+        else:
+            metadata = _request_prompt_metadata(row)
+            guardrail = metadata.get("decision_guardrail", {}) if isinstance(metadata, Mapping) else {}
+            if isinstance(guardrail, Mapping):
+                effective_ids = guardrail.get("effective_candidate_operator_ids", [])
+                if isinstance(effective_ids, Sequence) and not isinstance(effective_ids, (str, bytes)):
+                    candidate_sizes.append(len(list(effective_ids)))
+
+        policy_phase = str(row.get("policy_phase", "")).strip()
+        if not policy_phase:
+            metadata = _request_prompt_metadata(row)
+            prompt_panels = metadata.get("prompt_panels", {}) if isinstance(metadata, Mapping) else {}
+            if isinstance(prompt_panels, Mapping):
+                regime_panel = prompt_panels.get("regime_panel", {})
+                if isinstance(regime_panel, Mapping):
+                    policy_phase = str(regime_panel.get("phase", "")).strip()
+        if policy_phase:
+            policy_phase_counts[policy_phase] += 1
     return {
         "request_count": int(len(request_rows)),
         "avg_candidate_operator_count": (
@@ -214,18 +233,6 @@ def build_llm_prompt_summary(
         },
     }
 
-
-def build_llm_reflection_summary(*, reflection_rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    return {
-        "row_count": int(len(reflection_rows)),
-        "latest_generation_index": (
-            None
-            if not reflection_rows
-            else int(max(int(row.get("generation_index", 0)) for row in reflection_rows))
-        ),
-    }
-
-
 def _values(rows: Sequence[Mapping[str, Any]], key: str) -> list[str]:
     values = []
     for row in rows:
@@ -239,15 +246,22 @@ def _sorted_unique(values: Sequence[str]) -> list[str]:
     return sorted(dict.fromkeys(str(value) for value in values if str(value).strip()))
 
 
-def _iter_seed_roots(mode_root: Path) -> list[Path]:
-    seeds_root = mode_root / "seeds"
-    if not seeds_root.exists():
-        return []
-    return sorted(
-        [path for path in seeds_root.iterdir() if path.is_dir() and path.name.startswith("seed-")],
-        key=lambda path: int(path.name.removeprefix("seed-")),
-    )
+def _request_prompt_metadata(row: Mapping[str, Any]) -> dict[str, Any]:
+    user_prompt = row.get("user_prompt")
+    if not isinstance(user_prompt, str) or not user_prompt.strip():
+        return {}
+    try:
+        payload = json.loads(user_prompt)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, Mapping):
+        return {}
+    metadata = payload.get("metadata", {})
+    return dict(metadata) if isinstance(metadata, Mapping) else {}
 
 
-def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+def _load_controller_rows(seed_root: Path) -> list[dict[str, Any]]:
+    trace_path = resolve_seed_trace_path(seed_root, "controller_trace.jsonl")
+    if trace_path.exists():
+        return [dict(row) for row in load_jsonl_rows(trace_path)]
+    return []

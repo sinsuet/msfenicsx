@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import time
 from typing import Any
 
 import numpy as np
@@ -10,7 +12,11 @@ from pymoo.algorithms.moo.cmopso import CMOPSO, cmopso_equation
 from pymoo.core.population import Population
 
 from optimizers.codec import extract_decision_vector
-from optimizers.operator_pool.controllers import build_controller, select_controller_decision
+from optimizers.operator_pool.controllers import (
+    build_controller,
+    configure_controller_trace_outputs,
+    select_controller_decision,
+)
 from optimizers.operator_pool.layout import VariableLayout
 from optimizers.operator_pool.models import ParentBundle
 from optimizers.operator_pool.operators import get_operator_definition, native_operator_id_for_backbone
@@ -18,6 +24,7 @@ from optimizers.operator_pool.state_builder import build_controller_state
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 from optimizers.raw_backbones.cmopso import build_algorithm_kwargs
 from optimizers.repair import repair_case_from_vector
+from optimizers.traces.correlation import format_decision_id
 
 
 @dataclass(slots=True)
@@ -95,6 +102,9 @@ class UnionAugmentedCMOPSO(CMOPSO):
                 recent_window=32,
             )
             decision = select_controller_decision(self.union_controller, state, self.operator_ids, self.random_state)
+            decision_index = 0
+            decision_id = format_decision_id(int(state.generation_index), int(state.evaluation_index), int(decision_index))
+            start = time.perf_counter()
             operator_id = decision.selected_operator_id
             if operator_id == self.native_operator_id:
                 raw_proposal = np.asarray(raw_position, dtype=np.float64)
@@ -107,6 +117,7 @@ class UnionAugmentedCMOPSO(CMOPSO):
                     rng=self.random_state,
                 )
                 proposal_kind = "custom"
+            operator_wall_ms = float((time.perf_counter() - start) * 1000.0)
             repaired_position = self._repair_vector(raw_proposal)
             augmented_positions.append(repaired_position)
             self.controller_trace.append(
@@ -121,6 +132,8 @@ class UnionAugmentedCMOPSO(CMOPSO):
                     phase=str(decision.metadata.get("model_phase") or decision.phase),
                     rationale=decision.rationale,
                     metadata={
+                        "decision_id": decision_id,
+                        "decision_index": int(decision_index),
                         "particle_index": int(particle_index),
                         "proposal_kind": proposal_kind,
                         **dict(decision.metadata),
@@ -136,8 +149,12 @@ class UnionAugmentedCMOPSO(CMOPSO):
                     parent_vectors=tuple(tuple(float(value) for value in vector.tolist()) for vector in parents.vectors),
                     proposal_vector=tuple(float(value) for value in raw_proposal.tolist()),
                     metadata={
+                        "decision_id": decision_id,
+                        "decision_index": int(decision_index),
+                        "decision_evaluation_index": int(state.evaluation_index),
                         "particle_index": int(particle_index),
                         "proposal_kind": proposal_kind,
+                        "wall_ms": float(operator_wall_ms),
                         "raw_swarm_proposal": np.asarray(raw_position, dtype=np.float64).tolist(),
                         "velocity": np.asarray(velocity, dtype=np.float64).tolist(),
                         "repaired_vector": repaired_position.tolist(),
@@ -164,7 +181,13 @@ class UnionAugmentedCMOPSO(CMOPSO):
         return extract_decision_vector(repaired_case, self.optimization_spec)
 
 
-def build_swarm_union_algorithm(problem: Any, optimization_spec: Any, algorithm_config: dict[str, Any]) -> SwarmUnionAdapterArtifacts:
+def build_swarm_union_algorithm(
+    problem: Any,
+    optimization_spec: Any,
+    algorithm_config: dict[str, Any],
+    *,
+    trace_output_root: str | Path | None = None,
+) -> SwarmUnionAdapterArtifacts:
     spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
     if algorithm_config["mode"] != "union":
         raise ValueError(f"Swarm union adapter requires algorithm.mode='union', got {algorithm_config['mode']!r}.")
@@ -186,6 +209,7 @@ def build_swarm_union_algorithm(problem: Any, optimization_spec: Any, algorithm_
         radiator_span_max=getattr(problem, "radiator_span_max", None),
         controller_parameters=spec_payload["operator_control"].get("controller_parameters"),
     )
+    configure_controller_trace_outputs(algorithm.union_controller, output_root=trace_output_root)
     return SwarmUnionAdapterArtifacts(
         algorithm=algorithm,
         controller_trace=algorithm.controller_trace,

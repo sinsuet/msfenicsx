@@ -120,24 +120,26 @@ def _run_optimize_benchmark(
     evaluation_spec = load_spec(evaluation_spec_path)
     mode = optimization_spec.algorithm["mode"]
     wall_start = time.monotonic()
-    if mode == "raw":
-        run = run_raw_optimization(
-            base_case,
-            optimization_spec,
-            evaluation_spec,
-            spec_path=optimization_spec_path,
-            evaluation_workers=evaluation_workers,
-        )
-    elif mode == "union":
-        run = run_union_optimization(
-            base_case,
-            optimization_spec,
-            evaluation_spec,
-            spec_path=optimization_spec_path,
-            evaluation_workers=evaluation_workers,
-        )
-    else:
-        raise ValueError(f"Unsupported optimizer mode {mode!r}.")
+    with _temporary_env_overlay(_llm_env_overlay_for_spec(optimization_spec)):
+        if mode == "raw":
+            run = run_raw_optimization(
+                base_case,
+                optimization_spec,
+                evaluation_spec,
+                spec_path=optimization_spec_path,
+                evaluation_workers=evaluation_workers,
+            )
+        elif mode == "union":
+            run = run_union_optimization(
+                base_case,
+                optimization_spec,
+                evaluation_spec,
+                spec_path=optimization_spec_path,
+                evaluation_workers=evaluation_workers,
+                trace_output_root=Path(output_root),
+            )
+        else:
+            raise ValueError(f"Unsupported optimizer mode {mode!r}.")
     wall_seconds = time.monotonic() - wall_start
     evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
     write_optimization_artifacts(
@@ -159,8 +161,8 @@ def _run_optimize_benchmark(
         wall_seconds=wall_seconds,
     )
     if not skip_render:
-        from optimizers.render_assets import render_run_assets
-        render_run_assets(Path(output_root), hires=False)
+        from optimizers.render_assets import render_assets
+        render_assets(Path(output_root), hires=False)
     return 0
 
 
@@ -182,6 +184,28 @@ def _temporary_env_overlay(values: dict[str, str]):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+
+
+def _llm_env_overlay_for_spec(optimization_spec) -> dict[str, str]:
+    operator_control = getattr(optimization_spec, "operator_control", None)
+    if operator_control is None or operator_control.get("controller") != "llm":
+        return {}
+    missing_keys = [
+        key
+        for key in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
+        if not str(os.environ.get(key, "")).strip()
+    ]
+    if not missing_keys:
+        return {}
+    try:
+        overlay = load_provider_profile_overlay("default")
+    except Exception:
+        return {}
+    return {
+        key: str(value)
+        for key, value in overlay.items()
+        if key in missing_keys and str(value).strip()
+    }
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -222,6 +246,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             evaluation_workers=args.evaluation_workers,
             population_size=args.population_size,
             num_generations=args.num_generations,
+            skip_render=args.skip_render,
         )
         return 0
     if args.command == "replay-llm-trace":
@@ -247,8 +272,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         save_controller_trace_summary(args.output, summary)
         return 0
     if args.command == "render-assets":
-        from optimizers.render_assets import render_run_assets
-        render_run_assets(Path(args.run), hires=args.hires)
+        from optimizers.render_assets import render_assets
+        render_assets(Path(args.run), hires=args.hires)
         return 0
     if args.command == "compare-runs":
         from optimizers.compare_runs import compare_runs

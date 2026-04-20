@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 import math
+import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -12,7 +14,11 @@ from pymoo.core.infill import InfillCriterion
 from pymoo.core.population import Population
 
 from optimizers.codec import extract_decision_vector
-from optimizers.operator_pool.controllers import build_controller, select_controller_decision
+from optimizers.operator_pool.controllers import (
+    build_controller,
+    configure_controller_trace_outputs,
+    select_controller_decision,
+)
 from optimizers.operator_pool.layout import VariableLayout
 from optimizers.operator_pool.models import ParentBundle
 from optimizers.operator_pool.operators import get_operator_definition, native_operator_id_for_backbone
@@ -25,6 +31,7 @@ from optimizers.operator_pool.trace import (
 )
 from optimizers.raw_backbones.registry import get_raw_backbone_definition
 from optimizers.repair import repair_case_from_vector
+from optimizers.traces.correlation import format_decision_id
 
 
 @dataclass(slots=True)
@@ -295,6 +302,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
         proposal_vectors: list[np.ndarray] = []
         proposal_payloads: list[dict[str, Any]] = []
         if event_records and all(record["operator_id"] == self.native_operator_id for record in event_records):
+            start = time.perf_counter()
             native_offspring = self._native_offspring_population(
                 problem,
                 pop,
@@ -303,6 +311,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 algorithm=algorithm,
                 **kwargs,
             )
+            operator_wall_ms = float((time.perf_counter() - start) * 1000.0)
             native_vectors = np.asarray(native_offspring.get("X"), dtype=np.float64)
             for event_index, record in enumerate(event_records):
                 start = event_index * children_per_native_event
@@ -313,25 +322,30 @@ class GeneticFamilyUnionMating(InfillCriterion):
                     generation_index=generation_index,
                     provisional_evaluation_start=int(problem._next_evaluation_index),
                     children_per_event=children_per_native_event,
+                    operator_wall_ms=operator_wall_ms,
                     proposal_payloads_out=proposal_payloads,
                     proposal_vectors_out=proposal_vectors,
                 )
             return self._proposal_population(proposal_vectors, proposal_payloads)
 
         for record in event_records:
+            start = time.perf_counter()
+            proposal_vectors_for_record = self._event_proposals(
+                problem,
+                pop,
+                record,
+                rng,
+                algorithm=algorithm,
+                **kwargs,
+            )
+            operator_wall_ms = float((time.perf_counter() - start) * 1000.0)
             self._append_attempt_payloads(
                 record=record,
-                proposal_vectors=self._event_proposals(
-                    problem,
-                    pop,
-                    record,
-                    rng,
-                    algorithm=algorithm,
-                    **kwargs,
-                ),
+                proposal_vectors=proposal_vectors_for_record,
                 generation_index=generation_index,
                 provisional_evaluation_start=int(problem._next_evaluation_index),
                 children_per_event=1,
+                operator_wall_ms=operator_wall_ms,
                 proposal_payloads_out=proposal_payloads,
                 proposal_vectors_out=proposal_vectors,
             )
@@ -347,19 +361,23 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 problem=problem,
             )
             event_records.append(record)
+            start = time.perf_counter()
+            proposal_vectors_for_record = self._event_proposals(
+                problem,
+                pop,
+                record,
+                rng,
+                algorithm=algorithm,
+                **kwargs,
+            )
+            operator_wall_ms = float((time.perf_counter() - start) * 1000.0)
             self._append_attempt_payloads(
                 record=record,
-                proposal_vectors=self._event_proposals(
-                    problem,
-                    pop,
-                    record,
-                    rng,
-                    algorithm=algorithm,
-                    **kwargs,
-                ),
+                proposal_vectors=proposal_vectors_for_record,
                 generation_index=generation_index,
                 provisional_evaluation_start=int(problem._next_evaluation_index),
                 children_per_event=1,
+                operator_wall_ms=operator_wall_ms,
                 proposal_payloads_out=proposal_payloads,
                 proposal_vectors_out=proposal_vectors,
             )
@@ -381,6 +399,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
         proposal_vectors: list[np.ndarray] = []
         proposal_payloads: list[dict[str, Any]] = []
         if record["operator_id"] == self.native_operator_id:
+            start = time.perf_counter()
             native_offspring = self._native_offspring_population(
                 problem,
                 pop,
@@ -393,29 +412,35 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 np.asarray(vector, dtype=np.float64)
                 for vector in np.asarray(native_offspring.get("X"), dtype=np.float64)
             ]
+            operator_wall_ms = float((time.perf_counter() - start) * 1000.0)
             self._append_attempt_payloads(
                 record=record,
                 proposal_vectors=native_vectors,
                 generation_index=generation_index,
                 provisional_evaluation_start=provisional_evaluation_start,
                 children_per_event=int(self.raw_mating.crossover.n_offsprings),
+                operator_wall_ms=operator_wall_ms,
                 proposal_payloads_out=proposal_payloads,
                 proposal_vectors_out=proposal_vectors,
             )
         else:
+            start = time.perf_counter()
+            proposal_vectors_for_record = self._event_proposals(
+                problem,
+                pop,
+                record,
+                rng,
+                algorithm=algorithm,
+                **kwargs,
+            )
+            operator_wall_ms = float((time.perf_counter() - start) * 1000.0)
             self._append_attempt_payloads(
                 record=record,
-                proposal_vectors=self._event_proposals(
-                    problem,
-                    pop,
-                    record,
-                    rng,
-                    algorithm=algorithm,
-                    **kwargs,
-                ),
+                proposal_vectors=proposal_vectors_for_record,
                 generation_index=generation_index,
                 provisional_evaluation_start=provisional_evaluation_start,
                 children_per_event=1,
+                operator_wall_ms=operator_wall_ms,
                 proposal_payloads_out=proposal_payloads,
                 proposal_vectors_out=proposal_vectors,
             )
@@ -465,12 +490,13 @@ class GeneticFamilyUnionMating(InfillCriterion):
         parents = ParentBundle.from_vectors(*parent_vectors)
         decision_index = self._next_decision_index
         self._next_decision_index += 1
+        evaluation_index = int(problem._next_evaluation_index + len(local_controller_trace or []))
         state = build_controller_state(
             parents,
             family=self.family,
             backbone=self.backbone,
             generation_index=generation_index,
-            evaluation_index=int(problem._next_evaluation_index + len(local_controller_trace or [])),
+            evaluation_index=evaluation_index,
             candidate_operator_ids=self.operator_ids,
             metadata={
                 "parent_indices": row,
@@ -489,8 +515,15 @@ class GeneticFamilyUnionMating(InfillCriterion):
             recent_window=self.recent_window,
         )
         decision = select_controller_decision(self.controller, state, self.operator_ids, rng)
+        decision_id = format_decision_id(
+            int(generation_index),
+            int(evaluation_index),
+            int(decision_index),
+        )
         return {
             "decision_index": decision_index,
+            "decision_id": decision_id,
+            "evaluation_index": int(evaluation_index),
             "generation_index": int(generation_index),
             "row": list(row),
             "parents": parents,
@@ -535,6 +568,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
         generation_index: int,
         provisional_evaluation_start: int,
         children_per_event: int,
+        operator_wall_ms: float,
         proposal_payloads_out: list[dict[str, Any]],
         proposal_vectors_out: list[np.ndarray],
     ) -> None:
@@ -546,6 +580,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
             self._next_attempt_index += 1
             decision_metadata = {
                 "decision_index": int(record["decision_index"]),
+                "decision_id": str(record["decision_id"]),
+                "decision_evaluation_index": int(record["evaluation_index"]),
                 "parent_indices": list(record["row"]),
                 "proposal_kind": proposal_kind,
                 "sibling_index": int(sibling_index),
@@ -554,9 +590,13 @@ class GeneticFamilyUnionMating(InfillCriterion):
             }
             operator_metadata = {
                 "decision_index": int(record["decision_index"]),
+                "decision_id": str(record["decision_id"]),
+                "decision_evaluation_index": int(record["evaluation_index"]),
+                "parent_indices": list(record["row"]),
                 "proposal_kind": proposal_kind,
                 "sibling_index": int(sibling_index),
                 "children_per_event": int(children_per_event),
+                "wall_ms": float(operator_wall_ms),
             }
             controller_attempt_row = ControllerAttemptTraceRow(
                 generation_index=generation_index,
@@ -924,7 +964,13 @@ class GeneticFamilyUnionMating(InfillCriterion):
         return tuple(round(float(value), 12) for value in np.asarray(vector, dtype=np.float64).tolist())
 
 
-def build_genetic_union_algorithm(problem: Any, optimization_spec: Any, algorithm_config: dict[str, Any]) -> GeneticUnionAdapterArtifacts:
+def build_genetic_union_algorithm(
+    problem: Any,
+    optimization_spec: Any,
+    algorithm_config: dict[str, Any],
+    *,
+    trace_output_root: str | Path | None = None,
+) -> GeneticUnionAdapterArtifacts:
     spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
     if algorithm_config["mode"] != "union":
         raise ValueError(f"Genetic union adapter requires algorithm.mode='union', got {algorithm_config['mode']!r}.")
@@ -957,6 +1003,7 @@ def build_genetic_union_algorithm(problem: Any, optimization_spec: Any, algorith
         },
         radiator_span_max=getattr(problem, "radiator_span_max", None),
     )
+    configure_controller_trace_outputs(mating.controller, output_root=trace_output_root)
     algorithm.mating = mating
     return GeneticUnionAdapterArtifacts(
         algorithm=algorithm,

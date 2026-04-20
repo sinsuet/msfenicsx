@@ -25,6 +25,7 @@ from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 
 _SUPPORTED_SELECTION_THRESHOLD = 3
 _SPECULATIVE_FAMILY = "speculative_custom"
+_PENALTY_SENTINEL_THRESHOLD = 1.0e9
 
 
 def _is_fallback_selection(row: ControllerTraceRow) -> bool:
@@ -122,6 +123,21 @@ def _dominant_violation_relief(summary_row: Mapping[str, Any]) -> str:
     if int(summary_row.get("near_feasible_improvement_count", 0)) > 0:
         return "limited"
     return "none"
+
+
+def _is_penalty_coded_record(record: Mapping[str, Any] | None) -> bool:
+    if record is None:
+        return False
+    if record.get("failure_reason") is not None:
+        return True
+    for field in ("objective_values", "constraint_values"):
+        values = record.get(field, {})
+        if not isinstance(values, Mapping):
+            continue
+        for value in values.values():
+            if abs(float(value)) >= _PENALTY_SENTINEL_THRESHOLD:
+                return True
+    return False
 
 
 def summarize_operator_history(
@@ -236,6 +252,7 @@ def summarize_operator_history(
                     "recent_expand_feasible_preservation_count": 0,
                     "recent_expand_feasible_regression_count": 0,
                     "recent_expand_frontier_add_count": 0,
+                    "penalty_event_count": 0,
                     "credit_by_regime": {},
                     "regime_episodes": [],
                 },
@@ -297,6 +314,7 @@ def _summarize_operator_outcomes(
                 "recent_expand_feasible_preservation_count": 0,
                 "recent_expand_feasible_regression_count": 0,
                 "recent_expand_frontier_add_count": 0,
+                "penalty_event_count": 0,
                 "credit_by_regime": {},
                 "regime_episodes": [],
             },
@@ -315,7 +333,13 @@ def _summarize_operator_outcomes(
         parent_total_violation = float(np.mean([total_violation(record) for record in parent_records]))
         child_total_violation = total_violation(child_record)
         violation_delta = float(child_total_violation - parent_total_violation)
-        operator_summary["total_violation_deltas"].append(violation_delta)
+        penalty_transition = _is_penalty_coded_record(child_record) or any(
+            _is_penalty_coded_record(record) for record in parent_records
+        )
+        if penalty_transition:
+            operator_summary["penalty_event_count"] += 1
+        else:
+            operator_summary["total_violation_deltas"].append(violation_delta)
 
         child_feasible = bool(child_record.get("feasible", False))
         parent_feasible_flags = [bool(record.get("feasible", False)) for record in parent_records]
@@ -336,7 +360,7 @@ def _summarize_operator_outcomes(
             operator_summary["pareto_contribution_count"] += 1
             operator_summary["frontier_novelty_count"] += 1
 
-        if child_feasible and any(parent_feasible_flags):
+        if (not penalty_transition) and child_feasible and any(parent_feasible_flags):
             parent_objective_scores = [
                 objective_score(record.get("objective_values"))
                 for record in parent_records
@@ -347,7 +371,7 @@ def _summarize_operator_outcomes(
                     float(objective_score(child_record.get("objective_values")) - np.mean(parent_objective_scores))
                 )
             operator_summary["post_feasible_violation_deltas"].append(violation_delta)
-        elif any(parent_feasible_flags):
+        elif (not penalty_transition) and any(parent_feasible_flags):
             operator_summary["post_feasible_violation_deltas"].append(violation_delta)
 
         controller_phase = str(controller_phase_by_evaluation_index.get(int(row.evaluation_index), "")).strip()
@@ -365,12 +389,20 @@ def _summarize_operator_outcomes(
 
         regime = outcome_regime(parent_records=parent_records, child_record=child_record)
         regime_tags = [str(regime.get("phase", "")), str(regime.get("dominant_constraint_family", ""))]
-        target_key = "recent_helpful_regimes" if violation_delta < 0.0 else "recent_harmful_regimes"
+        target_key = (
+            "recent_harmful_regimes"
+            if penalty_transition
+            else "recent_helpful_regimes"
+            if violation_delta < 0.0
+            else "recent_harmful_regimes"
+        )
         for regime_tag in regime_tags:
             if regime_tag and regime_tag not in operator_summary[target_key]:
                 operator_summary[target_key].append(regime_tag)
 
         if (
+            not penalty_transition
+            and
             not any(parent_feasible_flags)
             and not child_feasible
             and regime.get("phase") == "near_feasible"
@@ -400,7 +432,7 @@ def _summarize_operator_outcomes(
                 )
             )
             child_family_violation = family_violation_total(child_record, dominant_family)
-            if child_family_violation < parent_family_violation:
+            if (not penalty_transition) and child_family_violation < parent_family_violation:
                 operator_summary["dominant_violation_relief_count"] += 1
                 if dominant_family and dominant_family not in operator_summary["recent_entry_helpful_regimes"]:
                     operator_summary["recent_entry_helpful_regimes"].append(dominant_family)
@@ -430,6 +462,7 @@ def _summarize_operator_outcomes(
                 "feasible_regression_count": 0,
                 "objective_deltas": [],
                 "violation_deltas": [],
+                "penalty_event_count": 0,
             },
         )
         if frontier_add:
@@ -438,7 +471,7 @@ def _summarize_operator_outcomes(
             credit_row["feasible_preservation_count"] += 1
         if not child_feasible and any(parent_feasible_flags):
             credit_row["feasible_regression_count"] += 1
-        if child_feasible and any(parent_feasible_flags):
+        if (not penalty_transition) and child_feasible and any(parent_feasible_flags):
             parent_objective_scores = [
                 objective_score(record.get("objective_values"))
                 for record in parent_records
@@ -448,7 +481,10 @@ def _summarize_operator_outcomes(
                 credit_row["objective_deltas"].append(
                     float(objective_score(child_record.get("objective_values")) - np.mean(parent_objective_scores))
                 )
-        credit_row["violation_deltas"].append(violation_delta)
+        if penalty_transition:
+            credit_row["penalty_event_count"] += 1
+        else:
+            credit_row["violation_deltas"].append(violation_delta)
         operator_summary["regime_episodes"].append(
             {
                 "phase": credit_phase,
@@ -457,7 +493,8 @@ def _summarize_operator_outcomes(
                 "frontier_add": bool(frontier_add),
                 "feasible_preservation": bool(child_feasible and all(parent_feasible_flags)),
                 "feasible_regression": bool((not child_feasible) and any(parent_feasible_flags)),
-                "avg_total_violation_delta": float(violation_delta),
+                "avg_total_violation_delta": 0.0 if penalty_transition else float(violation_delta),
+                "penalty_event": bool(penalty_transition),
             }
         )
 
@@ -504,11 +541,13 @@ def _summarize_operator_outcomes(
             ),
             "recent_expand_feasible_regression_count": int(summary["recent_expand_feasible_regression_count"]),
             "recent_expand_frontier_add_count": int(summary["recent_expand_frontier_add_count"]),
+            "penalty_event_count": int(summary["penalty_event_count"]),
             "credit_by_regime": {
                 regime_key: {
                     "frontier_add_count": int(regime_summary["frontier_add_count"]),
                     "feasible_preservation_count": int(regime_summary["feasible_preservation_count"]),
                     "feasible_regression_count": int(regime_summary["feasible_regression_count"]),
+                    "penalty_event_count": int(regime_summary.get("penalty_event_count", 0)),
                     "avg_objective_delta": (
                         0.0
                         if not regime_summary["objective_deltas"]

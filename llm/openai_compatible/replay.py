@@ -9,16 +9,24 @@ from typing import Any
 
 from llm.openai_compatible.client import OpenAICompatibleClient
 from llm.openai_compatible.config import OpenAICompatibleConfig
+from optimizers.traces.llm_trace_io import load_prompt_markdown_body, split_request_prompt_sections
 
 
 def load_request_trace(path: str | Path) -> list[dict[str, Any]]:
     trace_path = Path(path)
     rows: list[dict[str, Any]] = []
+    seed_root = trace_path.parent.parent if trace_path.parent.name == "traces" else trace_path.parent
     for raw_line in trace_path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line:
             continue
-        rows.append(dict(json.loads(line)))
+        payload = dict(json.loads(line))
+        if not payload.get("system_prompt") and not payload.get("user_prompt") and payload.get("prompt_ref"):
+            body = load_prompt_markdown_body(seed_root, str(payload["prompt_ref"]))
+            system_prompt, user_prompt = split_request_prompt_sections(body)
+            payload["system_prompt"] = system_prompt
+            payload["user_prompt"] = user_prompt
+        rows.append(payload)
     return rows
 
 

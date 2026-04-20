@@ -12,6 +12,8 @@ from optimizers.operator_pool.domain_state import dominant_violation_family, tot
 from optimizers.operator_pool.operators import get_operator_behavior_profile
 from optimizers.operator_pool.route_families import operator_route_family, route_family_entropy
 from optimizers.operator_pool.trace import ControllerTraceRow
+from optimizers.run_telemetry import load_jsonl_rows
+from optimizers.traces.llm_trace_io import materialize_request_trace_rows, materialize_response_trace_rows
 
 
 def analyze_controller_trace(
@@ -23,9 +25,8 @@ def analyze_controller_trace(
     llm_response_trace_path: str | Path | None = None,
 ) -> dict[str, Any]:
     trace_path = Path(path)
-    rows = json.loads(trace_path.read_text(encoding="utf-8"))
     controller_rows = sorted(
-        [ControllerTraceRow.from_dict(dict(row)) for row in rows],
+        _load_controller_trace_rows(trace_path),
         key=lambda row: (int(row.evaluation_index), int(row.generation_index)),
     )
     artifact_context = _load_artifact_context(optimization_result_path)
@@ -35,7 +36,7 @@ def analyze_controller_trace(
     if optimization_result_path is not None:
         summary["optimization_result_path"] = str(Path(optimization_result_path))
     if operator_trace_path is not None:
-        operator_trace_rows = json.loads(Path(operator_trace_path).read_text(encoding="utf-8"))
+        operator_trace_rows = _load_jsonl_rows(operator_trace_path)
         summary["operator_trace"] = {
             "row_count": len(operator_trace_rows),
             "path": str(Path(operator_trace_path)),
@@ -689,21 +690,51 @@ def _summarize_llm_traces(
 ) -> dict[str, Any] | None:
     if llm_request_trace_path is None and llm_response_trace_path is None:
         return None
-    request_rows = [] if llm_request_trace_path is None else _load_jsonl_rows(llm_request_trace_path)
-    response_rows = [] if llm_response_trace_path is None else _load_jsonl_rows(llm_response_trace_path)
-    elapsed_values = [
-        float(row.get("elapsed_seconds", 0.0))
-        for row in response_rows
-        if isinstance(row, Mapping) and row.get("elapsed_seconds") is not None
-    ]
+    request_rows = [] if llm_request_trace_path is None else _load_materialized_request_rows(llm_request_trace_path)
+    response_rows = [] if llm_response_trace_path is None else _load_materialized_response_rows(llm_response_trace_path)
+    elapsed_values = []
+    for row in response_rows:
+        if not isinstance(row, Mapping):
+            continue
+        if row.get("latency_ms") is not None:
+            elapsed_values.append(float(row.get("latency_ms", 0.0)) / 1000.0)
+            continue
+        if row.get("elapsed_seconds") is not None:
+            elapsed_values.append(float(row.get("elapsed_seconds", 0.0)))
     expand_budget_status_counts: Counter[str] = Counter()
     expand_budget_throttled_operator_counts: Counter[str] = Counter()
     expand_budget_throttled_route_family_counts: Counter[str] = Counter()
+    route_family_mode_counts: Counter[str] = Counter()
+    semantic_trial_mode_counts: Counter[str] = Counter()
+    visible_route_family_counts: Counter[str] = Counter()
+    filtered_route_family_counts: Counter[str] = Counter()
     expand_request_count = 0
     for row in request_rows:
+        direct_route_family_mode = str(row.get("route_family_mode", "")).strip()
+        direct_semantic_trial_mode = str(row.get("semantic_trial_mode", "")).strip()
+        if direct_route_family_mode:
+            route_family_mode_counts[direct_route_family_mode] += 1
+        if direct_semantic_trial_mode:
+            semantic_trial_mode_counts[direct_semantic_trial_mode] += 1
+        for route_family in row.get("visible_route_families", []):
+            normalized_route_family = str(route_family).strip()
+            if normalized_route_family:
+                visible_route_family_counts[normalized_route_family] += 1
+        for route_family in row.get("filtered_route_families", []):
+            normalized_route_family = str(route_family).strip()
+            if normalized_route_family:
+                filtered_route_family_counts[normalized_route_family] += 1
         metadata = _request_prompt_metadata(row)
         if not metadata:
             continue
+        decision_axes = metadata.get("decision_axes", {})
+        if isinstance(decision_axes, Mapping):
+            route_family_mode = str(decision_axes.get("route_family_mode", "")).strip()
+            semantic_trial_mode = str(decision_axes.get("semantic_trial_mode", "")).strip()
+            if route_family_mode and not direct_route_family_mode:
+                route_family_mode_counts[route_family_mode] += 1
+            if semantic_trial_mode and not direct_semantic_trial_mode:
+                semantic_trial_mode_counts[semantic_trial_mode] += 1
         prompt_panels = metadata.get("prompt_panels", {})
         if not isinstance(prompt_panels, Mapping):
             continue
@@ -738,6 +769,10 @@ def _summarize_llm_traces(
         "expand_budget_status_counts": dict(expand_budget_status_counts),
         "expand_budget_throttled_operator_counts": dict(expand_budget_throttled_operator_counts),
         "expand_budget_throttled_route_family_counts": dict(expand_budget_throttled_route_family_counts),
+        "route_family_mode_counts": dict(route_family_mode_counts),
+        "semantic_trial_mode_counts": dict(semantic_trial_mode_counts),
+        "visible_route_family_counts": dict(visible_route_family_counts),
+        "filtered_route_family_counts": dict(filtered_route_family_counts),
         "elapsed_seconds_avg": (
             0.0 if not elapsed_values else sum(elapsed_values) / float(len(elapsed_values))
         ),
@@ -760,11 +795,46 @@ def _request_prompt_metadata(row: Mapping[str, Any]) -> dict[str, Any]:
     return dict(metadata) if isinstance(metadata, Mapping) else {}
 
 
-def _load_jsonl_rows(path: str | Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        rows.append(dict(json.loads(stripped)))
+def _load_controller_trace_rows(path: str | Path) -> list[ControllerTraceRow]:
+    rows: list[ControllerTraceRow] = []
+    for raw_row in _load_jsonl_rows(path):
+        payload = dict(raw_row)
+        metadata = dict(payload.get("metadata", {}))
+        rows.append(
+            ControllerTraceRow(
+                generation_index=int(payload.get("generation_index", 0)),
+                evaluation_index=int(payload.get("evaluation_index", 0)),
+                family="genetic",
+                backbone="nsga2",
+                controller_id="llm",
+                candidate_operator_ids=tuple(
+                    str(value)
+                    for value in payload.get("candidate_operator_ids", payload.get("operator_pool_snapshot", []))
+                ),
+                selected_operator_id=str(
+                    payload.get("selected_operator_id") or payload.get("operator_selected") or ""
+                ),
+                phase=str(payload.get("phase", "")),
+                rationale=str(payload.get("rationale", "")),
+                metadata=metadata,
+            )
+        )
     return rows
+
+
+def _load_materialized_request_rows(path: str | Path) -> list[dict[str, Any]]:
+    trace_path = Path(path)
+    return materialize_request_trace_rows(_trace_bundle_root(trace_path), _load_jsonl_rows(trace_path))
+
+
+def _load_materialized_response_rows(path: str | Path) -> list[dict[str, Any]]:
+    trace_path = Path(path)
+    return materialize_response_trace_rows(_trace_bundle_root(trace_path), _load_jsonl_rows(trace_path))
+
+
+def _trace_bundle_root(trace_path: Path) -> Path:
+    return trace_path.parent.parent if trace_path.parent.name == "traces" else trace_path.parent
+
+
+def _load_jsonl_rows(path: str | Path) -> list[dict[str, Any]]:
+    return [dict(row) for row in load_jsonl_rows(Path(path))]

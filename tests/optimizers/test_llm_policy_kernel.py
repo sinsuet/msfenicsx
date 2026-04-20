@@ -690,6 +690,91 @@ def _post_feasible_recover_semantic_monopoly_state() -> ControllerState:
     )
 
 
+def _post_feasible_recover_gradient_escape_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=8,
+        evaluation_index=88,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 63,
+                "evaluations_used": 87,
+                "evaluations_remaining": 40,
+                "feasible_rate": 0.64,
+                "first_feasible_eval": 12,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+                "recent_no_progress_count": 2,
+                "recent_frontier_stagnation_count": 3,
+                "last_progress_eval": 85,
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_recover",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                    "objective_balance": {
+                        "balance_pressure": "high",
+                        "preferred_effect": "gradient_improve",
+                        "stagnant_objectives": ["gradient_rms"],
+                        "improving_objectives": [],
+                    },
+                },
+                "spatial_panel": {
+                    "hotspot_inside_sink_window": False,
+                    "nearest_neighbor_gap_min": 0.04,
+                    "hottest_cluster_compactness": 0.11,
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 18,
+                    "recent_selection_count": 2,
+                    "proposal_count": 18,
+                    "feasible_preservation_count": 5,
+                    "feasible_regression_count": 1,
+                },
+                "global_explore": {
+                    "selection_count": 12,
+                    "recent_selection_count": 1,
+                    "proposal_count": 12,
+                    "feasible_preservation_count": 2,
+                    "feasible_regression_count": 1,
+                },
+                "local_refine": {
+                    "selection_count": 22,
+                    "recent_selection_count": 4,
+                    "proposal_count": 22,
+                    "feasible_preservation_count": 6,
+                    "feasible_regression_count": 1,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 5,
+                    "recent_selection_count": 1,
+                    "proposal_count": 5,
+                    "feasible_regression_count": 1,
+                },
+                "smooth_high_gradient_band": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                },
+                "reduce_local_congestion": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                },
+            },
+        },
+    )
+
+
 def test_cold_start_bootstraps_only_stable_semantic_families() -> None:
     policy_kernel = _policy_kernel_module()
 
@@ -1068,3 +1153,24 @@ def test_post_feasible_recover_retains_stable_floor_when_semantic_preserver_exis
         "local_refine",
         "smooth_high_gradient_band",
     )
+
+
+def test_post_feasible_recover_keeps_gradient_escape_routes_visible_when_gradient_pressure_is_high() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_recover_gradient_escape_state(),
+        (
+            "native_sbx_pm",
+            "global_explore",
+            "local_refine",
+            "move_hottest_cluster_toward_sink",
+            "smooth_high_gradient_band",
+            "reduce_local_congestion",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_recover"
+    assert "smooth_high_gradient_band" in policy.allowed_operator_ids
+    assert "reduce_local_congestion" in policy.allowed_operator_ids
+    assert "post_feasible_recover_gradient_escape_floor" in policy.reason_codes

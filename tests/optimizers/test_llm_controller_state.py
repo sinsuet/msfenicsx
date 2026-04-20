@@ -75,6 +75,37 @@ def _record(
     }
 
 
+def _penalty_record(
+    evaluation_index: int,
+    vector: np.ndarray,
+    *,
+    radiator_span_violation: float = 0.0,
+    failure_reason: str = "cheap_constraint_violation",
+) -> dict[str, object]:
+    decision_vector = {
+        variable_id: float(value)
+        for variable_id, value in zip(_S1_VARIABLE_IDS, vector.tolist(), strict=True)
+    }
+    return {
+        "evaluation_index": evaluation_index,
+        "source": "optimizer",
+        "feasible": False,
+        "decision_vector": decision_vector,
+        "objective_values": {
+            "minimize_peak_temperature": 1.0e12,
+            "minimize_temperature_gradient_rms": 1.0e12,
+        },
+        "constraint_values": {
+            "radiator_span_budget": float(radiator_span_violation),
+            "c01_peak_temperature_limit": 1.0e12,
+            "panel_temperature_spread_limit": 1.0e12,
+        },
+        "evaluation_report": {},
+        "failure_reason": failure_reason,
+        "solver_skipped": True,
+    }
+
+
 def test_build_controller_state_captures_recent_decisions_and_operator_summary() -> None:
     controller_trace = [
         ControllerTraceRow(
@@ -638,6 +669,289 @@ def test_summarize_operator_history_keeps_support_only_speculative_custom_as_wea
     assert summary["slide_sink"]["evidence_level"] == "speculative"
     assert summary["slide_sink"]["preserve_fit"] == "weak"
     assert summary["slide_sink"]["expand_fit"] == "weak"
+
+
+def test_summarize_operator_history_excludes_penalty_coded_prefeasible_transitions_from_entry_credit() -> None:
+    base_parent = _vector(sink_start=0.22, sink_end=0.70, x_shift=0.0, y_shift=0.0)
+    penalty_child = _vector(sink_start=0.22, sink_end=0.70, x_shift=0.02, y_shift=0.02)
+    recovered_child = _vector(sink_start=0.22, sink_end=0.70, x_shift=0.01, y_shift=0.01)
+    controller_trace = [
+        ControllerTraceRow(
+            generation_index=1,
+            evaluation_index=3,
+            family="genetic",
+            backbone="nsga2",
+            controller_id="llm",
+            candidate_operator_ids=("local_refine",),
+            selected_operator_id="local_refine",
+            metadata={"decision_index": 0, "fallback_used": False, "policy_phase": "prefeasible_convert"},
+        ),
+        ControllerTraceRow(
+            generation_index=1,
+            evaluation_index=4,
+            family="genetic",
+            backbone="nsga2",
+            controller_id="llm",
+            candidate_operator_ids=("local_refine",),
+            selected_operator_id="local_refine",
+            metadata={"decision_index": 1, "fallback_used": False, "policy_phase": "prefeasible_convert"},
+        ),
+    ]
+    operator_trace = [
+        OperatorTraceRow(
+            generation_index=1,
+            evaluation_index=3,
+            operator_id="local_refine",
+            parent_count=1,
+            parent_vectors=(tuple(float(value) for value in base_parent.tolist()),),
+            proposal_vector=tuple(float(value) for value in penalty_child.tolist()),
+            metadata={},
+        ),
+        OperatorTraceRow(
+            generation_index=1,
+            evaluation_index=4,
+            operator_id="local_refine",
+            parent_count=2,
+            parent_vectors=(
+                tuple(float(value) for value in penalty_child.tolist()),
+                tuple(float(value) for value in base_parent.tolist()),
+            ),
+            proposal_vector=tuple(float(value) for value in recovered_child.tolist()),
+            metadata={},
+        ),
+    ]
+    history = [
+        _record(
+            2,
+            base_parent,
+            feasible=False,
+            peak_temperature=330.0,
+            temperature_gradient_rms=16.0,
+            c01_temperature_violation=0.8,
+            panel_spread_violation=0.0,
+        ),
+        _penalty_record(3, penalty_child),
+        _record(
+            4,
+            recovered_child,
+            feasible=False,
+            peak_temperature=327.0,
+            temperature_gradient_rms=15.0,
+            c01_temperature_violation=0.4,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    summary = summarize_operator_history(
+        controller_trace,
+        operator_trace,
+        recent_window=4,
+        history=history,
+        design_variable_ids=list(_S1_VARIABLE_IDS),
+        sink_budget_limit=0.48,
+    )
+
+    row = summary["local_refine"]
+    assert row["near_feasible_improvement_count"] == 0
+    assert row["dominant_violation_relief_count"] == 0
+    assert row["avg_total_violation_delta"] == pytest.approx(0.0)
+    credit = row["credit_by_regime"][("prefeasible_convert", "thermal_limit", "full_sink")]
+    assert credit["avg_total_violation_delta"] == pytest.approx(0.0)
+    assert credit["penalty_event_count"] == 2
+
+
+def test_build_controller_state_retrieval_panel_exposes_penalty_count_without_huge_prefeasible_delta() -> None:
+    base_parent = _vector(sink_start=0.22, sink_end=0.70, x_shift=0.0, y_shift=0.0)
+    penalty_child = _vector(sink_start=0.22, sink_end=0.70, x_shift=0.02, y_shift=0.02)
+    recovered_child = _vector(sink_start=0.22, sink_end=0.70, x_shift=0.01, y_shift=0.01)
+    controller_trace = [
+        ControllerTraceRow(
+            generation_index=1,
+            evaluation_index=3,
+            family="genetic",
+            backbone="nsga2",
+            controller_id="llm",
+            candidate_operator_ids=("native_sbx_pm", "local_refine"),
+            selected_operator_id="local_refine",
+            metadata={"decision_index": 0, "fallback_used": False, "policy_phase": "prefeasible_convert"},
+        ),
+        ControllerTraceRow(
+            generation_index=1,
+            evaluation_index=4,
+            family="genetic",
+            backbone="nsga2",
+            controller_id="llm",
+            candidate_operator_ids=("native_sbx_pm", "local_refine"),
+            selected_operator_id="local_refine",
+            metadata={"decision_index": 1, "fallback_used": False, "policy_phase": "prefeasible_convert"},
+        ),
+    ]
+    operator_trace = [
+        OperatorTraceRow(
+            generation_index=1,
+            evaluation_index=3,
+            operator_id="local_refine",
+            parent_count=1,
+            parent_vectors=(tuple(float(value) for value in base_parent.tolist()),),
+            proposal_vector=tuple(float(value) for value in penalty_child.tolist()),
+            metadata={},
+        ),
+        OperatorTraceRow(
+            generation_index=1,
+            evaluation_index=4,
+            operator_id="local_refine",
+            parent_count=2,
+            parent_vectors=(
+                tuple(float(value) for value in penalty_child.tolist()),
+                tuple(float(value) for value in base_parent.tolist()),
+            ),
+            proposal_vector=tuple(float(value) for value in recovered_child.tolist()),
+            metadata={},
+        ),
+    ]
+    history = [
+        _record(
+            2,
+            base_parent,
+            feasible=False,
+            peak_temperature=330.0,
+            temperature_gradient_rms=16.0,
+            c01_temperature_violation=0.8,
+            panel_spread_violation=0.0,
+        ),
+        _penalty_record(3, penalty_child),
+        _record(
+            4,
+            recovered_child,
+            feasible=False,
+            peak_temperature=327.0,
+            temperature_gradient_rms=15.0,
+            c01_temperature_violation=0.4,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    state = build_controller_state(
+        ParentBundle.from_vectors(recovered_child, base_parent),
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=5,
+        candidate_operator_ids=("native_sbx_pm", "local_refine"),
+        metadata={
+            "design_variable_ids": list(_S1_VARIABLE_IDS),
+            "decision_index": 2,
+            "total_evaluation_budget": 20,
+            "radiator_span_max": 0.48,
+        },
+        controller_trace=controller_trace,
+        operator_trace=operator_trace,
+        history=history,
+        recent_window=4,
+    )
+
+    retrieval_panel = state.metadata["prompt_panels"]["retrieval_panel"]
+    matched = retrieval_panel["matched_episodes"][0]
+    assert matched["route_family"] == "stable_local"
+    assert matched["evidence"]["avg_total_violation_delta"] == pytest.approx(0.0)
+    assert matched["evidence"]["penalty_event_count"] == 2
+    assert all(match["evidence"]["penalty_event_count"] == 0 for match in retrieval_panel["positive_matches"])
+    assert retrieval_panel["negative_matches"][0]["evidence"]["penalty_event_count"] == 2
+
+
+def test_build_controller_state_penalty_mixed_credit_stays_out_of_positive_retrieval_matches() -> None:
+    base_parent = _vector(sink_start=0.22, sink_end=0.70, x_shift=0.0, y_shift=0.0)
+    penalty_child = _vector(sink_start=0.22, sink_end=0.70, x_shift=0.02, y_shift=0.02)
+    improved_child = _vector(sink_start=0.22, sink_end=0.70, x_shift=0.01, y_shift=0.01)
+    controller_trace = [
+        ControllerTraceRow(
+            generation_index=1,
+            evaluation_index=3,
+            family="genetic",
+            backbone="nsga2",
+            controller_id="llm",
+            candidate_operator_ids=("native_sbx_pm", "local_refine"),
+            selected_operator_id="local_refine",
+            metadata={"decision_index": 0, "fallback_used": False, "policy_phase": "prefeasible_convert"},
+        ),
+        ControllerTraceRow(
+            generation_index=1,
+            evaluation_index=4,
+            family="genetic",
+            backbone="nsga2",
+            controller_id="llm",
+            candidate_operator_ids=("native_sbx_pm", "local_refine"),
+            selected_operator_id="local_refine",
+            metadata={"decision_index": 1, "fallback_used": False, "policy_phase": "prefeasible_convert"},
+        ),
+    ]
+    operator_trace = [
+        OperatorTraceRow(
+            generation_index=1,
+            evaluation_index=3,
+            operator_id="local_refine",
+            parent_count=1,
+            parent_vectors=(tuple(float(value) for value in base_parent.tolist()),),
+            proposal_vector=tuple(float(value) for value in penalty_child.tolist()),
+            metadata={},
+        ),
+        OperatorTraceRow(
+            generation_index=1,
+            evaluation_index=4,
+            operator_id="local_refine",
+            parent_count=1,
+            parent_vectors=(tuple(float(value) for value in base_parent.tolist()),),
+            proposal_vector=tuple(float(value) for value in improved_child.tolist()),
+            metadata={},
+        ),
+    ]
+    history = [
+        _record(
+            2,
+            base_parent,
+            feasible=False,
+            peak_temperature=330.0,
+            temperature_gradient_rms=16.0,
+            c01_temperature_violation=0.8,
+            panel_spread_violation=0.0,
+        ),
+        _penalty_record(3, penalty_child),
+        _record(
+            4,
+            improved_child,
+            feasible=False,
+            peak_temperature=327.0,
+            temperature_gradient_rms=15.0,
+            c01_temperature_violation=0.3,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    state = build_controller_state(
+        ParentBundle.from_vectors(improved_child, base_parent),
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=5,
+        candidate_operator_ids=("native_sbx_pm", "local_refine"),
+        metadata={
+            "design_variable_ids": list(_S1_VARIABLE_IDS),
+            "decision_index": 2,
+            "total_evaluation_budget": 20,
+            "radiator_span_max": 0.48,
+        },
+        controller_trace=controller_trace,
+        operator_trace=operator_trace,
+        history=history,
+        recent_window=4,
+    )
+
+    retrieval_panel = state.metadata["prompt_panels"]["retrieval_panel"]
+    matched = retrieval_panel["matched_episodes"][0]
+    assert matched["evidence"]["avg_total_violation_delta"] < 0.0
+    assert matched["evidence"]["penalty_event_count"] == 1
+    assert all(match["evidence"]["penalty_event_count"] == 0 for match in retrieval_panel["positive_matches"])
+    assert retrieval_panel["negative_matches"][0]["evidence"]["penalty_event_count"] == 1
 
 
 def test_objective_stagnation_detects_tmax_stagnation() -> None:

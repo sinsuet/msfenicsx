@@ -1,7 +1,7 @@
 schema_version: "1.0"
 template_meta:
-  template_id: s2_hard
-  description: Single-case S2 hard paper-facing template with cross-category-infeasible baseline (weakened sink plus amplified power-dense modules in the adversarial bottom zone).
+  template_id: s2_staged
+  description: Single-case S2 staged companion template with a compact lower-right thermal core, left-shifted sink baseline, and repaired-baseline-dominant c02 violation calibrated for controller-sensitive feasibility entry.
 coordinate_system:
   plane: panel_xy
 panel_domain:
@@ -47,7 +47,7 @@ component_families:
     layout_tags: [power_dense, sink_aware]
     placement_hint: adversarial_core
     adjacency_group: thermal-cluster
-    clearance: 0.016
+    clearance: 0.011
   - family_id: c03
     role: logic_board_02
     shape: rect
@@ -73,7 +73,7 @@ component_families:
     layout_tags: [power_dense, sink_aware]
     placement_hint: adversarial_core
     adjacency_group: thermal-cluster
-    clearance: 0.016
+    clearance: 0.011
   - family_id: c05
     role: service_board_01
     shape: rect
@@ -99,7 +99,7 @@ component_families:
     layout_tags: [power_dense, sink_aware]
     placement_hint: adversarial_core
     adjacency_group: thermal-cluster
-    clearance: 0.018
+    clearance: 0.011
   - family_id: c07
     role: logic_board_03
     shape: rect
@@ -179,7 +179,7 @@ component_families:
     layout_tags: [elongated, sink_aware]
     placement_hint: adversarial_core
     adjacency_group: thermal-cluster
-    clearance: 0.014
+    clearance: 0.011
   - family_id: c13
     role: harness_capsule
     shape: capsule
@@ -223,32 +223,32 @@ boundary_feature_families:
     kind: line_sink
     edge: top
     span:
-      min: 0.31
-      max: 0.69
+      min: 0.08
+      max: 0.46
     sink_temperature:
-      min: 293.0
-      max: 293.0
+      min: 290.5
+      max: 290.5
     transfer_coefficient:
-      min: 5.0
-      max: 5.0
+      min: 7.5
+      max: 7.5
 load_rules:
   - target_family: c01
     total_power: 8.5
     source_area_ratio: 0.28
   - target_family: c02
-    total_power: 17.0
+    total_power: 16.8
     source_area_ratio: 0.12
   - target_family: c03
     total_power: 8.0
     source_area_ratio: 0.30
   - target_family: c04
-    total_power: 16.0
+    total_power: 15.2
     source_area_ratio: 0.13
   - target_family: c05
     total_power: 6.5
     source_area_ratio: 0.34
   - target_family: c06
-    total_power: 15.5
+    total_power: 14.8
     source_area_ratio: 0.14
   - target_family: c07
     total_power: 7.0
@@ -266,7 +266,7 @@ load_rules:
     total_power: 4.5
     source_area_ratio: 0.40
   - target_family: c12
-    total_power: 13.5
+    total_power: 13.1
     source_area_ratio: 0.18
   - target_family: c13
     total_power: 4.0
@@ -288,8 +288,8 @@ physics:
   kind: steady_heat_radiation
   ambient_temperature: 292.0
   background_boundary_cooling:
-    transfer_coefficient: 0.0
-    emissivity: 0.02
+    transfer_coefficient: 0.04
+    emissivity: 0.05
 mesh_profile:
   nx: 48
   ny: 40
@@ -300,24 +300,30 @@ solver_profile:
   max_iterations: 50
 generation_rules:
   seed_policy: external
-  max_placement_attempts: 1400
+  max_placement_attempts: 2200
+  placement_retries: 8
   layout_strategy:
-    kind: s2_adversarial_v1
+    kind: s2_staged_compact_core_v1
     zones:
       active_deck:
         x_min: 0.08
         x_max: 0.92
         y_min: 0.08
         y_max: 0.68
-      adversarial_core:
-        x_min: 0.15
-        x_max: 0.85
-        y_min: 0.10
-        y_max: 0.35
-      top_sink_band:
-        x_min: 0.20
+      dense_core:
+        x_min: 0.48
         x_max: 0.80
-        y_min: 0.55
+        y_min: 0.16
+        y_max: 0.40
+      adversarial_core:
+        x_min: 0.52
+        x_max: 0.86
+        y_min: 0.14
+        y_max: 0.50
+      top_sink_band:
+        x_min: 0.10
+        x_max: 0.44
+        y_min: 0.56
         y_max: 0.68
       left_io_edge:
         x_min: 0.10
@@ -325,7 +331,7 @@ generation_rules:
         y_min: 0.10
         y_max: 0.66
       right_service_edge:
-        x_min: 0.76
-        x_max: 0.91
+        x_min: 0.80
+        x_max: 0.92
         y_min: 0.10
         y_max: 0.66

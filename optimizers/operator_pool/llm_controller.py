@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from collections import Counter
@@ -16,8 +17,13 @@ from optimizers.operator_pool.decisions import ControllerDecision
 from optimizers.operator_pool.policy_kernel import PolicySnapshot, build_policy_snapshot
 from optimizers.operator_pool.prompt_projection import build_prompt_projection
 from optimizers.operator_pool.random_controller import RandomUniformController
-from optimizers.operator_pool.route_families import ROUTE_FAMILY_BY_OPERATOR, STABLE_ROUTE_FAMILIES
+from optimizers.operator_pool.route_families import (
+    ROUTE_FAMILY_BY_OPERATOR,
+    STABLE_ROUTE_FAMILIES,
+    operator_route_family,
+)
 from optimizers.operator_pool.state import ControllerState
+from optimizers.traces.correlation import format_decision_id
 from optimizers.traces.jsonl_writer import append_jsonl
 from optimizers.traces.prompt_store import PromptStore
 
@@ -88,6 +94,8 @@ _INTENT_SUMMARIES: dict[str, str] = {
     "congestion_relief": "open space in locally congested regions of the layout.",
     "preserve_feasible": "protect feasibility and avoid sink-budget regressions.",
 }
+
+
 class LLMOperatorController:
     controller_id = "llm"
 
@@ -185,42 +193,61 @@ class LLMOperatorController:
             policy_snapshot=policy_snapshot,
             guardrail=guardrail,
         )
-        user_prompt = self._build_user_prompt(
+        prompt_metadata = self._build_prompt_metadata(
             state,
             candidate_operator_ids,
             original_candidate_operator_ids=original_candidate_operator_ids,
             policy_snapshot=policy_snapshot,
             guardrail=guardrail,
         )
-        self.request_trace.append(
-            {
-                "generation_index": state.generation_index,
-                "evaluation_index": state.evaluation_index,
-                "decision_index": (
-                    None
-                    if state.metadata.get("decision_index") is None
-                    else int(state.metadata.get("decision_index"))
-                ),
-                "provider": self.config.provider,
-                "model": self.config.model,
-                "capability_profile": self.config.capability_profile,
-                "performance_profile": self.config.performance_profile,
-                "candidate_operator_ids": list(candidate_operator_ids),
-                "policy_phase": policy_snapshot.phase,
-                "phase_source": "policy_kernel",
-                "policy_reason_codes": list(policy_snapshot.reason_codes),
-                "policy_reset_active": policy_snapshot.reset_active,
-                "original_candidate_operator_ids": list(original_candidate_operator_ids),
-                "guardrail": None if guardrail is None else dict(guardrail),
-                "system_prompt": system_prompt,
-                "user_prompt": user_prompt,
-                "accepted_for_evaluation": False,
-                "accepted_evaluation_indices": [],
-                "accepted_evaluation_index": None,
-                "rejection_reason": "",
-                **entry_convert_metadata,
-            }
+        user_prompt = self._serialize_user_prompt(
+            state,
+            candidate_operator_ids,
+            metadata=prompt_metadata,
         )
+        request_surface = self._request_surface_metadata(
+            candidate_operator_ids=candidate_operator_ids,
+            original_candidate_operator_ids=original_candidate_operator_ids,
+            guardrail=guardrail,
+            metadata=prompt_metadata,
+        )
+        decision_id = self._decision_id(state)
+        input_state_digest = self._input_state_digest(
+            state,
+            candidate_operator_ids=candidate_operator_ids,
+            policy_snapshot=policy_snapshot,
+            guardrail=guardrail,
+        )
+        request_entry = {
+            "decision_id": decision_id,
+            "generation_index": state.generation_index,
+            "evaluation_index": state.evaluation_index,
+            "decision_index": (
+                None
+                if state.metadata.get("decision_index") is None
+                else int(state.metadata.get("decision_index"))
+            ),
+            "provider": self.config.provider,
+            "model": self.config.model,
+            "capability_profile": self.config.capability_profile,
+            "performance_profile": self.config.performance_profile,
+            "candidate_operator_ids": list(candidate_operator_ids),
+            "policy_phase": policy_snapshot.phase,
+            "phase_source": "policy_kernel",
+            "policy_reason_codes": list(policy_snapshot.reason_codes),
+            "policy_reset_active": policy_snapshot.reset_active,
+            "original_candidate_operator_ids": list(original_candidate_operator_ids),
+            "guardrail": None if guardrail is None else dict(guardrail),
+            "system_prompt": system_prompt,
+            "user_prompt": user_prompt,
+            "accepted_for_evaluation": False,
+            "accepted_evaluation_indices": [],
+            "accepted_evaluation_index": None,
+            "rejection_reason": "",
+            **request_surface,
+            **entry_convert_metadata,
+        }
+        self.request_trace.append(request_entry)
         self.metrics["request_count"] = int(self.metrics["request_count"]) + 1
         started_at = time.perf_counter()
         attempt_trace: list[dict[str, Any]] = []
@@ -236,42 +263,66 @@ class LLMOperatorController:
             self.metrics["fallback_count"] = int(self.metrics["fallback_count"]) + 1
             self._record_attempt_metrics(attempt_trace)
             self._record_elapsed_seconds(elapsed_seconds)
-            self.response_trace.append(
-                {
-                    "generation_index": state.generation_index,
-                    "evaluation_index": state.evaluation_index,
-                    "decision_index": (
-                        None
-                        if state.metadata.get("decision_index") is None
-                        else int(state.metadata.get("decision_index"))
-                    ),
-                    "provider": self.config.provider,
-                    "model": self.config.model,
-                    "candidate_operator_ids": list(candidate_operator_ids),
-                    "policy_phase": policy_snapshot.phase,
-                    "phase_source": "policy_kernel",
-                    "model_phase": "",
-                    "model_rationale_present": False,
-                    "policy_reason_codes": list(policy_snapshot.reason_codes),
-                    "policy_reset_active": policy_snapshot.reset_active,
-                    "guardrail": None if guardrail is None else dict(guardrail),
-                    "fallback_used": True,
-                    "error": str(exc),
-                    "attempt_trace": list(attempt_trace),
-                    "attempt_count": int(len(attempt_trace)),
-                    "retry_count": int(max(0, len(attempt_trace) - 1)),
-                    "elapsed_seconds": elapsed_seconds,
-                    "accepted_for_evaluation": False,
-                    "accepted_evaluation_indices": [],
-                    "accepted_evaluation_index": None,
-                    "rejection_reason": str(exc),
-                    **entry_convert_metadata,
-                }
+            response_entry = {
+                "decision_id": decision_id,
+                "generation_index": state.generation_index,
+                "evaluation_index": state.evaluation_index,
+                "decision_index": (
+                    None
+                    if state.metadata.get("decision_index") is None
+                    else int(state.metadata.get("decision_index"))
+                ),
+                "provider": self.config.provider,
+                "model": self.config.model,
+                "candidate_operator_ids": list(candidate_operator_ids),
+                "policy_phase": policy_snapshot.phase,
+                "phase_source": "policy_kernel",
+                "model_phase": "",
+                "model_rationale_present": False,
+                "policy_reason_codes": list(policy_snapshot.reason_codes),
+                "policy_reset_active": policy_snapshot.reset_active,
+                "guardrail": None if guardrail is None else dict(guardrail),
+                "fallback_used": True,
+                "error": str(exc),
+                "attempt_trace": list(attempt_trace),
+                "attempt_count": int(len(attempt_trace)),
+                "retry_count": int(max(0, len(attempt_trace) - 1)),
+                "elapsed_seconds": elapsed_seconds,
+                "accepted_for_evaluation": False,
+                "accepted_evaluation_indices": [],
+                "accepted_evaluation_index": None,
+                "rejection_reason": str(exc),
+                **entry_convert_metadata,
+            }
+            self.response_trace.append(response_entry)
+            prompt_ref, response_ref = self._emit_controller_trace(
+                decision_id=decision_id,
+                phase=policy_snapshot.phase,
+                operator_selected="",
+                operator_pool_snapshot=list(candidate_operator_ids),
+                input_state_digest=input_state_digest,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response_body=str(exc),
+                rationale="",
+                fallback_used=True,
+                latency_ms=elapsed_seconds * 1000.0,
+                http_status=None,
+                retries=max(0, len(attempt_trace) - 1),
+                tokens=None,
+                finish_reason=None,
+                request_surface=request_entry,
+                response_surface=response_entry,
             )
+            if prompt_ref is not None:
+                request_entry["prompt_ref"] = prompt_ref
+            if response_ref is not None:
+                response_entry["response_ref"] = response_ref
             fallback_decision = self.fallback_controller.select_decision(state, candidate_operator_ids, rng)
             metadata = dict(fallback_decision.metadata)
             metadata.update(
                 {
+                    "decision_id": decision_id,
                     "fallback_used": True,
                     "fallback_controller": self.fallback_controller_id,
                     "fallback_reason": str(exc),
@@ -298,46 +349,70 @@ class LLMOperatorController:
         self.metrics["response_count"] = int(self.metrics["response_count"]) + 1
         self._record_attempt_metrics(attempt_trace)
         self._record_elapsed_seconds(elapsed_seconds)
-        self.response_trace.append(
-            {
-                "generation_index": state.generation_index,
-                "evaluation_index": state.evaluation_index,
-                "decision_index": (
-                    None
-                    if state.metadata.get("decision_index") is None
-                    else int(state.metadata.get("decision_index"))
-                ),
-                "provider": response.provider,
-                "model": response.model,
-                "capability_profile": response.capability_profile,
-                "performance_profile": response.performance_profile,
-                "selected_operator_id": response.selected_operator_id,
-                "selected_intent": response.selected_intent,
-                "phase": policy_snapshot.phase,
-                "phase_source": "policy_kernel",
-                "model_phase": response.phase,
-                "model_rationale_present": bool(response.rationale.strip()),
-                "rationale": response.rationale,
-                "raw_payload": dict(response.raw_payload),
-                "candidate_operator_ids": list(candidate_operator_ids),
-                "guardrail": None if guardrail is None else dict(guardrail),
-                "fallback_used": False,
-                "policy_phase": policy_snapshot.phase,
-                "policy_reason_codes": list(policy_snapshot.reason_codes),
-                "policy_reset_active": policy_snapshot.reset_active,
-                "attempt_trace": list(attempt_trace),
-                "attempt_count": int(len(attempt_trace)),
-                "retry_count": int(max(0, len(attempt_trace) - 1)),
-                "elapsed_seconds": elapsed_seconds,
-                "accepted_for_evaluation": False,
-                "accepted_evaluation_indices": [],
-                "accepted_evaluation_index": None,
-                "rejection_reason": "",
-                **entry_convert_metadata,
-                **self._selected_entry_metadata(policy_snapshot, response.selected_operator_id),
-            }
+        response_entry = {
+            "decision_id": decision_id,
+            "generation_index": state.generation_index,
+            "evaluation_index": state.evaluation_index,
+            "decision_index": (
+                None
+                if state.metadata.get("decision_index") is None
+                else int(state.metadata.get("decision_index"))
+            ),
+            "provider": response.provider,
+            "model": response.model,
+            "capability_profile": response.capability_profile,
+            "performance_profile": response.performance_profile,
+            "selected_operator_id": response.selected_operator_id,
+            "selected_intent": response.selected_intent,
+            "phase": policy_snapshot.phase,
+            "phase_source": "policy_kernel",
+            "model_phase": response.phase,
+            "model_rationale_present": bool(response.rationale.strip()),
+            "rationale": response.rationale,
+            "raw_payload": dict(response.raw_payload),
+            "candidate_operator_ids": list(candidate_operator_ids),
+            "guardrail": None if guardrail is None else dict(guardrail),
+            "fallback_used": False,
+            "policy_phase": policy_snapshot.phase,
+            "policy_reason_codes": list(policy_snapshot.reason_codes),
+            "policy_reset_active": policy_snapshot.reset_active,
+            "attempt_trace": list(attempt_trace),
+            "attempt_count": int(len(attempt_trace)),
+            "retry_count": int(max(0, len(attempt_trace) - 1)),
+            "elapsed_seconds": elapsed_seconds,
+            "accepted_for_evaluation": False,
+            "accepted_evaluation_indices": [],
+            "accepted_evaluation_index": None,
+            "rejection_reason": "",
+            **entry_convert_metadata,
+            **self._selected_entry_metadata(policy_snapshot, response.selected_operator_id),
+        }
+        self.response_trace.append(response_entry)
+        prompt_ref, response_ref = self._emit_controller_trace(
+            decision_id=decision_id,
+            phase=policy_snapshot.phase,
+            operator_selected=response.selected_operator_id,
+            operator_pool_snapshot=list(candidate_operator_ids),
+            input_state_digest=input_state_digest,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            response_body=json.dumps(response.raw_payload, ensure_ascii=False, indent=2),
+            rationale=response.rationale,
+            fallback_used=False,
+            latency_ms=elapsed_seconds * 1000.0,
+            http_status=None,
+            retries=max(0, len(attempt_trace) - 1),
+            tokens=None,
+            finish_reason=None,
+            request_surface=request_entry,
+            response_surface=response_entry,
         )
+        if prompt_ref is not None:
+            request_entry["prompt_ref"] = prompt_ref
+        if response_ref is not None:
+            response_entry["response_ref"] = response_ref
         response_metadata = {
+            "decision_id": decision_id,
             "provider": response.provider,
             "model": response.model,
             "capability_profile": response.capability_profile,
@@ -370,6 +445,78 @@ class LLMOperatorController:
         self.metrics["elapsed_seconds_avg"] = 0.0 if count <= 0 else total / count
         self.metrics["elapsed_seconds_max"] = max(float(self.metrics.get("elapsed_seconds_max", 0.0)), elapsed_seconds)
 
+    @staticmethod
+    def _decision_id(state: ControllerState) -> str:
+        decision_index = int(state.metadata.get("decision_index", 0) or 0)
+        return format_decision_id(state.generation_index, state.evaluation_index, decision_index)
+
+    @staticmethod
+    def _request_markdown_body(*, system_prompt: str, user_prompt: str) -> str:
+        return f"# System\n\n{system_prompt.strip()}\n\n# User\n\n{user_prompt.strip()}\n"
+
+    @staticmethod
+    def _input_state_digest(
+        state: ControllerState,
+        *,
+        candidate_operator_ids: Sequence[str],
+        policy_snapshot: PolicySnapshot,
+        guardrail: dict[str, Any] | None,
+    ) -> str:
+        payload = {
+            "family": state.family,
+            "backbone": state.backbone,
+            "generation_index": int(state.generation_index),
+            "evaluation_index": int(state.evaluation_index),
+            "parent_count": int(state.parent_count),
+            "vector_size": int(state.vector_size),
+            "candidate_operator_ids": [str(operator_id) for operator_id in candidate_operator_ids],
+            "metadata": dict(state.metadata),
+            "policy_snapshot": {
+                "phase": str(policy_snapshot.phase),
+                "allowed_operator_ids": [str(operator_id) for operator_id in policy_snapshot.allowed_operator_ids],
+                "reason_codes": [str(reason_code) for reason_code in policy_snapshot.reason_codes],
+                "reset_active": bool(policy_snapshot.reset_active),
+            },
+            "guardrail": None if guardrail is None else dict(guardrail),
+        }
+        serialized = json.dumps(
+            LLMOperatorController._json_digest_safe(payload),
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha1(serialized.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _json_digest_safe(value: Any) -> Any:
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, np.generic):
+            return value.item()
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, Mapping):
+            return {
+                LLMOperatorController._json_digest_key(key): LLMOperatorController._json_digest_safe(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, (list, tuple, set, frozenset)):
+            return [LLMOperatorController._json_digest_safe(item) for item in value]
+        if isinstance(value, np.ndarray):
+            return [LLMOperatorController._json_digest_safe(item) for item in value.tolist()]
+        return str(value)
+
+    @staticmethod
+    def _json_digest_key(key: Any) -> str:
+        if isinstance(key, str):
+            return key
+        normalized = LLMOperatorController._json_digest_safe(key)
+        if normalized is None or isinstance(normalized, (int, float, bool)):
+            return str(normalized)
+        if isinstance(normalized, str):
+            return normalized
+        return json.dumps(normalized, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
     def configure_trace_outputs(
         self,
         *,
@@ -378,7 +525,7 @@ class LLMOperatorController:
         llm_response_trace_path: Path,
         prompt_store: PromptStore,
     ) -> None:
-        """Wire § 4.4 JSONL trace outputs. When unset, controller only buffers in-memory (legacy mode)."""
+        """Wire the canonical JSONL trace outputs for persisted optimizer runs."""
         self._controller_trace_path = Path(controller_trace_path)
         self._llm_request_trace_path = Path(llm_request_trace_path)
         self._llm_response_trace_path = Path(llm_response_trace_path)
@@ -402,13 +549,15 @@ class LLMOperatorController:
         retries: int,
         tokens: dict | None,
         finish_reason: str | None,
-    ) -> None:
+        request_surface: Mapping[str, Any] | None,
+        response_surface: Mapping[str, Any] | None,
+    ) -> tuple[str | None, str | None]:
         """Emit § 4.4 controller_trace row + § 4.5 request/response rows when trace outputs are configured."""
         if self._controller_trace_path is None or self._prompt_store is None:
-            return  # legacy mode
+            return None, None
         prompt_ref = self._prompt_store.store(
             kind="request",
-            body=system_prompt + "\n\n" + user_prompt,
+            body=self._request_markdown_body(system_prompt=system_prompt, user_prompt=user_prompt),
             model=self.config.model,
             decision_id=decision_id,
         )
@@ -441,6 +590,7 @@ class LLMOperatorController:
                 "http_status": http_status,
                 "retries": int(retries),
                 "latency_ms": float(latency_ms),
+                **({} if request_surface is None else dict(request_surface)),
             },
         )
         append_jsonl(
@@ -454,8 +604,17 @@ class LLMOperatorController:
                 "http_status": http_status,
                 "retries": int(retries),
                 "latency_ms": float(latency_ms),
+                **({} if response_surface is None else self._trace_surface_without_bodies(response_surface)),
             },
         )
+        return prompt_ref, response_ref
+
+    @staticmethod
+    def _trace_surface_without_bodies(surface: Mapping[str, Any]) -> dict[str, Any]:
+        payload = dict(surface)
+        for key in ("system_prompt", "user_prompt", "response_text", "raw_payload"):
+            payload.pop(key, None)
+        return payload
 
     def _request_operator_decision(
         self,
@@ -570,7 +729,7 @@ class LLMOperatorController:
         original_candidate_operator_ids: Sequence[str],
         policy_snapshot: PolicySnapshot,
         guardrail: dict[str, Any] | None,
-    ) -> str:
+        ) -> str:
         metadata = self._build_prompt_metadata(
             state,
             candidate_operator_ids,
@@ -578,6 +737,19 @@ class LLMOperatorController:
             policy_snapshot=policy_snapshot,
             guardrail=guardrail,
         )
+        return self._serialize_user_prompt(
+            state,
+            candidate_operator_ids,
+            metadata=metadata,
+        )
+
+    @staticmethod
+    def _serialize_user_prompt(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+        *,
+        metadata: Mapping[str, Any],
+    ) -> str:
         payload = {
             "family": state.family,
             "backbone": state.backbone,
@@ -682,32 +854,51 @@ class LLMOperatorController:
         route_family_candidates: list[str] = []
         route_stage = "direct_operator"
         route_family_mode = "none"
-        if str(regime_panel.get("phase", "")) == "post_feasible_expand" and preserve_score >= 2:
+        phase = str(regime_panel.get("phase", ""))
+        if phase in {"post_feasible_expand", "post_feasible_recover", "post_feasible_preserve"} and preserve_score >= 2:
             semantic_trial_candidates = LLMOperatorController._build_semantic_trial_candidates(operator_panel)
-            if (
-                bool(spatial_panel.get("hotspot_inside_sink_window", False))
-                and "spread_hottest_cluster" in semantic_trial_candidates
-            ):
-                semantic_trial_mode = "encourage_bounded_trial"
-                semantic_trial_reason = "sink_aligned_compact_hotspot"
-                semantic_trial_candidates = [
-                    "spread_hottest_cluster",
-                    *[
-                        operator_id
-                        for operator_id in semantic_trial_candidates
-                        if operator_id != "spread_hottest_cluster"
-                    ],
-                ]
-            elif frontier_score >= 3 and semantic_trial_candidates:
-                semantic_trial_mode = "consider_semantic_expand"
-                semantic_trial_reason = "frontier_pressure_high"
             route_family_candidates = LLMOperatorController._build_route_family_candidates(
                 operator_panel,
                 semantic_trial_candidates=semantic_trial_candidates,
             )
+            if phase == "post_feasible_expand":
+                if (
+                    bool(spatial_panel.get("hotspot_inside_sink_window", False))
+                    and "spread_hottest_cluster" in semantic_trial_candidates
+                ):
+                    semantic_trial_mode = "encourage_bounded_trial"
+                    semantic_trial_reason = "sink_aligned_compact_hotspot"
+                    semantic_trial_candidates = [
+                        "spread_hottest_cluster",
+                        *[
+                            operator_id
+                            for operator_id in semantic_trial_candidates
+                            if operator_id != "spread_hottest_cluster"
+                        ],
+                    ]
+                elif frontier_score >= 3 and semantic_trial_candidates:
+                    semantic_trial_mode = "consider_semantic_expand"
+                    semantic_trial_reason = "frontier_pressure_high"
+            elif (
+                phase in {"post_feasible_recover", "post_feasible_preserve"}
+                and str(objective_balance.get("preferred_effect", "")).strip() == "gradient_improve"
+                and str(objective_balance.get("balance_pressure", "")).strip() in {"high", "medium"}
+                and route_family_candidates
+            ):
+                semantic_trial_mode = "encourage_bounded_trial"
+                semantic_trial_reason = (
+                    "recover_gradient_pressure"
+                    if phase == "post_feasible_recover"
+                    else "preserve_gradient_pressure"
+                )
             if route_family_candidates:
                 route_stage = "family_then_operator"
-                route_family_mode = "bounded_expand_mix"
+                if phase == "post_feasible_expand":
+                    route_family_mode = "bounded_expand_mix"
+                elif phase == "post_feasible_recover":
+                    route_family_mode = "recover_family_mix"
+                elif phase == "post_feasible_preserve":
+                    route_family_mode = "preserve_family_mix"
         return {
             "objective_balance_pressure": str(objective_balance.get("balance_pressure", "low")),
             "preferred_effect": objective_balance.get("preferred_effect"),
@@ -733,6 +924,75 @@ class LLMOperatorController:
             "route_stage": route_stage,
             "route_family_mode": route_family_mode,
             "route_family_candidates": route_family_candidates,
+        }
+
+    @staticmethod
+    def _request_surface_metadata(
+        *,
+        candidate_operator_ids: Sequence[str],
+        original_candidate_operator_ids: Sequence[str],
+        guardrail: Mapping[str, Any] | None,
+        metadata: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        decision_axes = metadata.get("decision_axes")
+        if not isinstance(decision_axes, Mapping):
+            decision_axes = {}
+        guardrail_payload = {} if guardrail is None else dict(guardrail)
+        effective_candidate_operator_ids = [
+            str(operator_id)
+            for operator_id in guardrail_payload.get("effective_candidate_operator_ids", candidate_operator_ids)
+        ]
+        filtered_operator_ids = [
+            str(operator_id)
+            for operator_id in guardrail_payload.get("filtered_operator_ids", [])
+        ]
+        original_route_families = sorted(
+            {
+                operator_route_family(operator_id)
+                for operator_id in original_candidate_operator_ids
+                if operator_route_family(operator_id)
+            }
+        )
+        visible_route_families = sorted(
+            {
+                operator_route_family(operator_id)
+                for operator_id in effective_candidate_operator_ids
+                if operator_route_family(operator_id)
+            }
+        )
+        filtered_route_families = sorted(
+            {
+                operator_route_family(operator_id)
+                for operator_id in filtered_operator_ids
+                if operator_route_family(operator_id)
+            }
+        )
+        prompt_panels = metadata.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            prompt_panels = {}
+        regime_panel = prompt_panels.get("regime_panel")
+        if not isinstance(regime_panel, Mapping):
+            regime_panel = {}
+        return {
+            "original_candidate_pool_size": int(len(tuple(original_candidate_operator_ids))),
+            "effective_candidate_pool_size": int(len(tuple(effective_candidate_operator_ids))),
+            "original_route_families": original_route_families,
+            "visible_route_families": visible_route_families,
+            "effective_route_families": visible_route_families,
+            "filtered_route_families": filtered_route_families,
+            "route_family_mode": str(decision_axes.get("route_family_mode", "none")),
+            "route_family_candidates": [
+                str(route_family) for route_family in decision_axes.get("route_family_candidates", [])
+            ],
+            "route_stage": str(decision_axes.get("route_stage", "direct_operator")),
+            "semantic_trial_mode": str(decision_axes.get("semantic_trial_mode", "none")),
+            "semantic_trial_reason": str(decision_axes.get("semantic_trial_reason", "")),
+            "semantic_trial_candidates": [
+                str(operator_id) for operator_id in decision_axes.get("semantic_trial_candidates", [])
+            ],
+            "objective_balance_pressure": str(decision_axes.get("objective_balance_pressure", "low")),
+            "preferred_effect": str(decision_axes.get("preferred_effect", "")),
+            "recover_exit_ready": bool(regime_panel.get("recover_exit_ready", False)),
         }
 
     @staticmethod

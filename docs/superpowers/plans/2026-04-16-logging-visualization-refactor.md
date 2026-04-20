@@ -6,11 +6,21 @@
 
 **Architecture:** Four new packages replace the hand-rolled SVG stack: `visualization/style/` (rcParams baseline), `visualization/figures/` (matplotlib figure modules), `optimizers/analytics/` (pure trace→artifact pipeline), plus content-addressed `prompts/<sha1>.md` for LLM bodies. Drivers emit only JSONL traces; the analytics layer recomputes all derived data. Two new CLI subcommands (`render-assets`, `compare-runs`) drive the downstream pipeline. Legacy `visualization/case_pages.py`, `figure_axes.py`, `figure_theme.py`, `static_assets.py` are deleted in a single migration cutover.
 
+**Current contract note:** the final repository contract stores raster outputs directly in `figures/` and writes vector companions under sibling `pdf/` subdirectories such as `figures/pdf/` and `<compare-output>/figures/pdf/`, rather than mixing `.png` and `.pdf` files in the same directory.
+
 **Tech Stack:** Python 3.11, matplotlib 3.x, numpy, pandas (for parquet), PyYAML, pytest. XeLaTeX via texlive-full on WSL2 Ubuntu 24.04 for downstream paper assembly (not required to run tests). Tsinghua apt mirror for fast texlive install.
 
 **Spec:** [docs/superpowers/specs/2026-04-16-logging-visualization-refactor-design.md](../specs/2026-04-16-logging-visualization-refactor-design.md)
 
 ---
+
+## 2026-04-20 Paper-Facing Contract Amendment
+
+These bullets override any stale examples later in this plan:
+
+- `evaluation_events.jsonl` rows must carry `solver_skipped` so downstream analytics can derive true PDE-attempt counts without hiding cheap rejects.
+- Any figure axis labeled `PDE evaluations` must use the derived solver-attempt count, not raw optimizer `evaluation_index`.
+- `layout_evolution` is a best-so-far spatial-milestone replay with preserved `step_<NNN>.png` frames, not a per-generation representative slideshow.
 
 ## Phase 0: Environment Prep (one-time, manual)
 
@@ -2359,7 +2369,7 @@ git commit -m "feat(artifacts): flat 3-level representative bundle layout"
 
 ```python
 # tests/optimizers/test_multi_seed_layout.py
-"""Flat for N=1, seeds/seed-<n>/ for N>=2, aggregate/ only for N>=3."""
+"""Flat for N=1, seeds/seed-<n>/ for N>=2, with aggregate gate semantics tested explicitly."""
 
 from __future__ import annotations
 
@@ -3146,7 +3156,7 @@ The following spec requirements are intentionally **not** implemented in this pl
 | § 4.2 | `generation_summary.jsonl` schema alignment | The existing writer already produces this file; aligning its keys to the spec fields (`hypervolume`, `controller_phase`, etc.) is a narrow follow-up. The analytics layer reads `evaluation_events.jsonl` directly, so rollups do not block on this. |
 | § 5.1 | `optimizers/analytics/correlate.py` | Its function (joining traces by `decision_id`) is done inline in Task 9 (`decisions.py`) and Task 23 (`render_run_assets`). Extracting a shared helper is fine later if a second caller appears. |
 | § 5.1 | `optimizers/analytics/guardrails.py` | Requires the controller to emit guardrail-activation events. Task 18 carries `fallback_used` but not the full timeline (operator-pool shrinks, JSON parse failures). Upstream signal work is a follow-up. |
-| § 5.1 / § 5.4 | `optimizers/analytics/aggregate/{iqr,attainment,stats}.py` | Only meaningful with N>=3 seeds. § 3.4 defers multi-seed benchmark generation to a separate spec. Task 21 already puts the layout switches in place so aggregation modules can be added without touching figures or CLI. |
+| § 5.1 / § 5.4 | `optimizers/analytics/aggregate/{iqr,attainment,stats}.py` | Descriptive rollups can exist for N>=2, but the heavier inferential-statistics layer is only meaningful with N>=3 seeds. § 3.4 defers benchmark-level multi-seed experiment design to a separate spec. Task 21 already puts the layout switches in place so aggregation modules can be added without touching figures or CLI. |
 | § 5.2 | `pareto.parquet` | Task 23 writes `hypervolume.csv` + `operator_phase_heatmap.csv` which cover the smoke-path needs. Parquet requires `pyarrow`; migrate when analytics grow vector columns that CSV can't hold. |
 | § 5.3 | `phase_alignment.csv`, `cost_per_improvement.csv`, `guardrail_timeline.csv` | Phase-alignment depends on post-hoc phase labeling (feasibility-ratio thresholds) not yet implemented; cost-per-improvement depends on per-decision HV-delta which requires correlating consecutive `generation_summary.jsonl` rows with `controller_trace.jsonl` — another follow-up once controller traces land. Guardrail timeline depends on the § 5.1 `guardrails.py` module. |
 | § 7 | `visualization/figures/guardrail_timeline.py` | Blocked on § 5.3 `guardrail_timeline.csv`. |

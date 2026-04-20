@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import time
 from typing import Any
 
 import numpy as np
 from pymoo.core.population import Population
 
 from optimizers.codec import extract_decision_vector
-from optimizers.operator_pool.controllers import build_controller, select_controller_decision
+from optimizers.operator_pool.controllers import (
+    build_controller,
+    configure_controller_trace_outputs,
+    select_controller_decision,
+)
 from optimizers.operator_pool.layout import VariableLayout
 from optimizers.operator_pool.models import ParentBundle
 from optimizers.operator_pool.operators import get_operator_definition, native_operator_id_for_backbone
@@ -17,6 +23,7 @@ from optimizers.operator_pool.state_builder import build_controller_state
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 from optimizers.raw_backbones.moead import ConstrainedMOEAD, build_algorithm_kwargs
 from optimizers.repair import repair_case_from_vector
+from optimizers.traces.correlation import format_decision_id
 
 
 @dataclass(slots=True)
@@ -93,6 +100,9 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
                 recent_window=32,
             )
             decision = select_controller_decision(self.union_controller, state, self.operator_ids, self.random_state)
+            decision_index = 0
+            decision_id = format_decision_id(int(state.generation_index), int(state.evaluation_index), int(decision_index))
+            start = time.perf_counter()
             operator_id = decision.selected_operator_id
             if operator_id == self.native_operator_id:
                 raw_proposal = self._native_moead_proposal(pop, row)
@@ -109,6 +119,7 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
                 # Inject only a small custom displacement on top of the native proposal.
                 raw_proposal = 0.98 * native_proposal + 0.02 * np.asarray(custom_proposal, dtype=np.float64)
                 proposal_kind = "custom"
+            operator_wall_ms = float((time.perf_counter() - start) * 1000.0)
             repaired_proposal = self._repair_vector(raw_proposal)
             self.controller_trace.append(
                 ControllerTraceRow(
@@ -122,6 +133,8 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
                     phase=str(decision.metadata.get("model_phase") or decision.phase),
                     rationale=decision.rationale,
                     metadata={
+                        "decision_id": decision_id,
+                        "decision_index": int(decision_index),
                         "neighbor_index": int(neighbor_index),
                         "parent_indices": row.tolist(),
                         "proposal_kind": proposal_kind,
@@ -138,8 +151,13 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
                     parent_vectors=tuple(tuple(float(value) for value in vector.tolist()) for vector in parents.vectors),
                     proposal_vector=tuple(float(value) for value in raw_proposal.tolist()),
                     metadata={
+                        "decision_id": decision_id,
+                        "decision_index": int(decision_index),
+                        "decision_evaluation_index": int(state.evaluation_index),
                         "neighbor_index": int(neighbor_index),
+                        "parent_indices": row.tolist(),
                         "proposal_kind": proposal_kind,
+                        "wall_ms": float(operator_wall_ms),
                         "repaired_vector": repaired_proposal.tolist(),
                     },
                 )
@@ -174,7 +192,13 @@ class UnionConstrainedMOEAD(ConstrainedMOEAD):
         return extract_decision_vector(repaired_case, self.optimization_spec)
 
 
-def build_decomposition_union_algorithm(problem: Any, optimization_spec: Any, algorithm_config: dict[str, Any]) -> DecompositionUnionAdapterArtifacts:
+def build_decomposition_union_algorithm(
+    problem: Any,
+    optimization_spec: Any,
+    algorithm_config: dict[str, Any],
+    *,
+    trace_output_root: str | Path | None = None,
+) -> DecompositionUnionAdapterArtifacts:
     spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
     if algorithm_config["mode"] != "union":
         raise ValueError(f"Decomposition union adapter requires algorithm.mode='union', got {algorithm_config['mode']!r}.")
@@ -197,6 +221,7 @@ def build_decomposition_union_algorithm(problem: Any, optimization_spec: Any, al
         radiator_span_max=getattr(problem, "radiator_span_max", None),
         controller_parameters=spec_payload["operator_control"].get("controller_parameters"),
     )
+    configure_controller_trace_outputs(algorithm.union_controller, output_root=trace_output_root)
     return DecompositionUnionAdapterArtifacts(
         algorithm=algorithm,
         controller_trace=algorithm.controller_trace,

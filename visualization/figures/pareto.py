@@ -7,6 +7,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+from visualization.figures._outputs import ensure_output_parent, paired_pdf_path
 from visualization.style.baseline import (
     DPI_DEFAULT,
     DPI_HIRES,
@@ -39,9 +40,10 @@ def render_pareto_front(
     if len(fronts) > 1:
         ax.legend()
 
-    output = Path(output)
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output = ensure_output_parent(Path(output))
     fig.savefig(output, dpi=DPI_HIRES if hires else DPI_DEFAULT)
     if output.suffix.lower() == ".png":
-        fig.savefig(output.with_suffix(".pdf"))
+        pdf_path = paired_pdf_path(output)
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(pdf_path)
     plt.close(fig)

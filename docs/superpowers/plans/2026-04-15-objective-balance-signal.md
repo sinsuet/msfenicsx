@@ -6,13 +6,13 @@
 
 **Architecture:** Four coordinated changes across domain_state (stagnation detection + regime panel), llm_controller (decision_axes + system_prompt), and state_builder (applicability boost). All changes are prompt-layer soft signals — no policy_kernel hard filters change.
 
-**Tech Stack:** Python, pytest, numpy. All work in the `codex/l2-llm-controller-recovery` branch worktree at `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery`.
+**Tech Stack:** Python, pytest, numpy. All work in the `codex/l2-llm-controller-recovery` branch worktree at `/home/hymn/msfenicsx/.worktree/codex-l2-llm-controller-recovery`.
 
 **Spec:** `docs/superpowers/specs/2026-04-15-objective-balance-signal-design.md`
 
 **Run prefix:** `conda run -n msfenicsx`
 
-**Working directory:** `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery`
+**Working directory:** `/home/hymn/msfenicsx/.worktree/codex-l2-llm-controller-recovery`
 
 ---
 

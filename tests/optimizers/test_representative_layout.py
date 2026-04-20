@@ -1,5 +1,5 @@
 # tests/optimizers/test_representative_layout.py
-"""Representative bundle layout — flat, 3-level max."""
+"""Representative bundle layout."""
 
 from __future__ import annotations
 
@@ -29,4 +29,6 @@ def test_write_representative_bundle_flat_layout(tmp_path: Path) -> None:
     assert fields == {"temperature_grid.npz", "gradient_magnitude_grid.npz"}
 
     assert not (repr_root / "figures").exists()
+    assert not (repr_root / "logs").exists()
     assert not (repr_root / "summaries").exists()
+    assert not (repr_root / "pages").exists()
