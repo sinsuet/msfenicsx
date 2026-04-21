@@ -21,6 +21,7 @@ from optimizers.operator_pool.domain_state import (
     vector_key,
 )
 from optimizers.operator_pool.operators import get_operator_behavior_profile
+from optimizers.operator_pool.route_families import operator_route_family
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 
 _SUPPORTED_SELECTION_THRESHOLD = 3
@@ -270,6 +271,101 @@ def summarize_operator_history(
         operator_summary["dominant_violation_relief"] = _dominant_violation_relief(operator_summary)
         summary[operator_id] = operator_summary
     return summary
+
+
+def summarize_route_family_credit(
+    operator_summary: Mapping[str, Any],
+    *,
+    query_regime: Mapping[str, Any],
+) -> dict[str, list[str]]:
+    query_phase = str(query_regime.get("phase", "")).strip()
+    query_phase_fallbacks = {
+        str(value).strip()
+        for value in query_regime.get("phase_fallbacks", [])
+        if str(value).strip()
+    }
+    query_dominant_violation_family = str(query_regime.get("dominant_violation_family", "")).strip()
+    query_sink_budget_bucket = str(query_regime.get("sink_budget_bucket", "")).strip()
+    family_credit: dict[str, dict[str, Any]] = {}
+
+    for operator_id, summary in operator_summary.items():
+        if not isinstance(summary, Mapping):
+            continue
+        route_family = operator_route_family(str(operator_id))
+        if not route_family:
+            continue
+        credit_by_regime = summary.get("credit_by_regime", {})
+        if not isinstance(credit_by_regime, Mapping):
+            continue
+        for regime_key, evidence in credit_by_regime.items():
+            if not isinstance(regime_key, tuple) or len(regime_key) != 3 or not isinstance(evidence, Mapping):
+                continue
+            phase, dominant_violation_family, sink_budget_bucket = (str(value).strip() for value in regime_key)
+            similarity_score = 0
+            if phase == query_phase:
+                similarity_score += 3
+            elif phase in query_phase_fallbacks:
+                similarity_score += 2
+            if dominant_violation_family == query_dominant_violation_family:
+                similarity_score += 2
+            if sink_budget_bucket == query_sink_budget_bucket:
+                similarity_score += 1
+            if similarity_score <= 0:
+                continue
+            family_row = family_credit.setdefault(
+                route_family,
+                {
+                    "best_similarity_score": 0,
+                    "frontier_add_count": 0,
+                    "feasible_preservation_count": 0,
+                    "feasible_regression_count": 0,
+                    "penalty_event_count": 0,
+                    "objective_deltas": [],
+                    "violation_deltas": [],
+                },
+            )
+            family_row["best_similarity_score"] = max(
+                int(family_row["best_similarity_score"]),
+                int(similarity_score),
+            )
+            family_row["frontier_add_count"] += int(evidence.get("frontier_add_count", 0))
+            family_row["feasible_preservation_count"] += int(evidence.get("feasible_preservation_count", 0))
+            family_row["feasible_regression_count"] += int(evidence.get("feasible_regression_count", 0))
+            family_row["penalty_event_count"] += int(evidence.get("penalty_event_count", 0))
+            family_row["objective_deltas"].append(float(evidence.get("avg_objective_delta", 0.0)))
+            family_row["violation_deltas"].append(float(evidence.get("avg_total_violation_delta", 0.0)))
+
+    positive_families: list[str] = []
+    negative_families: list[str] = []
+    for route_family, family_row in family_credit.items():
+        avg_objective_delta = (
+            0.0
+            if not family_row["objective_deltas"]
+            else float(np.mean(family_row["objective_deltas"]))
+        )
+        avg_total_violation_delta = (
+            0.0
+            if not family_row["violation_deltas"]
+            else float(np.mean(family_row["violation_deltas"]))
+        )
+        if int(family_row["penalty_event_count"]) <= 0 and (
+            int(family_row["frontier_add_count"]) > 0
+            or int(family_row["feasible_preservation_count"]) > 0
+            or avg_objective_delta < 0.0
+            or avg_total_violation_delta < 0.0
+        ):
+            positive_families.append(route_family)
+        if (
+            int(family_row["feasible_regression_count"]) > 0
+            or int(family_row["penalty_event_count"]) > 0
+            or avg_objective_delta > 0.0
+            or avg_total_violation_delta > 0.0
+        ):
+            negative_families.append(route_family)
+    return {
+        "positive_families": sorted(set(positive_families)),
+        "negative_families": sorted(set(negative_families)),
+    }
 
 
 def _summarize_operator_outcomes(

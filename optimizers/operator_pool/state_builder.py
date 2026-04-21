@@ -21,7 +21,7 @@ from optimizers.operator_pool.domain_state import (
 )
 from optimizers.operator_pool.models import ParentBundle
 from optimizers.operator_pool.operators import get_operator_behavior_profile
-from optimizers.operator_pool.reflection import summarize_operator_history
+from optimizers.operator_pool.reflection import summarize_operator_history, summarize_route_family_credit
 from optimizers.operator_pool.route_families import expand_budget_family_metrics, operator_route_family
 from optimizers.operator_pool.state import ControllerState
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
@@ -577,11 +577,15 @@ def _build_retrieval_panel(
     regime_panel: Mapping[str, Any],
     spatial_panel: Mapping[str, Any],
 ) -> dict[str, Any]:
+    query_phase = str(regime_panel.get("phase") or "")
+    phase_fallbacks = _retrieval_phase_fallbacks(query_phase)
     query_regime = {
-        "phase": str(regime_panel.get("phase") or ""),
+        "phase": query_phase,
         "dominant_violation_family": str(regime_panel.get("dominant_violation_family") or ""),
         "sink_budget_bucket": str(spatial_panel.get("sink_budget_bucket") or "unknown"),
     }
+    if phase_fallbacks:
+        query_regime["phase_fallbacks"] = phase_fallbacks
     candidate_set = {str(operator_id) for operator_id in candidate_operator_ids}
     matched_episodes: list[dict[str, Any]] = []
     positive_matches: list[dict[str, Any]] = []
@@ -600,6 +604,8 @@ def _build_retrieval_panel(
             similarity_score = 0
             if phase == query_regime["phase"]:
                 similarity_score += 3
+            elif phase in phase_fallbacks:
+                similarity_score += 2
             if dominant_violation_family == query_regime["dominant_violation_family"]:
                 similarity_score += 2
             if sink_budget_bucket == query_regime["sink_budget_bucket"]:
@@ -670,8 +676,21 @@ def _build_retrieval_panel(
         "query_regime": query_regime,
         "matched_episodes": matched_episodes[:3],
         "positive_matches": positive_matches[:2],
-            "negative_matches": negative_matches[:1],
+        "negative_matches": negative_matches[:1],
+        "route_family_credit": summarize_route_family_credit(
+            operator_summary,
+            query_regime=query_regime,
+        ),
     }
+
+
+def _retrieval_phase_fallbacks(phase: str) -> list[str]:
+    normalized_phase = str(phase).strip()
+    if normalized_phase == "post_feasible_recover":
+        return ["post_feasible_preserve"]
+    if normalized_phase in {"post_feasible_expand", "prefeasible_convert", "prefeasible_stagnation"}:
+        return ["post_feasible_preserve"] if normalized_phase == "post_feasible_expand" else ["prefeasible_search"]
+    return []
 
 
 def build_controller_state(

@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from optimizers.analytics.staged_audit import (
     compare_history_prefix_by_mode,
     summarize_llm_prompt_surface,
+    summarize_prompt_contract_mismatches,
     summarize_unique_llm_decisions,
 )
 
@@ -56,6 +59,14 @@ def _prompt_markdown(user_payload: dict[str, object], *, decision_id: str) -> st
     )
 
 
+def _load_jsonl_rows(path: Path) -> list[dict[str, object]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
 def test_compare_history_prefix_by_mode_reports_shared_rows_and_first_divergence(tmp_path: Path) -> None:
     shared_prefix = [
         _history_row(1, feasible=False, source="baseline", c02=2.8),
@@ -84,6 +95,42 @@ def test_compare_history_prefix_by_mode_reports_shared_rows_and_first_divergence
     assert summary["shared_prefix_rows"][2]["history_row"] == 3
     assert summary["shared_prefix_rows"][2]["matches_all_modes"] is True
     assert summary["shared_prefix_rows"][3]["matches_all_modes"] is False
+
+
+def test_summarize_prompt_contract_mismatches_reports_current_0421_llm_breaks() -> None:
+    trace_path = _repo_root() / "scenario_runs" / "s2_staged" / "0421_0207__llm" / "traces" / "llm_request_trace.jsonl"
+    rows = _load_jsonl_rows(trace_path)
+
+    summary = summarize_prompt_contract_mismatches(rows)
+
+    assert summary["phase_mismatch_count"] == 146
+    assert summary["hidden_positive_credit_requests"] == 101
+    assert summary["hidden_positive_credit_family_counts"] == {
+        "budget_guard": 41,
+        "sink_retarget": 4,
+        "stable_global": 19,
+        "stable_local": 60,
+    }
+    assert summary["recover_pool_size_summary"]["count"] == 131
+    assert summary["recover_pool_size_summary"]["min"] == 1
+    assert summary["recover_pool_size_summary"]["max"] == 4
+    assert summary["recover_pool_size_summary"]["avg"] == pytest.approx(2.954198473282443)
+
+
+def test_summarize_prompt_contract_mismatches_examples_expose_recover_retrieval_drift() -> None:
+    trace_path = _repo_root() / "scenario_runs" / "s2_staged" / "0421_0207__llm" / "traces" / "llm_request_trace.jsonl"
+    rows = _load_jsonl_rows(trace_path)
+
+    summary = summarize_prompt_contract_mismatches(rows)
+
+    recover_example = next(
+        example
+        for example in summary["phase_mismatch_examples"]
+        if example["policy_phase"] == "post_feasible_recover"
+    )
+    assert recover_example["retrieval_phase"] == "post_feasible_preserve"
+    assert recover_example["phase_fallbacks"] == []
+    assert recover_example["decision_id"] == "g004-e0062-d31"
 
 
 def test_summarize_unique_llm_decisions_deduplicates_controller_rows() -> None:

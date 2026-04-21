@@ -778,6 +778,105 @@ def _recover_gradient_pressure_state() -> ControllerState:
     )
 
 
+def _recover_positive_budget_credit_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=8,
+        evaluation_index=92,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "decision_index": 12,
+            "run_state": {
+                "first_feasible_eval": 12,
+                "evaluations_used": 91,
+                "evaluations_remaining": 36,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+                "recover_pressure_level": "medium",
+                "recover_exit_ready": False,
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_recover",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                },
+                "retrieval_panel": {
+                    "route_family_credit": {
+                        "positive_families": ["budget_guard"],
+                        "negative_families": [],
+                    }
+                },
+                "generation_panel": {
+                    "accepted_count": 0,
+                    "dominant_operator_id": "",
+                    "dominant_operator_share": 0.0,
+                },
+                "operator_panel": {
+                    "native_sbx_pm": {
+                        "applicability": "medium",
+                        "expected_peak_effect": "neutral",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "local_refine": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "move_hottest_cluster_toward_sink": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "repair_sink_budget": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 14,
+                    "recent_selection_count": 1,
+                    "proposal_count": 14,
+                    "feasible_preservation_count": 5,
+                },
+                "local_refine": {
+                    "selection_count": 16,
+                    "recent_selection_count": 2,
+                    "proposal_count": 16,
+                    "feasible_preservation_count": 6,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 7,
+                    "recent_selection_count": 2,
+                    "proposal_count": 7,
+                    "pareto_contribution_count": 2,
+                    "post_feasible_avg_objective_delta": -0.2,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 3,
+                    "recent_selection_count": 0,
+                    "proposal_count": 3,
+                },
+            },
+        },
+    )
+
+
 def test_llm_controller_metrics_count_retries_and_invalid_attempts() -> None:
     controller = LLMOperatorController(
         controller_parameters={
@@ -1295,3 +1394,98 @@ def test_llm_controller_request_trace_exposes_route_visibility_fields(tmp_path: 
     assert request_rows[0]["preferred_effect"] == "gradient_improve"
     assert request_rows[0]["recover_exit_ready"] is False
     assert request_rows[0]["effective_candidate_pool_size"] >= 3
+
+
+def test_llm_controller_request_trace_keeps_positive_budget_guard_family_visible(tmp_path: Path) -> None:
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=_FakeLLMClient(
+            OpenAICompatibleDecision(
+                selected_operator_id="move_hottest_cluster_toward_sink",
+                phase="post_feasible_recover",
+                rationale="Use the currently visible sink-retarget route.",
+                provider="openai-compatible",
+                model="GPT-5.4",
+                capability_profile="responses_native",
+                performance_profile="balanced",
+                raw_payload={"selected_operator_id": "move_hottest_cluster_toward_sink"},
+            )
+        ),
+    )
+    run_root = tmp_path / "run"
+    controller.configure_trace_outputs(
+        controller_trace_path=run_root / "traces" / "controller_trace.jsonl",
+        llm_request_trace_path=run_root / "traces" / "llm_request_trace.jsonl",
+        llm_response_trace_path=run_root / "traces" / "llm_response_trace.jsonl",
+        prompt_store=PromptStore(run_root / "prompts"),
+    )
+
+    controller.select_decision(
+        _recover_positive_budget_credit_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "move_hottest_cluster_toward_sink",
+            "repair_sink_budget",
+        ),
+        np.random.default_rng(17),
+    )
+
+    request_entry = controller.request_trace[0]
+    assert "budget_guard" in request_entry["visible_route_families"]
+
+
+def test_llm_controller_request_trace_exposes_suppressed_route_families_with_reasons(tmp_path: Path) -> None:
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 256,
+        },
+        client=_FakeLLMClient(
+            OpenAICompatibleDecision(
+                selected_operator_id="reduce_local_congestion",
+                phase="post_feasible_recover",
+                rationale="Gradient pressure favors a bounded congestion-relief move.",
+                provider="openai-compatible",
+                model="GPT-5.4",
+                capability_profile="responses_native",
+                performance_profile="balanced",
+                raw_payload={"selected_operator_id": "reduce_local_congestion"},
+            )
+        ),
+    )
+    run_root = tmp_path / "run"
+    controller.configure_trace_outputs(
+        controller_trace_path=run_root / "traces" / "controller_trace.jsonl",
+        llm_request_trace_path=run_root / "traces" / "llm_request_trace.jsonl",
+        llm_response_trace_path=run_root / "traces" / "llm_response_trace.jsonl",
+        prompt_store=PromptStore(run_root / "prompts"),
+    )
+
+    controller.select_decision(
+        _recover_gradient_pressure_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "smooth_high_gradient_band",
+            "reduce_local_congestion",
+            "move_hottest_cluster_toward_sink",
+        ),
+        np.random.default_rng(19),
+    )
+
+    request_entry = controller.request_trace[0]
+    assert request_entry["suppressed_route_families"]
+    for route_family in request_entry["suppressed_route_families"]:
+        assert request_entry["suppressed_route_family_reasons"][route_family]

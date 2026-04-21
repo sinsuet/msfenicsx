@@ -110,7 +110,23 @@ def _project_prompt_panels(
         projected["spatial_panel"] = dict(spatial_panel)
     retrieval_panel = prompt_panels.get("retrieval_panel")
     if isinstance(retrieval_panel, Mapping):
-        projected["retrieval_panel"] = dict(retrieval_panel)
+        projected_retrieval_panel = dict(retrieval_panel)
+        query_regime = projected_retrieval_panel.get("query_regime")
+        if isinstance(query_regime, Mapping):
+            projected_query_regime = dict(query_regime)
+            original_phase = str(projected_query_regime.get("phase", "")).strip()
+            existing_fallbacks = _string_list(projected_query_regime.get("phase_fallbacks", []))
+            if prompt_phase:
+                projected_query_regime["phase"] = prompt_phase
+                if original_phase and original_phase != prompt_phase:
+                    projected_query_regime["phase_fallbacks"] = _merge_phase_fallbacks(
+                        original_phase,
+                        existing_fallbacks,
+                    )
+                elif existing_fallbacks:
+                    projected_query_regime["phase_fallbacks"] = existing_fallbacks
+            projected_retrieval_panel["query_regime"] = projected_query_regime
+        projected["retrieval_panel"] = projected_retrieval_panel
     operator_panel = prompt_panels.get("operator_panel")
     if isinstance(operator_panel, Mapping):
         projected_operator_panel: dict[str, dict[str, Any]] = {}
@@ -231,3 +247,18 @@ def _project_candidate_annotation(
         return projected
     projected.pop("post_feasible_role", None)
     return projected
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _merge_phase_fallbacks(original_phase: str, existing_fallbacks: Sequence[str]) -> list[str]:
+    merged: list[str] = []
+    for phase in (original_phase, *existing_fallbacks):
+        normalized_phase = str(phase).strip()
+        if normalized_phase and normalized_phase not in merged:
+            merged.append(normalized_phase)
+    return merged

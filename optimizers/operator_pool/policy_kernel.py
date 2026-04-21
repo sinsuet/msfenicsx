@@ -123,6 +123,11 @@ def _post_feasible_recover_exit_ready(state: ControllerState) -> bool:
         return False
     if run_state.get("first_feasible_eval") is None:
         return False
+    if progress_state.get("recover_exit_ready") is not None:
+        return bool(progress_state.get("recover_exit_ready"))
+    recover_pressure_level = str(progress_state.get("recover_pressure_level", "")).strip()
+    if recover_pressure_level:
+        return recover_pressure_level == "low"
     stable_preservation_streak = int(progress_state.get("stable_preservation_streak", 0))
     recent_feasible_regression_count = int(archive_state.get("recent_feasible_regression_count", 0))
     new_dominant_violation_family = bool(progress_state.get("new_dominant_violation_family", False))
@@ -721,9 +726,20 @@ def _post_feasible_candidate_filter(
             tuple(filtered),
             candidate_annotations,
         )
+        filtered, positive_credit_restored = _restore_positive_route_family_visibility(
+            state,
+            phase,
+            tuple(candidate_operator_ids),
+            tuple(filtered),
+            candidate_annotations,
+        )
         return (
             tuple(candidate_operator_ids) if not filtered else tuple(filtered),
-            "post_feasible_recover_preserve_bias",
+            (
+                "post_feasible_recover_positive_credit_visibility"
+                if positive_credit_restored
+                else "post_feasible_recover_preserve_bias"
+            ),
         )
 
     if phase in {"post_feasible_expand", "post_feasible_preserve"}:
@@ -777,6 +793,16 @@ def _post_feasible_candidate_filter(
                     candidate_operator_ids,
                 ),
             )
+        if phase == "post_feasible_preserve":
+            filtered, positive_credit_restored = _restore_positive_route_family_visibility(
+                state,
+                phase,
+                tuple(candidate_operator_ids),
+                tuple(filtered),
+                candidate_annotations,
+            )
+        else:
+            positive_credit_restored = False
         if filtered and (
             len(pre_visibility_filtered) < len(tuple(candidate_pool))
             or tuple(filtered) != tuple(candidate_pool)
@@ -786,6 +812,8 @@ def _post_feasible_candidate_filter(
                 reason_code = "post_feasible_expand_semantic_budget"
             elif phase == "post_feasible_expand" and route_rebalanced:
                 reason_code = "post_feasible_expand_route_rebalance"
+            elif phase == "post_feasible_preserve" and positive_credit_restored:
+                reason_code = "post_feasible_preserve_positive_credit_visibility"
             else:
                 reason_code = (
                     "post_feasible_expand_frontier_bias"
@@ -885,6 +913,97 @@ def _merge_required_candidates(
         for operator_id in candidate_operator_ids
         if operator_id in filtered_operator_ids or operator_id in required_set
     )
+
+
+def _restore_positive_route_family_visibility(
+    state: ControllerState,
+    phase: str,
+    candidate_operator_ids: Sequence[str],
+    filtered_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> tuple[tuple[str, ...], bool]:
+    if phase not in {"post_feasible_recover", "post_feasible_preserve"}:
+        return tuple(filtered_operator_ids), False
+    retrieval_panel = _retrieval_panel_from_state(state)
+    route_family_credit = retrieval_panel.get("route_family_credit", {})
+    if not isinstance(route_family_credit, dict):
+        return tuple(filtered_operator_ids), False
+    positive_families = {
+        str(route_family).strip()
+        for route_family in route_family_credit.get("positive_families", [])
+        if str(route_family).strip()
+    }
+    negative_families = {
+        str(route_family).strip()
+        for route_family in route_family_credit.get("negative_families", [])
+        if str(route_family).strip()
+    }
+    positive_families -= negative_families
+    if not positive_families:
+        return tuple(filtered_operator_ids), False
+
+    selected_operator_ids = {str(operator_id) for operator_id in filtered_operator_ids}
+    restored = False
+    for route_family in positive_families:
+        if any(operator_route_family(operator_id) == route_family for operator_id in selected_operator_ids):
+            continue
+        family_candidates = _rank_route_family_candidates(
+            phase,
+            route_family,
+            candidate_operator_ids,
+            candidate_annotations,
+        )
+        if not family_candidates:
+            continue
+        selected_operator_ids.add(family_candidates[0])
+        restored = True
+    if not restored:
+        return tuple(filtered_operator_ids), False
+    restored_candidates = tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if operator_id in selected_operator_ids
+    )
+    return restored_candidates, True
+
+
+def _retrieval_panel_from_state(state: ControllerState) -> dict[str, Any]:
+    prompt_panels = state.metadata.get("prompt_panels")
+    if not isinstance(prompt_panels, dict):
+        return {}
+    retrieval_panel = prompt_panels.get("retrieval_panel")
+    return dict(retrieval_panel) if isinstance(retrieval_panel, dict) else {}
+
+
+def _rank_route_family_candidates(
+    phase: str,
+    route_family: str,
+    candidate_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> tuple[str, ...]:
+    family_operator_ids = tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if operator_route_family(operator_id) == route_family
+    )
+    if not family_operator_ids:
+        return ()
+    original_order = {operator_id: index for index, operator_id in enumerate(candidate_operator_ids)}
+    semantic_operator_ids = tuple(
+        operator_id
+        for operator_id in family_operator_ids
+        if str(candidate_annotations.get(operator_id, {}).get("operator_family", "")) not in _STABLE_FAMILIES
+    )
+    if semantic_operator_ids:
+        ranked_semantic = _rank_semantic_candidates(
+            phase,
+            semantic_operator_ids,
+            candidate_annotations,
+            original_order=original_order,
+        )
+        if ranked_semantic:
+            return ranked_semantic
+    return tuple(sorted(family_operator_ids, key=lambda operator_id: original_order.get(operator_id, 10**6)))
 
 
 def _restore_semantic_visibility(

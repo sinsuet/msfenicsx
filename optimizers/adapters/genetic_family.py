@@ -125,6 +125,10 @@ class GeneticFamilyUnionMating(InfillCriterion):
         decision_indices_seen: set[int] = set()
         generation_controller_trace: list[ControllerTraceRow] = []
         generation_operator_trace: list[OperatorTraceRow] = []
+        # The parent population is fixed for a single pymoo infill call, so its repaired
+        # reference keys can be reused across all event-wise llm proposals in the generation.
+        repaired_reference_keys = self._reference_repaired_keys(pop)
+        accepted_offspring_repaired_keys: set[tuple[float, ...]] = set()
         next_provisional_evaluation_index = int(problem._next_evaluation_index)
         children_per_native_event = int(self.raw_mating.crossover.n_offsprings)
         base_event_count = max(1, math.ceil(n_offsprings / max(1, children_per_native_event)))
@@ -183,7 +187,12 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 proposal_population = self.repair(problem, proposal_population, random_state=rng, **kwargs)
             self._refresh_repaired_payloads(proposal_population)
             proposal_population = self._filter_raw_duplicates(proposal_population, pop, off)
-            proposal_population = self._filter_repaired_duplicates(proposal_population, pop, off)
+            proposal_population = self._filter_repaired_duplicates(
+                proposal_population,
+                pop,
+                off,
+                reference_keys=repaired_reference_keys | accepted_offspring_repaired_keys,
+            )
 
             if len(off) + len(proposal_population) > n_offsprings:
                 n_keep = n_offsprings - len(off)
@@ -198,6 +207,9 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 evaluation_start_index=int(problem._next_evaluation_index + len(off)),
                 controller_trace_out=generation_controller_trace,
                 operator_trace_out=generation_operator_trace,
+            )
+            accepted_offspring_repaired_keys.update(
+                self._trace_payload(individual)["repaired_key"] for individual in proposal_population
             )
             off = Population.merge(off, proposal_population)
             n_attempted_events += 1
@@ -751,11 +763,19 @@ class GeneticFamilyUnionMating(InfillCriterion):
             )
         return deduped_population
 
-    def _filter_repaired_duplicates(self, population: Population, pop: Population, off: Population) -> Population:
+    def _filter_repaired_duplicates(
+        self,
+        population: Population,
+        pop: Population,
+        off: Population,
+        *,
+        reference_keys: set[tuple[float, ...]] | None = None,
+    ) -> Population:
         if len(population) == 0:
             return population
-        reference_keys = self._reference_repaired_keys(pop)
-        reference_keys.update(self._reference_repaired_keys(off))
+        if reference_keys is None:
+            reference_keys = self._reference_repaired_keys(pop)
+            reference_keys.update(self._reference_repaired_keys(off))
         kept_indices: list[int] = []
         batch_keys: set[tuple[float, ...]] = set()
         for index, individual in enumerate(population):

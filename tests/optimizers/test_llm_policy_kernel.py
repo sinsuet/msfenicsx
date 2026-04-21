@@ -381,6 +381,64 @@ def _recover_exit_ready_state() -> ControllerState:
     )
 
 
+def _recover_pressure_cooled_state_with_old_family_switch() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=102,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 31,
+                "evaluations_used": 101,
+                "evaluations_remaining": 28,
+                "feasible_rate": 0.44,
+                "first_feasible_eval": 49,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+                "recent_no_progress_count": 1,
+                "recent_frontier_stagnation_count": 0,
+                "recent_dominant_violation_family": "thermal_limit",
+                "recent_dominant_violation_persistence_count": 1,
+                "stable_preservation_streak": 0,
+                "new_dominant_violation_family": True,
+                "recent_violation_family_switch_count": 0,
+                "recover_pressure_level": "low",
+                "recover_exit_ready": True,
+            },
+            "archive_state": {
+                "recent_feasible_regression_count": 0,
+                "recent_feasible_preservation_count": 2,
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 14,
+                    "recent_selection_count": 1,
+                    "proposal_count": 14,
+                    "feasible_preservation_count": 5,
+                },
+                "local_refine": {
+                    "selection_count": 16,
+                    "recent_selection_count": 2,
+                    "proposal_count": 16,
+                    "feasible_preservation_count": 6,
+                },
+                "slide_sink": {
+                    "selection_count": 4,
+                    "recent_selection_count": 0,
+                    "proposal_count": 4,
+                    "feasible_preservation_count": 1,
+                },
+            },
+        },
+    )
+
+
 def _post_feasible_expand_family_rebalance_state() -> ControllerState:
     return ControllerState(
         family="genetic",
@@ -775,6 +833,74 @@ def _post_feasible_recover_gradient_escape_state() -> ControllerState:
     )
 
 
+def _post_feasible_recover_positive_budget_credit_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=94,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 27,
+                "evaluations_used": 93,
+                "evaluations_remaining": 36,
+                "feasible_rate": 0.41,
+                "first_feasible_eval": 49,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+                "recover_pressure_level": "medium",
+                "recover_exit_ready": False,
+                "recent_no_progress_count": 2,
+                "recent_frontier_stagnation_count": 1,
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_recover",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                },
+                "retrieval_panel": {
+                    "route_family_credit": {
+                        "positive_families": ["budget_guard"],
+                        "negative_families": [],
+                    }
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 14,
+                    "recent_selection_count": 1,
+                    "proposal_count": 14,
+                    "feasible_preservation_count": 5,
+                },
+                "local_refine": {
+                    "selection_count": 16,
+                    "recent_selection_count": 2,
+                    "proposal_count": 16,
+                    "feasible_preservation_count": 6,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 7,
+                    "recent_selection_count": 2,
+                    "proposal_count": 7,
+                    "pareto_contribution_count": 2,
+                    "post_feasible_avg_objective_delta": -0.2,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 3,
+                    "recent_selection_count": 0,
+                    "proposal_count": 3,
+                },
+            },
+        },
+    )
+
+
 def test_cold_start_bootstraps_only_stable_semantic_families() -> None:
     policy_kernel = _policy_kernel_module()
 
@@ -889,6 +1015,21 @@ def test_recover_exit_ready_state_demotes_recover_phase_back_to_preserve() -> No
 
     policy = policy_kernel.build_policy_snapshot(
         _recover_exit_ready_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "slide_sink",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_preserve"
+
+
+def test_recover_pressure_cools_even_when_an_old_family_switch_exists() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _recover_pressure_cooled_state_with_old_family_switch(),
         (
             "native_sbx_pm",
             "local_refine",
@@ -1174,3 +1315,19 @@ def test_post_feasible_recover_keeps_gradient_escape_routes_visible_when_gradien
     assert "smooth_high_gradient_band" in policy.allowed_operator_ids
     assert "reduce_local_congestion" in policy.allowed_operator_ids
     assert "post_feasible_recover_gradient_escape_floor" in policy.reason_codes
+
+
+def test_post_feasible_recover_restores_positive_budget_guard_family_visibility() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_recover_positive_budget_credit_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "move_hottest_cluster_toward_sink",
+            "repair_sink_budget",
+        ),
+    )
+
+    assert "repair_sink_budget" in policy.allowed_operator_ids

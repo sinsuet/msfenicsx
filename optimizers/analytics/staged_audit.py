@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -183,6 +183,71 @@ def summarize_llm_prompt_surface(
     }
 
 
+def summarize_prompt_contract_mismatches(
+    request_rows: Sequence[Mapping[str, Any]],
+    *,
+    run_root: str | Path | None = None,
+) -> dict[str, Any]:
+    resolved_run_root = None if run_root is None else Path(run_root)
+    phase_mismatch_count = 0
+    phase_mismatch_examples: list[dict[str, Any]] = []
+    phase_mismatch_example_phases: set[str] = set()
+    hidden_positive_credit_requests = 0
+    hidden_positive_credit_family_counts: Counter[str] = Counter()
+    recover_pool_sizes: list[int] = []
+
+    for row in request_rows:
+        metadata = _request_metadata_from_row(row, run_root=resolved_run_root)
+        prompt_panels = metadata.get("prompt_panels", {})
+        if not isinstance(prompt_panels, Mapping):
+            prompt_panels = {}
+        regime_panel = prompt_panels.get("regime_panel", {})
+        if not isinstance(regime_panel, Mapping):
+            regime_panel = {}
+        retrieval_panel = prompt_panels.get("retrieval_panel", {})
+        if not isinstance(retrieval_panel, Mapping):
+            retrieval_panel = {}
+
+        policy_phase = _policy_phase_from_request_row(row, regime_panel=regime_panel)
+        retrieval_query = retrieval_panel.get("query_regime", {})
+        if not isinstance(retrieval_query, Mapping):
+            retrieval_query = {}
+        retrieval_phase = str(retrieval_query.get("phase", "")).strip()
+        phase_fallbacks = _string_list(retrieval_query.get("phase_fallbacks", []))
+
+        if policy_phase == "post_feasible_recover":
+            recover_pool_sizes.append(_effective_pool_size_from_request_row(row, metadata))
+
+        if policy_phase and retrieval_phase and retrieval_phase != policy_phase:
+            phase_mismatch_count += 1
+            example = {
+                "decision_id": _decision_id_from_row(row),
+                "policy_phase": policy_phase,
+                "regime_phase": str(regime_panel.get("phase", "")).strip(),
+                "retrieval_phase": retrieval_phase,
+                "phase_fallbacks": phase_fallbacks,
+            }
+            if policy_phase not in phase_mismatch_example_phases or len(phase_mismatch_examples) < 8:
+                phase_mismatch_examples.append(example)
+                phase_mismatch_example_phases.add(policy_phase)
+
+        visible_route_families = _visible_route_families_from_request_row(row, metadata)
+        positive_route_families = _positive_route_families_from_retrieval_panel(retrieval_panel)
+        hidden_positive_route_families = sorted(positive_route_families - visible_route_families)
+        if hidden_positive_route_families:
+            hidden_positive_credit_requests += 1
+            for route_family in hidden_positive_route_families:
+                hidden_positive_credit_family_counts[route_family] += 1
+
+    return {
+        "phase_mismatch_count": int(phase_mismatch_count),
+        "phase_mismatch_examples": phase_mismatch_examples,
+        "hidden_positive_credit_requests": int(hidden_positive_credit_requests),
+        "hidden_positive_credit_family_counts": dict(sorted(hidden_positive_credit_family_counts.items())),
+        "recover_pool_size_summary": _pool_size_summary(recover_pool_sizes),
+    }
+
+
 def _load_history(path: Path) -> list[dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     return [
@@ -246,6 +311,18 @@ def _policy_phase_from_row(row: Mapping[str, Any]) -> str:
     return "unknown"
 
 
+def _policy_phase_from_request_row(
+    row: Mapping[str, Any],
+    *,
+    regime_panel: Mapping[str, Any],
+) -> str:
+    policy_phase = _policy_phase_from_row(row)
+    if policy_phase != "unknown":
+        return policy_phase
+    regime_phase = str(regime_panel.get("phase", "")).strip()
+    return regime_phase or "unknown"
+
+
 def _request_metadata_from_row(
     row: Mapping[str, Any],
     *,
@@ -292,6 +369,82 @@ def _operator_id_list(value: Any) -> list[str]:
     if not isinstance(value, list | tuple):
         return []
     return [str(item) for item in value if str(item).strip()]
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list | tuple):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _effective_pool_size_from_request_row(
+    row: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+) -> int:
+    direct_size = row.get("effective_candidate_pool_size")
+    if direct_size is not None:
+        return int(direct_size)
+    guardrail = metadata.get("decision_guardrail", {})
+    if isinstance(guardrail, Mapping):
+        effective_candidate_operator_ids = _operator_id_list(guardrail.get("effective_candidate_operator_ids", []))
+        if effective_candidate_operator_ids:
+            return len(effective_candidate_operator_ids)
+    return len(_operator_id_list(metadata.get("candidate_operator_ids", [])))
+
+
+def _visible_route_families_from_request_row(
+    row: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+) -> set[str]:
+    direct_visible = {value for value in _string_list(row.get("visible_route_families", [])) if value}
+    if direct_visible:
+        return direct_visible
+    guardrail = metadata.get("decision_guardrail", {})
+    if isinstance(guardrail, Mapping):
+        effective_candidate_operator_ids = _operator_id_list(guardrail.get("effective_candidate_operator_ids", []))
+        if effective_candidate_operator_ids:
+            return {
+                operator_route_family(operator_id)
+                for operator_id in effective_candidate_operator_ids
+                if operator_route_family(operator_id)
+            }
+    candidate_operator_ids = _operator_id_list(metadata.get("candidate_operator_ids", []))
+    return {
+        operator_route_family(operator_id)
+        for operator_id in candidate_operator_ids
+        if operator_route_family(operator_id)
+    }
+
+
+def _positive_route_families_from_retrieval_panel(retrieval_panel: Mapping[str, Any]) -> set[str]:
+    route_family_credit = retrieval_panel.get("route_family_credit", {})
+    if isinstance(route_family_credit, Mapping):
+        positive_route_families = {
+            value
+            for value in _string_list(route_family_credit.get("positive_families", []))
+            if value
+        }
+        if positive_route_families:
+            return positive_route_families
+    positive_matches = retrieval_panel.get("positive_matches", [])
+    if not isinstance(positive_matches, list | tuple):
+        return set()
+    return {
+        str(match.get("route_family", "")).strip()
+        for match in positive_matches
+        if isinstance(match, Mapping) and str(match.get("route_family", "")).strip()
+    }
+
+
+def _pool_size_summary(values: Sequence[int]) -> dict[str, float | int]:
+    if not values:
+        return {"count": 0, "min": 0, "max": 0, "avg": 0.0}
+    return {
+        "count": int(len(values)),
+        "min": int(min(values)),
+        "max": int(max(values)),
+        "avg": float(sum(values) / len(values)),
+    }
 
 
 def _size_summary(values: list[int]) -> dict[str, int]:

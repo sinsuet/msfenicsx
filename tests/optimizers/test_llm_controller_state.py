@@ -4,7 +4,10 @@ import numpy as np
 import pytest
 
 from optimizers.operator_pool.models import ParentBundle
+from optimizers.operator_pool.policy_kernel import PolicySnapshot
+from optimizers.operator_pool.prompt_projection import build_prompt_projection
 from optimizers.operator_pool.reflection import summarize_operator_history
+from optimizers.operator_pool.state import ControllerState
 from optimizers.operator_pool.state_builder import build_controller_state
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 
@@ -104,6 +107,104 @@ def _penalty_record(
         "failure_reason": failure_reason,
         "solver_skipped": True,
     }
+
+
+def _build_phase_alignment_state(*, policy_phase: str) -> ControllerState:
+    from optimizers.operator_pool.domain_state import build_prompt_regime_panel
+    from optimizers.operator_pool.state_builder import _build_retrieval_panel
+
+    run_state = {
+        "first_feasible_eval": 46,
+        "evaluations_used": 82,
+        "peak_temperature": 323.0,
+        "temperature_gradient_rms": 14.8,
+    }
+    progress_state = {
+        "phase": "post_feasible_progress",
+        "first_feasible_found": True,
+        "post_feasible_mode": "recover" if policy_phase == "post_feasible_recover" else "preserve",
+        "recent_no_progress_count": 0,
+        "recent_frontier_stagnation_count": 2,
+        "stable_preservation_streak": 1,
+        "new_dominant_violation_family": True,
+        "recent_dominant_violation_family": "thermal_limit",
+        "recent_dominant_violation_persistence_count": 2,
+        "expand_saturation_count": 0,
+        "objective_stagnation": {
+            "temperature_max": {
+                "best_value": 323.0,
+                "evaluations_since_improvement": 3,
+                "stagnant": False,
+            },
+            "gradient_rms": {
+                "best_value": 14.8,
+                "evaluations_since_improvement": 8,
+                "stagnant": True,
+            },
+        },
+    }
+    archive_state = {
+        "recent_feasible_regression_count": 1,
+        "recent_feasible_preservation_count": 0,
+    }
+    domain_regime = {
+        "phase": "feasible_refine",
+        "dominant_constraint_family": "thermal_limit",
+        "sink_budget_utilization": 0.91,
+    }
+    regime_panel = build_prompt_regime_panel(
+        run_state=run_state,
+        progress_state=progress_state,
+        archive_state=archive_state,
+        domain_regime=domain_regime,
+    )
+    retrieval_panel = _build_retrieval_panel(
+        operator_summary={
+            "local_refine": {
+                "credit_by_regime": {
+                    ("post_feasible_recover", "thermal_limit", "tight"): {
+                        "frontier_add_count": 0,
+                        "feasible_preservation_count": 1,
+                        "feasible_regression_count": 0,
+                        "penalty_event_count": 0,
+                        "avg_objective_delta": -0.05,
+                        "avg_total_violation_delta": 0.0,
+                    }
+                }
+            }
+        },
+        candidate_operator_ids=("local_refine",),
+        regime_panel=regime_panel,
+        spatial_panel={"sink_budget_bucket": "tight"},
+    )
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=6,
+        evaluation_index=83,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "candidate_operator_ids": ["local_refine"],
+            "run_state": run_state,
+            "progress_state": progress_state,
+            "prompt_panels": {
+                "regime_panel": regime_panel,
+                "retrieval_panel": retrieval_panel,
+            },
+        },
+    )
+
+
+def _build_phase_alignment_snapshot(phase: str) -> PolicySnapshot:
+    return PolicySnapshot(
+        phase=phase,
+        allowed_operator_ids=("local_refine",),
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=(),
+        candidate_annotations={"local_refine": {"operator_family": "local_refine"}},
+    )
 
 
 def test_build_controller_state_captures_recent_decisions_and_operator_summary() -> None:
@@ -209,6 +310,31 @@ def test_build_controller_state_captures_recent_decisions_and_operator_summary()
     assert state.metadata["operator_summary"]["local_refine"]["recent_selection_count"] == 2
     assert state.metadata["operator_summary"]["local_refine"]["fallback_selection_count"] == 1
     assert state.metadata["operator_summary"]["local_refine"]["llm_valid_selection_count"] == 1
+
+
+def test_retrieval_query_phase_uses_recover_when_policy_phase_is_recover() -> None:
+    state = _build_phase_alignment_state(policy_phase="post_feasible_recover")
+
+    retrieval_panel = state.metadata["prompt_panels"]["retrieval_panel"]
+
+    assert retrieval_panel["query_regime"]["phase"] == "post_feasible_recover"
+
+
+def test_prompt_projection_does_not_silently_disagree_with_retrieval_phase() -> None:
+    state = _build_phase_alignment_state(policy_phase="post_feasible_recover")
+
+    metadata = build_prompt_projection(
+        state,
+        candidate_operator_ids=state.metadata["candidate_operator_ids"],
+        original_candidate_operator_ids=state.metadata["candidate_operator_ids"],
+        policy_snapshot=_build_phase_alignment_snapshot("post_feasible_recover"),
+        guardrail=None,
+    )
+
+    assert (
+        metadata["prompt_panels"]["regime_panel"]["phase"]
+        == metadata["prompt_panels"]["retrieval_panel"]["query_regime"]["phase"]
+    )
 
 
 def test_build_controller_state_tracks_generation_local_memory_without_rewriting_historical_evidence() -> None:
@@ -952,6 +1078,118 @@ def test_build_controller_state_penalty_mixed_credit_stays_out_of_positive_retri
     assert matched["evidence"]["penalty_event_count"] == 1
     assert all(match["evidence"]["penalty_event_count"] == 0 for match in retrieval_panel["positive_matches"])
     assert retrieval_panel["negative_matches"][0]["evidence"]["penalty_event_count"] == 1
+
+
+def test_retrieval_panel_surfaces_route_family_credit_by_regime() -> None:
+    from optimizers.operator_pool.state_builder import _build_retrieval_panel
+
+    retrieval_panel = _build_retrieval_panel(
+        operator_summary={
+            "repair_sink_budget": {
+                "credit_by_regime": {
+                    ("post_feasible_recover", "thermal_limit", "tight"): {
+                        "frontier_add_count": 0,
+                        "feasible_preservation_count": 1,
+                        "feasible_regression_count": 0,
+                        "penalty_event_count": 0,
+                        "avg_objective_delta": -0.05,
+                        "avg_total_violation_delta": 0.0,
+                    }
+                }
+            },
+            "slide_sink": {
+                "credit_by_regime": {
+                    ("post_feasible_recover", "thermal_limit", "tight"): {
+                        "frontier_add_count": 0,
+                        "feasible_preservation_count": 0,
+                        "feasible_regression_count": 1,
+                        "penalty_event_count": 0,
+                        "avg_objective_delta": 0.07,
+                        "avg_total_violation_delta": 0.0,
+                    }
+                }
+            },
+        },
+        candidate_operator_ids=("repair_sink_budget", "slide_sink"),
+        regime_panel={
+            "phase": "post_feasible_recover",
+            "dominant_violation_family": "thermal_limit",
+        },
+        spatial_panel={"sink_budget_bucket": "tight"},
+    )
+
+    assert retrieval_panel["route_family_credit"] == {
+        "positive_families": ["budget_guard"],
+        "negative_families": ["sink_retarget"],
+    }
+
+
+def test_build_progress_state_uses_recent_violation_pressure_not_any_historical_family_switch() -> None:
+    from optimizers.operator_pool.domain_state import build_progress_state
+
+    history = [
+        _record(
+            40,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.0,
+            temperature_gradient_rms=15.0,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            41,
+            _vector(sink_start=0.10, sink_end=0.70),
+            feasible=False,
+            peak_temperature=321.0,
+            temperature_gradient_rms=15.3,
+            c01_temperature_violation=0.05,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            42,
+            _vector(),
+            feasible=False,
+            peak_temperature=320.8,
+            temperature_gradient_rms=15.2,
+            c01_temperature_violation=0.3,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            43,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.1,
+            temperature_gradient_rms=15.1,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            44,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.2,
+            temperature_gradient_rms=15.2,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            45,
+            _vector(),
+            feasible=True,
+            peak_temperature=319.5,
+            temperature_gradient_rms=14.9,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    progress = build_progress_state(history=history)
+
+    assert progress["recent_violation_family_switch_count"] == 0
+    assert progress["recover_pressure_level"] == "low"
+    assert progress["recover_exit_ready"] is True
+    assert progress["post_feasible_mode"] == "preserve"
 
 
 def test_objective_stagnation_detects_tmax_stagnation() -> None:

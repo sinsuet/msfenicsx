@@ -633,10 +633,13 @@ def build_progress_state(
             "evaluations_since_near_feasible_improvement": None,
             "recent_dominant_violation_family": None,
             "recent_dominant_violation_persistence_count": 0,
+            "recent_violation_family_switch_count": 0,
             "stable_preservation_streak": 0,
             "new_dominant_violation_family": False,
             "recent_frontier_stagnation_count": 0,
             "post_feasible_mode": None,
+            "recover_pressure_level": "low",
+            "recover_exit_ready": False,
             "objective_stagnation": _empty_objective_stagnation(),
             "expand_saturation_count": 0,
         }
@@ -690,6 +693,9 @@ def build_progress_state(
             break
         recent_dominant_violation_persistence_count += 1
     new_dominant_violation_family = previous_dominant_violation_family is not None
+    recent_violation_family_switch_count = 0
+    recover_pressure_level = "low"
+    recover_exit_ready = False
 
     stable_preservation_evaluation_indices = {
         int(evaluation_index)
@@ -720,7 +726,18 @@ def build_progress_state(
         phase = "post_feasible_progress" if recent_no_progress_count == 0 else "post_feasible_stagnation"
         recent_feasible_regression_count = int(frontier_summary["recent_feasible_regression_count"])
         recent_feasible_preservation_count = int(frontier_summary["recent_feasible_preservation_count"])
-        if new_dominant_violation_family or recent_feasible_regression_count > recent_feasible_preservation_count:
+        recent_violation_family_switch_count = _recent_violation_family_switch_count(
+            ordered_history,
+            first_feasible_eval=first_feasible_eval,
+        )
+        recover_pressure_level = _recover_pressure_level(
+            recent_feasible_regression_count=recent_feasible_regression_count,
+            recent_feasible_preservation_count=recent_feasible_preservation_count,
+            recent_dominant_violation_persistence_count=recent_dominant_violation_persistence_count,
+            recent_violation_family_switch_count=recent_violation_family_switch_count,
+        )
+        recover_exit_ready = recover_pressure_level == "low"
+        if recover_pressure_level != "low":
             post_feasible_mode = "recover"
         elif int(frontier_summary["recent_frontier_stagnation_count"]) >= 2:
             post_feasible_mode = "expand"
@@ -761,13 +778,71 @@ def build_progress_state(
         "evaluations_since_near_feasible_improvement": evaluations_since_near_feasible_improvement,
         "recent_dominant_violation_family": recent_dominant_violation_family,
         "recent_dominant_violation_persistence_count": int(recent_dominant_violation_persistence_count),
+        "recent_violation_family_switch_count": int(recent_violation_family_switch_count),
         "stable_preservation_streak": int(stable_preservation_streak),
         "new_dominant_violation_family": bool(new_dominant_violation_family),
         "recent_frontier_stagnation_count": int(frontier_summary["recent_frontier_stagnation_count"]),
         "post_feasible_mode": post_feasible_mode,
+        "recover_pressure_level": str(recover_pressure_level),
+        "recover_exit_ready": bool(recover_exit_ready),
         "expand_saturation_count": int(expand_saturation_count),
         "objective_stagnation": objective_stagnation,
     }
+
+
+def _recent_violation_family_switch_count(
+    ordered_history: Sequence[Mapping[str, Any]],
+    *,
+    first_feasible_eval: int | None,
+    recent_window: int = _RECENT_FRONTIER_WINDOW,
+) -> int:
+    if first_feasible_eval is None:
+        return 0
+    recent_post_feasible_rows = [
+        row
+        for row in ordered_history
+        if int(row.get("evaluation_index", 0)) >= int(first_feasible_eval)
+    ][-max(1, int(recent_window)) :]
+    recent_infeasible_families = [
+        family
+        for row in recent_post_feasible_rows
+        if not bool(row.get("feasible", False))
+        for family in [dominant_violation_family(row)]
+        if family is not None
+    ]
+    if len(recent_infeasible_families) <= 1:
+        return 0
+    switches = 0
+    previous_family = recent_infeasible_families[0]
+    for family in recent_infeasible_families[1:]:
+        if family != previous_family:
+            switches += 1
+        previous_family = family
+    return int(switches)
+
+
+def _recover_pressure_level(
+    *,
+    recent_feasible_regression_count: int,
+    recent_feasible_preservation_count: int,
+    recent_dominant_violation_persistence_count: int,
+    recent_violation_family_switch_count: int,
+) -> str:
+    pressure_score = 0
+    regression_surplus = max(0, int(recent_feasible_regression_count) - int(recent_feasible_preservation_count))
+    if regression_surplus >= 2:
+        pressure_score += 2
+    elif regression_surplus >= 1:
+        pressure_score += 1
+    if int(recent_dominant_violation_persistence_count) >= 4:
+        pressure_score += 2
+    elif int(recent_dominant_violation_persistence_count) >= 2:
+        pressure_score += 1
+    if int(recent_violation_family_switch_count) >= 2:
+        pressure_score += 2
+    elif int(recent_violation_family_switch_count) >= 1:
+        pressure_score += 1
+    return _pressure_level(pressure_score)
 
 
 def _empty_objective_stagnation() -> dict[str, dict[str, Any]]:
@@ -936,7 +1011,10 @@ def build_prompt_phase(
         if prefeasible_mode == "convert" and (domain_phase == "near_feasible" or dominant_violation_family):
             return "prefeasible_convert"
         return "prefeasible_search"
-    if str(progress_state.get("post_feasible_mode", "")).strip() == "expand":
+    post_feasible_mode = str(progress_state.get("post_feasible_mode", "")).strip()
+    if post_feasible_mode == "recover":
+        return "post_feasible_recover"
+    if post_feasible_mode == "expand":
         return "post_feasible_expand"
     return "post_feasible_preserve"
 
@@ -995,6 +1073,7 @@ def build_prompt_regime_panel(
     recent_frontier_stagnation_count = int(progress_state.get("recent_frontier_stagnation_count", 0))
     stable_preservation_streak = int(progress_state.get("stable_preservation_streak", 0))
     new_dominant_violation_family = bool(progress_state.get("new_dominant_violation_family", False))
+    recover_exit_ready = progress_state.get("recover_exit_ready")
 
     entry_pressure_score = 0
     if first_feasible_eval is None:
@@ -1023,10 +1102,14 @@ def build_prompt_regime_panel(
         "preservation_pressure": _pressure_level(preservation_pressure_score),
         "frontier_pressure": _pressure_level(frontier_pressure_score),
         "recover_exit_ready": bool(
-            first_feasible_eval is not None
-            and stable_preservation_streak >= 3
-            and recent_feasible_regression_count <= 0
-            and not new_dominant_violation_family
+            recover_exit_ready
+            if recover_exit_ready is not None
+            else (
+                first_feasible_eval is not None
+                and stable_preservation_streak >= 3
+                and recent_feasible_regression_count <= 0
+                and not new_dominant_violation_family
+            )
         ),
     }
     objective_stagnation = progress_state.get("objective_stagnation", {})

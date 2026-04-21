@@ -973,6 +973,15 @@ class LLMOperatorController:
         regime_panel = prompt_panels.get("regime_panel")
         if not isinstance(regime_panel, Mapping):
             regime_panel = {}
+        guardrail_reason_codes = [
+            str(reason_code)
+            for reason_code in guardrail_payload.get("reason_codes", [])
+            if str(reason_code).strip()
+        ]
+        suppressed_route_family_reasons = {
+            route_family: list(guardrail_reason_codes)
+            for route_family in filtered_route_families
+        }
         return {
             "original_candidate_pool_size": int(len(tuple(original_candidate_operator_ids))),
             "effective_candidate_pool_size": int(len(tuple(effective_candidate_operator_ids))),
@@ -980,6 +989,8 @@ class LLMOperatorController:
             "visible_route_families": visible_route_families,
             "effective_route_families": visible_route_families,
             "filtered_route_families": filtered_route_families,
+            "suppressed_route_families": filtered_route_families,
+            "suppressed_route_family_reasons": suppressed_route_family_reasons,
             "route_family_mode": str(decision_axes.get("route_family_mode", "none")),
             "route_family_candidates": [
                 str(route_family) for route_family in decision_axes.get("route_family_candidates", [])
