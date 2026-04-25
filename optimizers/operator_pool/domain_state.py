@@ -14,6 +14,7 @@ _RECENT_FRONTIER_WINDOW = 4
 _OBJECTIVE_STAGNATION_THRESHOLD = 6
 _OBJECTIVE_BALANCE_STALENESS_GAP_THRESHOLD = 24
 _EXPAND_SATURATION_THRESHOLD = 24
+_PRESERVE_DWELL_MIN = 3
 
 
 def vector_key(values: Sequence[float], *, ndigits: int = 12) -> tuple[float, ...]:
@@ -640,6 +641,11 @@ def build_progress_state(
             "post_feasible_mode": None,
             "recover_pressure_level": "low",
             "recover_exit_ready": False,
+            "recover_release_ready": False,
+            "preserve_dwell_count": 0,
+            "preserve_dwell_remaining": 0,
+            "recover_reentry_pressure": "low",
+            "diversity_deficit_level": "low",
             "objective_stagnation": _empty_objective_stagnation(),
             "expand_saturation_count": 0,
         }
@@ -696,6 +702,11 @@ def build_progress_state(
     recent_violation_family_switch_count = 0
     recover_pressure_level = "low"
     recover_exit_ready = False
+    recover_release_ready = False
+    preserve_dwell_count = 0
+    preserve_dwell_remaining = 0
+    recover_reentry_pressure = "low"
+    diversity_deficit_level = "low"
 
     stable_preservation_evaluation_indices = {
         int(evaluation_index)
@@ -707,6 +718,15 @@ def build_progress_state(
         if evaluation_index not in stable_preservation_evaluation_indices:
             break
         stable_preservation_streak += 1
+    trailing_feasible_streak = 0
+    for row in reversed(ordered_history):
+        evaluation_index = int(row.get("evaluation_index", 0))
+        if first_feasible_eval is not None and evaluation_index < int(first_feasible_eval):
+            break
+        if not bool(row.get("feasible", False)):
+            break
+        trailing_feasible_streak += 1
+    stable_preservation_streak = max(stable_preservation_streak, trailing_feasible_streak)
 
     first_feasible_found = first_feasible_eval is not None
     if last_progress_eval is None:
@@ -736,13 +756,42 @@ def build_progress_state(
             recent_dominant_violation_persistence_count=recent_dominant_violation_persistence_count,
             recent_violation_family_switch_count=recent_violation_family_switch_count,
         )
-        recover_exit_ready = recover_pressure_level == "low"
-        if recover_pressure_level != "low":
+        recover_reentry_pressure = recover_pressure_level
+        regression_surplus = max(0, recent_feasible_regression_count - recent_feasible_preservation_count)
+        if int(frontier_summary["pareto_size"]) <= 1:
+            diversity_deficit_level = "high"
+        elif (
+            int(frontier_summary["pareto_size"]) == 2
+            and int(frontier_summary["recent_frontier_stagnation_count"]) >= 2
+        ):
+            diversity_deficit_level = "medium"
+        else:
+            diversity_deficit_level = "low"
+        preserve_dwell_signal = max(
+            int(stable_preservation_streak),
+            int(recent_feasible_preservation_count),
+        )
+        recover_release_ready = preserve_dwell_signal > 0 and regression_surplus <= 1
+        recover_exit_ready = recover_release_ready
+        preserve_dwell_active = preserve_dwell_signal > 0 and recover_pressure_level != "high"
+        if preserve_dwell_active:
+            post_feasible_mode = "preserve"
+        elif recover_pressure_level != "low":
             post_feasible_mode = "recover"
         elif int(frontier_summary["recent_frontier_stagnation_count"]) >= 2:
             post_feasible_mode = "expand"
         else:
             post_feasible_mode = "preserve"
+        if post_feasible_mode == "preserve":
+            preserve_dwell_count = int(preserve_dwell_signal)
+            preserve_dwell_remaining = max(0, _PRESERVE_DWELL_MIN - preserve_dwell_count)
+            if (
+                preserve_dwell_remaining <= 0
+                and int(frontier_summary["recent_frontier_stagnation_count"]) >= 2
+                and diversity_deficit_level in {"high", "medium"}
+                and regression_surplus <= 0
+            ):
+                post_feasible_mode = "expand"
     else:
         phase = "prefeasible_progress" if recent_no_progress_count == 0 else "prefeasible_stagnation"
         post_feasible_mode = None
@@ -785,6 +834,11 @@ def build_progress_state(
         "post_feasible_mode": post_feasible_mode,
         "recover_pressure_level": str(recover_pressure_level),
         "recover_exit_ready": bool(recover_exit_ready),
+        "recover_release_ready": bool(recover_release_ready),
+        "preserve_dwell_count": int(preserve_dwell_count),
+        "preserve_dwell_remaining": int(preserve_dwell_remaining),
+        "recover_reentry_pressure": str(recover_reentry_pressure),
+        "diversity_deficit_level": str(diversity_deficit_level),
         "expand_saturation_count": int(expand_saturation_count),
         "objective_stagnation": objective_stagnation,
     }
@@ -1074,6 +1128,12 @@ def build_prompt_regime_panel(
     stable_preservation_streak = int(progress_state.get("stable_preservation_streak", 0))
     new_dominant_violation_family = bool(progress_state.get("new_dominant_violation_family", False))
     recover_exit_ready = progress_state.get("recover_exit_ready")
+    recover_release_ready = progress_state.get("recover_release_ready")
+    resolved_recover_release_ready = (
+        recover_release_ready
+        if recover_release_ready is not None
+        else recover_exit_ready
+    )
 
     entry_pressure_score = 0
     if first_feasible_eval is None:
@@ -1101,9 +1161,19 @@ def build_prompt_regime_panel(
         "entry_pressure": _pressure_level(entry_pressure_score),
         "preservation_pressure": _pressure_level(preservation_pressure_score),
         "frontier_pressure": _pressure_level(frontier_pressure_score),
+        "recover_release_ready": bool(
+            resolved_recover_release_ready
+            if resolved_recover_release_ready is not None
+            else (
+                first_feasible_eval is not None
+                and stable_preservation_streak >= 3
+                and recent_feasible_regression_count <= 0
+                and not new_dominant_violation_family
+            )
+        ),
         "recover_exit_ready": bool(
-            recover_exit_ready
-            if recover_exit_ready is not None
+            resolved_recover_release_ready
+            if resolved_recover_release_ready is not None
             else (
                 first_feasible_eval is not None
                 and stable_preservation_streak >= 3
@@ -1112,6 +1182,12 @@ def build_prompt_regime_panel(
             )
         ),
     }
+    if progress_state.get("preserve_dwell_remaining") is not None:
+        regime_panel["preserve_dwell_remaining"] = int(progress_state.get("preserve_dwell_remaining", 0))
+    if progress_state.get("recover_reentry_pressure") is not None:
+        regime_panel["recover_reentry_pressure"] = str(progress_state.get("recover_reentry_pressure", "low"))
+    if progress_state.get("diversity_deficit_level") is not None:
+        regime_panel["diversity_deficit_level"] = str(progress_state.get("diversity_deficit_level", "low"))
     objective_stagnation = progress_state.get("objective_stagnation", {})
     if isinstance(objective_stagnation, Mapping):
         regime_panel["objective_balance"] = _build_objective_balance(objective_stagnation)

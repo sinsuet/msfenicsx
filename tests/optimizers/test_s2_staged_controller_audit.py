@@ -8,6 +8,7 @@ import pytest
 from optimizers.analytics.staged_audit import (
     compare_history_prefix_by_mode,
     summarize_llm_prompt_surface,
+    summarize_prompt_chain_progress,
     summarize_prompt_contract_mismatches,
     summarize_unique_llm_decisions,
 )
@@ -104,17 +105,35 @@ def test_summarize_prompt_contract_mismatches_reports_current_0421_llm_breaks() 
     summary = summarize_prompt_contract_mismatches(rows)
 
     assert summary["phase_mismatch_count"] == 146
-    assert summary["hidden_positive_credit_requests"] == 101
-    assert summary["hidden_positive_credit_family_counts"] == {
+    assert summary["hidden_positive_match_requests"] == 101
+    assert summary["hidden_positive_match_family_counts"] == {
         "budget_guard": 41,
         "sink_retarget": 4,
         "stable_global": 19,
         "stable_local": 60,
     }
+    assert summary["hidden_positive_credit_requests"] == 0
+    assert summary["hidden_positive_credit_family_counts"] == {}
     assert summary["recover_pool_size_summary"]["count"] == 131
     assert summary["recover_pool_size_summary"]["min"] == 1
     assert summary["recover_pool_size_summary"]["max"] == 4
     assert summary["recover_pool_size_summary"]["avg"] == pytest.approx(2.954198473282443)
+
+
+def test_summarize_prompt_contract_mismatches_reports_hidden_positive_match_families_in_latest_0421_llm_trace() -> None:
+    trace_path = _repo_root() / "scenario_runs" / "s2_staged" / "0421_1434__llm" / "traces" / "llm_request_trace.jsonl"
+    rows = _load_jsonl_rows(trace_path)
+
+    summary = summarize_prompt_contract_mismatches(rows)
+
+    assert summary["hidden_positive_match_requests"] == 20
+    assert summary["hidden_positive_match_family_counts"] == {
+        "sink_retarget": 1,
+        "stable_global": 14,
+        "stable_local": 6,
+    }
+    assert summary["hidden_positive_credit_requests"] == 0
+    assert summary["hidden_positive_credit_family_counts"] == {}
 
 
 def test_summarize_prompt_contract_mismatches_examples_expose_recover_retrieval_drift() -> None:
@@ -302,3 +321,121 @@ def test_summarize_llm_prompt_surface_prefers_request_side_fields_without_prompt
     assert summary["visible_route_family_counts"]["congestion_relief"] == 1
     assert summary["filtered_route_family_counts"]["sink_retarget"] == 1
     assert summary["gradient_improve"]["with_congestion_relief_visible_count"] == 1
+
+
+def test_summarize_prompt_chain_progress_tracks_convert_and_phase_occupancy() -> None:
+    rows = [
+        {
+            "decision_id": "g003-e0042-d15",
+            "policy_phase": "prefeasible_convert",
+            "route_family_mode": "convert_family_mix",
+            "semantic_trial_mode": "encourage_bounded_trial",
+            "effective_candidate_pool_size": 4,
+            "visible_route_families": ["stable_local", "budget_guard"],
+            "user_prompt": json.dumps(
+                {
+                    "metadata": {
+                        "prompt_panels": {
+                            "retrieval_panel": {
+                                "route_family_credit": {
+                                    "positive_families": ["budget_guard"],
+                                    "negative_families": [],
+                                }
+                            }
+                        }
+                    }
+                },
+                ensure_ascii=True,
+            ),
+        },
+        {
+            "decision_id": "g004-e0062-d31",
+            "policy_phase": "post_feasible_recover",
+            "route_family_mode": "recover_family_mix",
+            "semantic_trial_mode": "none",
+            "effective_candidate_pool_size": 3,
+            "visible_route_families": ["stable_local"],
+            "user_prompt": json.dumps(
+                {
+                    "metadata": {
+                        "prompt_panels": {
+                            "retrieval_panel": {
+                                "route_family_credit": {
+                                    "positive_families": ["stable_local"],
+                                    "negative_families": [],
+                                }
+                            }
+                        }
+                    }
+                },
+                ensure_ascii=True,
+            ),
+        },
+        {
+            "decision_id": "g004-e0064-d32",
+            "policy_phase": "post_feasible_preserve",
+            "route_family_mode": "preserve_family_mix",
+            "semantic_trial_mode": "encourage_bounded_trial",
+            "effective_candidate_pool_size": 4,
+            "visible_route_families": ["stable_local", "congestion_relief"],
+        },
+        {
+            "decision_id": "g004-e0066-d33",
+            "policy_phase": "post_feasible_expand",
+            "route_family_mode": "bounded_expand_mix",
+            "semantic_trial_mode": "encourage_bounded_trial",
+            "effective_candidate_pool_size": 5,
+            "visible_route_families": ["layout_rebalance", "hotspot_spread"],
+        },
+    ]
+
+    summary = summarize_prompt_chain_progress(rows)
+
+    assert summary["phase_counts"] == {
+        "prefeasible_convert": 1,
+        "post_feasible_recover": 1,
+        "post_feasible_preserve": 1,
+        "post_feasible_expand": 1,
+    }
+    assert summary["convert_route_family_mode_counts"] == {"convert_family_mix": 1}
+    assert summary["convert_semantic_trial_mode_counts"] == {"encourage_bounded_trial": 1}
+    assert summary["recover_pool_size_summary"]["count"] == 1
+    assert summary["recover_pool_size_summary"]["min"] == 3
+    assert summary["recover_pool_size_summary"]["max"] == 3
+    assert summary["hidden_positive_credit_family_counts"] == {}
+
+
+def test_summarize_prompt_chain_progress_reports_hidden_handoff_credit() -> None:
+    rows = [
+        {
+            "decision_id": "g005-e0070-d40",
+            "policy_phase": "post_feasible_recover",
+            "route_family_mode": "recover_family_mix",
+            "semantic_trial_mode": "none",
+            "effective_candidate_pool_size": 2,
+            "visible_route_families": ["stable_global"],
+            "user_prompt": json.dumps(
+                {
+                    "metadata": {
+                        "prompt_panels": {
+                            "retrieval_panel": {
+                                "route_family_credit": {
+                                    "positive_families": ["stable_local"],
+                                    "negative_families": [],
+                                }
+                            }
+                        }
+                    }
+                },
+                ensure_ascii=True,
+            ),
+        }
+    ]
+
+    summary = summarize_prompt_chain_progress(rows)
+
+    assert summary["phase_counts"] == {"post_feasible_recover": 1}
+    assert summary["convert_route_family_mode_counts"] == {}
+    assert summary["convert_semantic_trial_mode_counts"] == {}
+    assert summary["recover_pool_size_summary"]["count"] == 1
+    assert summary["hidden_positive_credit_family_counts"] == {"stable_local": 1}

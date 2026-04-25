@@ -337,6 +337,48 @@ def test_prompt_projection_does_not_silently_disagree_with_retrieval_phase() -> 
     )
 
 
+def test_retrieval_query_phase_keeps_prefeasible_convert_explicit() -> None:
+    from optimizers.operator_pool.domain_state import build_prompt_regime_panel
+    from optimizers.operator_pool.state_builder import _build_retrieval_panel
+
+    regime_panel = build_prompt_regime_panel(
+        run_state={
+            "first_feasible_eval": None,
+            "evaluations_used": 32,
+            "peak_temperature": 348.0,
+            "temperature_gradient_rms": 11.3,
+        },
+        progress_state={
+            "phase": "prefeasible_progress",
+            "first_feasible_found": False,
+            "prefeasible_mode": "convert",
+            "recent_no_progress_count": 4,
+            "evaluations_since_near_feasible_improvement": 4,
+            "recent_dominant_violation_family": "thermal_limit",
+            "recent_dominant_violation_persistence_count": 3,
+        },
+        archive_state={
+            "recent_feasible_regression_count": 0,
+            "recent_feasible_preservation_count": 0,
+        },
+        domain_regime={
+            "phase": "near_feasible",
+            "dominant_constraint_family": "thermal_limit",
+            "sink_budget_utilization": 0.98,
+        },
+    )
+
+    retrieval_panel = _build_retrieval_panel(
+        operator_summary={},
+        candidate_operator_ids=("repair_sink_budget",),
+        regime_panel=regime_panel,
+        spatial_panel={"sink_budget_bucket": "full_sink"},
+    )
+
+    assert retrieval_panel["query_regime"]["phase"] == "prefeasible_convert"
+    assert retrieval_panel["query_regime"]["phase_fallbacks"] == ["prefeasible_search"]
+
+
 def test_build_controller_state_tracks_generation_local_memory_without_rewriting_historical_evidence() -> None:
     controller_trace = [
         ControllerTraceRow(
@@ -1121,7 +1163,131 @@ def test_retrieval_panel_surfaces_route_family_credit_by_regime() -> None:
     assert retrieval_panel["route_family_credit"] == {
         "positive_families": ["budget_guard"],
         "negative_families": ["sink_retarget"],
+        "handoff_families": [],
     }
+
+
+def test_retrieval_panel_marks_stable_local_handoff_window() -> None:
+    from optimizers.operator_pool.state_builder import _build_retrieval_panel
+
+    retrieval_panel = _build_retrieval_panel(
+        operator_summary={
+            "local_refine": {
+                "credit_by_regime": {
+                    ("post_feasible_recover", "thermal_limit", "tight"): {
+                        "frontier_add_count": 0,
+                        "feasible_preservation_count": 1,
+                        "feasible_regression_count": 1,
+                        "penalty_event_count": 0,
+                        "avg_objective_delta": -0.02,
+                        "avg_total_violation_delta": 0.0,
+                    }
+                }
+            }
+        },
+        candidate_operator_ids=("native_sbx_pm", "local_refine"),
+        regime_panel={
+            "phase": "post_feasible_recover",
+            "dominant_violation_family": "thermal_limit",
+        },
+        spatial_panel={"sink_budget_bucket": "tight"},
+    )
+
+    assert retrieval_panel["route_family_credit"] == {
+        "positive_families": ["stable_local"],
+        "negative_families": ["stable_local"],
+        "handoff_families": ["stable_local"],
+    }
+    assert retrieval_panel["stable_local_handoff_active"] is True
+
+
+def test_retrieval_panel_keeps_stable_local_handoff_when_only_fallback_episode_is_positive() -> None:
+    from optimizers.operator_pool.state_builder import _build_retrieval_panel
+
+    retrieval_panel = _build_retrieval_panel(
+        operator_summary={
+            "native_sbx_pm": {
+                "credit_by_regime": {
+                    ("post_feasible_recover", "thermal_limit", "tight"): {
+                        "frontier_add_count": 0,
+                        "feasible_preservation_count": 0,
+                        "feasible_regression_count": 1,
+                        "penalty_event_count": 0,
+                        "avg_objective_delta": 0.08,
+                        "avg_total_violation_delta": 0.12,
+                    }
+                }
+            },
+            "local_refine": {
+                "credit_by_regime": {
+                    ("post_feasible_preserve", "thermal_limit", "tight"): {
+                        "frontier_add_count": 0,
+                        "feasible_preservation_count": 0,
+                        "feasible_regression_count": 0,
+                        "penalty_event_count": 0,
+                        "avg_objective_delta": 0.0,
+                        "avg_total_violation_delta": -0.05,
+                    }
+                }
+            },
+        },
+        candidate_operator_ids=("native_sbx_pm", "local_refine"),
+        regime_panel={
+            "phase": "post_feasible_recover",
+            "dominant_violation_family": "thermal_limit",
+        },
+        spatial_panel={"sink_budget_bucket": "tight"},
+    )
+
+    assert retrieval_panel["positive_matches"][0]["route_family"] == "stable_local"
+    assert retrieval_panel["route_family_credit"] == {
+        "positive_families": [],
+        "negative_families": ["stable_local"],
+        "handoff_families": ["stable_local"],
+    }
+    assert retrieval_panel["stable_local_handoff_active"] is True
+
+
+def test_retrieval_panel_exposes_visibility_floor_from_positive_matches_even_when_family_credit_is_mixed() -> None:
+    from optimizers.operator_pool.state_builder import _build_retrieval_panel
+
+    retrieval_panel = _build_retrieval_panel(
+        operator_summary={
+            "native_sbx_pm": {
+                "credit_by_regime": {
+                    ("post_feasible_recover", "thermal_limit", "tight"): {
+                        "frontier_add_count": 0,
+                        "feasible_preservation_count": 0,
+                        "feasible_regression_count": 1,
+                        "penalty_event_count": 0,
+                        "avg_objective_delta": 0.05,
+                        "avg_total_violation_delta": 0.02,
+                    }
+                }
+            },
+            "local_refine": {
+                "credit_by_regime": {
+                    ("post_feasible_recover", "thermal_limit", "tight"): {
+                        "frontier_add_count": 0,
+                        "feasible_preservation_count": 1,
+                        "feasible_regression_count": 1,
+                        "penalty_event_count": 0,
+                        "avg_objective_delta": -0.01,
+                        "avg_total_violation_delta": -0.03,
+                    }
+                }
+            },
+        },
+        candidate_operator_ids=("native_sbx_pm", "local_refine"),
+        regime_panel={
+            "phase": "post_feasible_recover",
+            "dominant_violation_family": "thermal_limit",
+        },
+        spatial_panel={"sink_budget_bucket": "tight"},
+    )
+
+    assert retrieval_panel["positive_match_families"] == ["stable_local"]
+    assert retrieval_panel["visibility_floor_families"] == ["stable_local"]
 
 
 def test_build_progress_state_uses_recent_violation_pressure_not_any_historical_family_switch() -> None:
@@ -1190,6 +1356,248 @@ def test_build_progress_state_uses_recent_violation_pressure_not_any_historical_
     assert progress["recover_pressure_level"] == "low"
     assert progress["recover_exit_ready"] is True
     assert progress["post_feasible_mode"] == "preserve"
+
+
+def test_build_progress_state_tracks_preserve_dwell_after_recover_cools() -> None:
+    from optimizers.operator_pool.domain_state import build_progress_state
+
+    history = [
+        _record(
+            40,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.0,
+            temperature_gradient_rms=15.0,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            41,
+            _vector(sink_start=0.12, sink_end=0.68),
+            feasible=False,
+            peak_temperature=321.2,
+            temperature_gradient_rms=15.4,
+            c01_temperature_violation=0.08,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            42,
+            _vector(),
+            feasible=True,
+            peak_temperature=319.9,
+            temperature_gradient_rms=14.9,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    progress = build_progress_state(history=history)
+
+    assert progress["post_feasible_mode"] == "preserve"
+    assert progress["preserve_dwell_count"] == 1
+    assert progress["preserve_dwell_remaining"] == 2
+
+
+def test_build_progress_state_keeps_preserve_dwell_live_across_one_regression() -> None:
+    from optimizers.operator_pool.domain_state import build_progress_state
+
+    history = [
+        _record(
+            40,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.0,
+            temperature_gradient_rms=15.0,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            41,
+            _vector(sink_start=0.12, sink_end=0.68),
+            feasible=False,
+            peak_temperature=321.3,
+            temperature_gradient_rms=15.5,
+            c01_temperature_violation=0.08,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            42,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.1,
+            temperature_gradient_rms=15.1,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            43,
+            _vector(sink_start=0.10, sink_end=0.66),
+            feasible=False,
+            peak_temperature=321.0,
+            temperature_gradient_rms=15.4,
+            c01_temperature_violation=0.05,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    progress = build_progress_state(history=history)
+
+    assert progress["recover_pressure_level"] == "medium"
+    assert progress["post_feasible_mode"] == "preserve"
+    assert progress["preserve_dwell_count"] == 1
+    assert progress["preserve_dwell_remaining"] == 2
+
+
+def test_build_progress_state_sets_recover_release_ready_when_preserve_signal_offsets_bounded_regression() -> None:
+    from optimizers.operator_pool.domain_state import build_progress_state
+
+    history = [
+        _record(
+            40,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.0,
+            temperature_gradient_rms=15.0,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            41,
+            _vector(sink_start=0.12, sink_end=0.68),
+            feasible=False,
+            peak_temperature=321.3,
+            temperature_gradient_rms=15.5,
+            c01_temperature_violation=0.08,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            42,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.1,
+            temperature_gradient_rms=15.1,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            43,
+            _vector(sink_start=0.10, sink_end=0.66),
+            feasible=False,
+            peak_temperature=321.0,
+            temperature_gradient_rms=15.4,
+            c01_temperature_violation=0.05,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    progress = build_progress_state(history=history)
+
+    assert progress["recover_pressure_level"] == "medium"
+    assert progress["recover_release_ready"] is True
+
+
+def test_build_progress_state_sets_diversity_deficit_medium_for_two_point_stagnant_front() -> None:
+    from optimizers.operator_pool.domain_state import build_progress_state
+
+    history = [
+        _record(
+            40,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.0,
+            temperature_gradient_rms=15.0,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            41,
+            _vector(x_shift=0.01),
+            feasible=True,
+            peak_temperature=319.8,
+            temperature_gradient_rms=15.2,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            42,
+            _vector(x_shift=0.02),
+            feasible=True,
+            peak_temperature=320.1,
+            temperature_gradient_rms=15.3,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            43,
+            _vector(x_shift=0.03),
+            feasible=True,
+            peak_temperature=320.2,
+            temperature_gradient_rms=15.4,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            44,
+            _vector(x_shift=0.04),
+            feasible=True,
+            peak_temperature=320.3,
+            temperature_gradient_rms=15.5,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    progress = build_progress_state(history=history)
+
+    assert progress["diversity_deficit_level"] == "medium"
+
+
+def test_build_progress_state_promotes_preserve_to_expand_after_dwell_completes() -> None:
+    from optimizers.operator_pool.domain_state import build_progress_state
+
+    history = [
+        _record(
+            40,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.0,
+            temperature_gradient_rms=15.0,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            41,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.2,
+            temperature_gradient_rms=15.2,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            42,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.3,
+            temperature_gradient_rms=15.3,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            43,
+            _vector(),
+            feasible=True,
+            peak_temperature=320.4,
+            temperature_gradient_rms=15.4,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    progress = build_progress_state(history=history)
+
+    assert progress["preserve_dwell_remaining"] == 0
+    assert progress["post_feasible_mode"] == "expand"
 
 
 def test_objective_stagnation_detects_tmax_stagnation() -> None:

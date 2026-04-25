@@ -672,15 +672,51 @@ def _build_retrieval_panel(
             -float(row["evidence"]["avg_objective_delta"]),
         )
     )
+    route_family_credit = summarize_route_family_credit(
+        operator_summary,
+        query_regime=query_regime,
+    )
+    handoff_families = {
+        str(route_family).strip()
+        for route_family in route_family_credit.get("handoff_families", [])
+        if str(route_family).strip()
+    }
+    handoff_families.update(
+        _stable_local_handoff_families(
+            query_phase=query_phase,
+            phase_fallbacks=phase_fallbacks,
+            positive_matches=positive_matches,
+        )
+    )
+    positive_match_families = sorted(
+        {
+            str(match.get("route_family", "")).strip()
+            for match in positive_matches
+            if isinstance(match, Mapping) and str(match.get("route_family", "")).strip()
+        }
+    )
+    negative_match_families = sorted(
+        {
+            str(match.get("route_family", "")).strip()
+            for match in negative_matches
+            if isinstance(match, Mapping) and str(match.get("route_family", "")).strip()
+        }
+    )
+    route_family_credit = {
+        "positive_families": list(route_family_credit.get("positive_families", [])),
+        "negative_families": list(route_family_credit.get("negative_families", [])),
+        "handoff_families": sorted(handoff_families),
+    }
     return {
         "query_regime": query_regime,
         "matched_episodes": matched_episodes[:3],
         "positive_matches": positive_matches[:2],
+        "positive_match_families": positive_match_families,
         "negative_matches": negative_matches[:1],
-        "route_family_credit": summarize_route_family_credit(
-            operator_summary,
-            query_regime=query_regime,
-        ),
+        "negative_match_families": negative_match_families,
+        "visibility_floor_families": sorted({*positive_match_families, *handoff_families}),
+        "route_family_credit": route_family_credit,
+        "stable_local_handoff_active": "stable_local" in handoff_families,
     }
 
 
@@ -691,6 +727,27 @@ def _retrieval_phase_fallbacks(phase: str) -> list[str]:
     if normalized_phase in {"post_feasible_expand", "prefeasible_convert", "prefeasible_stagnation"}:
         return ["post_feasible_preserve"] if normalized_phase == "post_feasible_expand" else ["prefeasible_search"]
     return []
+
+
+def _stable_local_handoff_families(
+    *,
+    query_phase: str,
+    phase_fallbacks: Sequence[str],
+    positive_matches: Sequence[Mapping[str, Any]],
+) -> set[str]:
+    if str(query_phase).strip() != "post_feasible_recover":
+        return set()
+    allowed_phases = {str(query_phase).strip(), *(str(phase).strip() for phase in phase_fallbacks)}
+    for match in positive_matches:
+        if not isinstance(match, Mapping):
+            continue
+        if str(match.get("route_family", "")).strip() != "stable_local":
+            continue
+        regime = match.get("regime", {})
+        match_phase = str(regime.get("phase", "")).strip() if isinstance(regime, Mapping) else ""
+        if match_phase in allowed_phases:
+            return {"stable_local"}
+    return set()
 
 
 def build_controller_state(

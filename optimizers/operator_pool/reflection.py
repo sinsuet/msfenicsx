@@ -337,6 +337,7 @@ def summarize_route_family_credit(
 
     positive_families: list[str] = []
     negative_families: list[str] = []
+    handoff_families: list[str] = []
     for route_family, family_row in family_credit.items():
         avg_objective_delta = (
             0.0
@@ -355,6 +356,8 @@ def summarize_route_family_credit(
             or avg_total_violation_delta < 0.0
         ):
             positive_families.append(route_family)
+            if route_family == "stable_local":
+                handoff_families.append(route_family)
         if (
             int(family_row["feasible_regression_count"]) > 0
             or int(family_row["penalty_event_count"]) > 0
@@ -365,6 +368,7 @@ def summarize_route_family_credit(
     return {
         "positive_families": sorted(set(positive_families)),
         "negative_families": sorted(set(negative_families)),
+        "handoff_families": sorted(set(handoff_families)),
     }
 
 

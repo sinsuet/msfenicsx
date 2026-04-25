@@ -275,7 +275,7 @@ Edit the repository-root `.env` at `/home/hymn/msfenicsx/.env` to declare each p
 
 ```env
 GPT_PROXY_API_KEY=...
-GPT_PROXY_BASE_URL=https://rust.cat/v1
+GPT_PROXY_BASE_URL=https://apiproxy.work/v1
 
 CLAUDE_PROXY_API_KEY=...
 CLAUDE_PROXY_BASE_URL=https://apiproxy.work/v1

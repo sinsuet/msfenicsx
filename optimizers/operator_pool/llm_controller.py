@@ -171,6 +171,15 @@ class LLMOperatorController:
                 candidate_operator_ids,
             )
         )
+        candidate_operator_ids = self._prioritize_exact_positive_candidate_operator_ids(
+            state,
+            candidate_operator_ids,
+        )
+        candidate_operator_ids = self._apply_prefeasible_convert_exact_positive_contract(
+            state,
+            candidate_operator_ids,
+            policy_snapshot=policy_snapshot,
+        )
         guardrail = self._merge_guardrail_metadata(
             original_candidate_operator_ids=original_candidate_operator_ids,
             effective_candidate_operator_ids=candidate_operator_ids,
@@ -683,6 +692,11 @@ class LLMOperatorController:
             "concentrated unless the current state makes that operator uniquely necessary. "
             "If metadata.decision_axes.semantic_trial_mode is encourage_bounded_trial, allow one bounded semantic "
             "trial from metadata.decision_axes.semantic_trial_candidates before defaulting back to native_baseline. "
+            "Treat exact positive retrieval matches as the strongest same-regime route evidence when they are "
+            "available. "
+            "If metadata.decision_axes.exact_positive_match_mode is prefer_exact_match, prioritize "
+            "metadata.decision_axes.exact_positive_match_operator_ids before same-family substitutes when their "
+            "feasibility risk is comparable. "
             "When the hotspot is already inside the sink corridor, hotspot_spread is a direct expand move rather "
             "than a sink-retargeting detour. "
             f"Intent menu: {intent_guidance} "
@@ -811,6 +825,9 @@ class LLMOperatorController:
         generation_panel = prompt_panels.get("generation_panel")
         if not isinstance(generation_panel, Mapping):
             generation_panel = {}
+        retrieval_panel = prompt_panels.get("retrieval_panel")
+        if not isinstance(retrieval_panel, Mapping):
+            retrieval_panel = {}
         objective_balance = regime_panel.get("objective_balance")
         if not isinstance(objective_balance, Mapping):
             objective_balance = {}
@@ -852,10 +869,30 @@ class LLMOperatorController:
         semantic_trial_reason = ""
         semantic_trial_candidates: list[str] = []
         route_family_candidates: list[str] = []
+        exact_positive_match_operator_ids = LLMOperatorController._build_exact_positive_match_operator_ids(
+            retrieval_panel,
+            operator_panel=operator_panel,
+        )
+        exact_positive_match_route_families = LLMOperatorController._build_exact_positive_match_route_families(
+            retrieval_panel,
+            exact_positive_match_operator_ids=exact_positive_match_operator_ids,
+        )
+        exact_positive_match_mode = "none"
         route_stage = "direct_operator"
         route_family_mode = "none"
         phase = str(regime_panel.get("phase", ""))
-        if phase in {"post_feasible_expand", "post_feasible_recover", "post_feasible_preserve"} and preserve_score >= 2:
+        if phase == "prefeasible_convert":
+            semantic_trial_candidates = LLMOperatorController._build_semantic_trial_candidates(operator_panel)
+            route_family_candidates = LLMOperatorController._build_route_family_candidates(
+                operator_panel,
+                semantic_trial_candidates=semantic_trial_candidates,
+            )
+            if route_family_candidates:
+                route_stage = "family_then_operator"
+                route_family_mode = "convert_family_mix"
+                semantic_trial_mode = "encourage_bounded_trial"
+                semantic_trial_reason = "prefeasible_convert_entry_mix"
+        elif phase in {"post_feasible_expand", "post_feasible_recover", "post_feasible_preserve"} and preserve_score >= 2:
             semantic_trial_candidates = LLMOperatorController._build_semantic_trial_candidates(operator_panel)
             route_family_candidates = LLMOperatorController._build_route_family_candidates(
                 operator_panel,
@@ -899,6 +936,16 @@ class LLMOperatorController:
                     route_family_mode = "recover_family_mix"
                 elif phase == "post_feasible_preserve":
                     route_family_mode = "preserve_family_mix"
+        if route_family_mode != "none" and exact_positive_match_operator_ids:
+            exact_positive_match_mode = "prefer_exact_match"
+            semantic_trial_candidates = LLMOperatorController._prioritize_ordered_values(
+                exact_positive_match_operator_ids,
+                semantic_trial_candidates,
+            )
+            route_family_candidates = LLMOperatorController._prioritize_ordered_values(
+                exact_positive_match_route_families,
+                route_family_candidates,
+            )
         return {
             "objective_balance_pressure": str(objective_balance.get("balance_pressure", "low")),
             "preferred_effect": objective_balance.get("preferred_effect"),
@@ -924,6 +971,9 @@ class LLMOperatorController:
             "route_stage": route_stage,
             "route_family_mode": route_family_mode,
             "route_family_candidates": route_family_candidates,
+            "exact_positive_match_mode": exact_positive_match_mode,
+            "exact_positive_match_operator_ids": exact_positive_match_operator_ids,
+            "exact_positive_match_route_families": exact_positive_match_route_families,
         }
 
     @staticmethod
@@ -973,6 +1023,20 @@ class LLMOperatorController:
         regime_panel = prompt_panels.get("regime_panel")
         if not isinstance(regime_panel, Mapping):
             regime_panel = {}
+        retrieval_panel = prompt_panels.get("retrieval_panel")
+        if not isinstance(retrieval_panel, Mapping):
+            retrieval_panel = {}
+        visibility_floor_families = [
+            str(route_family)
+            for route_family in retrieval_panel.get("visibility_floor_families", [])
+            if str(route_family).strip()
+        ]
+        recover_release_evidence_active = bool(regime_panel.get("recover_release_ready", False))
+        if not recover_release_evidence_active:
+            recover_release_evidence_active = (
+                str(regime_panel.get("preservation_pressure", "low")).strip() == "high"
+                and bool({str(route_family).strip() for route_family in visibility_floor_families} & STABLE_ROUTE_FAMILIES)
+            )
         guardrail_reason_codes = [
             str(reason_code)
             for reason_code in guardrail_payload.get("reason_codes", [])
@@ -995,15 +1059,33 @@ class LLMOperatorController:
             "route_family_candidates": [
                 str(route_family) for route_family in decision_axes.get("route_family_candidates", [])
             ],
+            "exact_positive_match_mode": str(decision_axes.get("exact_positive_match_mode", "none")),
+            "exact_positive_match_operator_ids": [
+                str(operator_id) for operator_id in decision_axes.get("exact_positive_match_operator_ids", [])
+            ],
+            "exact_positive_match_route_families": [
+                str(route_family) for route_family in decision_axes.get("exact_positive_match_route_families", [])
+            ],
             "route_stage": str(decision_axes.get("route_stage", "direct_operator")),
             "semantic_trial_mode": str(decision_axes.get("semantic_trial_mode", "none")),
             "semantic_trial_reason": str(decision_axes.get("semantic_trial_reason", "")),
             "semantic_trial_candidates": [
                 str(operator_id) for operator_id in decision_axes.get("semantic_trial_candidates", [])
             ],
+            "stable_local_handoff_active": bool(retrieval_panel.get("stable_local_handoff_active", False)),
+            "positive_match_families": [
+                str(route_family)
+                for route_family in retrieval_panel.get("positive_match_families", [])
+                if str(route_family).strip()
+            ],
+            "visibility_floor_families": visibility_floor_families,
             "objective_balance_pressure": str(decision_axes.get("objective_balance_pressure", "low")),
             "preferred_effect": str(decision_axes.get("preferred_effect", "")),
             "recover_exit_ready": bool(regime_panel.get("recover_exit_ready", False)),
+            "recover_release_ready": bool(regime_panel.get("recover_release_ready", False)),
+            "recover_release_evidence_active": bool(recover_release_evidence_active),
+            "recover_reentry_pressure": str(regime_panel.get("recover_reentry_pressure", "low")),
+            "diversity_deficit_level": str(regime_panel.get("diversity_deficit_level", "low")),
         }
 
     @staticmethod
@@ -1048,6 +1130,170 @@ class LLMOperatorController:
             if route_family not in route_family_candidates:
                 route_family_candidates.append(route_family)
         return route_family_candidates
+
+    @staticmethod
+    def _build_exact_positive_match_operator_ids(
+        retrieval_panel: Mapping[str, Any],
+        *,
+        operator_panel: Mapping[str, Any],
+    ) -> list[str]:
+        operator_panel_ids = {str(operator_id) for operator_id in operator_panel.keys()}
+        exact_positive_match_operator_ids: list[str] = []
+        for match in retrieval_panel.get("positive_matches", []):
+            if not isinstance(match, Mapping):
+                continue
+            operator_id = str(match.get("operator_id", "")).strip()
+            route_family = str(match.get("route_family", "")).strip()
+            if (
+                not operator_id
+                or operator_id not in operator_panel_ids
+                or not route_family
+                or route_family in STABLE_ROUTE_FAMILIES
+            ):
+                continue
+            operator_row = operator_panel.get(operator_id)
+            if not isinstance(operator_row, Mapping):
+                continue
+            applicability = str(operator_row.get("applicability", "low")).strip()
+            feasibility_risk = str(
+                operator_row.get("expected_feasibility_risk", operator_row.get("recent_regression_risk", "medium"))
+            ).strip()
+            if applicability not in {"medium", "high"} or feasibility_risk == "high":
+                continue
+            if operator_id not in exact_positive_match_operator_ids:
+                exact_positive_match_operator_ids.append(operator_id)
+        return exact_positive_match_operator_ids
+
+    @staticmethod
+    def _build_exact_positive_match_route_families(
+        retrieval_panel: Mapping[str, Any],
+        *,
+        exact_positive_match_operator_ids: Sequence[str],
+    ) -> list[str]:
+        exact_positive_match_operator_id_set = {str(operator_id) for operator_id in exact_positive_match_operator_ids}
+        exact_positive_match_route_families: list[str] = []
+        for match in retrieval_panel.get("positive_matches", []):
+            if not isinstance(match, Mapping):
+                continue
+            operator_id = str(match.get("operator_id", "")).strip()
+            route_family = str(match.get("route_family", "")).strip()
+            if (
+                not operator_id
+                or operator_id not in exact_positive_match_operator_id_set
+                or not route_family
+                or route_family in STABLE_ROUTE_FAMILIES
+            ):
+                continue
+            if route_family not in exact_positive_match_route_families:
+                exact_positive_match_route_families.append(route_family)
+        return exact_positive_match_route_families
+
+    @staticmethod
+    def _prioritize_ordered_values(
+        prioritized_values: Sequence[str],
+        existing_values: Sequence[str],
+    ) -> list[str]:
+        ordered_values: list[str] = []
+        for value in (*prioritized_values, *existing_values):
+            normalized_value = str(value).strip()
+            if normalized_value and normalized_value not in ordered_values:
+                ordered_values.append(normalized_value)
+        return ordered_values
+
+    @staticmethod
+    def _prioritize_exact_positive_candidate_operator_ids(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+    ) -> tuple[str, ...]:
+        prompt_panels = state.metadata.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            return tuple(str(operator_id) for operator_id in candidate_operator_ids)
+        decision_axes = LLMOperatorController._build_decision_axes({"prompt_panels": dict(prompt_panels)})
+        if str(decision_axes.get("exact_positive_match_mode", "none")).strip() != "prefer_exact_match":
+            return tuple(str(operator_id) for operator_id in candidate_operator_ids)
+        candidate_operator_id_set = {str(operator_id) for operator_id in candidate_operator_ids}
+        prioritized_operator_ids = [
+            str(operator_id)
+            for operator_id in decision_axes.get("exact_positive_match_operator_ids", [])
+            if str(operator_id) in candidate_operator_id_set
+        ]
+        if not prioritized_operator_ids:
+            return tuple(str(operator_id) for operator_id in candidate_operator_ids)
+        return tuple(
+            LLMOperatorController._prioritize_ordered_values(
+                prioritized_operator_ids,
+                candidate_operator_ids,
+            )
+        )
+
+    @staticmethod
+    def _apply_prefeasible_convert_exact_positive_contract(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+        *,
+        policy_snapshot: PolicySnapshot,
+    ) -> tuple[str, ...]:
+        normalized_candidate_operator_ids = tuple(str(operator_id) for operator_id in candidate_operator_ids)
+        if policy_snapshot.phase != "prefeasible_convert":
+            return normalized_candidate_operator_ids
+        prompt_panels = state.metadata.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            return normalized_candidate_operator_ids
+        regime_panel = prompt_panels.get("regime_panel")
+        if not isinstance(regime_panel, Mapping):
+            return normalized_candidate_operator_ids
+        if str(regime_panel.get("entry_pressure", "low")).strip() != "high":
+            return normalized_candidate_operator_ids
+        retrieval_panel = prompt_panels.get("retrieval_panel")
+        if not isinstance(retrieval_panel, Mapping):
+            retrieval_panel = {}
+        decision_axes = LLMOperatorController._build_decision_axes({"prompt_panels": dict(prompt_panels)})
+        if str(decision_axes.get("exact_positive_match_mode", "none")).strip() != "prefer_exact_match":
+            return normalized_candidate_operator_ids
+        candidate_operator_id_set = set(normalized_candidate_operator_ids)
+        exact_positive_operator_ids = [
+            str(operator_id)
+            for operator_id in decision_axes.get("exact_positive_match_operator_ids", [])
+            if str(operator_id) in candidate_operator_id_set
+        ]
+        if not exact_positive_operator_ids:
+            return normalized_candidate_operator_ids
+        dominant_violation_family = str(regime_panel.get("dominant_violation_family", "")).strip()
+        visibility_floor_families = {
+            str(route_family).strip()
+            for route_family in retrieval_panel.get("visibility_floor_families", [])
+            if str(route_family).strip()
+        }
+        protected_nonstable_visibility_floor_operator_ids = {
+            operator_id
+            for operator_id in normalized_candidate_operator_ids
+            if (
+                operator_route_family(operator_id) == "budget_guard"
+                and dominant_violation_family == "sink_budget"
+                and operator_route_family(operator_id) in visibility_floor_families
+            )
+        }
+        contracted_candidate_operator_ids: list[str] = []
+        for operator_id in normalized_candidate_operator_ids:
+            route_family = operator_route_family(operator_id)
+            if operator_id in exact_positive_operator_ids:
+                contracted_candidate_operator_ids.append(operator_id)
+                continue
+            if operator_id in protected_nonstable_visibility_floor_operator_ids:
+                contracted_candidate_operator_ids.append(operator_id)
+                continue
+            if route_family == "budget_guard" and dominant_violation_family != "sink_budget":
+                continue
+            if route_family in STABLE_ROUTE_FAMILIES:
+                continue
+            entry_evidence_level = str(
+                policy_snapshot.candidate_annotations.get(operator_id, {}).get("entry_evidence_level", "")
+            ).strip()
+            if entry_evidence_level in {"supported", "trusted"}:
+                contracted_candidate_operator_ids.append(operator_id)
+        if not contracted_candidate_operator_ids:
+            return normalized_candidate_operator_ids
+        return tuple(contracted_candidate_operator_ids)
 
     @staticmethod
     def _is_before_first_feasible(state: ControllerState) -> bool:
@@ -1149,6 +1395,14 @@ class LLMOperatorController:
             return tuple(candidate_operator_ids), None
         if dominant_count < min_count or dominant_share < min_share:
             return tuple(candidate_operator_ids), None
+        protected_operator_ids = set(
+            LLMOperatorController._recent_dominance_visibility_floor_protected_operator_ids(
+                state,
+                candidate_operator_ids,
+            )
+        )
+        if dominant_operator_id in protected_operator_ids:
+            return tuple(candidate_operator_ids), None
         filtered_candidate_operator_ids = tuple(
             operator_id for operator_id in candidate_operator_ids if operator_id != dominant_operator_id
         )
@@ -1171,6 +1425,59 @@ class LLMOperatorController:
             "original_candidate_operator_ids": list(candidate_operator_ids),
             "effective_candidate_operator_ids": list(filtered_candidate_operator_ids),
         }
+
+    @staticmethod
+    def _recent_dominance_visibility_floor_protected_operator_ids(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+    ) -> tuple[str, ...]:
+        prompt_panels = state.metadata.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            return ()
+        retrieval_panel = prompt_panels.get("retrieval_panel")
+        if not isinstance(retrieval_panel, Mapping):
+            return ()
+        visibility_floor_families = [
+            str(route_family).strip()
+            for route_family in retrieval_panel.get("visibility_floor_families", [])
+            if str(route_family).strip()
+        ]
+        if not visibility_floor_families:
+            return ()
+
+        positive_match_operator_ids_by_family: dict[str, list[str]] = {}
+        for match in retrieval_panel.get("positive_matches", []):
+            if not isinstance(match, Mapping):
+                continue
+            operator_id = str(match.get("operator_id", "")).strip()
+            route_family = str(match.get("route_family", "")).strip()
+            if not operator_id or not route_family:
+                continue
+            family_matches = positive_match_operator_ids_by_family.setdefault(route_family, [])
+            if operator_id not in family_matches:
+                family_matches.append(operator_id)
+
+        protected_operator_ids: list[str] = []
+        for route_family in visibility_floor_families:
+            family_candidate_operator_ids = [
+                str(operator_id)
+                for operator_id in candidate_operator_ids
+                if operator_route_family(str(operator_id)) == route_family
+            ]
+            if len(family_candidate_operator_ids) != 1:
+                continue
+            positive_match_operator_ids = positive_match_operator_ids_by_family.get(route_family, [])
+            protected_operator_id = next(
+                (
+                    operator_id
+                    for operator_id in positive_match_operator_ids
+                    if operator_id in family_candidate_operator_ids
+                ),
+                family_candidate_operator_ids[0],
+            )
+            if protected_operator_id not in protected_operator_ids:
+                protected_operator_ids.append(protected_operator_id)
+        return tuple(protected_operator_ids)
 
     @staticmethod
     def _apply_generation_local_dominance_guardrail(
@@ -1205,6 +1512,14 @@ class LLMOperatorController:
         min_count = int(thresholds["min_count"])
         min_share = float(thresholds["min_share"])
         if accepted_count < min_window or dominant_operator_count < min_count or dominant_share < min_share:
+            return tuple(candidate_operator_ids), None
+        protected_operator_ids = set(
+            LLMOperatorController._recent_dominance_visibility_floor_protected_operator_ids(
+                state,
+                candidate_operator_ids,
+            )
+        )
+        if dominant_operator_id in protected_operator_ids:
             return tuple(candidate_operator_ids), None
         viable_alternatives = LLMOperatorController._generation_local_viable_alternative_candidate_ids(
             state,
@@ -1298,12 +1613,29 @@ class LLMOperatorController:
         )
         if not viable_alternatives:
             return tuple(candidate_operator_ids), None
+        protected_operator_ids = set(
+            LLMOperatorController._generation_local_visibility_floor_protected_operator_ids(
+                state,
+                candidate_operator_ids,
+                dominant_group_id=dominant_group_id,
+            )
+        )
         filtered_candidate_operator_ids = tuple(
             operator_id
             for operator_id in candidate_operator_ids
-            if LLMOperatorController._operator_strategy_group(str(operator_id)) != dominant_group_id
+            if (
+                LLMOperatorController._operator_strategy_group(str(operator_id)) != dominant_group_id
+                or operator_id in protected_operator_ids
+            )
         )
         if not filtered_candidate_operator_ids:
+            return tuple(candidate_operator_ids), None
+        filtered_operator_ids = [
+            operator_id
+            for operator_id in dominant_group_operator_ids
+            if operator_id not in protected_operator_ids
+        ]
+        if not filtered_operator_ids:
             return tuple(candidate_operator_ids), None
         return filtered_candidate_operator_ids, {
             "applied": True,
@@ -1317,7 +1649,7 @@ class LLMOperatorController:
                 for group_id, count in strategy_group_counter.items()
                 if int(count) > 0
             },
-            "filtered_operator_ids": list(dominant_group_operator_ids),
+            "filtered_operator_ids": filtered_operator_ids,
             "original_candidate_operator_ids": list(candidate_operator_ids),
             "effective_candidate_operator_ids": list(filtered_candidate_operator_ids),
             "viable_alternative_operator_ids": list(viable_alternatives),
@@ -1502,6 +1834,66 @@ class LLMOperatorController:
         return tuple(fallback_operator_ids)
 
     @staticmethod
+    def _generation_local_visibility_floor_protected_operator_ids(
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+        *,
+        dominant_group_id: str,
+    ) -> tuple[str, ...]:
+        prompt_panels = state.metadata.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            return ()
+        retrieval_panel = prompt_panels.get("retrieval_panel")
+        if not isinstance(retrieval_panel, Mapping):
+            return ()
+        visibility_floor_families = [
+            str(route_family).strip()
+            for route_family in retrieval_panel.get("visibility_floor_families", [])
+            if str(route_family).strip()
+        ]
+        if not visibility_floor_families:
+            return ()
+
+        positive_match_operator_ids_by_family: dict[str, list[str]] = {}
+        for match in retrieval_panel.get("positive_matches", []):
+            if not isinstance(match, Mapping):
+                continue
+            operator_id = str(match.get("operator_id", "")).strip()
+            route_family = str(match.get("route_family", "")).strip()
+            if not operator_id or not route_family:
+                continue
+            family_matches = positive_match_operator_ids_by_family.setdefault(route_family, [])
+            if operator_id not in family_matches:
+                family_matches.append(operator_id)
+
+        protected_operator_ids: list[str] = []
+        for route_family in visibility_floor_families:
+            family_candidate_operator_ids = [
+                str(operator_id)
+                for operator_id in candidate_operator_ids
+                if operator_route_family(str(operator_id)) == route_family
+            ]
+            if not family_candidate_operator_ids:
+                continue
+            if any(
+                LLMOperatorController._operator_strategy_group(operator_id) != dominant_group_id
+                for operator_id in family_candidate_operator_ids
+            ):
+                continue
+            positive_match_operator_ids = positive_match_operator_ids_by_family.get(route_family, [])
+            protected_operator_id = next(
+                (
+                    operator_id
+                    for operator_id in positive_match_operator_ids
+                    if operator_id in family_candidate_operator_ids
+                ),
+                family_candidate_operator_ids[0],
+            )
+            if protected_operator_id not in protected_operator_ids:
+                protected_operator_ids.append(protected_operator_id)
+        return tuple(protected_operator_ids)
+
+    @staticmethod
     def _build_generation_local_guidance(
         state: ControllerState,
         candidate_operator_ids: Sequence[str],
@@ -1597,7 +1989,7 @@ class LLMOperatorController:
         *,
         policy_snapshot: PolicySnapshot,
     ) -> str:
-        if policy_snapshot.phase != "post_feasible_expand":
+        if policy_snapshot.phase not in {"prefeasible_convert", "post_feasible_expand"}:
             return ""
         route_families: list[str] = []
         for operator_id in candidate_operator_ids:
@@ -1608,6 +2000,12 @@ class LLMOperatorController:
                 route_families.append(route_family)
         if len(route_families) < 2:
             return ""
+        if policy_snapshot.phase == "prefeasible_convert":
+            return (
+                "Convert family mix is active. Choose a route family before choosing the final operator. "
+                f"Available route families: {route_families}. "
+                "Prefer bounded entry moves that directly relieve the current bottleneck and keep the path to first feasible short."
+            )
         return (
             "Bounded expand mix is active. Choose a route family before choosing the final operator. "
             f"Available route families: {route_families}. "

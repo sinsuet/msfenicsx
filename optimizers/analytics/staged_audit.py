@@ -192,6 +192,8 @@ def summarize_prompt_contract_mismatches(
     phase_mismatch_count = 0
     phase_mismatch_examples: list[dict[str, Any]] = []
     phase_mismatch_example_phases: set[str] = set()
+    hidden_positive_match_requests = 0
+    hidden_positive_match_family_counts: Counter[str] = Counter()
     hidden_positive_credit_requests = 0
     hidden_positive_credit_family_counts: Counter[str] = Counter()
     recover_pool_sizes: list[int] = []
@@ -232,19 +234,78 @@ def summarize_prompt_contract_mismatches(
                 phase_mismatch_example_phases.add(policy_phase)
 
         visible_route_families = _visible_route_families_from_request_row(row, metadata)
-        positive_route_families = _positive_route_families_from_retrieval_panel(retrieval_panel)
-        hidden_positive_route_families = sorted(positive_route_families - visible_route_families)
-        if hidden_positive_route_families:
+        positive_match_route_families = _positive_match_route_families_from_retrieval_panel(retrieval_panel)
+        hidden_positive_match_route_families = sorted(positive_match_route_families - visible_route_families)
+        if hidden_positive_match_route_families:
+            hidden_positive_match_requests += 1
+            for route_family in hidden_positive_match_route_families:
+                hidden_positive_match_family_counts[route_family] += 1
+
+        positive_credit_route_families = _positive_credit_route_families_from_retrieval_panel(retrieval_panel)
+        hidden_positive_credit_route_families = sorted(positive_credit_route_families - visible_route_families)
+        if hidden_positive_credit_route_families:
             hidden_positive_credit_requests += 1
-            for route_family in hidden_positive_route_families:
+            for route_family in hidden_positive_credit_route_families:
                 hidden_positive_credit_family_counts[route_family] += 1
 
     return {
         "phase_mismatch_count": int(phase_mismatch_count),
         "phase_mismatch_examples": phase_mismatch_examples,
+        "hidden_positive_match_requests": int(hidden_positive_match_requests),
+        "hidden_positive_match_family_counts": dict(sorted(hidden_positive_match_family_counts.items())),
         "hidden_positive_credit_requests": int(hidden_positive_credit_requests),
         "hidden_positive_credit_family_counts": dict(sorted(hidden_positive_credit_family_counts.items())),
         "recover_pool_size_summary": _pool_size_summary(recover_pool_sizes),
+    }
+
+
+def summarize_prompt_chain_progress(
+    request_rows: Sequence[Mapping[str, Any]],
+    *,
+    run_root: str | Path | None = None,
+) -> dict[str, Any]:
+    resolved_run_root = None if run_root is None else Path(run_root)
+    phase_counts: Counter[str] = Counter()
+    convert_route_family_mode_counts: Counter[str] = Counter()
+    convert_semantic_trial_mode_counts: Counter[str] = Counter()
+    hidden_positive_credit_family_counts: Counter[str] = Counter()
+    recover_pool_sizes: list[int] = []
+
+    for row in request_rows:
+        metadata = _request_metadata_from_row(row, run_root=resolved_run_root)
+        prompt_panels = metadata.get("prompt_panels", {})
+        if not isinstance(prompt_panels, Mapping):
+            prompt_panels = {}
+        regime_panel = prompt_panels.get("regime_panel", {})
+        if not isinstance(regime_panel, Mapping):
+            regime_panel = {}
+        retrieval_panel = prompt_panels.get("retrieval_panel", {})
+        if not isinstance(retrieval_panel, Mapping):
+            retrieval_panel = {}
+
+        policy_phase = _policy_phase_from_request_row(row, regime_panel=regime_panel)
+        phase_counts[policy_phase] += 1
+
+        if policy_phase == "prefeasible_convert":
+            convert_route_family_mode = str(row.get("route_family_mode", "")).strip() or "none"
+            convert_semantic_trial_mode = str(row.get("semantic_trial_mode", "")).strip() or "none"
+            convert_route_family_mode_counts[convert_route_family_mode] += 1
+            convert_semantic_trial_mode_counts[convert_semantic_trial_mode] += 1
+
+        if policy_phase == "post_feasible_recover":
+            recover_pool_sizes.append(_effective_pool_size_from_request_row(row, metadata))
+
+        visible_route_families = _visible_route_families_from_request_row(row, metadata)
+        positive_route_families = _positive_route_families_from_retrieval_panel(retrieval_panel)
+        for route_family in sorted(positive_route_families - visible_route_families):
+            hidden_positive_credit_family_counts[route_family] += 1
+
+    return {
+        "phase_counts": dict(phase_counts),
+        "convert_route_family_mode_counts": dict(convert_route_family_mode_counts),
+        "convert_semantic_trial_mode_counts": dict(convert_semantic_trial_mode_counts),
+        "recover_pool_size_summary": _pool_size_summary(recover_pool_sizes),
+        "hidden_positive_credit_family_counts": dict(sorted(hidden_positive_credit_family_counts.items())),
     }
 
 
@@ -417,15 +478,24 @@ def _visible_route_families_from_request_row(
 
 
 def _positive_route_families_from_retrieval_panel(retrieval_panel: Mapping[str, Any]) -> set[str]:
+    positive_credit_route_families = _positive_credit_route_families_from_retrieval_panel(retrieval_panel)
+    if positive_credit_route_families:
+        return positive_credit_route_families
+    return _positive_match_route_families_from_retrieval_panel(retrieval_panel)
+
+
+def _positive_credit_route_families_from_retrieval_panel(retrieval_panel: Mapping[str, Any]) -> set[str]:
     route_family_credit = retrieval_panel.get("route_family_credit", {})
     if isinstance(route_family_credit, Mapping):
-        positive_route_families = {
+        return {
             value
             for value in _string_list(route_family_credit.get("positive_families", []))
             if value
         }
-        if positive_route_families:
-            return positive_route_families
+    return set()
+
+
+def _positive_match_route_families_from_retrieval_panel(retrieval_panel: Mapping[str, Any]) -> set[str]:
     positive_matches = retrieval_panel.get("positive_matches", [])
     if not isinstance(positive_matches, list | tuple):
         return set()

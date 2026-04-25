@@ -154,7 +154,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
   - `LLM_MODEL`
 - repository-root `/home/hymn/msfenicsx/.env` should keep the raw provider credentials:
   - `GPT_PROXY_API_KEY`
-  - `GPT_PROXY_BASE_URL=https://rust.cat/v1`
+  - `GPT_PROXY_BASE_URL=https://apiproxy.work/v1`
   - `CLAUDE_PROXY_API_KEY`
   - `CLAUDE_PROXY_BASE_URL=https://apiproxy.work/v1`
   - `QWEN_PROXY_API_KEY`

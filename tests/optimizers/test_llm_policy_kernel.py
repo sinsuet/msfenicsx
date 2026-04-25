@@ -149,6 +149,198 @@ def _prefeasible_reset_state() -> ControllerState:
     )
 
 
+def _prefeasible_convert_budget_tight_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=4,
+        evaluation_index=33,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "near_feasible",
+            "run_state": {
+                "decision_index": 8,
+                "evaluations_used": 32,
+                "evaluations_remaining": 97,
+                "feasible_rate": 0.0,
+                "first_feasible_eval": None,
+            },
+            "progress_state": {
+                "phase": "prefeasible_stagnation",
+                "prefeasible_mode": "convert",
+                "first_feasible_found": False,
+                "recent_no_progress_count": 4,
+                "evaluations_since_near_feasible_improvement": 4,
+                "recent_dominant_violation_family": "thermal_limit",
+                "recent_dominant_violation_persistence_count": 3,
+            },
+            "domain_regime": {
+                "phase": "near_feasible",
+                "dominant_constraint_family": "thermal_limit",
+                "sink_budget_utilization": 0.98,
+            },
+            "prompt_panels": {
+                "spatial_panel": {
+                    "sink_budget_bucket": "full_sink",
+                    "hotspot_inside_sink_window": False,
+                },
+                "regime_panel": {
+                    "phase": "prefeasible_convert",
+                    "entry_pressure": "high",
+                    "preservation_pressure": "low",
+                    "frontier_pressure": "low",
+                    "objective_balance": {
+                        "balance_pressure": "medium",
+                        "preferred_effect": "peak_improve",
+                        "stagnant_objectives": ["temperature_max"],
+                        "improving_objectives": [],
+                    },
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 5,
+                    "recent_selection_count": 1,
+                    "proposal_count": 5,
+                },
+                "global_explore": {
+                    "selection_count": 3,
+                    "recent_selection_count": 0,
+                    "proposal_count": 3,
+                },
+                "local_refine": {
+                    "selection_count": 4,
+                    "recent_selection_count": 1,
+                    "proposal_count": 4,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                },
+            },
+        },
+    )
+
+
+def _prefeasible_convert_visibility_floor_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=4,
+        evaluation_index=65,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "near_feasible",
+            "run_state": {
+                "decision_index": 35,
+                "evaluations_used": 64,
+                "evaluations_remaining": 135,
+                "feasible_rate": 0.0,
+                "first_feasible_eval": None,
+            },
+            "progress_state": {
+                "phase": "prefeasible_stagnation",
+                "prefeasible_mode": "convert",
+                "first_feasible_found": False,
+                "recent_no_progress_count": 5,
+                "evaluations_since_near_feasible_improvement": 5,
+                "recent_dominant_violation_family": "thermal_limit",
+                "recent_dominant_violation_persistence_count": 3,
+            },
+            "prompt_panels": {
+                "spatial_panel": {
+                    "sink_budget_bucket": "full_sink",
+                    "hotspot_inside_sink_window": False,
+                },
+                "retrieval_panel": {
+                    "positive_match_families": ["hotspot_spread", "sink_retarget"],
+                    "visibility_floor_families": ["hotspot_spread", "sink_retarget"],
+                    "positive_matches": [
+                        {
+                            "operator_id": "slide_sink",
+                            "route_family": "sink_retarget",
+                            "similarity_score": 6,
+                        },
+                        {
+                            "operator_id": "spread_hottest_cluster",
+                            "route_family": "hotspot_spread",
+                            "similarity_score": 6,
+                        },
+                    ],
+                    "route_family_credit": {
+                        "positive_families": ["hotspot_spread"],
+                        "negative_families": ["sink_retarget", "stable_global", "stable_local"],
+                        "handoff_families": [],
+                    },
+                },
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 59 + idx,
+                    "selected_operator_id": operator_id,
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for idx, operator_id in enumerate(
+                    (
+                        "move_hottest_cluster_toward_sink",
+                        "repair_sink_budget",
+                        "spread_hottest_cluster",
+                        "repair_sink_budget",
+                        "move_hottest_cluster_toward_sink",
+                        "spread_hottest_cluster",
+                    )
+                )
+            ],
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 5,
+                    "recent_selection_count": 0,
+                    "proposal_count": 5,
+                },
+                "global_explore": {
+                    "selection_count": 3,
+                    "recent_selection_count": 0,
+                    "proposal_count": 3,
+                },
+                "local_refine": {
+                    "selection_count": 4,
+                    "recent_selection_count": 0,
+                    "proposal_count": 4,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 7,
+                    "recent_selection_count": 2,
+                    "proposal_count": 7,
+                },
+                "spread_hottest_cluster": {
+                    "selection_count": 6,
+                    "recent_selection_count": 2,
+                    "proposal_count": 6,
+                },
+                "repair_sink_budget": {
+                    "selection_count": 14,
+                    "recent_selection_count": 2,
+                    "proposal_count": 14,
+                },
+                "slide_sink": {
+                    "selection_count": 3,
+                    "recent_selection_count": 0,
+                    "proposal_count": 3,
+                },
+            },
+        },
+    )
+
+
 def _post_feasible_expand_state() -> ControllerState:
     return ControllerState(
         family="genetic",
@@ -433,6 +625,443 @@ def _recover_pressure_cooled_state_with_old_family_switch() -> ControllerState:
                     "recent_selection_count": 0,
                     "proposal_count": 4,
                     "feasible_preservation_count": 1,
+                },
+            },
+        },
+    )
+
+
+def _recover_release_ready_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=103,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 32,
+                "evaluations_used": 102,
+                "evaluations_remaining": 27,
+                "feasible_rate": 0.45,
+                "first_feasible_eval": 49,
+            },
+            "archive_state": {
+                "recent_feasible_regression_count": 2,
+                "recent_feasible_preservation_count": 1,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+                "recover_exit_ready": False,
+                "recover_release_ready": True,
+                "recover_pressure_level": "medium",
+                "preserve_dwell_count": 1,
+                "preserve_dwell_remaining": 0,
+                "recover_reentry_pressure": "medium",
+                "recent_no_progress_count": 1,
+                "recent_frontier_stagnation_count": 1,
+                "last_progress_eval": 101,
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 9,
+                    "recent_selection_count": 1,
+                    "proposal_count": 9,
+                    "feasible_preservation_count": 3,
+                },
+                "local_refine": {
+                    "selection_count": 6,
+                    "recent_selection_count": 1,
+                    "proposal_count": 6,
+                    "feasible_entry_count": 1,
+                    "feasible_preservation_count": 2,
+                },
+                "global_explore": {
+                    "selection_count": 5,
+                    "recent_selection_count": 1,
+                    "proposal_count": 5,
+                    "feasible_preservation_count": 1,
+                },
+            },
+        },
+    )
+
+
+def _preserve_dwell_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=103,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 32,
+                "evaluations_used": 102,
+                "evaluations_remaining": 27,
+                "feasible_rate": 0.45,
+                "first_feasible_eval": 49,
+            },
+            "archive_state": {
+                "recent_feasible_regression_count": 1,
+                "recent_feasible_preservation_count": 1,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+                "recover_exit_ready": False,
+                "recover_pressure_level": "medium",
+                "preserve_dwell_count": 1,
+                "preserve_dwell_remaining": 2,
+                "recover_reentry_pressure": "medium",
+                "recent_no_progress_count": 1,
+                "recent_frontier_stagnation_count": 1,
+                "last_progress_eval": 101,
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 9,
+                    "recent_selection_count": 1,
+                    "proposal_count": 9,
+                    "feasible_preservation_count": 3,
+                },
+                "local_refine": {
+                    "selection_count": 6,
+                    "recent_selection_count": 1,
+                    "proposal_count": 6,
+                    "feasible_entry_count": 1,
+                    "feasible_preservation_count": 2,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_preserve_diversity_deficit_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=104,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 33,
+                "evaluations_used": 103,
+                "evaluations_remaining": 26,
+                "feasible_rate": 0.46,
+                "first_feasible_eval": 49,
+            },
+            "archive_state": {
+                "pareto_size": 2,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 6,
+                "recent_feasible_regression_count": 1,
+                "recent_feasible_preservation_count": 1,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "preserve",
+                "recover_exit_ready": True,
+                "recover_release_ready": True,
+                "recover_pressure_level": "low",
+                "preserve_dwell_count": 3,
+                "preserve_dwell_remaining": 0,
+                "recover_reentry_pressure": "low",
+                "recent_no_progress_count": 3,
+                "recent_frontier_stagnation_count": 6,
+                "last_progress_eval": 101,
+                "diversity_deficit_level": "medium",
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 9,
+                    "recent_selection_count": 1,
+                    "proposal_count": 9,
+                    "feasible_preservation_count": 3,
+                },
+                "local_refine": {
+                    "selection_count": 6,
+                    "recent_selection_count": 1,
+                    "proposal_count": 6,
+                    "feasible_preservation_count": 2,
+                },
+                "spread_hottest_cluster": {
+                    "selection_count": 8,
+                    "recent_selection_count": 2,
+                    "proposal_count": 8,
+                    "pareto_contribution_count": 1,
+                    "recent_expand_selection_count": 1,
+                    "recent_expand_feasible_preservation_count": 1,
+                    "recent_expand_feasible_regression_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                },
+                "reduce_local_congestion": {
+                    "selection_count": 5,
+                    "recent_selection_count": 1,
+                    "proposal_count": 5,
+                    "pareto_contribution_count": 1,
+                    "recent_expand_selection_count": 1,
+                    "recent_expand_feasible_preservation_count": 1,
+                    "recent_expand_feasible_regression_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_recover_direct_expand_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=162,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 58,
+                "evaluations_used": 161,
+                "evaluations_remaining": 40,
+                "feasible_rate": 1.0,
+                "first_feasible_eval": 21,
+            },
+            "archive_state": {
+                "pareto_size": 2,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 7,
+                "recent_feasible_regression_count": 3,
+                "recent_feasible_preservation_count": 0,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+                "recover_exit_ready": False,
+                "recover_release_ready": False,
+                "recover_pressure_level": "high",
+                "preserve_dwell_count": 0,
+                "preserve_dwell_remaining": 0,
+                "recover_reentry_pressure": "high",
+                "recent_no_progress_count": 7,
+                "recent_frontier_stagnation_count": 7,
+                "last_progress_eval": 154,
+                "diversity_deficit_level": "medium",
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_recover",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                    "recover_exit_ready": False,
+                    "recover_release_ready": False,
+                    "recover_reentry_pressure": "high",
+                    "diversity_deficit_level": "medium",
+                },
+                "retrieval_panel": {
+                    "positive_match_families": ["stable_local"],
+                    "visibility_floor_families": ["stable_local"],
+                    "positive_matches": [
+                        {
+                            "operator_id": "local_refine",
+                            "route_family": "stable_local",
+                            "similarity_score": 6,
+                        }
+                    ],
+                    "route_family_credit": {
+                        "positive_families": [],
+                        "negative_families": ["stable_local", "sink_retarget"],
+                        "handoff_families": [],
+                    },
+                },
+                "operator_panel": {
+                    "native_sbx_pm": {
+                        "applicability": "medium",
+                        "expected_peak_effect": "neutral",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "local_refine": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                    "spread_hottest_cluster": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_gradient_effect": "neutral",
+                        "expected_feasibility_risk": "medium",
+                        "recent_regression_risk": "medium",
+                    },
+                    "reduce_local_congestion": {
+                        "applicability": "high",
+                        "expected_peak_effect": "neutral",
+                        "expected_gradient_effect": "improve",
+                        "expected_feasibility_risk": "low",
+                        "recent_regression_risk": "low",
+                    },
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 10,
+                    "recent_selection_count": 1,
+                    "proposal_count": 10,
+                    "feasible_preservation_count": 3,
+                },
+                "local_refine": {
+                    "selection_count": 12,
+                    "recent_selection_count": 2,
+                    "proposal_count": 12,
+                    "feasible_preservation_count": 4,
+                },
+                "spread_hottest_cluster": {
+                    "selection_count": 8,
+                    "recent_selection_count": 1,
+                    "proposal_count": 8,
+                    "pareto_contribution_count": 1,
+                },
+                "reduce_local_congestion": {
+                    "selection_count": 5,
+                    "recent_selection_count": 1,
+                    "proposal_count": 5,
+                    "pareto_contribution_count": 1,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_preserve_frontier_pressure_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=104,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 33,
+                "evaluations_used": 103,
+                "evaluations_remaining": 26,
+                "feasible_rate": 0.46,
+                "first_feasible_eval": 49,
+            },
+            "archive_state": {
+                "pareto_size": 1,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 6,
+                "recent_feasible_regression_count": 0,
+                "recent_feasible_preservation_count": 3,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "preserve",
+                "recover_exit_ready": False,
+                "recover_pressure_level": "low",
+                "preserve_dwell_count": 3,
+                "preserve_dwell_remaining": 0,
+                "recover_reentry_pressure": "low",
+                "recent_no_progress_count": 3,
+                "recent_frontier_stagnation_count": 6,
+                "last_progress_eval": 101,
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 9,
+                    "recent_selection_count": 1,
+                    "proposal_count": 9,
+                    "feasible_preservation_count": 3,
+                },
+                "local_refine": {
+                    "selection_count": 6,
+                    "recent_selection_count": 1,
+                    "proposal_count": 6,
+                    "feasible_entry_count": 1,
+                    "feasible_preservation_count": 2,
+                },
+                "spread_hottest_cluster": {
+                    "selection_count": 2,
+                    "recent_selection_count": 0,
+                    "proposal_count": 2,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_expand_diversity_floor_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=110,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 36,
+                "evaluations_used": 109,
+                "evaluations_remaining": 20,
+                "feasible_rate": 0.47,
+                "first_feasible_eval": 49,
+            },
+            "archive_state": {
+                "pareto_size": 1,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 8,
+                "recent_feasible_regression_count": 0,
+                "recent_feasible_preservation_count": 4,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 4,
+                "recent_frontier_stagnation_count": 8,
+                "last_progress_eval": 106,
+                "expand_saturation_count": 8,
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 11,
+                    "recent_selection_count": 1,
+                    "proposal_count": 11,
+                    "feasible_preservation_count": 3,
+                },
+                "local_refine": {
+                    "selection_count": 12,
+                    "recent_selection_count": 2,
+                    "proposal_count": 12,
+                    "feasible_preservation_count": 4,
+                },
+                "spread_hottest_cluster": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                },
+                "reduce_local_congestion": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                },
+                "rebalance_layout": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
                 },
             },
         },
@@ -901,6 +1530,232 @@ def _post_feasible_recover_positive_budget_credit_state() -> ControllerState:
     )
 
 
+def _post_feasible_recover_positive_stable_local_credit_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=95,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 28,
+                "evaluations_used": 94,
+                "evaluations_remaining": 35,
+                "feasible_rate": 0.42,
+                "first_feasible_eval": 49,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "recover",
+                "recover_pressure_level": "medium",
+                "recover_exit_ready": False,
+                "recent_no_progress_count": 2,
+                "recent_frontier_stagnation_count": 1,
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_recover",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                },
+                "retrieval_panel": {
+                    "route_family_credit": {
+                        "positive_families": ["stable_local"],
+                        "negative_families": ["stable_local"],
+                        "handoff_families": ["stable_local"],
+                    },
+                    "stable_local_handoff_active": True,
+                },
+            },
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 14,
+                    "recent_selection_count": 1,
+                    "proposal_count": 14,
+                    "feasible_preservation_count": 5,
+                    "feasible_regression_count": 1,
+                },
+                "global_explore": {
+                    "selection_count": 9,
+                    "recent_selection_count": 1,
+                    "proposal_count": 9,
+                    "feasible_preservation_count": 2,
+                },
+                "local_refine": {
+                    "selection_count": 16,
+                    "recent_selection_count": 2,
+                    "proposal_count": 16,
+                    "feasible_preservation_count": 6,
+                    "feasible_regression_count": 1,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_recover_visibility_floor_state() -> ControllerState:
+    state = _post_feasible_recover_positive_stable_local_credit_state()
+    retrieval_panel = state.metadata["prompt_panels"]["retrieval_panel"]
+    retrieval_panel["route_family_credit"] = {
+        "positive_families": [],
+        "negative_families": ["stable_local"],
+        "handoff_families": [],
+    }
+    retrieval_panel["stable_local_handoff_active"] = False
+    retrieval_panel["positive_matches"] = [
+        {
+            "operator_id": "local_refine",
+            "route_family": "stable_local",
+            "similarity_score": 6,
+        }
+    ]
+    retrieval_panel["positive_match_families"] = ["stable_local"]
+    retrieval_panel["visibility_floor_families"] = ["stable_local"]
+    return state
+
+
+def _post_feasible_expand_visibility_floor_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=7,
+        evaluation_index=122,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 90,
+                "evaluations_used": 121,
+                "evaluations_remaining": 14,
+                "feasible_rate": 0.16,
+                "first_feasible_eval": 42,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 4,
+                "recent_frontier_stagnation_count": 6,
+                "diversity_deficit_level": "high",
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                    "recover_release_ready": False,
+                    "recover_reentry_pressure": "high",
+                    "diversity_deficit_level": "high",
+                    "objective_balance": {
+                        "balance_pressure": "medium",
+                        "preferred_effect": "balanced",
+                        "stagnant_objectives": ["temperature_max", "gradient_rms"],
+                        "improving_objectives": [],
+                    },
+                },
+                "spatial_panel": {
+                    "nearest_neighbor_gap_min": 0.06,
+                    "hottest_cluster_compactness": 0.09,
+                    "hotspot_inside_sink_window": True,
+                },
+                "retrieval_panel": {
+                    "positive_match_families": ["congestion_relief", "sink_retarget", "stable_local"],
+                    "visibility_floor_families": ["congestion_relief", "sink_retarget", "stable_local"],
+                    "positive_matches": [
+                        {
+                            "operator_id": "reduce_local_congestion",
+                            "route_family": "congestion_relief",
+                            "similarity_score": 5,
+                        },
+                        {
+                            "operator_id": "move_hottest_cluster_toward_sink",
+                            "route_family": "sink_retarget",
+                            "similarity_score": 5,
+                        },
+                        {
+                            "operator_id": "local_refine",
+                            "route_family": "stable_local",
+                            "similarity_score": 5,
+                        },
+                    ],
+                    "route_family_credit": {
+                        "positive_families": [],
+                        "negative_families": ["congestion_relief", "sink_retarget", "stable_local"],
+                        "handoff_families": ["stable_local"],
+                    },
+                },
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 116 + idx,
+                    "selected_operator_id": operator_id,
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for idx, operator_id in enumerate(
+                    (
+                        "reduce_local_congestion",
+                        "reduce_local_congestion",
+                        "reduce_local_congestion",
+                        "reduce_local_congestion",
+                        "reduce_local_congestion",
+                        "rebalance_layout",
+                    )
+                )
+            ],
+            "operator_summary": {
+                "native_sbx_pm": {
+                    "selection_count": 15,
+                    "proposal_count": 15,
+                    "feasible_preservation_count": 1,
+                    "feasible_regression_count": 5,
+                    "pareto_contribution_count": 1,
+                },
+                "global_explore": {
+                    "selection_count": 5,
+                    "proposal_count": 5,
+                },
+                "local_refine": {
+                    "selection_count": 18,
+                    "proposal_count": 18,
+                    "feasible_preservation_count": 1,
+                    "feasible_regression_count": 4,
+                    "pareto_contribution_count": 1,
+                },
+                "move_hottest_cluster_toward_sink": {
+                    "selection_count": 7,
+                    "proposal_count": 7,
+                    "feasible_regression_count": 1,
+                    "pareto_contribution_count": 1,
+                    "post_feasible_avg_objective_delta": -0.1,
+                },
+                "smooth_high_gradient_band": {
+                    "selection_count": 6,
+                    "proposal_count": 6,
+                    "feasible_regression_count": 2,
+                    "pareto_contribution_count": 0,
+                },
+                "reduce_local_congestion": {
+                    "selection_count": 9,
+                    "proposal_count": 9,
+                    "feasible_regression_count": 6,
+                    "pareto_contribution_count": 0,
+                },
+                "rebalance_layout": {
+                    "selection_count": 9,
+                    "proposal_count": 9,
+                    "feasible_regression_count": 2,
+                    "pareto_contribution_count": 1,
+                    "post_feasible_avg_objective_delta": -0.01,
+                },
+            },
+        },
+    )
+
+
 def test_cold_start_bootstraps_only_stable_semantic_families() -> None:
     policy_kernel = _policy_kernel_module()
 
@@ -1025,6 +1880,67 @@ def test_recover_exit_ready_state_demotes_recover_phase_back_to_preserve() -> No
     assert policy.phase == "post_feasible_preserve"
 
 
+def test_detect_search_phase_keeps_preserve_live_during_dwell_window() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _preserve_dwell_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_preserve"
+
+
+def test_preserve_state_promotes_to_expand_when_frontier_pressure_stays_high() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_preserve_frontier_pressure_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "spread_hottest_cluster",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+
+
+def test_preserve_state_promotes_to_expand_when_diversity_deficit_is_medium_and_regression_is_bounded() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_preserve_diversity_deficit_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "spread_hottest_cluster",
+            "reduce_local_congestion",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+
+
+def test_recover_state_promotes_directly_to_expand_when_release_evidence_is_live_and_diversity_deficit_is_medium() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_recover_direct_expand_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "spread_hottest_cluster",
+            "reduce_local_congestion",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+
+
 def test_recover_pressure_cools_even_when_an_old_family_switch_exists() -> None:
     policy_kernel = _policy_kernel_module()
 
@@ -1034,6 +1950,21 @@ def test_recover_pressure_cools_even_when_an_old_family_switch_exists() -> None:
             "native_sbx_pm",
             "local_refine",
             "slide_sink",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_preserve"
+
+
+def test_detect_search_phase_uses_recover_release_ready_even_when_reentry_pressure_is_medium() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _recover_release_ready_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "global_explore",
         ),
     )
 
@@ -1236,6 +2167,23 @@ def _post_feasible_expand_not_saturated_state() -> ControllerState:
     )
 
 
+def _post_feasible_expand_saturated_low_diversity_state() -> ControllerState:
+    """Expand saturation should not demote while the Pareto set is still a single point."""
+    state = _post_feasible_expand_saturated_state()
+    state.metadata["archive_state"]["pareto_size"] = 1
+    state.metadata["archive_state"]["recent_feasible_preservation_count"] = 2
+    return state
+
+
+def _post_feasible_expand_saturated_medium_diversity_deficit_state() -> ControllerState:
+    state = _post_feasible_expand_saturated_state()
+    state.metadata["archive_state"]["pareto_size"] = 2
+    state.metadata["archive_state"]["recent_feasible_regression_count"] = 1
+    state.metadata["archive_state"]["recent_feasible_preservation_count"] = 1
+    state.metadata["progress_state"]["diversity_deficit_level"] = "medium"
+    return state
+
+
 def test_post_feasible_expand_saturated_demotes_to_preserve() -> None:
     policy_kernel = _policy_kernel_module()
 
@@ -1269,6 +2217,59 @@ def test_post_feasible_expand_not_saturated_stays_in_expand() -> None:
 
     assert policy.phase == "post_feasible_expand"
     assert "post_feasible_expand_saturation_demotion" not in policy.reason_codes
+
+
+def test_post_feasible_expand_saturated_keeps_expand_when_front_is_still_single_point() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_saturated_low_diversity_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "spread_hottest_cluster",
+            "smooth_high_gradient_band",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+    assert "post_feasible_expand_saturation_demotion" not in policy.reason_codes
+
+
+def test_expand_saturation_does_not_demote_while_diversity_deficit_remains_medium() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_saturated_medium_diversity_deficit_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "spread_hottest_cluster",
+            "smooth_high_gradient_band",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+
+
+def test_expand_keeps_diversity_floor_for_underused_frontier_family() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_diversity_floor_state(),
+        (
+            "native_sbx_pm",
+            "local_refine",
+            "spread_hottest_cluster",
+            "reduce_local_congestion",
+            "rebalance_layout",
+        ),
+    )
+
+    assert any(
+        operator_id in policy.allowed_operator_ids
+        for operator_id in ("spread_hottest_cluster", "reduce_local_congestion", "rebalance_layout")
+    )
 
 
 def test_post_feasible_recover_retains_stable_floor_when_semantic_preserver_exists() -> None:
@@ -1331,3 +2332,121 @@ def test_post_feasible_recover_restores_positive_budget_guard_family_visibility(
     )
 
     assert "repair_sink_budget" in policy.allowed_operator_ids
+
+
+def test_prefeasible_convert_restores_budget_guard_when_sink_budget_is_tight() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _prefeasible_convert_budget_tight_state(),
+        (
+            "native_sbx_pm",
+            "global_explore",
+            "local_refine",
+            "repair_sink_budget",
+            "move_hottest_cluster_toward_sink",
+        ),
+    )
+
+    assert policy.phase == "prefeasible_convert"
+    assert "repair_sink_budget" in policy.allowed_operator_ids
+
+
+def test_prefeasible_convert_forced_reset_keeps_required_entry_candidates_visible() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    state = _prefeasible_convert_budget_tight_state()
+    state.metadata["progress_state"]["recent_no_progress_count"] = 5
+    state.metadata["prompt_panels"]["spatial_panel"]["hotspot_inside_sink_window"] = True
+
+    policy = policy_kernel.build_policy_snapshot(
+        state,
+        (
+            "native_sbx_pm",
+            "global_explore",
+            "local_refine",
+            "repair_sink_budget",
+            "spread_hottest_cluster",
+        ),
+    )
+
+    assert policy.phase == "prefeasible_convert"
+    assert "prefeasible_forced_reset" in policy.reason_codes
+    assert "repair_sink_budget" in policy.allowed_operator_ids
+    assert "spread_hottest_cluster" in policy.allowed_operator_ids
+
+
+def test_prefeasible_convert_restores_positive_match_route_floors_after_speculative_reset() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _prefeasible_convert_visibility_floor_state(),
+        (
+            "native_sbx_pm",
+            "global_explore",
+            "local_refine",
+            "move_hottest_cluster_toward_sink",
+            "spread_hottest_cluster",
+            "repair_sink_budget",
+            "slide_sink",
+        ),
+    )
+
+    assert policy.phase == "prefeasible_convert"
+    assert "prefeasible_speculative_family_collapse" in policy.reason_codes
+    assert "prefeasible_forced_reset" in policy.reason_codes
+    assert "spread_hottest_cluster" in policy.allowed_operator_ids
+    assert "slide_sink" in policy.allowed_operator_ids
+
+
+def test_recover_handoff_restores_positive_stable_local_family_visibility() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_recover_positive_stable_local_credit_state(),
+        (
+            "native_sbx_pm",
+            "global_explore",
+            "local_refine",
+        ),
+    )
+
+    assert "native_sbx_pm" in policy.allowed_operator_ids
+    assert "local_refine" in policy.allowed_operator_ids
+
+
+def test_recover_restores_visibility_floor_family_even_when_aggregate_credit_is_not_positive() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_recover_visibility_floor_state(),
+        (
+            "native_sbx_pm",
+            "global_explore",
+            "local_refine",
+            "move_hottest_cluster_toward_sink",
+        ),
+    )
+
+    assert "local_refine" in policy.allowed_operator_ids
+
+
+def test_post_feasible_expand_restores_visibility_floor_family_after_route_dominance_cap() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_visibility_floor_state(),
+        (
+            "native_sbx_pm",
+            "global_explore",
+            "local_refine",
+            "move_hottest_cluster_toward_sink",
+            "smooth_high_gradient_band",
+            "reduce_local_congestion",
+            "rebalance_layout",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+    assert "post_feasible_expand_route_family_dominance_cap" in policy.reason_codes
+    assert "reduce_local_congestion" in policy.allowed_operator_ids

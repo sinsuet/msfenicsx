@@ -10,6 +10,7 @@ from typing import Any
 from optimizers.operator_pool.operators import get_operator_behavior_profile
 from optimizers.operator_pool.route_families import (
     ROUTE_FAMILY_BY_OPERATOR,
+    STABLE_ROUTE_FAMILIES,
     expand_budget_family_metrics,
     operator_route_family,
 )
@@ -62,8 +63,22 @@ def detect_search_phase(state: ControllerState) -> str:
         if _prefeasible_convert_active(state):
             return "prefeasible_convert"
         post_feasible_mode = str(progress_state.get("post_feasible_mode", "")).strip()
+        if (
+            progress_phase.startswith("post_feasible")
+            and int(progress_state.get("preserve_dwell_remaining", 0)) > 0
+            and post_feasible_mode in {"preserve", "recover"}
+        ):
+            return "post_feasible_preserve"
+        if progress_phase.startswith("post_feasible") and _post_feasible_recover_direct_expand_active(state):
+            if _expand_saturated(state):
+                return "post_feasible_preserve"
+            return "post_feasible_expand"
         if post_feasible_mode == "recover" and _post_feasible_recover_exit_ready(state):
             return "post_feasible_preserve"
+        if progress_phase.startswith("post_feasible") and _post_feasible_expand_promotion_active(state):
+            if _expand_saturated(state):
+                return "post_feasible_preserve"
+            return "post_feasible_expand"
         if progress_phase.startswith("post_feasible") and not _has_real_feasible_entry(state):
             return "prefeasible_stagnation" if int(progress_state.get("recent_no_progress_count", 0)) > 0 else "prefeasible_progress"
         if progress_phase.startswith("post_feasible") and post_feasible_mode == "expand":
@@ -100,7 +115,9 @@ def _expand_saturated(state: ControllerState) -> bool:
     if not isinstance(progress_state, dict):
         return False
     expand_saturation_count = int(progress_state.get("expand_saturation_count", 0))
-    return expand_saturation_count >= _EXPAND_SATURATION_THRESHOLD
+    if expand_saturation_count < _EXPAND_SATURATION_THRESHOLD:
+        return False
+    return _resolve_diversity_deficit_level(state) == "low"
 
 
 def _expand_saturation_demotion_active(state: ControllerState, resolved_phase: str) -> bool:
@@ -123,6 +140,8 @@ def _post_feasible_recover_exit_ready(state: ControllerState) -> bool:
         return False
     if run_state.get("first_feasible_eval") is None:
         return False
+    if progress_state.get("recover_release_ready") is not None:
+        return bool(progress_state.get("recover_release_ready"))
     if progress_state.get("recover_exit_ready") is not None:
         return bool(progress_state.get("recover_exit_ready"))
     recover_pressure_level = str(progress_state.get("recover_pressure_level", "")).strip()
@@ -136,6 +155,92 @@ def _post_feasible_recover_exit_ready(state: ControllerState) -> bool:
         and recent_feasible_regression_count <= 0
         and not new_dominant_violation_family
     )
+
+
+def _post_feasible_recover_direct_expand_active(state: ControllerState) -> bool:
+    progress_state = state.metadata.get("progress_state")
+    run_state = state.metadata.get("run_state")
+    if not isinstance(progress_state, dict) or not isinstance(run_state, dict):
+        return False
+    if run_state.get("first_feasible_eval") is None:
+        return False
+    if str(progress_state.get("post_feasible_mode", "")).strip() != "recover":
+        return False
+    if not _recover_release_evidence_active(state):
+        return False
+    if int(progress_state.get("recent_frontier_stagnation_count", 0)) < 2:
+        return False
+    if _resolve_diversity_deficit_level(state) not in {"high", "medium"}:
+        return False
+    return True
+
+
+def _recover_release_evidence_active(state: ControllerState) -> bool:
+    progress_state = state.metadata.get("progress_state")
+    if isinstance(progress_state, dict) and bool(progress_state.get("recover_release_ready", False)):
+        return True
+    prompt_panels = state.metadata.get("prompt_panels")
+    if not isinstance(prompt_panels, dict):
+        return False
+    regime_panel = prompt_panels.get("regime_panel")
+    if not isinstance(regime_panel, dict):
+        regime_panel = {}
+    if str(regime_panel.get("preservation_pressure", "low")).strip() != "high":
+        return False
+    retrieval_panel = _retrieval_panel_from_state(state)
+    visibility_floor_families = {
+        str(route_family).strip()
+        for route_family in retrieval_panel.get("visibility_floor_families", [])
+        if str(route_family).strip()
+    }
+    return bool(visibility_floor_families & STABLE_ROUTE_FAMILIES)
+
+
+def _post_feasible_expand_promotion_active(state: ControllerState) -> bool:
+    progress_state = state.metadata.get("progress_state")
+    archive_state = state.metadata.get("archive_state")
+    run_state = state.metadata.get("run_state")
+    if not isinstance(progress_state, dict) or not isinstance(archive_state, dict) or not isinstance(run_state, dict):
+        return False
+    if run_state.get("first_feasible_eval") is None:
+        return False
+    if str(progress_state.get("post_feasible_mode", "")).strip() not in {"preserve", "expand"}:
+        return False
+    if int(progress_state.get("preserve_dwell_remaining", 0)) > 0:
+        return False
+    if int(progress_state.get("recent_frontier_stagnation_count", 0)) < 2:
+        return False
+    diversity_deficit_level = _resolve_diversity_deficit_level(state)
+    if diversity_deficit_level not in {"high", "medium"}:
+        return False
+    regression_surplus = max(
+        0,
+        int(archive_state.get("recent_feasible_regression_count", 0))
+        - int(archive_state.get("recent_feasible_preservation_count", 0)),
+    )
+    if regression_surplus > 0:
+        return False
+    return True
+
+
+def _resolve_diversity_deficit_level(state: ControllerState) -> str:
+    progress_state = state.metadata.get("progress_state")
+    if isinstance(progress_state, dict):
+        diversity_deficit_level = str(progress_state.get("diversity_deficit_level", "")).strip()
+        if diversity_deficit_level:
+            return diversity_deficit_level
+        recent_frontier_stagnation_count = int(progress_state.get("recent_frontier_stagnation_count", 0))
+    else:
+        recent_frontier_stagnation_count = 0
+    archive_state = state.metadata.get("archive_state")
+    if not isinstance(archive_state, dict):
+        return "low"
+    pareto_size = int(archive_state.get("pareto_size", 0))
+    if pareto_size <= 1:
+        return "high"
+    if pareto_size == 2 and recent_frontier_stagnation_count >= 2:
+        return "medium"
+    return "low"
 
 
 def score_operator_evidence(state: ControllerState, operator_id: str) -> dict[str, Any]:
@@ -257,9 +362,14 @@ def build_policy_snapshot(
             reason_codes.append("prefeasible_speculative_family_collapse")
 
         if phase == "prefeasible_convert":
+            required_operator_ids = _prefeasible_convert_required_operator_ids(
+                state,
+                tuple(allowed_operator_ids),
+            )
             filtered = _prefeasible_convert_candidates(
                 tuple(allowed_operator_ids),
                 candidate_annotations,
+                required_operator_ids=required_operator_ids,
             )
             if filtered and filtered != tuple(allowed_operator_ids):
                 allowed_operator_ids = list(filtered)
@@ -280,6 +390,23 @@ def build_policy_snapshot(
             if filtered:
                 allowed_operator_ids = list(filtered)
             reason_codes.append("prefeasible_forced_reset")
+
+        if phase == "prefeasible_convert":
+            current_allowed_operator_ids = tuple(allowed_operator_ids)
+            filtered, positive_credit_restored = _restore_positive_route_family_visibility(
+                state,
+                phase,
+                candidate_ids,
+                current_allowed_operator_ids,
+                candidate_annotations,
+            )
+            if filtered != current_allowed_operator_ids:
+                allowed_operator_ids = list(filtered)
+                suppressed_operator_ids = [
+                    operator_id for operator_id in candidate_ids if operator_id not in allowed_operator_ids
+                ]
+            if positive_credit_restored:
+                reason_codes.append("prefeasible_convert_positive_credit_visibility")
 
     if phase.startswith("post_feasible"):
         if phase == "post_feasible_expand":
@@ -305,6 +432,14 @@ def build_policy_snapshot(
             current_allowed_operator_ids,
             candidate_annotations,
         )
+        if phase == "post_feasible_expand":
+            filtered, _ = _restore_positive_route_family_visibility(
+                state,
+                phase,
+                candidate_ids,
+                tuple(filtered),
+                candidate_annotations,
+            )
         peak_balance_escape_active = bool(
             _peak_balance_escape_candidates(state, phase, current_allowed_operator_ids)
         )
@@ -568,12 +703,24 @@ def _prefeasible_reset_candidates(
     )
     if not stable_candidates:
         return _filter_to_stable_families(candidate_operator_ids, candidate_annotations)
+    convert_required_operator_ids = (
+        _prefeasible_convert_required_operator_ids(
+            state,
+            candidate_operator_ids,
+        )
+        if _prefeasible_convert_active(state)
+        else ()
+    )
+    reset_required_operator_ids = (
+        *stable_candidates,
+        *convert_required_operator_ids,
+    )
     if not _prefeasible_repeated_reset_window(state):
         if _prefeasible_convert_active(state):
             return _prefeasible_convert_candidates(
                 candidate_operator_ids,
                 candidate_annotations,
-                required_operator_ids=stable_candidates,
+                required_operator_ids=reset_required_operator_ids,
             )
         return stable_candidates
 
@@ -593,7 +740,10 @@ def _prefeasible_reset_candidates(
         return _prefeasible_convert_candidates(
             candidate_operator_ids,
             candidate_annotations,
-            required_operator_ids=sorted_stable_candidates,
+            required_operator_ids=(
+                *sorted_stable_candidates,
+                *convert_required_operator_ids,
+            ),
         )
     return sorted_stable_candidates
 
@@ -652,6 +802,67 @@ def _prefeasible_convert_candidates(
         in {"supported", "trusted"}
     )
     return tuple(candidate_operator_ids) if not filtered else filtered
+
+
+def _prefeasible_convert_required_operator_ids(
+    state: ControllerState,
+    candidate_operator_ids: Sequence[str],
+) -> tuple[str, ...]:
+    prompt_panels = state.metadata.get("prompt_panels")
+    if not isinstance(prompt_panels, dict):
+        prompt_panels = {}
+    regime_panel = prompt_panels.get("regime_panel")
+    if not isinstance(regime_panel, dict):
+        regime_panel = {}
+    spatial_panel = prompt_panels.get("spatial_panel")
+    if not isinstance(spatial_panel, dict):
+        spatial_panel = {}
+    objective_balance = regime_panel.get("objective_balance")
+    if not isinstance(objective_balance, dict):
+        objective_balance = {}
+
+    required_operator_ids: list[str] = []
+    sink_budget_bucket = str(spatial_panel.get("sink_budget_bucket", "")).strip()
+    if not sink_budget_bucket:
+        domain_regime = state.metadata.get("domain_regime")
+        if isinstance(domain_regime, dict) and domain_regime.get("sink_budget_utilization") is not None:
+            sink_budget_utilization = float(domain_regime.get("sink_budget_utilization", 0.0))
+            if sink_budget_utilization >= 0.95:
+                sink_budget_bucket = "full_sink"
+            elif sink_budget_utilization >= 0.75:
+                sink_budget_bucket = "tight"
+            else:
+                sink_budget_bucket = "available"
+
+    if sink_budget_bucket in {"tight", "full_sink"} and "repair_sink_budget" in candidate_operator_ids:
+        required_operator_ids.append("repair_sink_budget")
+
+    preferred_effect = str(objective_balance.get("preferred_effect", "")).strip()
+    balance_pressure = str(objective_balance.get("balance_pressure", "")).strip()
+    if preferred_effect == "peak_improve":
+        required_operator_ids.extend(
+            operator_id
+            for operator_id in candidate_operator_ids
+            if operator_id in _PEAK_BALANCE_ESCAPE_OPERATORS
+        )
+    if preferred_effect == "gradient_improve" and balance_pressure in {"high", "medium"}:
+        required_operator_ids.extend(
+            operator_id
+            for operator_id in candidate_operator_ids
+            if operator_id in _GRADIENT_BALANCE_ESCAPE_OPERATORS
+        )
+
+    hotspot_inside_sink_window = bool(spatial_panel.get("hotspot_inside_sink_window", False))
+    if not hotspot_inside_sink_window and "move_hottest_cluster_toward_sink" in candidate_operator_ids:
+        required_operator_ids.append("move_hottest_cluster_toward_sink")
+    if hotspot_inside_sink_window and "spread_hottest_cluster" in candidate_operator_ids:
+        required_operator_ids.append("spread_hottest_cluster")
+
+    return tuple(
+        operator_id
+        for operator_id in candidate_operator_ids
+        if operator_id in set(required_operator_ids)
+    )
 
 
 def _int_or_zero(value: Any) -> int:
@@ -922,12 +1133,22 @@ def _restore_positive_route_family_visibility(
     filtered_operator_ids: Sequence[str],
     candidate_annotations: dict[str, dict[str, Any]],
 ) -> tuple[tuple[str, ...], bool]:
-    if phase not in {"post_feasible_recover", "post_feasible_preserve"}:
+    if phase not in {
+        "prefeasible_convert",
+        "post_feasible_recover",
+        "post_feasible_preserve",
+        "post_feasible_expand",
+    }:
         return tuple(filtered_operator_ids), False
     retrieval_panel = _retrieval_panel_from_state(state)
     route_family_credit = retrieval_panel.get("route_family_credit", {})
     if not isinstance(route_family_credit, dict):
         return tuple(filtered_operator_ids), False
+    visibility_floor_families = {
+        str(route_family).strip()
+        for route_family in retrieval_panel.get("visibility_floor_families", [])
+        if str(route_family).strip()
+    }
     positive_families = {
         str(route_family).strip()
         for route_family in route_family_credit.get("positive_families", [])
@@ -938,13 +1159,34 @@ def _restore_positive_route_family_visibility(
         for route_family in route_family_credit.get("negative_families", [])
         if str(route_family).strip()
     }
-    positive_families -= negative_families
-    if not positive_families:
+    handoff_families = {
+        str(route_family).strip()
+        for route_family in route_family_credit.get("handoff_families", [])
+        if str(route_family).strip()
+    }
+    positive_visibility_families = visibility_floor_families | (positive_families - negative_families) | handoff_families
+    if not positive_visibility_families:
         return tuple(filtered_operator_ids), False
+
+    positive_match_operator_ids_by_family: dict[str, list[str]] = {}
+    for match in retrieval_panel.get("positive_matches", []):
+        if not isinstance(match, dict):
+            continue
+        operator_id = str(match.get("operator_id", "")).strip()
+        route_family = str(match.get("route_family", "")).strip()
+        if (
+            not operator_id
+            or not route_family
+            or operator_id not in candidate_operator_ids
+        ):
+            continue
+        family_matches = positive_match_operator_ids_by_family.setdefault(route_family, [])
+        if operator_id not in family_matches:
+            family_matches.append(operator_id)
 
     selected_operator_ids = {str(operator_id) for operator_id in filtered_operator_ids}
     restored = False
-    for route_family in positive_families:
+    for route_family in positive_visibility_families:
         if any(operator_route_family(operator_id) == route_family for operator_id in selected_operator_ids):
             continue
         family_candidates = _rank_route_family_candidates(
@@ -955,7 +1197,12 @@ def _restore_positive_route_family_visibility(
         )
         if not family_candidates:
             continue
-        selected_operator_ids.add(family_candidates[0])
+        if route_family in handoff_families:
+            selected_operator_ids.update(family_candidates)
+        elif positive_match_operator_ids_by_family.get(route_family):
+            selected_operator_ids.add(positive_match_operator_ids_by_family[route_family][0])
+        else:
+            selected_operator_ids.add(family_candidates[0])
         restored = True
     if not restored:
         return tuple(filtered_operator_ids), False
