@@ -10,16 +10,18 @@ from typing import Any
 from optimizers.operator_pool.operators import get_operator_behavior_profile
 
 ROUTE_FAMILY_BY_OPERATOR: dict[str, str] = {
-    "native_sbx_pm": "stable_local",
-    "global_explore": "stable_global",
-    "local_refine": "stable_local",
-    "move_hottest_cluster_toward_sink": "sink_retarget",
-    "spread_hottest_cluster": "hotspot_spread",
-    "smooth_high_gradient_band": "congestion_relief",
-    "reduce_local_congestion": "congestion_relief",
-    "repair_sink_budget": "budget_guard",
-    "slide_sink": "sink_retarget",
-    "rebalance_layout": "layout_rebalance",
+    "vector_sbx_pm": "stable_local",
+    "component_jitter_1": "stable_local",
+    "component_relocate_1": "stable_global",
+    "component_swap_2": "stable_global",
+    "sink_shift": "stable_local",
+    "sink_resize": "stable_local",
+    "hotspot_pull_toward_sink": "sink_retarget",
+    "hotspot_spread": "hotspot_spread",
+    "gradient_band_smooth": "congestion_relief",
+    "congestion_relief": "congestion_relief",
+    "sink_retarget": "sink_retarget",
+    "layout_rebalance": "layout_rebalance",
 }
 STABLE_ROUTE_FAMILIES = frozenset({"stable_local", "stable_global"})
 

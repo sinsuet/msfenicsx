@@ -55,7 +55,7 @@ def _baseline_outputs() -> dict[str, object]:
     }
 
 
-def test_s2_staged_specs_load_and_union_pool_matches_llm() -> None:
+def test_s2_staged_specs_load_and_registry_profiles_are_split() -> None:
     raw = load_optimization_spec(RAW_SPEC_PATH).to_dict()
     union = load_optimization_spec(UNION_SPEC_PATH).to_dict()
     llm = load_optimization_spec(LLM_SPEC_PATH).to_dict()
@@ -65,7 +65,8 @@ def test_s2_staged_specs_load_and_union_pool_matches_llm() -> None:
 
     assert raw["benchmark_source"]["template_path"] == "scenarios/templates/s2_staged.yaml"
     assert raw["evaluation_protocol"]["evaluation_spec_path"] == "scenarios/evaluation/s2_staged_eval.yaml"
-    assert union["operator_control"]["operator_pool"] == llm["operator_control"]["operator_pool"]
+    assert union["operator_control"]["registry_profile"] == "primitive_clean"
+    assert llm["operator_control"]["registry_profile"] == "primitive_plus_assisted"
     assert union["algorithm"]["profile_path"] == "scenarios/optimization/profiles/s2_staged_union.yaml"
     assert llm["algorithm"]["profile_path"] == "scenarios/optimization/profiles/s2_staged_union.yaml"
     for variable_id in ("c02_x", "c04_x", "c06_x", "c12_x"):
@@ -75,6 +76,46 @@ def test_s2_staged_specs_load_and_union_pool_matches_llm() -> None:
     assert raw_design_vars["c02_y"]["lower_bound"] == pytest.approx(0.11)
     assert union_design_vars["c02_y"]["lower_bound"] == pytest.approx(0.11)
     assert llm_design_vars["c02_y"]["lower_bound"] == pytest.approx(0.11)
+
+
+def test_s2_staged_union_uses_clean_registry_while_llm_retains_assisted_pool() -> None:
+    from optimizers.operator_pool.route_families import operator_route_family
+    from optimizers.operator_pool.state_builder import _build_prompt_operator_panel
+
+    union = load_optimization_spec(UNION_SPEC_PATH).to_dict()
+    llm = load_optimization_spec(LLM_SPEC_PATH).to_dict()
+    primitive_ids = {
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "component_relocate_1",
+        "component_swap_2",
+        "sink_shift",
+        "sink_resize",
+    }
+    assisted_ids = {
+        "hotspot_pull_toward_sink",
+        "hotspot_spread",
+        "gradient_band_smooth",
+        "congestion_relief",
+        "sink_retarget",
+        "layout_rebalance",
+    }
+
+    assert union["operator_control"]["registry_profile"] == "primitive_clean"
+    assert llm["operator_control"]["registry_profile"] == "primitive_plus_assisted"
+    assert set(union["operator_control"]["operator_pool"]).issubset(primitive_ids)
+    assert set(llm["operator_control"]["operator_pool"]) - set(union["operator_control"]["operator_pool"]) == assisted_ids
+    assert operator_route_family("component_relocate_1") == "stable_global"
+    assert operator_route_family("sink_retarget") == "sink_retarget"
+
+    panel = _build_prompt_operator_panel(
+        operator_summary={},
+        candidate_operator_ids=("component_jitter_1", "sink_retarget"),
+        regime_panel={"phase": "post_feasible_expand"},
+    )
+    assert panel["component_jitter_1"]["expected_peak_effect"] == "neutral"
+    assert panel["component_jitter_1"]["expected_gradient_effect"] == "neutral"
+    assert panel["sink_retarget"]["expected_peak_effect"] == "improve"
 
 
 def test_s2_staged_generated_baseline_is_infeasible_before_repair_acceptance() -> None:

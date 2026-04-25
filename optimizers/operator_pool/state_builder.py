@@ -33,43 +33,51 @@ _FIT_SCORES = {
     "trusted": 2,
 }
 _OPERATOR_EFFECTS: dict[str, dict[str, str]] = {
-    "native_sbx_pm": {
+    "vector_sbx_pm": {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "neutral",
     },
-    "global_explore": {
+    "component_jitter_1": {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "neutral",
     },
-    "local_refine": {
+    "component_relocate_1": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "neutral",
+    },
+    "component_swap_2": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "neutral",
+    },
+    "sink_shift": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "neutral",
+    },
+    "sink_resize": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "neutral",
+    },
+    "hotspot_pull_toward_sink": {
         "expected_peak_effect": "improve",
         "expected_gradient_effect": "neutral",
     },
-    "move_hottest_cluster_toward_sink": {
-        "expected_peak_effect": "improve",
-        "expected_gradient_effect": "neutral",
-    },
-    "spread_hottest_cluster": {
+    "hotspot_spread": {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "improve",
     },
-    "smooth_high_gradient_band": {
+    "gradient_band_smooth": {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "improve",
     },
-    "reduce_local_congestion": {
+    "congestion_relief": {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "improve",
     },
-    "repair_sink_budget": {
+    "sink_retarget": {
         "expected_peak_effect": "improve",
         "expected_gradient_effect": "neutral",
     },
-    "slide_sink": {
-        "expected_peak_effect": "improve",
-        "expected_gradient_effect": "neutral",
-    },
-    "rebalance_layout": {
+    "layout_rebalance": {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "improve",
     },
@@ -435,11 +443,11 @@ def _build_spatial_operator_support_row(
     expected_feasibility_risk = "low"
     spatial_match_reason = "state provides only generic support for this operator."
 
-    if operator_id == "slide_sink":
+    if operator_id == "sink_retarget":
         applicability_score = (2 if not inside_sink_window else 0) + (1 if absolute_offset >= 0.10 else 0)
         expected_feasibility_risk = "medium" if sink_budget_bucket == "full_sink" else "low"
         spatial_match_reason = _offset_reason(hotspot_offset, inside_sink_window=inside_sink_window)
-    elif operator_id == "move_hottest_cluster_toward_sink":
+    elif operator_id == "hotspot_pull_toward_sink":
         applicability_score = (2 if not inside_sink_window else 0) + (1 if absolute_offset >= 0.08 else 0)
         expected_feasibility_risk = "medium"
         spatial_match_reason = (
@@ -447,7 +455,7 @@ def _build_spatial_operator_support_row(
             if inside_sink_window
             else "hot cluster is misaligned with the sink corridor and can be translated toward it."
         )
-    elif operator_id == "spread_hottest_cluster":
+    elif operator_id == "hotspot_spread":
         applicability_score = (2 if compact_cluster else 0) + (1 if low_gap else 0) + (1 if sink_aligned_expand else 0)
         expected_feasibility_risk = "low" if sink_aligned_expand and preservation_pressure != "low" else "medium"
         spatial_match_reason = (
@@ -456,34 +464,30 @@ def _build_spatial_operator_support_row(
             if sink_aligned_expand
             else "hot cluster is compact enough that spreading can relieve local peak pressure."
         )
-    elif operator_id == "smooth_high_gradient_band":
+    elif operator_id == "gradient_band_smooth":
         applicability_score = (2 if frontier_pressure == "high" else 0) + (1 if compact_cluster else 0)
         expected_feasibility_risk = "low"
         spatial_match_reason = "post-feasible refinement is still gradient-limited in the current regime."
-    elif operator_id == "reduce_local_congestion":
+    elif operator_id == "congestion_relief":
         applicability_score = (2 if low_gap else 0) + (1 if compact_cluster else 0)
         expected_feasibility_risk = "low"
         spatial_match_reason = "closest packed components indicate a local congestion bottleneck."
-    elif operator_id == "repair_sink_budget":
-        applicability_score = 3 if sink_budget_bucket == "full_sink" else 1 if sink_budget_bucket == "tight" else 0
-        expected_feasibility_risk = "low"
-        spatial_match_reason = "sink span utilization suggests the budget may need protection."
-    elif operator_id == "rebalance_layout":
+    elif operator_id == "layout_rebalance":
         applicability_score = (1 if absolute_offset >= 0.10 else 0) + (2 if low_gap else 0)
         expected_feasibility_risk = "medium"
         spatial_match_reason = "layout shows both sink misalignment and crowding pressure."
-    elif operator_id == "local_refine":
+    elif operator_id == "component_jitter_1":
         applicability_score = (2 if preservation_pressure == "high" else 0) + (1 if low_gap else 0)
         expected_feasibility_risk = "low"
         spatial_match_reason = "current regime favors low-risk local cleanup around the incumbent basin."
-    elif operator_id == "global_explore":
+    elif operator_id in {"component_relocate_1", "component_swap_2"}:
         applicability_score = 2 if phase.startswith("prefeasible") or frontier_pressure == "high" else 1
         expected_feasibility_risk = "medium"
         spatial_match_reason = "broader exploration remains useful when the controller still needs diversification."
-    elif operator_id == "native_sbx_pm":
+    elif operator_id in {"vector_sbx_pm", "sink_shift", "sink_resize"}:
         applicability_score = 1
         expected_feasibility_risk = "low"
-        spatial_match_reason = "native baseline crossover remains a safe fallback anchor."
+        spatial_match_reason = "primitive baseline variation remains a safe fallback anchor."
 
     return _qualitative_rank(applicability_score), {
         "expected_feasibility_risk": expected_feasibility_risk,
