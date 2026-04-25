@@ -9,7 +9,7 @@
 
 ## Active Mainline
 
-The active paper-facing mainlines are `s1_typical` and `s2_staged`. `s2_staged` is the current controller-sensitive S2 companion benchmark; it shares the semantic shared operator registry and the same `raw / union / llm` ladder while keeping the benchmark/controller comparison boundary aligned with the active staged analysis line.
+The active paper-facing mainlines are `s1_typical` and `s2_staged`. `s2_staged` is the current controller-sensitive S2 companion benchmark; it shares the same paper-facing `raw / union / llm` ladder, but `union` is a clean primitive-operator baseline while `llm` is the assisted framework line.
 
 - one operating case
 - fifteen fixed named components
@@ -27,10 +27,10 @@ The active paper-facing mainlines are `s1_typical` and `s2_staged`. `s2_staged` 
 - generator uses semantic band and edge hints before falling back to generic legal placement
 - template now targets `component_area_ratio ~= 0.45`, where the denominator is the official placement region rather than the full panel area
 - all fifteen components generate waste heat and declare explicit localized `source_area_ratio` values
-- generation, cheap constraints, and repair all enforce real minimum-clearance legality instead of overlap-only packing
+- generation and cheap constraints enforce real minimum-clearance legality instead of overlap-only packing
 - solver keeps the official top-edge `line_sink` and adds weak ambient outer-boundary cooling for background heat leakage
 - cheap legality checks run before any expensive PDE solve
-- repair uses projection plus local legality restoration with shape-aware overlap handling
+- clean baselines use `minimal_canonicalization`; assisted `llm` runs use `projection_plus_local_restore`
 - active optimizer modes:
   - `nsga2_raw`
   - `nsga2_union`
@@ -81,7 +81,7 @@ Derived evaluation flow:
 
 Active optimizer flow:
 
-`paper-facing scenario case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle`
+`paper-facing scenario case -> legality policy -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle`
 
 ## Run Layout
 

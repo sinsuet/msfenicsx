@@ -6,12 +6,15 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 
 - `main` already contains the clean rebuild baseline.
 - The active paper-facing mainlines are `s1_typical` and `s2_staged`.
-- `s2_staged` is the current controller-sensitive S2 companion benchmark. It shares the semantic shared operator registry and the same `raw / union / llm` ladder as `s1_typical`.
+- `s2_staged` is the current controller-sensitive S2 companion benchmark. It shares the same `raw / union / llm` ladder as `s1_typical`, with clean baselines separated from the assisted framework line.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
   - `nsga2_llm`
-- The current controller line uses the semantic shared operator registry implemented for `s1_typical`.
+- The active optimizer ladder now uses explicit registry and legality-policy splits:
+  - `raw`: native backbone + clean legality policy
+  - `union`: primitive operator registry + random controller + clean legality policy
+  - `llm`: primitive + assisted registries + assisted legality policy
 - The active platform is organized around:
   - `core/`
   - `evaluation/`
@@ -41,7 +44,7 @@ The active derived evaluation flow is:
 
 The active optimizer mainline is:
 
-`paper-facing scenario case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
+`paper-facing scenario case -> legality policy -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
 
 The implemented paper-facing inputs are:
 
@@ -71,7 +74,7 @@ The fixed benchmark decisions are:
 - hard sink-budget constraint:
   - `case.total_radiator_span <= radiator_span_max`
 - cheap constraints must run before PDE
-- repair must use projection plus local legality restoration
+- clean baselines use minimal canonicalization; assisted framework runs may use projection plus local legality restoration
 
 ## Architectural Expectations
 
@@ -220,6 +223,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
   - `layout_evolution` is a best-so-far spatial-milestone replay; preserved frame PNGs live under `figures/layout_evolution_frames/step-<n>` or `step_<NNN>.png`-style names rather than per-generation `gen_*`
   - layout figures are clean publication panels with internal component labels, explicit sink ribbon, and a compact right-side metadata strip
   - field figures keep mandatory top titles, explicit sink rendering, internal white label chips, and aligned colorbar composition
+- `render-assets` must replay the recorded evaluated geometry from the run contract rather than silently applying full repair to clean baseline traces.
 - Remove temporary scripts, debug files, caches, and one-off intermediate outputs after validation when they are not intended repository state.
 - Do not manually edit generated artifacts to change conclusions.
 
@@ -246,8 +250,8 @@ Current maintained test areas are:
 
 - Scientific or performance claims must identify the relevant template, case, solver profile, seed, and runtime path or artifact bundle.
 - For optimization claims, identify whether evidence comes from one representative point or the Pareto set.
-- Keep the decision encoding, evaluation spec, repair, and expensive-evaluation budget matched across comparisons unless a document explicitly defines a different experiment class.
-- Describe `nsga2_union` and `nsga2_llm` as using the same mixed action registry with only the controller changed.
+- Keep the decision encoding, evaluation spec, legality policy, and expensive-evaluation budget matched across comparisons unless a document explicitly defines a different experiment class.
+- Describe `nsga2_union` as the primitive-registry clean baseline and `nsga2_llm` as the primitive-plus-assisted framework line; do not describe them as the same action registry with only the controller changed.
 - If something is not validated yet, label it as a hypothesis rather than a confirmed result.
 - Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis.
 - Failure reasons and dominant violations are valid evidence and should remain visible in artifacts when relevant.
