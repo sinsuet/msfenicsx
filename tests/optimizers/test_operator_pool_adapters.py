@@ -10,21 +10,31 @@ from optimizers.io import generate_benchmark_case, load_optimization_spec, resol
 from optimizers.models import OptimizationSpec
 
 
-APPROVED_SHARED_OPERATOR_IDS = [
-    "global_explore",
-    "local_refine",
-    "move_hottest_cluster_toward_sink",
-    "spread_hottest_cluster",
-    "smooth_high_gradient_band",
-    "reduce_local_congestion",
-    "repair_sink_budget",
-    "slide_sink",
-    "rebalance_layout",
-]
+PRIMITIVE_OPERATOR_IDS = (
+    "vector_sbx_pm",
+    "component_jitter_1",
+    "component_relocate_1",
+    "component_swap_2",
+    "sink_shift",
+    "sink_resize",
+)
+
+ASSISTED_OPERATOR_IDS = (
+    "hotspot_pull_toward_sink",
+    "hotspot_spread",
+    "gradient_band_smooth",
+    "congestion_relief",
+    "sink_retarget",
+    "layout_rebalance",
+)
 
 
 def _approved_union_operator_ids() -> list[str]:
-    return ["native_sbx_pm", *APPROVED_SHARED_OPERATOR_IDS]
+    return list(PRIMITIVE_OPERATOR_IDS)
+
+
+def _approved_assisted_operator_ids() -> list[str]:
+    return [*PRIMITIVE_OPERATOR_IDS, *ASSISTED_OPERATOR_IDS]
 
 
 def _spec(spec_path: str, *, seed: int = 7, population_size: int = 4, num_generations: int = 2) -> OptimizationSpec:
@@ -55,7 +65,7 @@ def _duplicate_evaluation_count(history: list[dict[str, object]]) -> int:
     return duplicates
 
 
-def test_s1_typical_union_runs_and_emits_semantic_operator_traces() -> None:
+def test_s1_typical_union_runs_and_emits_primitive_operator_traces() -> None:
     from optimizers.drivers.union_driver import run_union_optimization
 
     spec_path = "scenarios/optimization/s1_typical_union.yaml"
@@ -76,7 +86,62 @@ def test_s1_typical_union_runs_and_emits_semantic_operator_traces() -> None:
     assert {row.selected_operator_id for row in run.controller_trace}.issubset(_approved_union_operator_ids())
 
 
-def test_s1_typical_union_native_only_matches_raw_nsga2(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_clean_union_uses_primitive_pool_and_skips_repair_collapsed_dedup(monkeypatch: pytest.MonkeyPatch) -> None:
+    from optimizers.drivers.union_driver import run_union_optimization
+
+    spec_path = "scenarios/optimization/s1_typical_union.yaml"
+    spec = _spec(spec_path)
+    run = run_union_optimization(
+        _base_case(spec_path, spec),
+        spec,
+        _evaluation_spec(spec_path, spec),
+        spec_path=spec_path,
+    )
+
+    assert {row.selected_operator_id for row in run.controller_trace}.issubset(set(PRIMITIVE_OPERATOR_IDS))
+    assert all(not getattr(row, "repair_collapsed_duplicate", False) for row in run.operator_attempt_trace)
+
+
+def test_llm_assisted_path_keeps_attempt_level_screening_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    from optimizers.drivers.union_driver import run_union_optimization
+
+    def _fake_build_controller(*args, **kwargs):
+        del args, kwargs
+        return SimpleNamespace(controller_id="llm")
+
+    def _fake_select_controller_decision(controller, state, operator_ids, rng):
+        del controller, state, rng
+        return SimpleNamespace(
+            selected_operator_id="sink_retarget" if "sink_retarget" in operator_ids else operator_ids[0],
+            metadata={},
+            phase="post_feasible_expand",
+            rationale="test",
+        )
+
+    monkeypatch.setattr("optimizers.adapters.genetic_family.build_controller", _fake_build_controller)
+    monkeypatch.setattr(
+        "optimizers.adapters.genetic_family.configure_controller_trace_outputs",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "optimizers.adapters.genetic_family.select_controller_decision",
+        _fake_select_controller_decision,
+    )
+
+    spec_path = "scenarios/optimization/s1_typical_llm.yaml"
+    spec = _spec(spec_path, population_size=4, num_generations=2)
+    run = run_union_optimization(
+        _base_case(spec_path, spec),
+        spec,
+        _evaluation_spec(spec_path, spec),
+        spec_path=spec_path,
+    )
+
+    assert run.operator_attempt_trace
+    assert all(row.metadata.get("legality_policy_id") == "projection_plus_local_restore" for row in run.operator_attempt_trace)
+
+
+def test_s1_typical_union_vector_sbx_only_matches_raw_nsga2(monkeypatch: pytest.MonkeyPatch) -> None:
     from optimizers.drivers.raw_driver import run_raw_optimization
     from optimizers.drivers.union_driver import run_union_optimization
     from optimizers.operator_pool.random_controller import RandomUniformController
@@ -84,8 +149,8 @@ def test_s1_typical_union_native_only_matches_raw_nsga2(monkeypatch: pytest.Monk
 
     def _always_pick_native(self, state, operator_ids, rng):
         del self, state, rng
-        assert "native_sbx_pm" in operator_ids
-        return "native_sbx_pm"
+        assert "vector_sbx_pm" in operator_ids
+        return "vector_sbx_pm"
 
     monkeypatch.setattr(RandomUniformController, "select_operator", _always_pick_native)
 
@@ -117,10 +182,10 @@ def test_s1_typical_union_mixed_trace_uses_one_decision_per_proposal(monkeypatch
 
     selections = iter(
         [
-            "native_sbx_pm",
-            "local_refine",
-            "native_sbx_pm",
-            "repair_sink_budget",
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "vector_sbx_pm",
+            "sink_resize",
         ]
     )
 
@@ -141,10 +206,10 @@ def test_s1_typical_union_mixed_trace_uses_one_decision_per_proposal(monkeypatch
     assert len(run.controller_trace) == 4
     assert len(run.operator_trace) == 4
     assert [row.selected_operator_id for row in run.controller_trace] == [
-        "native_sbx_pm",
-        "local_refine",
-        "native_sbx_pm",
-        "repair_sink_budget",
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "vector_sbx_pm",
+        "sink_resize",
     ]
     assert [row.metadata["decision_index"] for row in run.controller_trace] == [0, 1, 2, 3]
     assert {row.metadata["children_per_event"] for row in run.controller_trace} == {1}
@@ -189,7 +254,7 @@ def test_genetic_union_llm_uses_configured_recent_window(monkeypatch: pytest.Mon
     def _fake_select_controller_decision(controller, state, operator_ids, rng):
         del controller, state, operator_ids, rng
         return SimpleNamespace(
-            selected_operator_id="native_sbx_pm",
+            selected_operator_id="vector_sbx_pm",
             metadata={},
             phase="prefeasible_convert",
             rationale="test",
@@ -210,6 +275,8 @@ def test_genetic_union_llm_uses_configured_recent_window(monkeypatch: pytest.Mon
     )
     mating = GeneticFamilyUnionMating(
         operator_ids=_approved_union_operator_ids(),
+        registry_profile="primitive_clean",
+        legality_policy_id="minimal_canonicalization",
         controller_id="llm",
         variable_layout=None,
         repair_reference_case=None,
@@ -241,7 +308,7 @@ def test_genetic_union_llm_uses_configured_recent_window(monkeypatch: pytest.Mon
     )
 
     assert captured["recent_window"] == 12
-    assert record["operator_id"] == "native_sbx_pm"
+    assert record["operator_id"] == "vector_sbx_pm"
 
 
 def test_genetic_union_do_records_attempts_separately_from_accepted_trace(
@@ -263,7 +330,7 @@ def test_genetic_union_do_records_attempts_separately_from_accepted_trace(
     def _fake_select_controller_decision(controller, state, operator_ids, rng):
         del controller, state, operator_ids, rng
         return SimpleNamespace(
-            selected_operator_id="local_refine",
+            selected_operator_id="component_jitter_1",
             metadata={},
             phase="post_feasible_expand",
             rationale="test",
@@ -284,6 +351,8 @@ def test_genetic_union_do_records_attempts_separately_from_accepted_trace(
     )
     mating = GeneticFamilyUnionMating(
         operator_ids=_approved_union_operator_ids(),
+        registry_profile="primitive_clean",
+        legality_policy_id="minimal_canonicalization",
         controller_id="random_uniform",
         variable_layout=None,
         repair_reference_case=None,
@@ -374,7 +443,7 @@ def test_genetic_union_do_feeds_generation_local_memory_into_later_decisions(
     def _fake_select_controller_decision(controller, state, operator_ids, rng):
         del controller, state, operator_ids, rng
         return SimpleNamespace(
-            selected_operator_id="local_refine",
+            selected_operator_id="sink_retarget",
             metadata={},
             phase="post_feasible_expand",
             rationale="test",
@@ -394,7 +463,9 @@ def test_genetic_union_do_feeds_generation_local_memory_into_later_decisions(
         crossover=SimpleNamespace(n_offsprings=1, n_parents=2),
     )
     mating = GeneticFamilyUnionMating(
-        operator_ids=_approved_union_operator_ids(),
+        operator_ids=_approved_assisted_operator_ids(),
+        registry_profile="primitive_plus_assisted",
+        legality_policy_id="projection_plus_local_restore",
         controller_id="llm",
         variable_layout=None,
         repair_reference_case=None,
@@ -471,7 +542,7 @@ def test_genetic_union_llm_reuses_repaired_reference_keys_within_generation(
     def _fake_select_controller_decision(controller, state, operator_ids, rng):
         del controller, state, operator_ids, rng
         return SimpleNamespace(
-            selected_operator_id="local_refine",
+            selected_operator_id="sink_retarget",
             metadata={},
             phase="post_feasible_expand",
             rationale="test",
@@ -491,7 +562,9 @@ def test_genetic_union_llm_reuses_repaired_reference_keys_within_generation(
         crossover=SimpleNamespace(n_offsprings=1, n_parents=2),
     )
     mating = GeneticFamilyUnionMating(
-        operator_ids=_approved_union_operator_ids(),
+        operator_ids=_approved_assisted_operator_ids(),
+        registry_profile="primitive_plus_assisted",
+        legality_policy_id="projection_plus_local_restore",
         controller_id="llm",
         variable_layout=None,
         repair_reference_case=None,

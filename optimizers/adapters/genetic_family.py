@@ -52,6 +52,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
         self,
         *,
         operator_ids: list[str],
+        registry_profile: str,
+        legality_policy_id: str,
         controller_id: str,
         variable_layout: VariableLayout,
         repair_reference_case: Any,
@@ -70,6 +72,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
             n_max_iterations=raw_mating.n_max_iterations,
         )
         self.operator_ids = list(operator_ids)
+        self.registry_profile = str(registry_profile)
+        self.legality_policy_id = str(legality_policy_id)
         self.controller = build_controller(controller_id, controller_parameters)
         self.variable_layout = variable_layout
         self.repair_reference_case = repair_reference_case
@@ -89,7 +93,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
         num_generations = int(algorithm_settings.get("num_generations", 0))
         self.total_evaluation_budget = max(0, 1 + population_size * num_generations)
         self.native_parameters = deepcopy(native_parameters)
-        self.native_operator_id = native_operator_id_for_backbone(family, backbone)
+        backbone_native_operator_id = native_operator_id_for_backbone(family, backbone)
+        self.native_operator_id = "vector_sbx_pm" if "vector_sbx_pm" in self.operator_ids else backbone_native_operator_id
         self.controller_trace: list[ControllerTraceRow] = []
         self.operator_trace: list[OperatorTraceRow] = []
         self.controller_attempt_trace: list[ControllerAttemptTraceRow] = []
@@ -127,7 +132,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
         generation_operator_trace: list[OperatorTraceRow] = []
         # The parent population is fixed for a single pymoo infill call, so its repaired
         # reference keys can be reused across all event-wise llm proposals in the generation.
-        repaired_reference_keys = self._reference_repaired_keys(pop)
+        assisted_screening = self._uses_assisted_screening()
+        repaired_reference_keys = self._reference_repaired_keys(pop) if assisted_screening else set()
         accepted_offspring_repaired_keys: set[tuple[float, ...]] = set()
         next_provisional_evaluation_index = int(problem._next_evaluation_index)
         children_per_native_event = int(self.raw_mating.crossover.n_offsprings)
@@ -185,14 +191,17 @@ class GeneticFamilyUnionMating(InfillCriterion):
             )
             if len(proposal_population) > 0:
                 proposal_population = self.repair(problem, proposal_population, random_state=rng, **kwargs)
-            self._refresh_repaired_payloads(proposal_population)
             proposal_population = self._filter_raw_duplicates(proposal_population, pop, off)
-            proposal_population = self._filter_repaired_duplicates(
-                proposal_population,
-                pop,
-                off,
-                reference_keys=repaired_reference_keys | accepted_offspring_repaired_keys,
-            )
+            if assisted_screening:
+                self._refresh_repaired_payloads(proposal_population)
+                proposal_population = self._filter_repaired_duplicates(
+                    proposal_population,
+                    pop,
+                    off,
+                    reference_keys=repaired_reference_keys | accepted_offspring_repaired_keys,
+                )
+            else:
+                self._refresh_evaluated_payloads(proposal_population)
 
             if len(off) + len(proposal_population) > n_offsprings:
                 n_keep = n_offsprings - len(off)
@@ -208,9 +217,10 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 controller_trace_out=generation_controller_trace,
                 operator_trace_out=generation_operator_trace,
             )
-            accepted_offspring_repaired_keys.update(
-                self._trace_payload(individual)["repaired_key"] for individual in proposal_population
-            )
+            if assisted_screening:
+                accepted_offspring_repaired_keys.update(
+                    self._trace_payload(individual)["repaired_key"] for individual in proposal_population
+                )
             off = Population.merge(off, proposal_population)
             n_attempted_events += 1
 
@@ -254,9 +264,12 @@ class GeneticFamilyUnionMating(InfillCriterion):
                     if isinstance(payload, dict)
                 )
             proposal_population = self.repair(problem, proposal_population, random_state=rng, **kwargs)
-            self._refresh_repaired_payloads(proposal_population)
             proposal_population = self._filter_raw_duplicates(proposal_population, pop, off)
-            proposal_population = self._filter_repaired_duplicates(proposal_population, pop, off)
+            if self._uses_assisted_screening():
+                self._refresh_repaired_payloads(proposal_population)
+                proposal_population = self._filter_repaired_duplicates(proposal_population, pop, off)
+            else:
+                self._refresh_evaluated_payloads(proposal_population)
 
             if len(off) + len(proposal_population) > n_offsprings:
                 n_keep = n_offsprings - len(off)
@@ -587,7 +600,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
         proposal_kind = "native" if record["operator_id"] == self.native_operator_id else "custom"
         for sibling_index, proposal_vector in enumerate(proposal_vectors):
             provisional_evaluation_index = int(provisional_evaluation_start + len(proposal_vectors_out))
-            repaired_vector = self._repair_vector(proposal_vector)
+            evaluated_vector = self._evaluated_vector_for_attempt(proposal_vector)
+            evaluated_key = self._vector_key(evaluated_vector)
             attempt_index = self._next_attempt_index
             self._next_attempt_index += 1
             decision_metadata = {
@@ -598,6 +612,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 "proposal_kind": proposal_kind,
                 "sibling_index": int(sibling_index),
                 "children_per_event": int(children_per_event),
+                "registry_profile": self.registry_profile,
+                "legality_policy_id": self.legality_policy_id,
                 **dict(record["decision"].metadata),
             }
             operator_metadata = {
@@ -608,6 +624,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 "proposal_kind": proposal_kind,
                 "sibling_index": int(sibling_index),
                 "children_per_event": int(children_per_event),
+                "registry_profile": self.registry_profile,
+                "legality_policy_id": self.legality_policy_id,
                 "wall_ms": float(operator_wall_ms),
             }
             controller_attempt_row = ControllerAttemptTraceRow(
@@ -635,7 +653,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
                     tuple(float(value) for value in vector.tolist()) for vector in record["parents"].vectors
                 ),
                 proposal_vector=tuple(float(value) for value in proposal_vector.tolist()),
-                repaired_vector=tuple(float(value) for value in repaired_vector.tolist()),
+                repaired_vector=tuple(float(value) for value in evaluated_vector.tolist()),
                 metadata=operator_metadata,
             )
             self.controller_attempt_trace.append(controller_attempt_row)
@@ -658,8 +676,10 @@ class GeneticFamilyUnionMating(InfillCriterion):
                         tuple(float(value) for value in vector.tolist()) for vector in record["parents"].vectors
                     ),
                     "proposal_vector": np.asarray(proposal_vector, dtype=np.float64),
-                    "repaired_vector": np.asarray(repaired_vector, dtype=np.float64),
-                    "repaired_key": self._vector_key(repaired_vector),
+                    "evaluated_vector": np.asarray(evaluated_vector, dtype=np.float64),
+                    "evaluated_key": evaluated_key,
+                    "repaired_vector": np.asarray(evaluated_vector, dtype=np.float64),
+                    "repaired_key": evaluated_key,
                     "decision_metadata": decision_metadata,
                     "operator_metadata": operator_metadata,
                     "controller_attempt_row": controller_attempt_row,
@@ -693,6 +713,14 @@ class GeneticFamilyUnionMating(InfillCriterion):
             algorithm=algorithm,
             **kwargs,
         )
+
+    def _uses_assisted_screening(self) -> bool:
+        return self.legality_policy_id == "projection_plus_local_restore"
+
+    def _evaluated_vector_for_attempt(self, vector: np.ndarray) -> np.ndarray:
+        if self._uses_assisted_screening():
+            return self._repair_vector(vector)
+        return np.asarray(vector, dtype=np.float64)
 
     def _repair_vector(
         self,
@@ -731,10 +759,24 @@ class GeneticFamilyUnionMating(InfillCriterion):
         for individual in population:
             payload = self._trace_payload(individual)
             repaired_vector = self._repair_vector(np.asarray(individual.X, dtype=np.float64))
+            payload["evaluated_vector"] = np.asarray(repaired_vector, dtype=np.float64)
+            payload["evaluated_key"] = self._vector_key(repaired_vector)
             payload["repaired_vector"] = np.asarray(repaired_vector, dtype=np.float64)
             payload["repaired_key"] = self._vector_key(repaired_vector)
             operator_attempt_row = payload["operator_attempt_row"]
             operator_attempt_row.repaired_vector = tuple(float(value) for value in repaired_vector.tolist())
+
+    def _refresh_evaluated_payloads(self, population: Population) -> None:
+        for individual in population:
+            payload = self._trace_payload(individual)
+            evaluated_vector = np.asarray(individual.X, dtype=np.float64)
+            evaluated_key = self._vector_key(evaluated_vector)
+            payload["evaluated_vector"] = evaluated_vector
+            payload["evaluated_key"] = evaluated_key
+            payload["repaired_vector"] = evaluated_vector
+            payload["repaired_key"] = evaluated_key
+            operator_attempt_row = payload["operator_attempt_row"]
+            operator_attempt_row.repaired_vector = tuple(float(value) for value in evaluated_vector.tolist())
 
     def _filter_raw_duplicates(self, population: Population, pop: Population, off: Population) -> Population:
         deduped_population, kept_indices, duplicate_indices = self.eliminate_duplicates.do(
@@ -867,6 +909,10 @@ class GeneticFamilyUnionMating(InfillCriterion):
         evaluation_index = int(evaluation_start_index)
         for individual in population:
             payload = self._trace_payload(individual)
+            evaluated_vector = np.asarray(
+                payload.get("evaluated_vector", payload.get("repaired_vector", payload["proposal_vector"])),
+                dtype=np.float64,
+            )
             self._mark_attempt_status(
                 payload,
                 accepted_for_evaluation=True,
@@ -897,9 +943,12 @@ class GeneticFamilyUnionMating(InfillCriterion):
                     parent_count=int(payload["parent_count"]),
                     parent_vectors=tuple(payload["parent_vectors"]),
                     proposal_vector=tuple(float(value) for value in payload["proposal_vector"].tolist()),
+                    evaluated_vector=tuple(float(value) for value in evaluated_vector.tolist()),
+                    legality_policy_id=self.legality_policy_id,
                     metadata={
                         **dict(payload["operator_metadata"]),
                         "attempt_index": int(payload["attempt_index"]),
+                        "evaluated_vector": evaluated_vector.tolist(),
                         "repaired_vector": payload["repaired_vector"].tolist(),
                     },
                 )
@@ -1008,6 +1057,8 @@ def build_genetic_union_algorithm(
     operator_control = spec_payload["operator_control"]
     mating = GeneticFamilyUnionMating(
         operator_ids=list(operator_control["operator_pool"]),
+        registry_profile=str(operator_control["registry_profile"]),
+        legality_policy_id=str(spec_payload["evaluation_protocol"]["legality_policy_id"]),
         controller_id=str(operator_control["controller"]),
         controller_parameters=deepcopy(operator_control.get("controller_parameters")),
         variable_layout=VariableLayout.from_optimization_spec(spec_payload),
