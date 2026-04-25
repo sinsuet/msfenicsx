@@ -62,6 +62,18 @@ def _spec_payload() -> dict:
     }
 
 
+def _decision_vectors(decision_vector: dict[str, float]) -> dict:
+    return {
+        "proposal_decision_vector": dict(decision_vector),
+        "evaluated_decision_vector": dict(decision_vector),
+        "decision_vector": dict(decision_vector),
+        "legality_policy_id": "minimal_canonicalization",
+        "vector_transform_codes": [],
+        "solver_skipped": False,
+        "cheap_constraint_issues": [],
+    }
+
+
 def _result_payload() -> dict:
     return {
         "schema_version": "1.0",
@@ -76,12 +88,12 @@ def _result_payload() -> dict:
                 "evaluation_index": 1,
                 "source": "baseline",
                 "feasible": False,
-                "decision_vector": {
+                **_decision_vectors({
                     "c01_x": 0.2,
                     "c01_y": 0.3,
                     "sink_start": 0.2,
                     "sink_end": 0.7,
-                },
+                }),
                 "objective_values": {
                     "minimize_peak_temperature": 320.0,
                     "minimize_temperature_gradient_rms": 10.5,
@@ -102,12 +114,12 @@ def _result_payload() -> dict:
                 "evaluation_index": 2,
                 "source": "optimizer",
                 "feasible": True,
-                "decision_vector": {
+                **_decision_vectors({
                     "c01_x": 0.25,
                     "c01_y": 0.35,
                     "sink_start": 0.18,
                     "sink_end": 0.58,
-                },
+                }),
                 "objective_values": {
                     "minimize_peak_temperature": 302.0,
                     "minimize_temperature_gradient_rms": 8.1,
@@ -128,12 +140,12 @@ def _result_payload() -> dict:
                 "evaluation_index": 2,
                 "source": "optimizer",
                 "feasible": True,
-                "decision_vector": {
+                **_decision_vectors({
                     "c01_x": 0.25,
                     "c01_y": 0.35,
                     "sink_start": 0.18,
                     "sink_end": 0.58,
-                },
+                }),
                 "objective_values": {
                     "minimize_peak_temperature": 302.0,
                     "minimize_temperature_gradient_rms": 8.1,
@@ -160,12 +172,12 @@ def _result_payload() -> dict:
                 "evaluation_index": 1,
                 "source": "baseline",
                 "feasible": False,
-                "decision_vector": {
+                **_decision_vectors({
                     "c01_x": 0.2,
                     "c01_y": 0.3,
                     "sink_start": 0.2,
                     "sink_end": 0.7,
-                },
+                }),
                 "objective_values": {
                     "minimize_peak_temperature": 320.0,
                     "minimize_temperature_gradient_rms": 10.5,
@@ -184,12 +196,12 @@ def _result_payload() -> dict:
                 "evaluation_index": 2,
                 "source": "optimizer",
                 "feasible": True,
-                "decision_vector": {
+                **_decision_vectors({
                     "c01_x": 0.25,
                     "c01_y": 0.35,
                     "sink_start": 0.18,
                     "sink_end": 0.58,
-                },
+                }),
                 "objective_values": {
                     "minimize_peak_temperature": 302.0,
                     "minimize_temperature_gradient_rms": 8.1,
@@ -231,6 +243,22 @@ def test_save_and_load_yaml_round_trip(tmp_path: Path) -> None:
     assert loaded_result == _result_payload()
     assert all("evaluation_report" in entry for entry in loaded_result["history"])
     assert all("case_reports" not in entry for entry in loaded_result["history"])
+
+
+def test_result_validation_requires_solver_skip_and_cheap_issue_contract_fields() -> None:
+    payload = _result_payload()
+    del payload["history"][0]["solver_skipped"]
+
+    with pytest.raises(OptimizationValidationError, match="solver_skipped"):
+        OptimizationResult.from_dict(payload)
+
+
+def test_result_validation_rejects_legacy_decision_vector_alias_mismatch() -> None:
+    payload = _result_payload()
+    payload["history"][0]["decision_vector"] = {"c01_x": 0.9}
+
+    with pytest.raises(OptimizationValidationError, match="decision_vector"):
+        OptimizationResult.from_dict(payload)
 
 
 def test_active_raw_spec_resolves_s1_typical_profile_parameters() -> None:

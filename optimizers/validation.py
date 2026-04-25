@@ -349,7 +349,12 @@ def _validate_candidate_record(record: Any, label: str) -> None:
         "evaluation_index",
         "source",
         "feasible",
-        "decision_vector",
+        "proposal_decision_vector",
+        "evaluated_decision_vector",
+        "legality_policy_id",
+        "vector_transform_codes",
+        "solver_skipped",
+        "cheap_constraint_issues",
         "objective_values",
         "constraint_values",
     )
@@ -359,7 +364,28 @@ def _validate_candidate_record(record: Any, label: str) -> None:
     _require_text(record["source"], f"{label}.source")
     if not isinstance(record["feasible"], bool):
         raise OptimizationValidationError(f"{label}.feasible must be a boolean.")
-    decision_vector = _require_mapping(record["decision_vector"], f"{label}.decision_vector")
+    proposal_vector = _require_mapping(record["proposal_decision_vector"], f"{label}.proposal_decision_vector")
+    evaluated_vector = _require_mapping(record["evaluated_decision_vector"], f"{label}.evaluated_decision_vector")
+    _require_text(record["legality_policy_id"], f"{label}.legality_policy_id")
+    transform_codes = _require_sequence(record["vector_transform_codes"], f"{label}.vector_transform_codes")
+    for value in transform_codes:
+        _require_text(value, f"{label}.vector_transform_codes[]")
+    if not isinstance(record["solver_skipped"], bool):
+        raise OptimizationValidationError(f"{label}.solver_skipped must be a boolean.")
+    cheap_constraint_issues = _require_sequence(
+        record["cheap_constraint_issues"],
+        f"{label}.cheap_constraint_issues",
+    )
+    for value in cheap_constraint_issues:
+        _require_text(value, f"{label}.cheap_constraint_issues[]")
+    if "decision_vector" in record:
+        decision_vector = _require_mapping(record["decision_vector"], f"{label}.decision_vector")
+        if dict(decision_vector) != dict(evaluated_vector):
+            raise OptimizationValidationError(
+                f"{label}.decision_vector must match {label}.evaluated_decision_vector when present."
+            )
+    else:
+        decision_vector = None
     objective_values = _require_mapping(record["objective_values"], f"{label}.objective_values")
     constraint_values = _require_mapping(record["constraint_values"], f"{label}.constraint_values")
     if "evaluation_report" in record:
@@ -371,9 +397,16 @@ def _validate_candidate_record(record: Any, label: str) -> None:
             _require_mapping(report, f"{label}.case_reports['{name}']")
     else:
         raise OptimizationValidationError(f"{label} must include evaluation_report or case_reports.")
-    for name, value in decision_vector.items():
-        _require_text(name, f"{label}.decision_vector key")
-        _require_real(value, f"{label}.decision_vector['{name}']")
+    for name, value in proposal_vector.items():
+        _require_text(name, f"{label}.proposal_decision_vector key")
+        _require_real(value, f"{label}.proposal_decision_vector['{name}']")
+    for name, value in evaluated_vector.items():
+        _require_text(name, f"{label}.evaluated_decision_vector key")
+        _require_real(value, f"{label}.evaluated_decision_vector['{name}']")
+    if decision_vector is not None:
+        for name, value in decision_vector.items():
+            _require_text(name, f"{label}.decision_vector key")
+            _require_real(value, f"{label}.decision_vector['{name}']")
     for name, value in objective_values.items():
         _require_text(name, f"{label}.objective_values key")
         _require_real(value, f"{label}.objective_values['{name}']")

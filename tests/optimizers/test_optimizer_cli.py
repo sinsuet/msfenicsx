@@ -407,12 +407,23 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
 
 
 def _fake_union_run(*, include_llm_sidecars: bool = False) -> SimpleNamespace:
+    def _candidate_contract(decision_vector: dict[str, float], *, solver_skipped: bool = False) -> dict:
+        return {
+            "proposal_decision_vector": dict(decision_vector),
+            "evaluated_decision_vector": dict(decision_vector),
+            "decision_vector": dict(decision_vector),
+            "legality_policy_id": "minimal_canonicalization",
+            "vector_transform_codes": [],
+            "solver_skipped": solver_skipped,
+            "cheap_constraint_issues": [],
+        }
+
     history = [
         {
             "evaluation_index": 1,
             "source": "baseline",
             "feasible": False,
-            "decision_vector": {"c01_x": 0.2, "c01_y": 0.3},
+            **_candidate_contract({"c01_x": 0.2, "c01_y": 0.3}),
             "objective_values": {
                 "minimize_peak_temperature": 320.0,
                 "minimize_temperature_gradient_rms": 12.0,
@@ -432,7 +443,7 @@ def _fake_union_run(*, include_llm_sidecars: bool = False) -> SimpleNamespace:
             "evaluation_index": 2,
             "source": "optimizer",
             "feasible": True,
-            "decision_vector": {"c01_x": 0.25, "c01_y": 0.35},
+            **_candidate_contract({"c01_x": 0.25, "c01_y": 0.35}),
             "objective_values": {
                 "minimize_peak_temperature": 300.0,
                 "minimize_temperature_gradient_rms": 8.5,

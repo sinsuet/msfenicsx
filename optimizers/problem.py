@@ -18,8 +18,8 @@ from evaluation.engine import evaluate_case_solution
 from evaluation.models import EvaluationReport
 from optimizers.codec import extract_decision_vector
 from optimizers.cheap_constraints import evaluate_cheap_constraints, resolve_radiator_span_max
+from optimizers.legality import apply_legality_policy_from_vector
 from optimizers.parallel_evaluator import evaluate_candidate_payload, resolve_evaluation_workers
-from optimizers.repair import repair_case_payload_from_vector
 
 
 PENALTY_VALUE = 1.0e12
@@ -38,7 +38,10 @@ class CandidateArtifacts:
 class PreparedCandidate:
     evaluation_index: int
     source: str
-    decision_vector: dict[str, float]
+    proposal_decision_vector: dict[str, float]
+    evaluated_decision_vector: dict[str, float]
+    legality_policy_id: str
+    vector_transform_codes: tuple[str, ...]
     metadata: dict[str, Any] | None
     candidate_payload: dict[str, Any] | None = None
     immediate_record: dict[str, Any] | None = None
@@ -164,50 +167,75 @@ class ThermalOptimizationProblem(Problem):
     ) -> PreparedCandidate:
         evaluation_index = self._next_evaluation_index
         self._next_evaluation_index += 1
-        decision_vector = {
-            variable["variable_id"]: float(value)
-            for variable, value in zip(self.optimization_spec["design_variables"], vector.tolist(), strict=True)
-        }
+        proposal_decision_vector = self._decision_vector_mapping(vector)
+        legality_policy_id = str(self.optimization_spec["evaluation_protocol"]["legality_policy_id"])
         try:
-            candidate_payload = repair_case_payload_from_vector(
+            evaluated = apply_legality_policy_from_vector(
                 self.base_case,
                 self.optimization_spec,
                 vector,
+                legality_policy_id=legality_policy_id,
                 radiator_span_max=self.radiator_span_max,
-            )
-            cheap_result = evaluate_cheap_constraints(candidate_payload, self.evaluation_spec)
-            if not cheap_result.feasible:
-                return self._build_immediate_penalty(
-                    evaluation_index=evaluation_index,
-                    source=source,
-                    decision_vector=decision_vector,
-                    metadata=metadata,
-                    failure_reason="cheap_constraint_violation",
-                    constraint_values={
-                        constraint["constraint_id"]: cheap_result.constraint_values.get(
-                            constraint["constraint_id"],
-                            PENALTY_VALUE,
-                        )
-                        for constraint in self.evaluation_spec["constraints"]
-                    },
-                    solver_skipped=True,
-                    cheap_constraint_issues=list(cheap_result.geometry_issues),
-                )
-            return PreparedCandidate(
-                evaluation_index=evaluation_index,
-                source=source,
-                decision_vector=decision_vector,
-                metadata=metadata,
-                candidate_payload=candidate_payload,
             )
         except Exception as exc:
             return self._build_immediate_penalty(
                 evaluation_index=evaluation_index,
                 source=source,
-                decision_vector=decision_vector,
+                proposal_decision_vector=proposal_decision_vector,
+                evaluated_decision_vector=proposal_decision_vector,
+                legality_policy_id=legality_policy_id,
+                vector_transform_codes=(),
                 metadata=metadata,
                 failure_reason=f"{type(exc).__name__}: {exc}",
+                solver_skipped=True,
             )
+
+        evaluated_decision_vector = self._decision_vector_mapping(evaluated.evaluated_vector)
+        candidate_payload = evaluated.case_payload
+        try:
+            cheap_result = evaluate_cheap_constraints(candidate_payload, self.evaluation_spec)
+        except Exception as exc:
+            return self._build_immediate_penalty(
+                evaluation_index=evaluation_index,
+                source=source,
+                proposal_decision_vector=proposal_decision_vector,
+                evaluated_decision_vector=evaluated_decision_vector,
+                legality_policy_id=evaluated.legality_policy_id,
+                vector_transform_codes=evaluated.vector_transform_codes,
+                metadata=metadata,
+                failure_reason=f"{type(exc).__name__}: {exc}",
+                solver_skipped=True,
+            )
+        if not cheap_result.feasible:
+            return self._build_immediate_penalty(
+                evaluation_index=evaluation_index,
+                source=source,
+                proposal_decision_vector=proposal_decision_vector,
+                evaluated_decision_vector=evaluated_decision_vector,
+                legality_policy_id=evaluated.legality_policy_id,
+                vector_transform_codes=evaluated.vector_transform_codes,
+                metadata=metadata,
+                failure_reason="cheap_constraint_violation",
+                constraint_values={
+                    constraint["constraint_id"]: cheap_result.constraint_values.get(
+                        constraint["constraint_id"],
+                        PENALTY_VALUE,
+                    )
+                    for constraint in self.evaluation_spec["constraints"]
+                },
+                solver_skipped=True,
+                cheap_constraint_issues=list(cheap_result.geometry_issues),
+            )
+        return PreparedCandidate(
+            evaluation_index=evaluation_index,
+            source=source,
+            proposal_decision_vector=proposal_decision_vector,
+            evaluated_decision_vector=evaluated_decision_vector,
+            legality_policy_id=evaluated.legality_policy_id,
+            vector_transform_codes=evaluated.vector_transform_codes,
+            metadata=metadata,
+            candidate_payload=candidate_payload,
+        )
 
     def _collect_worker_results(self, prepared_candidates: list[PreparedCandidate]) -> dict[int, dict[str, Any]]:
         executable = [prepared for prepared in prepared_candidates if prepared.candidate_payload is not None]
@@ -245,14 +273,19 @@ class ThermalOptimizationProblem(Problem):
             record = self._build_record(
                 evaluation_index=prepared.evaluation_index,
                 source=prepared.source,
-                decision_vector=prepared.decision_vector,
+                proposal_decision_vector=prepared.proposal_decision_vector,
+                evaluated_decision_vector=prepared.evaluated_decision_vector,
+                legality_policy_id=prepared.legality_policy_id,
+                vector_transform_codes=prepared.vector_transform_codes,
                 objective_values=self._penalty_objective_values(),
                 constraint_values=self._penalty_constraint_values(),
                 evaluation_report={},
                 feasible=False,
                 metadata=prepared.metadata,
                 failure_reason=None if worker_result is None else worker_result.get("failure_reason"),
+                solver_skipped=False,
             )
+            record["failure_stage"] = "worker_evaluation"
         else:
             evaluation_payload = dict(worker_result["evaluation_payload"])
             objective_values = {
@@ -273,7 +306,10 @@ class ThermalOptimizationProblem(Problem):
             record = self._build_record(
                 evaluation_index=prepared.evaluation_index,
                 source=prepared.source,
-                decision_vector=prepared.decision_vector,
+                proposal_decision_vector=prepared.proposal_decision_vector,
+                evaluated_decision_vector=prepared.evaluated_decision_vector,
+                legality_policy_id=prepared.legality_policy_id,
+                vector_transform_codes=prepared.vector_transform_codes,
                 objective_values=objective_values,
                 constraint_values=constraint_values,
                 evaluation_report=evaluation_payload,
@@ -288,7 +324,10 @@ class ThermalOptimizationProblem(Problem):
         *,
         evaluation_index: int,
         source: str,
-        decision_vector: dict[str, float],
+        proposal_decision_vector: dict[str, float],
+        evaluated_decision_vector: dict[str, float],
+        legality_policy_id: str,
+        vector_transform_codes: tuple[str, ...],
         metadata: dict[str, Any] | None,
         failure_reason: str,
         constraint_values: dict[str, float] | None = None,
@@ -301,7 +340,10 @@ class ThermalOptimizationProblem(Problem):
         record = self._build_record(
             evaluation_index=evaluation_index,
             source=source,
-            decision_vector=decision_vector,
+            proposal_decision_vector=proposal_decision_vector,
+            evaluated_decision_vector=evaluated_decision_vector,
+            legality_policy_id=legality_policy_id,
+            vector_transform_codes=vector_transform_codes,
             objective_values=self._penalty_objective_values(),
             constraint_values=effective_constraint_values,
             evaluation_report={},
@@ -314,7 +356,10 @@ class ThermalOptimizationProblem(Problem):
         return PreparedCandidate(
             evaluation_index=evaluation_index,
             source=source,
-            decision_vector=decision_vector,
+            proposal_decision_vector=proposal_decision_vector,
+            evaluated_decision_vector=evaluated_decision_vector,
+            legality_policy_id=legality_policy_id,
+            vector_transform_codes=vector_transform_codes,
             metadata=metadata,
             immediate_record=record,
             immediate_objective_vector=self._objective_vector(record["objective_values"]),
@@ -326,7 +371,10 @@ class ThermalOptimizationProblem(Problem):
         *,
         evaluation_index: int,
         source: str,
-        decision_vector: dict[str, float],
+        proposal_decision_vector: dict[str, float],
+        evaluated_decision_vector: dict[str, float],
+        legality_policy_id: str,
+        vector_transform_codes: tuple[str, ...],
         objective_values: dict[str, float],
         constraint_values: dict[str, float],
         evaluation_report: dict[str, Any],
@@ -341,20 +389,36 @@ class ThermalOptimizationProblem(Problem):
             "generation": int(self.current_generation),
             "source": source,
             "feasible": feasible,
-            "decision_vector": decision_vector,
+            "proposal_decision_vector": proposal_decision_vector,
+            "evaluated_decision_vector": evaluated_decision_vector,
+            "decision_vector": evaluated_decision_vector,
+            "legality_policy_id": legality_policy_id,
+            "vector_transform_codes": list(vector_transform_codes),
             "objective_values": objective_values,
             "constraint_values": constraint_values,
             "evaluation_report": evaluation_report,
+            "solver_skipped": bool(solver_skipped),
+            "cheap_constraint_issues": list(cheap_constraint_issues or []),
         }
         if metadata:
-            record.update(metadata)
+            protected_keys = set(record)
+            protected_keys.add("failure_reason")
+            for key, value in metadata.items():
+                if key not in protected_keys:
+                    record[key] = value
         if failure_reason is not None:
             record["failure_reason"] = failure_reason
-        if solver_skipped:
-            record["solver_skipped"] = True
-        if cheap_constraint_issues:
-            record["cheap_constraint_issues"] = list(cheap_constraint_issues)
         return record
+
+    def _decision_vector_mapping(self, vector: np.ndarray) -> dict[str, float]:
+        return {
+            variable["variable_id"]: float(value)
+            for variable, value in zip(
+                self.optimization_spec["design_variables"],
+                np.asarray(vector).tolist(),
+                strict=True,
+            )
+        }
 
     def _objective_vector(self, objective_values: dict[str, float]) -> np.ndarray:
         return np.asarray(
