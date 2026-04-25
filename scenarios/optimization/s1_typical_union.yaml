@@ -1,7 +1,7 @@
 schema_version: "1.0"
 spec_meta:
   spec_id: s1_typical_nsga2_union
-  description: S1 typical single-case NSGA-II union-uniform mode with shared native-plus-semantic action registry.
+  description: S1 typical single-case NSGA-II union-uniform mode with the primitive clean action registry.
 benchmark_source:
   template_path: scenarios/templates/s1_typical.yaml
   seed: 11
@@ -144,17 +144,14 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s1_typical_union.yaml
 operator_control:
   controller: random_uniform
+  registry_profile: primitive_clean
   operator_pool:
-    - native_sbx_pm
-    - global_explore
-    - local_refine
-    - move_hottest_cluster_toward_sink
-    - spread_hottest_cluster
-    - smooth_high_gradient_band
-    - reduce_local_congestion
-    - repair_sink_budget
-    - slide_sink
-    - rebalance_layout
+    - vector_sbx_pm
+    - component_jitter_1
+    - component_relocate_1
+    - component_swap_2
+    - sink_shift
+    - sink_resize
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/s1_typical_eval.yaml
   legality_policy_id: minimal_canonicalization

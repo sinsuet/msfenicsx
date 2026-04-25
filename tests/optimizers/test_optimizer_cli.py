@@ -66,6 +66,7 @@ def _write_small_union_spec(tmp_path: Path, *, controller: str = "random_uniform
     payload["algorithm"]["profile_path"] = "scenarios/optimization/profiles/s1_typical_union.yaml"
     payload["operator_control"] = {
         "controller": controller,
+        "registry_profile": "primitive_clean",
         "operator_pool": list(approved_union_operator_ids_for_backbone("genetic", "nsga2")),
     }
     if controller == "llm":

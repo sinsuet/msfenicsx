@@ -8,27 +8,18 @@ from typing import Callable
 import numpy as np
 
 from optimizers.cheap_constraints import project_sink_interval
+from optimizers.operator_pool.assisted_registry import ASSISTED_OPERATOR_IDS
 from optimizers.operator_pool.layout import VariableLayout
 from optimizers.operator_pool.models import ParentBundle
+from optimizers.operator_pool.primitive_registry import PRIMITIVE_OPERATOR_IDS
 from optimizers.operator_pool.state import ControllerState
 
 
 ProposalFn = Callable[[ParentBundle, ControllerState, VariableLayout, np.random.Generator], np.ndarray]
 
 
-APPROVED_SHARED_OPERATOR_IDS = (
-    "global_explore",
-    "local_refine",
-    "move_hottest_cluster_toward_sink",
-    "spread_hottest_cluster",
-    "smooth_high_gradient_band",
-    "reduce_local_congestion",
-    "repair_sink_budget",
-    "slide_sink",
-    "rebalance_layout",
-)
-
-APPROVED_UNION_OPERATOR_IDS = ("native_sbx_pm", *APPROVED_SHARED_OPERATOR_IDS)
+APPROVED_SHARED_OPERATOR_IDS = ASSISTED_OPERATOR_IDS
+APPROVED_UNION_OPERATOR_IDS = (*PRIMITIVE_OPERATOR_IDS, *ASSISTED_OPERATOR_IDS)
 
 APPROVED_NATIVE_OPERATOR_IDS_BY_BACKBONE = {
     ("genetic", "nsga2"): "native_sbx_pm",
@@ -40,6 +31,14 @@ APPROVED_NATIVE_OPERATOR_IDS_BY_BACKBONE = {
 }
 
 _MIN_SINK_SPAN = 0.15
+
+
+def approved_operator_pool(registry_profile: str) -> tuple[str, ...]:
+    if registry_profile == "primitive_clean":
+        return PRIMITIVE_OPERATOR_IDS
+    if registry_profile == "primitive_plus_assisted":
+        return (*PRIMITIVE_OPERATOR_IDS, *ASSISTED_OPERATOR_IDS)
+    raise KeyError(f"Unsupported registry profile: {registry_profile!r}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -392,6 +391,120 @@ def _native_sbx_pm(
     )
 
 
+def _component_jitter_1(
+    parents: ParentBundle,
+    state: ControllerState,
+    variable_layout: VariableLayout,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    del state
+    proposal = _copy_primary(parents)
+    component_pairs = _component_axes(variable_layout)
+    component = component_pairs[int(rng.integers(0, len(component_pairs)))]
+    x_slot = variable_layout.slot_for(component.x_id)
+    y_slot = variable_layout.slot_for(component.y_id)
+    proposal[x_slot.index] = float(
+        np.clip(
+            proposal[x_slot.index] + rng.normal(loc=0.0, scale=0.02 * (x_slot.upper_bound - x_slot.lower_bound)),
+            x_slot.lower_bound,
+            x_slot.upper_bound,
+        )
+    )
+    proposal[y_slot.index] = float(
+        np.clip(
+            proposal[y_slot.index] + rng.normal(loc=0.0, scale=0.02 * (y_slot.upper_bound - y_slot.lower_bound)),
+            y_slot.lower_bound,
+            y_slot.upper_bound,
+        )
+    )
+    return variable_layout.clip(proposal)
+
+
+def _component_relocate_1(
+    parents: ParentBundle,
+    state: ControllerState,
+    variable_layout: VariableLayout,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    del state
+    proposal = _copy_primary(parents)
+    component_pairs = _component_axes(variable_layout)
+    component = component_pairs[int(rng.integers(0, len(component_pairs)))]
+    x_slot = variable_layout.slot_for(component.x_id)
+    y_slot = variable_layout.slot_for(component.y_id)
+    proposal[x_slot.index] = float(rng.uniform(x_slot.lower_bound, x_slot.upper_bound))
+    proposal[y_slot.index] = float(rng.uniform(y_slot.lower_bound, y_slot.upper_bound))
+    return variable_layout.clip(proposal)
+
+
+def _component_swap_2(
+    parents: ParentBundle,
+    state: ControllerState,
+    variable_layout: VariableLayout,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    del state
+    proposal = _copy_primary(parents)
+    component_pairs = _component_axes(variable_layout)
+    left_index, right_index = rng.choice(len(component_pairs), size=2, replace=False)
+    left = component_pairs[int(left_index)]
+    right = component_pairs[int(right_index)]
+    left_x = proposal[variable_layout.index_of(left.x_id)]
+    left_y = proposal[variable_layout.index_of(left.y_id)]
+    proposal[variable_layout.index_of(left.x_id)] = proposal[variable_layout.index_of(right.x_id)]
+    proposal[variable_layout.index_of(left.y_id)] = proposal[variable_layout.index_of(right.y_id)]
+    proposal[variable_layout.index_of(right.x_id)] = left_x
+    proposal[variable_layout.index_of(right.y_id)] = left_y
+    return variable_layout.clip(proposal)
+
+
+def _sink_shift(
+    parents: ParentBundle,
+    state: ControllerState,
+    variable_layout: VariableLayout,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    proposal = _copy_primary(parents)
+    sink_state = _sink_state(proposal, variable_layout)
+    if sink_state is None:
+        return variable_layout.clip(proposal)
+    _, _, start, end, center = sink_state
+    span = max(_MIN_SINK_SPAN, float(end - start))
+    shift = float(rng.normal(loc=0.0, scale=0.03 * span))
+    _slide_sink_to_center(
+        proposal,
+        state,
+        variable_layout,
+        target_center=center + shift,
+        preserve_span=True,
+    )
+    return variable_layout.clip(proposal)
+
+
+def _sink_resize(
+    parents: ParentBundle,
+    state: ControllerState,
+    variable_layout: VariableLayout,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    proposal = _copy_primary(parents)
+    sink_state = _sink_state(proposal, variable_layout)
+    if sink_state is None:
+        return variable_layout.clip(proposal)
+    _, _, start, end, center = sink_state
+    span = max(_MIN_SINK_SPAN, float(end - start))
+    target_span = max(_MIN_SINK_SPAN, span * float(1.0 + rng.normal(loc=0.0, scale=0.12)))
+    _slide_sink_to_center(
+        proposal,
+        state,
+        variable_layout,
+        target_center=center,
+        preserve_span=False,
+        span_override=target_span,
+    )
+    return variable_layout.clip(proposal)
+
+
 def _global_explore(
     parents: ParentBundle,
     state: ControllerState,
@@ -705,20 +818,94 @@ def _rebalance_layout(
 
 
 _REGISTERED_OPERATORS = (
-    OperatorDefinition("native_sbx_pm", _native_sbx_pm),
-    OperatorDefinition("global_explore", _global_explore),
-    OperatorDefinition("local_refine", _local_refine),
-    OperatorDefinition("move_hottest_cluster_toward_sink", _move_hottest_cluster_toward_sink),
-    OperatorDefinition("spread_hottest_cluster", _spread_hottest_cluster),
-    OperatorDefinition("smooth_high_gradient_band", _smooth_high_gradient_band),
-    OperatorDefinition("reduce_local_congestion", _reduce_local_congestion),
-    OperatorDefinition("repair_sink_budget", _repair_sink_budget),
-    OperatorDefinition("slide_sink", _slide_sink),
-    OperatorDefinition("rebalance_layout", _rebalance_layout),
+    OperatorDefinition("vector_sbx_pm", _native_sbx_pm),
+    OperatorDefinition("component_jitter_1", _component_jitter_1),
+    OperatorDefinition("component_relocate_1", _component_relocate_1),
+    OperatorDefinition("component_swap_2", _component_swap_2),
+    OperatorDefinition("sink_shift", _sink_shift),
+    OperatorDefinition("sink_resize", _sink_resize),
+    OperatorDefinition("hotspot_pull_toward_sink", _move_hottest_cluster_toward_sink),
+    OperatorDefinition("hotspot_spread", _spread_hottest_cluster),
+    OperatorDefinition("gradient_band_smooth", _smooth_high_gradient_band),
+    OperatorDefinition("congestion_relief", _reduce_local_congestion),
+    OperatorDefinition("sink_retarget", _slide_sink),
+    OperatorDefinition("layout_rebalance", _rebalance_layout),
 )
 
 _REGISTERED_OPERATOR_MAP = {definition.operator_id: definition for definition in _REGISTERED_OPERATORS}
 _OPERATOR_BEHAVIOR_PROFILES = {
+    "vector_sbx_pm": OperatorBehaviorProfile(
+        operator_id="vector_sbx_pm",
+        family="native_baseline",
+        role="native_baseline",
+        exploration_class="stable",
+    ),
+    "component_jitter_1": OperatorBehaviorProfile(
+        operator_id="component_jitter_1",
+        family="primitive_component",
+        role="component_jitter",
+        exploration_class="stable",
+    ),
+    "component_relocate_1": OperatorBehaviorProfile(
+        operator_id="component_relocate_1",
+        family="primitive_component",
+        role="component_relocate",
+        exploration_class="stable",
+    ),
+    "component_swap_2": OperatorBehaviorProfile(
+        operator_id="component_swap_2",
+        family="primitive_component",
+        role="component_swap",
+        exploration_class="stable",
+    ),
+    "sink_shift": OperatorBehaviorProfile(
+        operator_id="sink_shift",
+        family="primitive_sink",
+        role="sink_shift",
+        exploration_class="stable",
+    ),
+    "sink_resize": OperatorBehaviorProfile(
+        operator_id="sink_resize",
+        family="primitive_sink",
+        role="sink_resize",
+        exploration_class="stable",
+    ),
+    "hotspot_pull_toward_sink": OperatorBehaviorProfile(
+        operator_id="hotspot_pull_toward_sink",
+        family="assisted_hotspot",
+        role="hotspot_pull_toward_sink",
+        exploration_class="custom",
+    ),
+    "hotspot_spread": OperatorBehaviorProfile(
+        operator_id="hotspot_spread",
+        family="assisted_hotspot",
+        role="hotspot_spread",
+        exploration_class="custom",
+    ),
+    "gradient_band_smooth": OperatorBehaviorProfile(
+        operator_id="gradient_band_smooth",
+        family="assisted_gradient",
+        role="gradient_band_smooth",
+        exploration_class="custom",
+    ),
+    "congestion_relief": OperatorBehaviorProfile(
+        operator_id="congestion_relief",
+        family="assisted_congestion",
+        role="congestion_relief",
+        exploration_class="custom",
+    ),
+    "sink_retarget": OperatorBehaviorProfile(
+        operator_id="sink_retarget",
+        family="assisted_sink",
+        role="sink_retarget",
+        exploration_class="custom",
+    ),
+    "layout_rebalance": OperatorBehaviorProfile(
+        operator_id="layout_rebalance",
+        family="assisted_layout",
+        role="layout_rebalance",
+        exploration_class="custom",
+    ),
     "native_sbx_pm": OperatorBehaviorProfile(
         operator_id="native_sbx_pm",
         family="native_baseline",
@@ -806,7 +993,8 @@ def native_operator_id_for_backbone(family: str, backbone: str) -> str:
 
 
 def approved_union_operator_ids_for_backbone(family: str, backbone: str) -> tuple[str, ...]:
-    return (native_operator_id_for_backbone(family, backbone), *APPROVED_SHARED_OPERATOR_IDS)
+    native_operator_id_for_backbone(family, backbone)
+    return approved_operator_pool("primitive_clean")
 
 
 def get_operator_definition(operator_id: str) -> OperatorDefinition:

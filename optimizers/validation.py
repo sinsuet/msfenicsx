@@ -6,10 +6,7 @@ from collections.abc import Mapping, Sequence
 from numbers import Real
 from typing import Any
 
-from optimizers.operator_pool.operators import (
-    APPROVED_SHARED_OPERATOR_IDS,
-    approved_union_operator_ids_for_backbone,
-)
+from optimizers.operator_pool.operators import approved_operator_pool
 
 
 SUPPORTED_BACKBONES_BY_FAMILY = {
@@ -19,6 +16,7 @@ SUPPORTED_BACKBONES_BY_FAMILY = {
 }
 SUPPORTED_MODES = {"raw", "union"}
 SUPPORTED_CONTROLLERS = {"random_uniform", "llm"}
+SUPPORTED_REGISTRY_PROFILES = {"primitive_clean", "primitive_plus_assisted"}
 SUPPORTED_LLM_CAPABILITY_PROFILES = {"responses_native", "chat_compatible_json"}
 SUPPORTED_LLM_PERFORMANCE_PROFILES = {"economy", "balanced", "high_reasoning"}
 SUPPORTED_LLM_FALLBACK_CONTROLLERS = {"random_uniform"}
@@ -182,7 +180,7 @@ def _validate_operator_control(operator_control: Any, *, family: str, backbone: 
     if operator_control is None:
         raise OptimizationValidationError("operator_control is required when algorithm.mode is 'union'.")
 
-    required_keys = ("controller", "operator_pool")
+    required_keys = ("controller", "registry_profile", "operator_pool")
     _require_mapping(operator_control, "operator_control")
     _require_required_keys(operator_control, required_keys, "operator_control")
     controller = _require_text(operator_control["controller"], "operator_control.controller")
@@ -191,22 +189,28 @@ def _validate_operator_control(operator_control: Any, *, family: str, backbone: 
             f"operator_control.controller '{controller}' must be one of {sorted(SUPPORTED_CONTROLLERS)}."
         )
 
+    registry_profile = _require_text(operator_control["registry_profile"], "operator_control.registry_profile")
+    if registry_profile not in SUPPORTED_REGISTRY_PROFILES:
+        raise OptimizationValidationError(
+            f"operator_control.registry_profile must be one of {sorted(SUPPORTED_REGISTRY_PROFILES)}."
+        )
+
     operator_pool = tuple(
         _require_text(operator_id, f"operator_control.operator_pool[{index}]")
         for index, operator_id in enumerate(_require_sequence(operator_control["operator_pool"], "operator_control.operator_pool"))
     )
     try:
-        approved_operator_pool = approved_union_operator_ids_for_backbone(family, backbone)
+        expected_pool = approved_operator_pool(registry_profile)
     except KeyError as exc:
         raise OptimizationValidationError(
-            f"algorithm.mode 'union' is not approved for family={family!r}, backbone={backbone!r}."
+            f"operator_control.registry_profile {registry_profile!r} is not approved for family={family!r}, backbone={backbone!r}."
         ) from exc
-    if operator_pool != approved_operator_pool:
+    if operator_pool != expected_pool:
         raise OptimizationValidationError(
-            "operator_control.operator_pool for algorithm.mode 'union' must exactly match "
-            f"{list(approved_operator_pool)}. Shared custom operators remain {list(APPROVED_SHARED_OPERATOR_IDS)}."
+            "operator_control.operator_pool must exactly match the approved pool for "
+            f"registry_profile={registry_profile!r}: {list(expected_pool)}."
         )
-    if controller == "llm":
+    if controller == "llm" and operator_control.get("controller_parameters") is not None:
         _validate_llm_controller_parameters(operator_control.get("controller_parameters"))
 
 

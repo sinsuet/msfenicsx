@@ -7,21 +7,22 @@ from optimizers.codec import extract_decision_vector
 from optimizers.io import generate_benchmark_case, load_optimization_spec
 
 
-APPROVED_SHARED_OPERATOR_IDS = (
-    "global_explore",
-    "local_refine",
-    "move_hottest_cluster_toward_sink",
-    "spread_hottest_cluster",
-    "smooth_high_gradient_band",
-    "reduce_local_congestion",
-    "repair_sink_budget",
-    "slide_sink",
-    "rebalance_layout",
+PRIMITIVE_OPERATOR_IDS = (
+    "vector_sbx_pm",
+    "component_jitter_1",
+    "component_relocate_1",
+    "component_swap_2",
+    "sink_shift",
+    "sink_resize",
 )
 
-APPROVED_UNION_OPERATOR_IDS = (
-    "native_sbx_pm",
-    *APPROVED_SHARED_OPERATOR_IDS,
+ASSISTED_OPERATOR_IDS = (
+    "hotspot_pull_toward_sink",
+    "hotspot_spread",
+    "gradient_band_smooth",
+    "congestion_relief",
+    "sink_retarget",
+    "layout_rebalance",
 )
 
 
@@ -72,14 +73,25 @@ def _controller_state():
     )
 
 
-def test_operator_registry_exposes_semantic_s1_typical_actions() -> None:
-    from optimizers.operator_pool.operators import (
-        approved_union_operator_ids_for_backbone,
-        list_registered_operator_ids,
+def test_registry_profiles_expose_clean_vs_assisted_pools() -> None:
+    from optimizers.operator_pool.operators import approved_operator_pool
+
+    assert approved_operator_pool("primitive_clean") == PRIMITIVE_OPERATOR_IDS
+    assert approved_operator_pool("primitive_plus_assisted") == (
+        *PRIMITIVE_OPERATOR_IDS,
+        *ASSISTED_OPERATOR_IDS,
     )
 
-    assert approved_union_operator_ids_for_backbone("genetic", "nsga2") == APPROVED_UNION_OPERATOR_IDS
-    assert tuple(list_registered_operator_ids()) == APPROVED_UNION_OPERATOR_IDS
+
+def test_registry_profile_contract_is_controller_agnostic() -> None:
+    from optimizers.models import OptimizationSpec
+
+    payload = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml").to_dict()
+    payload["operator_control"]["controller"] = "llm"
+    payload["operator_control"]["registry_profile"] = "primitive_clean"
+    payload["operator_control"]["operator_pool"] = list(PRIMITIVE_OPERATOR_IDS)
+
+    assert OptimizationSpec.from_dict(payload).operator_control["registry_profile"] == "primitive_clean"
 
 
 def test_behavior_profiles_cover_matrix_native_operator_ids() -> None:
@@ -92,7 +104,7 @@ def test_behavior_profiles_cover_matrix_native_operator_ids() -> None:
         assert profile.family == "native_baseline"
         assert profile.exploration_class == "stable"
 
-    semantic_profile = get_operator_behavior_profile("move_hottest_cluster_toward_sink")
+    semantic_profile = get_operator_behavior_profile("hotspot_pull_toward_sink")
     assert semantic_profile.exploration_class == "custom"
 
 
@@ -159,21 +171,21 @@ def test_random_controller_is_algorithm_agnostic() -> None:
 
     genetic_selection = controller.select_operator(
         genetic_state,
-        APPROVED_UNION_OPERATOR_IDS,
+        PRIMITIVE_OPERATOR_IDS,
         np.random.default_rng(7),
     )
     swarm_selection = controller.select_operator(
         swarm_state,
-        APPROVED_UNION_OPERATOR_IDS,
+        PRIMITIVE_OPERATOR_IDS,
         np.random.default_rng(7),
     )
 
     assert controller.controller_id == "random_uniform"
     assert genetic_selection == swarm_selection
-    assert genetic_selection in APPROVED_UNION_OPERATOR_IDS
+    assert genetic_selection in PRIMITIVE_OPERATOR_IDS
 
 
-@pytest.mark.parametrize("operator_id", APPROVED_UNION_OPERATOR_IDS)
+@pytest.mark.parametrize("operator_id", (*PRIMITIVE_OPERATOR_IDS, *ASSISTED_OPERATOR_IDS))
 def test_registered_operators_propose_bounded_numeric_vectors_without_mutating_parents(operator_id: str) -> None:
     from optimizers.operator_pool.operators import get_operator_definition
 
@@ -207,25 +219,25 @@ def test_sink_peak_operators_add_bounded_rng_variation() -> None:
     parents = _parent_bundle()
     state = _controller_state()
 
-    slide_a = get_operator_definition("slide_sink").propose(
+    slide_a = get_operator_definition("sink_shift").propose(
         parents=parents,
         state=state,
         variable_layout=layout,
         rng=np.random.default_rng(17),
     )
-    slide_b = get_operator_definition("slide_sink").propose(
+    slide_b = get_operator_definition("sink_shift").propose(
         parents=parents,
         state=state,
         variable_layout=layout,
         rng=np.random.default_rng(18),
     )
-    repair_a = get_operator_definition("repair_sink_budget").propose(
+    repair_a = get_operator_definition("sink_resize").propose(
         parents=parents,
         state=state,
         variable_layout=layout,
         rng=np.random.default_rng(17),
     )
-    repair_b = get_operator_definition("repair_sink_budget").propose(
+    repair_b = get_operator_definition("sink_resize").propose(
         parents=parents,
         state=state,
         variable_layout=layout,
@@ -255,8 +267,8 @@ def test_trace_rows_round_trip_through_dict_payloads() -> None:
         family="genetic",
         backbone="nsga2",
         controller_id="llm",
-        candidate_operator_ids=APPROVED_UNION_OPERATOR_IDS,
-        selected_operator_id="slide_sink",
+        candidate_operator_ids=(*PRIMITIVE_OPERATOR_IDS, *ASSISTED_OPERATOR_IDS),
+        selected_operator_id="sink_retarget",
         accepted_for_evaluation=True,
         accepted_evaluation_indices=[9],
         metadata={"seed": 7},
@@ -267,8 +279,8 @@ def test_trace_rows_round_trip_through_dict_payloads() -> None:
         family="genetic",
         backbone="nsga2",
         controller_id="random_uniform",
-        candidate_operator_ids=APPROVED_UNION_OPERATOR_IDS,
-        selected_operator_id="reduce_local_congestion",
+        candidate_operator_ids=PRIMITIVE_OPERATOR_IDS,
+        selected_operator_id="component_jitter_1",
         metadata={"seed": 7},
     )
     operator_attempt_row = OperatorAttemptTraceRow(
@@ -276,7 +288,7 @@ def test_trace_rows_round_trip_through_dict_payloads() -> None:
         provisional_evaluation_index=9,
         decision_index=4,
         attempt_index=7,
-        operator_id="slide_sink",
+        operator_id="sink_retarget",
         parent_count=2,
         parent_vectors=((0.1, 0.2), (0.3, 0.4)),
         proposal_vector=(0.2, 0.25),
@@ -288,7 +300,7 @@ def test_trace_rows_round_trip_through_dict_payloads() -> None:
     operator_row = OperatorTraceRow(
         generation_index=2,
         evaluation_index=9,
-        operator_id="reduce_local_congestion",
+        operator_id="component_jitter_1",
         parent_count=2,
         parent_vectors=((0.1, 0.2), (0.3, 0.4)),
         proposal_vector=(0.2, 0.25),

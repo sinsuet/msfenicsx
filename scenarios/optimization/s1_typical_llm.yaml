@@ -1,7 +1,7 @@
 schema_version: "1.0"
 spec_meta:
   spec_id: s1_typical_nsga2_llm
-  description: S1 typical single-case NSGA-II union-llm mode using the same mixed action registry with an OpenAI-compatible controller.
+  description: S1 typical single-case NSGA-II union-llm mode with primitive plus assisted registries and an OpenAI-compatible controller.
 benchmark_source:
   template_path: scenarios/templates/s1_typical.yaml
   seed: 11
@@ -144,17 +144,20 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s1_typical_union.yaml
 operator_control:
   controller: llm
+  registry_profile: primitive_plus_assisted
   operator_pool:
-    - native_sbx_pm
-    - global_explore
-    - local_refine
-    - move_hottest_cluster_toward_sink
-    - spread_hottest_cluster
-    - smooth_high_gradient_band
-    - reduce_local_congestion
-    - repair_sink_budget
-    - slide_sink
-    - rebalance_layout
+    - vector_sbx_pm
+    - component_jitter_1
+    - component_relocate_1
+    - component_swap_2
+    - sink_shift
+    - sink_resize
+    - hotspot_pull_toward_sink
+    - hotspot_spread
+    - gradient_band_smooth
+    - congestion_relief
+    - sink_retarget
+    - layout_rebalance
   controller_parameters:
     provider: openai-compatible
     capability_profile: chat_compatible_json

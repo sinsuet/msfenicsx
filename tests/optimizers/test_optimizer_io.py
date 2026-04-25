@@ -6,7 +6,7 @@ import yaml
 from optimizers.algorithm_config import resolve_algorithm_config
 from optimizers.io import load_optimization_result, load_optimization_spec, save_optimization_result, save_optimization_spec
 from optimizers.models import OptimizationResult, OptimizationSpec
-from optimizers.operator_pool.operators import approved_union_operator_ids_for_backbone
+from optimizers.operator_pool.operators import approved_operator_pool
 from optimizers.validation import OptimizationValidationError
 
 
@@ -285,7 +285,7 @@ def test_union_spec_requires_operator_control_block() -> None:
         OptimizationSpec.from_dict(payload)
 
 
-def test_union_spec_uses_exact_semantic_operator_pool() -> None:
+def test_union_spec_uses_exact_primitive_operator_pool() -> None:
     spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
 
     assert {key: spec.algorithm[key] for key in ("family", "backbone", "mode")} == {
@@ -295,7 +295,8 @@ def test_union_spec_uses_exact_semantic_operator_pool() -> None:
     }
     assert spec.operator_control is not None
     assert spec.operator_control["controller"] == "random_uniform"
-    assert tuple(spec.operator_control["operator_pool"]) == approved_union_operator_ids_for_backbone("genetic", "nsga2")
+    assert spec.operator_control["registry_profile"] == "primitive_clean"
+    assert tuple(spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_clean")
 
 
 def test_union_spec_rejects_modified_semantic_operator_pool() -> None:
@@ -303,26 +304,29 @@ def test_union_spec_rejects_modified_semantic_operator_pool() -> None:
     payload["operator_control"]["operator_pool"] = [
         operator_id
         for operator_id in payload["operator_control"]["operator_pool"]
-        if operator_id != "slide_sink"
+        if operator_id != "sink_shift"
     ]
 
     with pytest.raises(OptimizationValidationError):
         OptimizationSpec.from_dict(payload)
 
 
-def test_llm_spec_shares_benchmark_source_and_operator_pool_with_union_spec() -> None:
+def test_llm_spec_shares_benchmark_source_and_extends_union_operator_pool() -> None:
     union_spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
     llm_spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
 
     assert union_spec.benchmark_source == llm_spec.benchmark_source
     assert union_spec.operator_control is not None
     assert llm_spec.operator_control is not None
-    assert union_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
+    assert union_spec.operator_control["registry_profile"] == "primitive_clean"
+    assert llm_spec.operator_control["registry_profile"] == "primitive_plus_assisted"
+    assert tuple(union_spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_clean")
+    assert tuple(llm_spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_plus_assisted")
     assert union_spec.operator_control["controller"] == "random_uniform"
     assert llm_spec.operator_control["controller"] == "llm"
 
 
-def test_llm_spec_stays_controller_only_against_union() -> None:
+def test_llm_spec_keeps_benchmark_and_budget_settings_against_union() -> None:
     union_spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
     llm_spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
 
@@ -332,7 +336,8 @@ def test_llm_spec_stays_controller_only_against_union() -> None:
     assert union_spec.algorithm["num_generations"] == llm_spec.algorithm["num_generations"]
     assert union_spec.operator_control is not None
     assert llm_spec.operator_control is not None
-    assert union_spec.operator_control["operator_pool"] == llm_spec.operator_control["operator_pool"]
+    assert union_spec.operator_control["registry_profile"] == "primitive_clean"
+    assert llm_spec.operator_control["registry_profile"] == "primitive_plus_assisted"
 
     params = llm_spec.operator_control["controller_parameters"]
     assert params["memory"]["recent_window"] > 0
@@ -362,7 +367,8 @@ def test_llm_validation_accepts_model_env_var_without_literal_model() -> None:
     payload["evaluation_protocol"]["legality_policy_id"] = "projection_plus_local_restore"
     payload["operator_control"] = {
         "controller": "llm",
-        "operator_pool": list(approved_union_operator_ids_for_backbone("genetic", "nsga2")),
+        "registry_profile": "primitive_plus_assisted",
+        "operator_pool": list(approved_operator_pool("primitive_plus_assisted")),
         "controller_parameters": {
             "provider": "openai-compatible",
             "model_env_var": "LLM_MODEL",

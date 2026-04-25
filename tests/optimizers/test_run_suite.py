@@ -95,6 +95,7 @@ def _write_small_env_backed_llm_spec(tmp_path: Path) -> Path:
             },
             "operator_control": {
                 "controller": "llm",
+                "registry_profile": "primitive_clean",
                 "operator_pool": list(approved_union_operator_ids_for_backbone("genetic", "nsga2")),
                 "controller_parameters": {
                     "provider": "openai-compatible",
@@ -192,6 +193,7 @@ def test_run_benchmark_suite_multi_mode_builds_suite_comparisons(tmp_path: Path,
     union_payload["algorithm"]["profile_path"] = "scenarios/optimization/profiles/s1_typical_union.yaml"
     union_payload["operator_control"] = {
         "controller": "random_uniform",
+        "registry_profile": "primitive_clean",
         "operator_pool": list(approved_union_operator_ids_for_backbone("genetic", "nsga2")),
     }
     union_spec_path.write_text(yaml.safe_dump(union_payload, sort_keys=False), encoding="utf-8")
