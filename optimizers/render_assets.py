@@ -22,7 +22,7 @@ from optimizers.codec import apply_decision_vector
 from optimizers.io import generate_benchmark_case, load_optimization_spec
 from optimizers.llm_decision_summary import build_llm_decision_summaries
 from optimizers.mode_summary import build_mode_summaries
-from optimizers.repair import repair_case_payload_from_vector
+from optimizers.repair import project_case_payload_from_vector, repair_case_payload_from_vector
 from optimizers.run_telemetry import build_progress_timeline
 from optimizers.traces.llm_trace_io import (
     is_concrete_optimizer_run_root,
@@ -344,6 +344,7 @@ def _build_layout_frames(run_root: Path, optimization_result: Mapping[str, Any] 
 
     history_rows = list(optimization_result.get("history", []))
     panel_meta = _layout_panel_metadata(run_root)
+    default_legality_policy_id = _default_legality_policy_id(run_root)
     baseline_row: dict[str, Any] | None = None
     optimizer_rows: list[dict[str, Any]] = []
     for row in history_rows:
@@ -360,6 +361,7 @@ def _build_layout_frames(run_root: Path, optimization_result: Mapping[str, Any] 
             baseline_row,
             generation=0,
             title="initial layout",
+            default_legality_policy_id=default_legality_policy_id,
         )
         if baseline_frame is not None:
             baseline_frame["panel_meta"] = dict(panel_meta)
@@ -369,6 +371,7 @@ def _build_layout_frames(run_root: Path, optimization_result: Mapping[str, Any] 
         seed_base=seed_base,
         optimization_spec=optimization_spec,
         optimizer_rows=optimizer_rows,
+        default_legality_policy_id=default_legality_policy_id,
     )
     for frame in milestone_frames:
         frame["panel_meta"] = dict(panel_meta)
@@ -390,11 +393,13 @@ def _build_best_so_far_layout_milestones(
     seed_base: Any,
     optimization_spec: Any,
     optimizer_rows: Sequence[Mapping[str, Any]],
+    default_legality_policy_id: str = "",
 ) -> list[dict[str, Any]]:
     candidates = _best_so_far_layout_candidates(
         seed_base=seed_base,
         optimization_spec=optimization_spec,
         optimizer_rows=optimizer_rows,
+        default_legality_policy_id=default_legality_policy_id,
     )
     if not candidates:
         return []
@@ -432,6 +437,7 @@ def _best_so_far_layout_candidates(
     seed_base: Any,
     optimization_spec: Any,
     optimizer_rows: Sequence[Mapping[str, Any]],
+    default_legality_policy_id: str = "",
 ) -> list[dict[str, Any]]:
     best_row: dict[str, Any] | None = None
     candidates: list[dict[str, Any]] = []
@@ -445,6 +451,7 @@ def _best_so_far_layout_candidates(
             row_payload,
             generation=int(row_payload.get("generation", 0)),
             title="",
+            default_legality_policy_id=default_legality_policy_id,
         )
         if frame is None:
             continue
@@ -516,24 +523,38 @@ def _layout_frame_from_record(
     *,
     generation: int,
     title: str,
+    default_legality_policy_id: str = "",
 ) -> dict[str, Any] | None:
     spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
-    decision_vector = dict(record.get("decision_vector", {}))
     record_source = str(record.get("source", "")).strip().lower()
     try:
-        if record_source == "baseline":
+        vector_payload = _selected_layout_decision_vector(record)
+        if vector_payload:
+            values = _ordered_layout_vector_values(optimization_spec, vector_payload)
+            legality_policy_id = str(record.get("legality_policy_id") or default_legality_policy_id or "")
+            radiator_span_max = _layout_radiator_span_max(spec_payload)
+            if legality_policy_id in {"", "projection_plus_local_restore"}:
+                case_payload = repair_case_payload_from_vector(
+                    base_case,
+                    spec_payload,
+                    values,
+                    radiator_span_max=radiator_span_max,
+                )
+            else:
+                case_payload = project_case_payload_from_vector(
+                    base_case,
+                    spec_payload,
+                    np.asarray(values, dtype=np.float64),
+                    radiator_span_max=radiator_span_max,
+                )
+        elif record_source == "baseline":
             case_payload = base_case.to_dict() if hasattr(base_case, "to_dict") else dict(base_case)
         else:
-            values = [float(decision_vector[str(variable["variable_id"])]) for variable in optimization_spec.design_variables]
-            case_payload = repair_case_payload_from_vector(
-                base_case,
-                spec_payload,
-                values,
-                radiator_span_max=dict(spec_payload.get("algorithm", {})).get("parameters", {}).get("radiator_span_max"),
-            )
+            return None
     except (KeyError, TypeError, ValueError):
         try:
-            values = [float(decision_vector[str(variable["variable_id"])]) for variable in optimization_spec.design_variables]
+            vector_payload = _selected_layout_decision_vector(record)
+            values = _ordered_layout_vector_values(optimization_spec, vector_payload)
             case = apply_decision_vector(base_case, optimization_spec, values)
             case_payload = case.to_dict() if hasattr(case, "to_dict") else dict(case)
         except (KeyError, TypeError, ValueError):
@@ -560,6 +581,31 @@ def _layout_frame_from_record(
         "components": components,
         "line_sinks": _serialize_line_sinks(case_payload["boundary_features"], panel_domain),
     }
+
+
+def _selected_layout_decision_vector(record: Mapping[str, Any]) -> Mapping[str, Any]:
+    for key in ("evaluated_decision_vector", "decision_vector", "proposal_decision_vector"):
+        payload = record.get(key)
+        if isinstance(payload, Mapping):
+            return payload
+    return {}
+
+
+def _ordered_layout_vector_values(optimization_spec: Any, vector_payload: Mapping[str, Any]) -> list[float]:
+    return [float(vector_payload[str(variable["variable_id"])]) for variable in optimization_spec.design_variables]
+
+
+def _layout_radiator_span_max(spec_payload: Mapping[str, Any]) -> float | None:
+    value = dict(spec_payload.get("algorithm", {})).get("parameters", {}).get("radiator_span_max")
+    return None if value is None else float(value)
+
+
+def _default_legality_policy_id(run_root: Path) -> str:
+    run_yaml = _load_optional_yaml(run_root / "run.yaml")
+    policies = run_yaml.get("policies") if isinstance(run_yaml, Mapping) else None
+    if not isinstance(policies, Mapping):
+        return ""
+    return str(policies.get("legality") or "")
 
 
 def _build_summary_statistics(

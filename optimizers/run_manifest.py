@@ -18,6 +18,7 @@ def write_run_manifest(
     population_size: int,
     num_generations: int,
     wall_seconds: float,
+    legality_policy_id: str,
 ) -> None:
     """Write run.yaml with the top-level schema agreed in § 3.1."""
     path = Path(path)
@@ -32,6 +33,10 @@ def write_run_manifest(
         "algorithm": {
             "population_size": int(population_size),
             "num_generations": int(num_generations),
+        },
+        "policies": {
+            "legality": str(legality_policy_id),
+            "replay_geometry_source": "evaluated_decision_vector",
         },
         "timing": {"wall_seconds": float(wall_seconds)},
     }

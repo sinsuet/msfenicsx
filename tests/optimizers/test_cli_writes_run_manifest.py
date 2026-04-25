@@ -36,10 +36,12 @@ def test_optimize_benchmark_writes_run_manifest(tmp_path: Path) -> None:
         mock_spec = MagicMock()
         mock_spec.algorithm = {"mode": "raw", "seed": 7, "population_size": 10, "num_generations": 5}
         mock_spec.benchmark_source = {"seed": 11}
+        mock_spec.evaluation_protocol = {"legality_policy_id": "minimal_canonicalization"}
         mock_spec.operator_control = None
         mock_spec.to_dict.return_value = {
             "algorithm": {"mode": "raw", "seed": 7, "population_size": 10, "num_generations": 5},
             "benchmark_source": {"seed": 11},
+            "evaluation_protocol": {"legality_policy_id": "minimal_canonicalization"},
             "operator_control": None,
         }
         mock_load_spec.return_value = mock_spec
@@ -65,4 +67,6 @@ def test_optimize_benchmark_writes_run_manifest(tmp_path: Path) -> None:
     assert payload["seeds"]["algorithm"] == 7
     assert payload["algorithm"]["population_size"] == 10
     assert payload["algorithm"]["num_generations"] == 5
+    assert payload["policies"]["legality"] == "minimal_canonicalization"
+    assert payload["policies"]["replay_geometry_source"] == "evaluated_decision_vector"
     assert "wall_seconds" in payload["timing"]

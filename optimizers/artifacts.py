@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +54,11 @@ def write_optimization_artifacts(
         if controller_trace_jsonl_path.exists():
             snapshots["controller_trace"] = "traces/controller_trace.jsonl"
     if hasattr(run, "operator_trace"):
-        operator_trace_rows = _coerce_operator_trace_rows(getattr(run, "operator_trace"))
+        history_by_eval_index = _history_by_evaluation_index(getattr(run.result, "history", []))
+        operator_trace_rows = _coerce_operator_trace_rows(
+            getattr(run, "operator_trace"),
+            history_by_eval_index=history_by_eval_index,
+        )
         operator_trace_jsonl_path = resolved_output_root / "traces" / "operator_trace.jsonl"
         if operator_trace_rows:
             _write_jsonl_payload(
@@ -205,32 +209,118 @@ def _write_jsonl_payload(path: Path, rows: list[Any]) -> None:
     path.write_text("\n".join(serialized_rows) + "\n", encoding="utf-8")
 
 
-def _coerce_operator_trace_rows(operator_trace: Any) -> list[dict[str, Any]]:
+def _history_by_evaluation_index(history: Any) -> dict[int, dict[str, Any]]:
+    rows: dict[int, dict[str, Any]] = {}
+    for entry in history or ():
+        payload = entry.to_dict() if hasattr(entry, "to_dict") else dict(entry)
+        if "evaluation_index" not in payload:
+            continue
+        rows[int(payload["evaluation_index"])] = payload
+    return rows
+
+
+def _coerce_operator_trace_rows(
+    operator_trace: Any,
+    *,
+    history_by_eval_index: Mapping[int, Mapping[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    should_enrich_geometry = history_by_eval_index is not None
+    history_by_eval_index = history_by_eval_index or {}
+    fallback_history_rows = _operator_history_rows(history_by_eval_index)
+    fallback_history_index = 0
     rows: list[dict[str, Any]] = []
     for entry in operator_trace or ():
         payload = entry.to_dict() if hasattr(entry, "to_dict") else dict(entry)
         metadata = dict(payload.get("metadata", {}) or {})
         generation = int(payload.get("generation_index", payload.get("generation", 0)))
-        evaluation_index = int(payload.get("evaluation_index", payload.get("provisional_evaluation_index", 0)))
+        if _has_trace_evaluation_index(payload):
+            evaluation_index = int(payload.get("evaluation_index", payload.get("provisional_evaluation_index", 0)))
+            history_row = dict(history_by_eval_index.get(evaluation_index, {}) or {})
+        elif fallback_history_index < len(fallback_history_rows):
+            history_row = dict(fallback_history_rows[fallback_history_index])
+            fallback_history_index += 1
+            evaluation_index = int(history_row.get("evaluation_index", 0))
+        else:
+            evaluation_index = 0
+            history_row = {}
         decision_id = _resolve_operator_decision_id(payload, metadata, generation=generation, evaluation_index=evaluation_index)
         parents = _resolve_operator_parents(payload, metadata)
-        rows.append(
-            {
-                "decision_id": decision_id,
-                "generation": generation,
-                "operator_name": str(payload.get("operator_name") or payload.get("operator_id") or "unknown"),
-                "parents": parents,
-                "offspring": _resolve_operator_offspring(
-                    payload,
-                    decision_id=decision_id,
-                    generation=generation,
-                    evaluation_index=evaluation_index,
-                ),
-                "params_digest": _resolve_operator_params_digest(payload, metadata),
-                "wall_ms": _resolve_operator_wall_ms(payload, metadata),
-            }
-        )
+        row = {
+            "decision_id": decision_id,
+            "generation": generation,
+            "operator_name": str(payload.get("operator_name") or payload.get("operator_id") or "unknown"),
+            "parents": parents,
+            "offspring": _resolve_operator_offspring(
+                payload,
+                decision_id=decision_id,
+                generation=generation,
+                evaluation_index=evaluation_index,
+            ),
+            "params_digest": _resolve_operator_params_digest(payload, metadata),
+            "wall_ms": _resolve_operator_wall_ms(payload, metadata),
+        }
+        if should_enrich_geometry:
+            row.update(
+                {
+                    "proposal_vector": _resolve_operator_proposal_vector(payload, metadata, history_row),
+                    "evaluated_vector": _resolve_operator_evaluated_vector(payload, metadata, history_row),
+                    "legality_policy_id": str(
+                        history_row.get(
+                            "legality_policy_id",
+                            payload.get("legality_policy_id", metadata.get("legality_policy_id", "")),
+                        )
+                        or ""
+                    ),
+                }
+            )
+        rows.append(row)
     return rows
+
+
+def _has_trace_evaluation_index(payload: Mapping[str, Any]) -> bool:
+    return "evaluation_index" in payload or "provisional_evaluation_index" in payload
+
+
+def _operator_history_rows(history_by_eval_index: Mapping[int, Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    rows = [history_by_eval_index[key] for key in sorted(history_by_eval_index)]
+    return [row for row in rows if str(row.get("source", "")).strip().lower() != "baseline"]
+
+
+def _resolve_operator_proposal_vector(
+    payload: dict[str, Any],
+    metadata: dict[str, Any],
+    history_row: dict[str, Any],
+) -> list[float] | None:
+    return _normalize_trace_vector(
+        payload.get(
+            "proposal_vector",
+            metadata.get("proposal_vector", history_row.get("proposal_decision_vector")),
+        )
+    )
+
+
+def _resolve_operator_evaluated_vector(
+    payload: dict[str, Any],
+    metadata: dict[str, Any],
+    history_row: dict[str, Any],
+) -> list[float] | None:
+    if "evaluated_decision_vector" in history_row:
+        return _normalize_trace_vector(history_row["evaluated_decision_vector"])
+    if "evaluated_vector" in payload:
+        return _normalize_trace_vector(payload["evaluated_vector"])
+    if "evaluated_vector" in metadata:
+        return _normalize_trace_vector(metadata["evaluated_vector"])
+    return _normalize_trace_vector(payload.get("repaired_vector", metadata.get("repaired_vector")))
+
+
+def _normalize_trace_vector(value: Any) -> list[float] | None:
+    if value is None:
+        return None
+    if isinstance(value, Mapping):
+        return [float(item) for item in value.values()]
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return [float(item) for item in value]
+    return None
 
 
 def _resolve_operator_decision_id(

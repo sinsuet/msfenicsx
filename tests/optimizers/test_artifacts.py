@@ -270,3 +270,41 @@ def test_coerce_operator_trace_rows_derives_live_contract_fields_from_union_rows
         }
     ]
     assert len(rows[0]["params_digest"]) == 40
+
+
+def test_coerce_operator_trace_rows_enriches_raw_like_rows_from_history_vectors() -> None:
+    rows = _coerce_operator_trace_rows(
+        [
+            {
+                "decision_id": "g001-e0002-d00",
+                "generation": 1,
+                "operator_name": "native_sbx_pm",
+                "parents": [],
+                "offspring": ["g001-i00"],
+                "params_digest": "",
+                "wall_ms": 0.0,
+            }
+        ],
+        history_by_eval_index={
+            1: {
+                "evaluation_index": 1,
+                "source": "baseline",
+                **_candidate_contract({"c01_x": 0.1, "c01_y": 0.2}),
+            },
+            2: {
+                "evaluation_index": 2,
+                "source": "optimizer",
+                "proposal_decision_vector": {"c01_x": 0.21, "c01_y": 0.31},
+                "evaluated_decision_vector": {"c01_x": 0.22, "c01_y": 0.32},
+                "decision_vector": {"c01_x": 0.22, "c01_y": 0.32},
+                "legality_policy_id": "minimal_canonicalization",
+                "vector_transform_codes": ["bound_clip"],
+                "solver_skipped": False,
+                "cheap_constraint_issues": [],
+            },
+        },
+    )
+
+    assert rows[0]["proposal_vector"] == [0.21, 0.31]
+    assert rows[0]["evaluated_vector"] == [0.22, 0.32]
+    assert rows[0]["legality_policy_id"] == "minimal_canonicalization"

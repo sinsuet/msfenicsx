@@ -443,7 +443,7 @@ def test_build_layout_frames_prefers_best_so_far_spatial_milestones(monkeypatch,
     monkeypatch.setattr("optimizers.render_assets._load_seed_optimization_spec", lambda _: object())
     monkeypatch.setattr("optimizers.render_assets._layout_panel_metadata", lambda _: {"Scenario": "fixture"})
 
-    def _fake_layout_frame(_base_case, _spec, record, *, generation, title):
+    def _fake_layout_frame(_base_case, _spec, record, *, generation, title, default_legality_policy_id=""):
         evaluation_index = int(record.get("evaluation_index", 1))
         payload = dict(frame_payloads[evaluation_index])
         payload.update(
@@ -499,6 +499,125 @@ def test_layout_frames_use_repaired_geometry_for_optimizer_records(monkeypatch) 
 
     assert frame is not None
     assert repair_calls["count"] == 1
+
+
+def test_layout_frames_prefer_evaluated_geometry_for_optimizer_records(monkeypatch) -> None:
+    from core.generator.pipeline import generate_case
+    from optimizers.codec import extract_decision_vector
+    from optimizers.io import load_optimization_spec
+    from optimizers.render_assets import _layout_frame_from_record
+
+    optimization_spec = load_optimization_spec("scenarios/optimization/s1_typical_raw.yaml")
+    base_case = generate_case("scenarios/templates/s1_typical.yaml", seed=11)
+    decision_vector = extract_decision_vector(base_case, optimization_spec)
+    record = {
+        "source": "optimizer",
+        "proposal_decision_vector": {
+            variable["variable_id"]: float(value)
+            for variable, value in zip(optimization_spec.design_variables, decision_vector.tolist(), strict=True)
+        },
+        "evaluated_decision_vector": {
+            variable["variable_id"]: float(value)
+            for variable, value in zip(optimization_spec.design_variables, decision_vector.tolist(), strict=True)
+        },
+        "legality_policy_id": "minimal_canonicalization",
+    }
+
+    frame = _layout_frame_from_record(
+        base_case,
+        optimization_spec,
+        record,
+        generation=1,
+        title="gen 1",
+        default_legality_policy_id="minimal_canonicalization",
+    )
+
+    assert frame is not None
+
+
+def test_layout_frames_use_minimal_policy_for_baseline_evaluated_vectors(monkeypatch) -> None:
+    from core.generator.pipeline import generate_case
+    from optimizers.codec import extract_decision_vector
+    from optimizers.io import load_optimization_spec
+    from optimizers.render_assets import _layout_frame_from_record
+
+    optimization_spec = load_optimization_spec("scenarios/optimization/s1_typical_raw.yaml")
+    base_case = generate_case("scenarios/templates/s1_typical.yaml", seed=11)
+    decision_vector = extract_decision_vector(base_case, optimization_spec)
+    record = {
+        "source": "baseline",
+        "evaluated_decision_vector": {
+            variable["variable_id"]: float(value)
+            for variable, value in zip(optimization_spec.design_variables, decision_vector.tolist(), strict=True)
+        },
+        "legality_policy_id": "minimal_canonicalization",
+    }
+    project_calls = {"count": 0}
+
+    def _fake_project(*args, **kwargs):
+        project_calls["count"] += 1
+        return base_case.to_dict()
+
+    monkeypatch.setattr("optimizers.render_assets.project_case_payload_from_vector", _fake_project)
+    monkeypatch.setattr(
+        "optimizers.render_assets.repair_case_payload_from_vector",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("minimal replay should not full-repair")),
+    )
+
+    frame = _layout_frame_from_record(
+        base_case,
+        optimization_spec,
+        record,
+        generation=0,
+        title="initial layout",
+        default_legality_policy_id="minimal_canonicalization",
+    )
+
+    assert frame is not None
+    assert project_calls["count"] == 1
+
+
+def test_layout_frames_prefer_legacy_vector_before_proposal_for_partial_records(monkeypatch) -> None:
+    from core.generator.pipeline import generate_case
+    from optimizers.codec import extract_decision_vector
+    from optimizers.io import load_optimization_spec
+    from optimizers.render_assets import _layout_frame_from_record
+
+    optimization_spec = load_optimization_spec("scenarios/optimization/s1_typical_raw.yaml")
+    base_case = generate_case("scenarios/templates/s1_typical.yaml", seed=11)
+    decision_vector = extract_decision_vector(base_case, optimization_spec)
+    variable_ids = [str(variable["variable_id"]) for variable in optimization_spec.design_variables]
+    legacy_mapping = {
+        variable_id: float(value)
+        for variable_id, value in zip(variable_ids, decision_vector.tolist(), strict=True)
+    }
+    proposal_mapping = dict(legacy_mapping)
+    proposal_mapping[variable_ids[0]] = proposal_mapping[variable_ids[0]] + 0.01
+    selected_values: list[float] = []
+    record = {
+        "source": "optimizer",
+        "proposal_decision_vector": proposal_mapping,
+        "decision_vector": legacy_mapping,
+        "legality_policy_id": "minimal_canonicalization",
+    }
+
+    def _fake_project(_base_case, _optimization_spec, values, **kwargs):
+        selected_values.extend(float(value) for value in values)
+        return base_case.to_dict()
+
+    monkeypatch.setattr("optimizers.render_assets.project_case_payload_from_vector", _fake_project)
+
+    frame = _layout_frame_from_record(
+        base_case,
+        optimization_spec,
+        record,
+        generation=1,
+        title="gen 1",
+        default_legality_policy_id="minimal_canonicalization",
+    )
+
+    assert frame is not None
+    assert selected_values[0] == legacy_mapping[variable_ids[0]]
 
 
 def test_render_assets_suite_root_refreshes_mode_outputs_without_creating_comparison(tmp_path: Path) -> None:

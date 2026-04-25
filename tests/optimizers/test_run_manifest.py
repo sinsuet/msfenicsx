@@ -22,6 +22,7 @@ def test_write_run_manifest_round_trips(tmp_path: Path) -> None:
         population_size=10,
         num_generations=5,
         wall_seconds=42.0,
+        legality_policy_id="minimal_canonicalization",
     )
     payload = yaml.safe_load(target.read_text(encoding="utf-8"))
     assert payload["mode"] == "llm"
@@ -29,4 +30,6 @@ def test_write_run_manifest_round_trips(tmp_path: Path) -> None:
     assert payload["seeds"]["algorithm"] == 7
     assert payload["algorithm"]["population_size"] == 10
     assert payload["algorithm"]["num_generations"] == 5
+    assert payload["policies"]["legality"] == "minimal_canonicalization"
+    assert payload["policies"]["replay_geometry_source"] == "evaluated_decision_vector"
     assert payload["timing"]["wall_seconds"] == 42.0

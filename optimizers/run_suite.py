@@ -146,6 +146,7 @@ def run_benchmark_suite(
                 population_size=int(seeded_spec.algorithm["population_size"]),
                 num_generations=int(seeded_spec.algorithm["num_generations"]),
                 wall_seconds=_wall_seconds,
+                legality_policy_id=str(seeded_spec.evaluation_protocol["legality_policy_id"]),
             )
         if not skip_render:
             from optimizers.render_assets import render_assets

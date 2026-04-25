@@ -299,3 +299,23 @@ def test_trace_rows_round_trip_through_dict_payloads() -> None:
     assert ControllerTraceRow.from_dict(controller_row.to_dict()) == controller_row
     assert OperatorAttemptTraceRow.from_dict(operator_attempt_row.to_dict()) == operator_attempt_row
     assert OperatorTraceRow.from_dict(operator_row.to_dict()) == operator_row
+
+
+def test_operator_trace_rows_round_trip_with_evaluated_vector() -> None:
+    from optimizers.operator_pool.trace import OperatorTraceRow
+
+    row = OperatorTraceRow(
+        generation_index=2,
+        evaluation_index=9,
+        operator_id="vector_sbx_pm",
+        parent_count=2,
+        parent_vectors=((0.1, 0.2), (0.3, 0.4)),
+        proposal_vector=(0.11, 0.21),
+        evaluated_vector=(0.12, 0.22),
+        legality_policy_id="minimal_canonicalization",
+        metadata={"decision_index": 4},
+    )
+
+    restored = OperatorTraceRow.from_dict(row.to_dict())
+    assert restored.evaluated_vector == (0.12, 0.22)
+    assert restored.legality_policy_id == "minimal_canonicalization"

@@ -223,11 +223,15 @@ class OperatorTraceRow:
     parent_count: int
     parent_vectors: tuple[tuple[float, ...], ...]
     proposal_vector: tuple[float, ...]
+    evaluated_vector: tuple[float, ...] = ()
+    legality_policy_id: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "parent_vectors", _coerce_nested_float_tuples(self.parent_vectors))
         object.__setattr__(self, "proposal_vector", _coerce_float_tuple(self.proposal_vector))
+        object.__setattr__(self, "evaluated_vector", _coerce_float_tuple(self.evaluated_vector))
+        object.__setattr__(self, "legality_policy_id", str(self.legality_policy_id))
         object.__setattr__(self, "metadata", dict(self.metadata))
 
     def to_dict(self) -> dict[str, Any]:
@@ -238,6 +242,8 @@ class OperatorTraceRow:
             "parent_count": self.parent_count,
             "parent_vectors": [list(vector) for vector in self.parent_vectors],
             "proposal_vector": list(self.proposal_vector),
+            "evaluated_vector": list(self.evaluated_vector),
+            "legality_policy_id": self.legality_policy_id,
             "metadata": dict(self.metadata),
         }
 
@@ -250,5 +256,7 @@ class OperatorTraceRow:
             parent_count=int(payload["parent_count"]),
             parent_vectors=_coerce_nested_float_tuples(payload["parent_vectors"]),
             proposal_vector=_coerce_float_tuple(payload["proposal_vector"]),
+            evaluated_vector=_coerce_float_tuple(payload.get("evaluated_vector", ())),
+            legality_policy_id=str(payload.get("legality_policy_id", "")),
             metadata=dict(payload.get("metadata", {})),
         )

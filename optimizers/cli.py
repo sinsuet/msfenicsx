@@ -159,6 +159,7 @@ def _run_optimize_benchmark(
         population_size=int(optimization_spec.algorithm["population_size"]),
         num_generations=int(optimization_spec.algorithm["num_generations"]),
         wall_seconds=wall_seconds,
+        legality_policy_id=str(optimization_spec.evaluation_protocol["legality_policy_id"]),
     )
     if not skip_render:
         from optimizers.render_assets import render_assets
