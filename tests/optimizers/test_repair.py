@@ -5,8 +5,10 @@ import pytest
 
 from core.contracts.case_contracts import assert_case_geometry_contracts
 from core.geometry.layout_rules import required_clearance_gap
+from core.schema.models import ThermalCase
 from optimizers.codec import extract_decision_vector
 from optimizers.io import generate_benchmark_case, load_optimization_spec
+from optimizers.legality import apply_legality_policy_from_vector
 from optimizers.repair import repair_case_from_vector
 
 
@@ -35,16 +37,17 @@ def test_repair_case_from_vector_projects_sink_budget_and_restores_case_geometry
     vector[-2] = 0.05
     vector[-1] = 0.95
 
-    repaired = repair_case_from_vector(
+    evaluated = apply_legality_policy_from_vector(
         case,
         spec,
         np.asarray(vector, dtype=np.float64),
+        legality_policy_id="projection_plus_local_restore",
         radiator_span_max=RADIATOR_SPAN_MAX,
     )
+    repaired = ThermalCase.from_dict(evaluated.case_payload)
     feature = repaired.boundary_features[0]
 
     assert_case_geometry_contracts(repaired)
-    assert feature["start"] < feature["end"]
     assert feature["end"] - feature["start"] == pytest.approx(RADIATOR_SPAN_MAX)
 
 

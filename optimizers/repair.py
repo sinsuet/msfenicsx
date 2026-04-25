@@ -50,15 +50,14 @@ def repair_case_payload_from_vector(
     *,
     radiator_span_max: float | None = None,
 ) -> dict[str, Any]:
-    spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
-    payload = _apply_vector_without_case_validation(base_case, spec_payload, vector)
-    component_bounds, radiator_bounds = _collect_variable_bounds(spec_payload)
-    _clamp_target_components(payload["components"], component_bounds)
-    _repair_radiator_intervals(
-        payload["boundary_features"],
-        radiator_bounds,
+    payload = project_case_payload_from_vector(
+        base_case,
+        optimization_spec,
+        vector,
         radiator_span_max=radiator_span_max,
     )
+    spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
+    component_bounds, _ = _collect_variable_bounds(spec_payload)
     clearance_by_family = {
         str(component.get("family_id", "")): float(component.get("clearance", 0.0))
         for component in payload["components"]
@@ -70,13 +69,36 @@ def repair_case_payload_from_vector(
         panel_domain=payload["panel_domain"],
         clearance_by_family=clearance_by_family,
     )
+    _refresh_layout_metrics(payload)
+    return payload
+
+
+def project_case_payload_from_vector(
+    base_case: Any,
+    optimization_spec: Any,
+    vector: np.ndarray,
+    *,
+    radiator_span_max: float | None = None,
+) -> dict[str, Any]:
+    spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
+    payload = _apply_vector_without_case_validation(base_case, spec_payload, vector)
+    component_bounds, radiator_bounds = _collect_variable_bounds(spec_payload)
+    _clamp_target_components(payload["components"], component_bounds)
+    _repair_radiator_intervals(
+        payload["boundary_features"],
+        radiator_bounds,
+        radiator_span_max=radiator_span_max,
+    )
+    return payload
+
+
+def _refresh_layout_metrics(payload: dict[str, Any]) -> None:
     provenance = payload.setdefault("provenance", {})
     layout_context = provenance.get("layout_context")
     if isinstance(layout_context, dict):
         layout_metrics = measure_case_layout_metrics(payload, layout_context=layout_context)
         if layout_metrics is not None:
             provenance["layout_metrics"] = layout_metrics
-    return payload
 
 
 def _apply_vector_without_case_validation(base_case: Any, optimization_spec: dict[str, Any], vector: np.ndarray) -> dict[str, Any]:
