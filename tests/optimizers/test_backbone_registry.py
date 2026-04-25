@@ -37,6 +37,7 @@ def _spec_payload(*, family: str = "genetic", backbone: str = "nsga2", mode: str
         },
         "evaluation_protocol": {
             "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
+            "legality_policy_id": "minimal_canonicalization",
         },
     }
 

@@ -57,6 +57,7 @@ def _spec_payload() -> dict:
         },
         "evaluation_protocol": {
             "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
+            "legality_policy_id": "minimal_canonicalization",
         },
     }
 
@@ -330,6 +331,7 @@ def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
 def test_llm_validation_accepts_model_env_var_without_literal_model() -> None:
     payload = _spec_payload()
     payload["algorithm"]["mode"] = "union"
+    payload["evaluation_protocol"]["legality_policy_id"] = "projection_plus_local_restore"
     payload["operator_control"] = {
         "controller": "llm",
         "operator_pool": list(approved_union_operator_ids_for_backbone("genetic", "nsga2")),

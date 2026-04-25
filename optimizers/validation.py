@@ -22,6 +22,10 @@ SUPPORTED_CONTROLLERS = {"random_uniform", "llm"}
 SUPPORTED_LLM_CAPABILITY_PROFILES = {"responses_native", "chat_compatible_json"}
 SUPPORTED_LLM_PERFORMANCE_PROFILES = {"economy", "balanced", "high_reasoning"}
 SUPPORTED_LLM_FALLBACK_CONTROLLERS = {"random_uniform"}
+SUPPORTED_LEGALITY_POLICIES = {
+    "minimal_canonicalization",
+    "projection_plus_local_restore",
+}
 
 
 class OptimizationValidationError(ValueError):
@@ -321,6 +325,15 @@ def _validate_llm_controller_parameters(controller_parameters: Any) -> None:
 def _validate_evaluation_protocol(protocol: Any) -> None:
     _require_mapping(protocol, "evaluation_protocol")
     _require_text(protocol.get("evaluation_spec_path"), "evaluation_protocol.evaluation_spec_path")
+    legality_policy_id = _require_text(
+        protocol.get("legality_policy_id"),
+        "evaluation_protocol.legality_policy_id",
+    )
+    if legality_policy_id not in SUPPORTED_LEGALITY_POLICIES:
+        raise OptimizationValidationError(
+            "evaluation_protocol.legality_policy_id must be one of "
+            f"{sorted(SUPPORTED_LEGALITY_POLICIES)}."
+        )
 
 
 def _validate_benchmark_source(source: Any) -> None:

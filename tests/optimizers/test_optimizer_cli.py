@@ -49,6 +49,7 @@ def _optimization_spec_payload() -> dict:
         },
         "evaluation_protocol": {
             "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
+            "legality_policy_id": "minimal_canonicalization",
         },
     }
 
@@ -68,6 +69,7 @@ def _write_small_union_spec(tmp_path: Path, *, controller: str = "random_uniform
         "operator_pool": list(approved_union_operator_ids_for_backbone("genetic", "nsga2")),
     }
     if controller == "llm":
+        payload["evaluation_protocol"]["legality_policy_id"] = "projection_plus_local_restore"
         payload["operator_control"]["controller_parameters"] = {
             "provider": "openai",
             "capability_profile": "responses_native",

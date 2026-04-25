@@ -144,3 +144,4 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s1_typical_raw.yaml
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/s1_typical_eval.yaml
+  legality_policy_id: minimal_canonicalization

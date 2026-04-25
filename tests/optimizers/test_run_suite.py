@@ -46,6 +46,7 @@ def _write_small_raw_spec(tmp_path: Path) -> Path:
             },
             "evaluation_protocol": {
                 "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
+                "legality_policy_id": "minimal_canonicalization",
             },
         }
     )
@@ -90,6 +91,7 @@ def _write_small_env_backed_llm_spec(tmp_path: Path) -> Path:
             },
             "evaluation_protocol": {
                 "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
+                "legality_policy_id": "projection_plus_local_restore",
             },
             "operator_control": {
                 "controller": "llm",

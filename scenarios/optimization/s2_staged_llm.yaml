@@ -175,3 +175,4 @@ operator_control:
     fallback_controller: random_uniform
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/s2_staged_eval.yaml
+  legality_policy_id: projection_plus_local_restore
