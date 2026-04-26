@@ -5,7 +5,7 @@ import numpy as np
 from evaluation.io import load_spec
 from optimizers.codec import extract_decision_vector
 from optimizers.io import generate_benchmark_case, load_optimization_spec
-from optimizers.problem import ThermalOptimizationProblem
+from optimizers.problem import CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID, ThermalOptimizationProblem
 
 
 SPEC_PATH = Path("scenarios/optimization/s1_typical_raw.yaml")
@@ -32,6 +32,7 @@ def test_problem_evaluates_single_case_report_and_history() -> None:
     assert "case_reports" not in record
     assert record["evaluation_report"]["evaluation_meta"]["case_id"] == base_case.case_meta["case_id"]
     assert objective_vector.shape == (len(evaluation_spec.objectives),)
-    assert constraint_vector.shape == (len(evaluation_spec.constraints),)
+    assert constraint_vector.shape == (problem.n_ieq_constr,)
+    assert record["constraint_values"][CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID] == 0.0
     assert all(np.isfinite(objective_vector))
     assert all(np.isfinite(constraint_vector))

@@ -181,11 +181,11 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
                 backbone="nsga2",
                 controller_id="llm",
                 candidate_operator_ids=(
-                    "native_sbx_pm",
+                    "vector_sbx_pm",
                     "local_refine",
-                    "slide_sink",
-                    "move_hottest_cluster_toward_sink",
-                    "spread_hottest_cluster",
+                    "sink_retarget",
+                    "hotspot_pull_toward_sink",
+                    "hotspot_spread",
                 ),
                 selected_operator_id=operator_id,
                 phase="",
@@ -197,11 +197,11 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
             )
             for index, (operator_id, phase) in enumerate(
                 (
-                    ("move_hottest_cluster_toward_sink", "prefeasible_progress"),
+                    ("hotspot_pull_toward_sink", "prefeasible_progress"),
                     ("local_refine", "post_feasible_expand"),
-                    ("slide_sink", "post_feasible_expand"),
-                    ("move_hottest_cluster_toward_sink", "post_feasible_expand"),
-                    ("native_sbx_pm", "post_feasible_preserve"),
+                    ("sink_retarget", "post_feasible_expand"),
+                    ("hotspot_pull_toward_sink", "post_feasible_expand"),
+                    ("vector_sbx_pm", "post_feasible_preserve"),
                 )
             )
         ],
@@ -220,11 +220,11 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
             )
             for index, operator_id in enumerate(
                 (
-                    "move_hottest_cluster_toward_sink",
+                    "hotspot_pull_toward_sink",
                     "local_refine",
-                    "slide_sink",
-                    "move_hottest_cluster_toward_sink",
-                    "native_sbx_pm",
+                    "sink_retarget",
+                    "hotspot_pull_toward_sink",
+                    "vector_sbx_pm",
                 )
             )
         ],
@@ -318,14 +318,14 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
                 "decision_id": "g004-e0058-d00",
                 "evaluation_index": 58,
                 "policy_phase": "post_feasible_expand",
-                "candidate_operator_ids": ["local_refine", "slide_sink", "spread_hottest_cluster"],
+                "candidate_operator_ids": ["local_refine", "sink_retarget", "hotspot_spread"],
                 "prompt_ref": "prompts/request-58.md",
             },
             {
                 "decision_id": "g004-e0059-d00",
                 "evaluation_index": 59,
                 "policy_phase": "post_feasible_expand",
-                "candidate_operator_ids": ["slide_sink", "native_sbx_pm"],
+                "candidate_operator_ids": ["sink_retarget", "vector_sbx_pm"],
                 "prompt_ref": "prompts/request-59.md",
             },
         ],
@@ -343,7 +343,7 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
             {
                 "decision_id": "g004-e0059-d00",
                 "evaluation_index": 59,
-                "selected_operator_id": "slide_sink",
+                "selected_operator_id": "sink_retarget",
                 "latency_ms": 1400.0,
                 "response_ref": "prompts/response-59.md",
             },
@@ -358,8 +358,8 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
                         "regime_panel": {"phase": "post_feasible_expand"},
                         "operator_panel": {
                             "local_refine": {"expand_budget_status": "preferred"},
-                            "slide_sink": {"expand_budget_status": "neutral"},
-                            "spread_hottest_cluster": {"expand_budget_status": "throttled"},
+                            "sink_retarget": {"expand_budget_status": "neutral"},
+                            "hotspot_spread": {"expand_budget_status": "throttled"},
                         },
                     }
                 }
@@ -378,8 +378,8 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
                     "prompt_panels": {
                         "regime_panel": {"phase": "post_feasible_expand"},
                         "operator_panel": {
-                            "slide_sink": {"expand_budget_status": "preferred"},
-                            "native_sbx_pm": {"expand_budget_status": "preferred"},
+                            "sink_retarget": {"expand_budget_status": "preferred"},
+                            "vector_sbx_pm": {"expand_budget_status": "preferred"},
                         },
                     }
                 }
@@ -395,7 +395,7 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
         encoding="utf-8",
     )
     (prompts_root / "response-59.md").write_text(
-        "---\nkind: response\nsha1: response-59\n---\nslide_sink\n",
+        "---\nkind: response\nsha1: response-59\n---\nsink_retarget\n",
         encoding="utf-8",
     )
     return {
@@ -407,7 +407,77 @@ def _write_enriched_diagnostics_artifacts(tmp_path: Path) -> dict[str, Path]:
     }
 
 
-def _fake_union_run(*, include_llm_sidecars: bool = False) -> SimpleNamespace:
+def _write_fake_llm_sidecars(output_root: Path) -> None:
+    traces_root = output_root / "traces"
+    traces_root.mkdir(parents=True, exist_ok=True)
+    prompts_root = output_root / "prompts"
+    prompts_root.mkdir(parents=True, exist_ok=True)
+    _write_jsonl(
+        traces_root / "controller_trace.jsonl",
+        [
+            {
+                "decision_id": "g001-e0002-d00",
+                "generation_index": 1,
+                "evaluation_index": 2,
+                "phase": "prefeasible_progress",
+                "operator_selected": "component_jitter_1",
+                "selected_operator_id": "component_jitter_1",
+                "candidate_operator_ids": ["vector_sbx_pm", "component_jitter_1"],
+                "operator_pool_snapshot": ["vector_sbx_pm", "component_jitter_1"],
+                "input_state_digest": "abc123",
+                "prompt_ref": "prompts/request.md",
+                "rationale": "test fixture decision",
+                "fallback_used": False,
+                "latency_ms": 1200.0,
+            }
+        ],
+    )
+    _write_jsonl(
+        traces_root / "llm_request_trace.jsonl",
+        [
+            {
+                "decision_id": "g001-e0002-d00",
+                "generation_index": 1,
+                "evaluation_index": 2,
+                "model": "glm-5",
+                "candidate_operator_ids": ["vector_sbx_pm", "component_jitter_1"],
+                "policy_phase": "prefeasible_progress",
+                "prompt_ref": "prompts/request.md",
+                "http_status": 200,
+                "retries": 0,
+                "latency_ms": 1200.0,
+            }
+        ],
+    )
+    _write_jsonl(
+        traces_root / "llm_response_trace.jsonl",
+        [
+            {
+                "decision_id": "g001-e0002-d00",
+                "generation_index": 1,
+                "evaluation_index": 2,
+                "model": "glm-5",
+                "selected_operator_id": "component_jitter_1",
+                "response_ref": "prompts/response.md",
+                "tokens": {"total": 240},
+                "finish_reason": "stop",
+                "http_status": 200,
+                "retries": 0,
+                "latency_ms": 1200.0,
+            }
+        ],
+    )
+    (prompts_root / "request.md").write_text(
+        "---\nkind: request\nsha1: request\n---\n# System\nchoose\n# User\n{}\n",
+        encoding="utf-8",
+    )
+    (prompts_root / "response.md").write_text(
+        "---\nkind: response\nsha1: response\n---\ncomponent_jitter_1\n",
+        encoding="utf-8",
+    )
+
+
+def _fake_union_run(*, include_llm_sidecars: bool = False, trace_output_root: Path | None = None) -> SimpleNamespace:
     def _candidate_contract(decision_vector: dict[str, float], *, solver_skipped: bool = False) -> dict:
         return {
             "proposal_decision_vector": dict(decision_vector),
@@ -498,8 +568,8 @@ def _fake_union_run(*, include_llm_sidecars: bool = False) -> SimpleNamespace:
                 family="genetic",
                 backbone="nsga2",
                 controller_id="llm" if include_llm_sidecars else "random_uniform",
-                candidate_operator_ids=("native_sbx_pm", "local_refine"),
-                selected_operator_id="local_refine",
+                candidate_operator_ids=("vector_sbx_pm", "component_jitter_1"),
+                selected_operator_id="component_jitter_1",
                 metadata={"fallback_used": False},
             )
         ],
@@ -507,7 +577,7 @@ def _fake_union_run(*, include_llm_sidecars: bool = False) -> SimpleNamespace:
             OperatorTraceRow(
                 generation_index=1,
                 evaluation_index=2,
-                operator_id="local_refine",
+                operator_id="component_jitter_1",
                 parent_count=2,
                 parent_vectors=((0.2, 0.3), (0.24, 0.34)),
                 proposal_vector=(0.25, 0.35),
@@ -533,13 +603,15 @@ def _fake_union_run(*, include_llm_sidecars: bool = False) -> SimpleNamespace:
         llm_metrics=None,
     )
     if include_llm_sidecars:
+        if trace_output_root is not None:
+            _write_fake_llm_sidecars(Path(trace_output_root))
         run.llm_request_trace = [
             {
                 "decision_id": "g001-e0002-d00",
                 "generation_index": 1,
                 "evaluation_index": 2,
                 "model": "glm-5",
-                "candidate_operator_ids": ["native_sbx_pm", "local_refine"],
+                "candidate_operator_ids": ["vector_sbx_pm", "component_jitter_1"],
                 "policy_phase": "prefeasible_progress",
                 "prompt_ref": "prompts/request.md",
                 "http_status": 200,
@@ -553,7 +625,7 @@ def _fake_union_run(*, include_llm_sidecars: bool = False) -> SimpleNamespace:
                 "generation_index": 1,
                 "evaluation_index": 2,
                 "model": "glm-5",
-                "selected_operator_id": "local_refine",
+                "selected_operator_id": "component_jitter_1",
                 "response_ref": "prompts/response.md",
                 "tokens": {"total": 240},
                 "finish_reason": "stop",
@@ -870,11 +942,14 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
     )
 
     def _fake_run_union_optimization(*args, **kwargs):
-        del args, kwargs
+        del args
         captured["LLM_API_KEY"] = os.environ["LLM_API_KEY"]
         captured["LLM_BASE_URL"] = os.environ["LLM_BASE_URL"]
         captured["LLM_MODEL"] = os.environ["LLM_MODEL"]
-        return _fake_union_run(include_llm_sidecars=True)
+        return _fake_union_run(
+            include_llm_sidecars=True,
+            trace_output_root=kwargs.get("trace_output_root"),
+        )
 
     monkeypatch.setattr(cli_module, "run_union_optimization", _fake_run_union_optimization)
 
@@ -973,7 +1048,14 @@ def test_optimizer_cli_run_llm_uses_default_profile_when_omitted(tmp_path: Path,
         _fake_load_provider_profile_overlay,
         raising=False,
     )
-    monkeypatch.setattr(cli_module, "run_union_optimization", lambda *args, **kwargs: _fake_union_run())
+    monkeypatch.setattr(
+        cli_module,
+        "run_union_optimization",
+        lambda *args, **kwargs: _fake_union_run(
+            include_llm_sidecars=True,
+            trace_output_root=kwargs.get("trace_output_root"),
+        ),
+    )
 
     exit_code = main(
         [
@@ -1335,10 +1417,10 @@ def test_analyze_controller_trace_reports_route_family_entropy_and_expand_mix(tm
                 backbone="nsga2",
                 controller_id="llm",
                 candidate_operator_ids=(
-                    "spread_hottest_cluster",
-                    "smooth_high_gradient_band",
-                    "slide_sink",
-                    "local_refine",
+                    "hotspot_spread",
+                    "gradient_band_smooth",
+                    "sink_retarget",
+                    "component_jitter_1",
                 ),
                 selected_operator_id=operator_id,
                 metadata={
@@ -1348,10 +1430,10 @@ def test_analyze_controller_trace_reports_route_family_entropy_and_expand_mix(tm
             )
             for index, (operator_id, phase) in enumerate(
                 (
-                    ("spread_hottest_cluster", "post_feasible_expand"),
-                    ("smooth_high_gradient_band", "post_feasible_expand"),
-                    ("slide_sink", "post_feasible_expand"),
-                    ("local_refine", "post_feasible_preserve"),
+                    ("hotspot_spread", "post_feasible_expand"),
+                    ("gradient_band_smooth", "post_feasible_expand"),
+                    ("sink_retarget", "post_feasible_expand"),
+                    ("component_jitter_1", "post_feasible_preserve"),
                 )
             )
         ],
@@ -1554,6 +1636,7 @@ def test_optimizer_cli_optimize_benchmark_forwards_evaluation_workers(
             str(output_root),
             "--evaluation-workers",
             "2",
+            "--skip-render",
         ]
     )
 
@@ -1605,7 +1688,10 @@ def test_optimizer_cli_run_benchmark_suite_llm_mode_writes_llm_pages_and_reports
     monkeypatch.setattr(
         run_suite_module,
         "run_union_optimization",
-        lambda *args, **kwargs: _fake_union_run(include_llm_sidecars=True),
+        lambda *args, **kwargs: _fake_union_run(
+            include_llm_sidecars=True,
+            trace_output_root=kwargs.get("trace_output_root"),
+        ),
     )
 
     exit_code = main(

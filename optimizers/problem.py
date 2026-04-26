@@ -23,6 +23,7 @@ from optimizers.parallel_evaluator import evaluate_candidate_payload, resolve_ev
 
 
 PENALTY_VALUE = 1.0e12
+CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID = "cheap_geometry_issue_count"
 solve_case = solve_case_artifacts
 
 
@@ -61,16 +62,18 @@ class ThermalOptimizationProblem(Problem):
         optimization_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
         evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
         design_variables = optimization_payload["design_variables"]
+        optimizer_constraints = _optimizer_constraint_definitions(evaluation_payload)
         super().__init__(
             n_var=len(design_variables),
             n_obj=len(evaluation_payload["objectives"]),
-            n_ieq_constr=len(evaluation_payload["constraints"]),
+            n_ieq_constr=len(optimizer_constraints),
             xl=np.asarray([float(item["lower_bound"]) for item in design_variables], dtype=np.float64),
             xu=np.asarray([float(item["upper_bound"]) for item in design_variables], dtype=np.float64),
         )
         self.base_case = base_case
         self.optimization_spec = optimization_payload
         self.evaluation_spec = evaluation_payload
+        self.optimizer_constraints = optimizer_constraints
         self.radiator_span_max = resolve_radiator_span_max(evaluation_payload)
         self.history: list[dict[str, Any]] = []
         self.artifacts_by_index: dict[int, CandidateArtifacts] = {}
@@ -216,13 +219,7 @@ class ThermalOptimizationProblem(Problem):
                 vector_transform_codes=evaluated.vector_transform_codes,
                 metadata=metadata,
                 failure_reason="cheap_constraint_violation",
-                constraint_values={
-                    constraint["constraint_id"]: cheap_result.constraint_values.get(
-                        constraint["constraint_id"],
-                        PENALTY_VALUE,
-                    )
-                    for constraint in self.evaluation_spec["constraints"]
-                },
+                constraint_values=self._cheap_infeasible_constraint_values(cheap_result),
                 solver_skipped=True,
                 cheap_constraint_issues=list(cheap_result.geometry_issues),
             )
@@ -294,6 +291,7 @@ class ThermalOptimizationProblem(Problem):
             constraint_values = {
                 item["constraint_id"]: _constraint_violation(item) for item in evaluation_payload["constraint_reports"]
             }
+            constraint_values[CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID] = 0.0
             candidate_case = ThermalCase.from_dict(worker_result["case_payload"])
             solution = ThermalSolution.from_dict(worker_result["solution_payload"])
             evaluation = EvaluationReport.from_dict(evaluation_payload)
@@ -431,7 +429,7 @@ class ThermalOptimizationProblem(Problem):
 
     def _constraint_vector(self, constraint_values: dict[str, float]) -> np.ndarray:
         return np.asarray(
-            [constraint_values[item["constraint_id"]] for item in self.evaluation_spec["constraints"]],
+            [constraint_values[item["constraint_id"]] for item in self.optimizer_constraints],
             dtype=np.float64,
         )
 
@@ -442,8 +440,19 @@ class ThermalOptimizationProblem(Problem):
 
     def _penalty_constraint_values(self) -> dict[str, float]:
         return {
-            constraint["constraint_id"]: PENALTY_VALUE for constraint in self.evaluation_spec["constraints"]
+            constraint["constraint_id"]: PENALTY_VALUE for constraint in self.optimizer_constraints
         }
+
+    def _cheap_infeasible_constraint_values(self, cheap_result: Any) -> dict[str, float]:
+        values: dict[str, float] = {}
+        for constraint in self.evaluation_spec["constraints"]:
+            constraint_id = str(constraint["constraint_id"])
+            if constraint.get("metric") == "case.total_radiator_span":
+                values[constraint_id] = float(cheap_result.constraint_values.get(constraint_id, 0.0))
+            else:
+                values[constraint_id] = 0.0
+        values[CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID] = float(len(cheap_result.geometry_issues))
+        return values
 
     def _ensure_executor(self) -> ProcessPoolExecutor:
         if self._executor is None:
@@ -456,6 +465,19 @@ class ThermalOptimizationProblem(Problem):
 
 def constraint_violation(report: dict[str, Any]) -> float:
     return _constraint_violation(report)
+
+
+def _optimizer_constraint_definitions(evaluation_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    constraints = [dict(item) for item in evaluation_payload["constraints"]]
+    constraints.append(
+        {
+            "constraint_id": CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID,
+            "metric": CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID,
+            "relation": "<=",
+            "limit": 0.0,
+        }
+    )
+    return constraints
 
 
 def objective_to_minimization(value: float, sense: str) -> float:

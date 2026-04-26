@@ -22,6 +22,15 @@ ROUTE_FAMILY_BY_OPERATOR: dict[str, str] = {
     "congestion_relief": "congestion_relief",
     "sink_retarget": "sink_retarget",
     "layout_rebalance": "layout_rebalance",
+    # Legacy trace aliases kept for diagnostics and LLM policy fixtures. These
+    # ids are not part of the active primitive/assisted registries.
+    "move_hottest_cluster_toward_sink": "sink_retarget",
+    "spread_hottest_cluster": "hotspot_spread",
+    "smooth_high_gradient_band": "congestion_relief",
+    "reduce_local_congestion": "congestion_relief",
+    "repair_sink_budget": "budget_guard",
+    "slide_sink": "sink_retarget",
+    "rebalance_layout": "layout_rebalance",
 }
 STABLE_ROUTE_FAMILIES = frozenset({"stable_local", "stable_global"})
 

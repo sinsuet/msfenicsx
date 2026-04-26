@@ -91,3 +91,26 @@ def test_problem_preserves_evaluated_vector_when_cheap_constraint_evaluation_rai
     assert record["proposal_decision_vector"]["sink_start"] == 0.90
     assert record["evaluated_decision_vector"]["sink_start"] <= record["evaluated_decision_vector"]["sink_end"]
     assert "sink_reorder" in record["vector_transform_codes"]
+
+
+def test_cheap_geometry_failure_exposes_optimizer_visible_constraint_signal() -> None:
+    spec_path = "scenarios/optimization/s2_staged_raw.yaml"
+    optimization_spec = load_optimization_spec(spec_path)
+    evaluation_spec = load_spec(resolve_evaluation_spec_path(spec_path, optimization_spec))
+    base_case = generate_benchmark_case(spec_path, optimization_spec)
+    problem = ThermalOptimizationProblem(base_case, optimization_spec, evaluation_spec, evaluation_workers=1)
+
+    vector = np.asarray(problem.xl, dtype=np.float64).copy()
+    vector[-2] = 0.90
+    vector[-1] = 0.05
+
+    try:
+        record, _, constraints = problem.evaluate_vector(vector, source="optimizer")
+    finally:
+        problem.close()
+
+    assert record["failure_reason"] == "cheap_constraint_violation"
+    assert record["solver_skipped"] is True
+    assert record["cheap_constraint_issues"]
+    assert record["constraint_values"]["cheap_geometry_issue_count"] > 0.0
+    assert constraints.size == problem.n_ieq_constr

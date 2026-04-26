@@ -86,6 +86,38 @@ def test_s1_typical_union_runs_and_emits_primitive_operator_traces() -> None:
     assert {row.selected_operator_id for row in run.controller_trace}.issubset(_approved_union_operator_ids())
 
 
+def test_s2_staged_raw_and_union_clean_search_enter_pde() -> None:
+    from optimizers.drivers.raw_driver import run_raw_optimization
+    from optimizers.drivers.union_driver import run_union_optimization
+
+    raw_spec_path = "scenarios/optimization/s2_staged_raw.yaml"
+    union_spec_path = "scenarios/optimization/s2_staged_union.yaml"
+    raw_spec = _spec(raw_spec_path, population_size=8, num_generations=1)
+    union_spec = _spec(union_spec_path, population_size=8, num_generations=1)
+
+    raw_run = run_raw_optimization(
+        _base_case(raw_spec_path, raw_spec),
+        raw_spec,
+        _evaluation_spec(raw_spec_path, raw_spec),
+        spec_path=raw_spec_path,
+        evaluation_workers=1,
+    )
+    union_run = run_union_optimization(
+        _base_case(union_spec_path, union_spec),
+        union_spec,
+        _evaluation_spec(union_spec_path, union_spec),
+        spec_path=union_spec_path,
+        evaluation_workers=1,
+    )
+
+    raw_optimizer_rows = [row for row in raw_run.result.history if row["source"] == "optimizer"]
+    union_optimizer_rows = [row for row in union_run.result.history if row["source"] == "optimizer"]
+
+    assert any(not row["solver_skipped"] for row in raw_optimizer_rows)
+    assert any(not row["solver_skipped"] for row in union_optimizer_rows)
+    assert {row.selected_operator_id for row in union_run.controller_trace}.issubset(_approved_union_operator_ids())
+
+
 def test_clean_union_uses_primitive_pool_and_skips_repair_collapsed_dedup(monkeypatch: pytest.MonkeyPatch) -> None:
     from optimizers.drivers.union_driver import run_union_optimization
 

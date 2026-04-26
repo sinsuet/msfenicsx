@@ -35,19 +35,29 @@ def build_evaluation_events(
             intra_generation_index = 0
             previous_generation = generation
         individual_id = record.get("individual_id") or f"g{generation:03d}-i{intra_generation_index:02d}"
-        rows.append(
-            {
-                "decision_id": record.get("decision_id"),
-                "generation": generation,
-                "eval_index": eval_index,
-                "individual_id": str(individual_id),
-                "objectives": _project_objectives(record.get("objective_values", {}), objective_short_names),
-                "constraints": dict(record.get("constraint_values", {})),
-                "status": _record_status(record),
-                "solver_skipped": bool(record.get("solver_skipped", False)),
-                "timing": dict(record.get("timing", {})),
-            }
-        )
+        row = {
+            "decision_id": record.get("decision_id"),
+            "generation": generation,
+            "eval_index": eval_index,
+            "individual_id": str(individual_id),
+            "objectives": _project_objectives(record.get("objective_values", {}), objective_short_names),
+            "constraints": dict(record.get("constraint_values", {})),
+            "status": _record_status(record),
+            "solver_skipped": bool(record.get("solver_skipped", False)),
+            "timing": dict(record.get("timing", {})),
+        }
+        failure_reason = record.get("failure_reason")
+        if failure_reason:
+            row["failure_reason"] = str(failure_reason)
+        cheap_constraint_issues = record.get("cheap_constraint_issues", [])
+        if isinstance(cheap_constraint_issues, Sequence) and not isinstance(
+            cheap_constraint_issues,
+            (str, bytes, bytearray),
+        ):
+            issue_examples = [str(issue) for issue in cheap_constraint_issues[:3]]
+            row["cheap_constraint_issue_count"] = int(len(cheap_constraint_issues))
+            row["cheap_constraint_issue_examples"] = issue_examples
+        rows.append(row)
         eval_index += 1
         intra_generation_index += 1
     return rows

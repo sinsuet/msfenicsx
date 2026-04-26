@@ -8,7 +8,7 @@ from evaluation.io import load_spec
 from optimizers.codec import extract_decision_vector
 from optimizers.io import generate_benchmark_case, load_optimization_spec
 from optimizers.models import OptimizationSpec
-from optimizers.problem import ThermalOptimizationProblem
+from optimizers.problem import CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID, ThermalOptimizationProblem
 
 
 SPEC_PATH = Path("scenarios/optimization/s1_typical_raw.yaml")
@@ -195,7 +195,8 @@ def test_problem_evaluate_vectors_commits_results_in_evaluation_index_order(
     assert records[0]["objective_values"][objective_ids[0]] == pytest.approx(309.0)
     assert records[1]["objective_values"][objective_ids[0]] == pytest.approx(308.0)
     assert objective_matrix.shape == (2, len(evaluation_payload["objectives"]))
-    assert constraint_matrix.shape == (2, len(evaluation_payload["constraints"]))
+    assert constraint_matrix.shape == (2, problem.n_ieq_constr)
+    assert all(record["constraint_values"][CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID] == 0.0 for record in records)
 
 
 def test_problem_evaluate_vectors_skips_worker_dispatch_for_cheap_constraint_failures(
@@ -228,4 +229,5 @@ def test_problem_evaluate_vectors_skips_worker_dispatch_for_cheap_constraint_fai
     assert records[0]["solver_skipped"] is True
     assert records[0]["evaluation_index"] == 1
     assert objective_matrix.shape == (1, len(evaluation_spec.objectives))
-    assert constraint_matrix.shape == (1, len(evaluation_spec.constraints))
+    assert constraint_matrix.shape == (1, problem.n_ieq_constr)
+    assert records[0]["constraint_values"][CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID] > 0.0

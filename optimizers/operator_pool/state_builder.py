@@ -81,6 +81,48 @@ _OPERATOR_EFFECTS: dict[str, dict[str, str]] = {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "improve",
     },
+    # Legacy trace aliases kept so older LLM diagnostics still carry the same
+    # prompt-surface semantics after the operator-registry split.
+    "native_sbx_pm": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "neutral",
+    },
+    "global_explore": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "neutral",
+    },
+    "local_refine": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "neutral",
+    },
+    "move_hottest_cluster_toward_sink": {
+        "expected_peak_effect": "improve",
+        "expected_gradient_effect": "neutral",
+    },
+    "spread_hottest_cluster": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "improve",
+    },
+    "smooth_high_gradient_band": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "improve",
+    },
+    "reduce_local_congestion": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "improve",
+    },
+    "repair_sink_budget": {
+        "expected_peak_effect": "improve",
+        "expected_gradient_effect": "neutral",
+    },
+    "slide_sink": {
+        "expected_peak_effect": "improve",
+        "expected_gradient_effect": "neutral",
+    },
+    "rebalance_layout": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "improve",
+    },
 }
 
 

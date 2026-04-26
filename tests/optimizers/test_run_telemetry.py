@@ -65,6 +65,41 @@ def test_build_evaluation_events_new_schema_has_required_fields() -> None:
     assert row["solver_skipped"] is False
 
 
+def test_build_evaluation_events_includes_cheap_failure_diagnostics() -> None:
+    rows = build_evaluation_events(
+        [
+            {
+                "evaluation_index": 2,
+                "generation": 1,
+                "source": "optimizer",
+                "feasible": False,
+                "solver_skipped": True,
+                "failure_reason": "cheap_constraint_violation",
+                "cheap_constraint_issues": [
+                    "clearance_violation:c01-001:c02-001",
+                    "clearance_violation:c03-001:c04-001",
+                ],
+                "objective_values": {"minimize_peak_temperature": 1.0e12},
+                "constraint_values": {
+                    "radiator_span_budget": 0.0,
+                    "cheap_geometry_issue_count": 2.0,
+                },
+                "timing": {},
+            },
+        ],
+        objective_definitions=[
+            {"objective_id": "minimize_peak_temperature", "metric": "summary.temperature_max", "sense": "minimize"},
+        ],
+    )
+
+    assert rows[0]["failure_reason"] == "cheap_constraint_violation"
+    assert rows[0]["cheap_constraint_issue_count"] == 2
+    assert rows[0]["cheap_constraint_issue_examples"] == [
+        "clearance_violation:c01-001:c02-001",
+        "clearance_violation:c03-001:c04-001",
+    ]
+
+
 def test_build_progress_timeline_skips_baseline_rows_and_uses_generation_fallback() -> None:
     timeline = build_progress_timeline(
         [
