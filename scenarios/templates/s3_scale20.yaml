@@ -29,6 +29,7 @@ component_families:
     geometry:
       width: {min: 0.13, max: 0.13}
       height: {min: 0.104, max: 0.104}
+    pose_hint: {x: 0.306914, y: 0.204871}
     material_ref: electronics_housing
     thermal_tags: [payload, logic]
     layout_tags: [logic_board, compute_cluster]
@@ -42,6 +43,7 @@ component_families:
     geometry:
       width: {min: 0.142, max: 0.142}
       height: {min: 0.103, max: 0.103}
+    pose_hint: {x: 0.694599, y: 0.415126}
     material_ref: electronics_housing
     thermal_tags: [payload, high_power]
     layout_tags: [power_dense, sink_aware]
@@ -55,6 +57,7 @@ component_families:
     geometry:
       width: {min: 0.153, max: 0.153}
       height: {min: 0.093, max: 0.093}
+    pose_hint: {x: 0.465176, y: 0.235993}
     material_ref: electronics_housing
     thermal_tags: [payload, logic]
     layout_tags: [logic_board, compute_cluster]
@@ -68,6 +71,7 @@ component_families:
     geometry:
       width: {min: 0.144, max: 0.144}
       height: {min: 0.114, max: 0.114}
+    pose_hint: {x: 0.519878, y: 0.372505}
     material_ref: electronics_housing
     thermal_tags: [payload, high_power]
     layout_tags: [power_dense, sink_aware]
@@ -81,6 +85,7 @@ component_families:
     geometry:
       width: {min: 0.137, max: 0.137}
       height: {min: 0.119, max: 0.119}
+    pose_hint: {x: 0.8715, y: 0.5815}
     material_ref: electronics_housing
     thermal_tags: [payload, service]
     layout_tags: [service_module]
@@ -94,6 +99,7 @@ component_families:
     geometry:
       width: {min: 0.154, max: 0.154}
       height: {min: 0.114, max: 0.114}
+    pose_hint: {x: 0.33173, y: 0.351128}
     material_ref: electronics_housing
     thermal_tags: [payload, high_power]
     layout_tags: [power_dense, sink_aware]
@@ -107,6 +113,7 @@ component_families:
     geometry:
       width: {min: 0.114, max: 0.114}
       height: {min: 0.119, max: 0.119}
+    pose_hint: {x: 0.458556, y: 0.519167}
     material_ref: electronics_housing
     thermal_tags: [payload, logic]
     layout_tags: [logic_board]
@@ -120,6 +127,7 @@ component_families:
     geometry:
       width: {min: 0.148, max: 0.148}
       height: {min: 0.123, max: 0.123}
+    pose_hint: {x: 0.860644, y: 0.396188}
     material_ref: electronics_housing
     thermal_tags: [payload, io]
     layout_tags: [io_board]
@@ -133,6 +141,7 @@ component_families:
     geometry:
       width: {min: 0.126, max: 0.126}
       height: {min: 0.132, max: 0.132}
+    pose_hint: {x: 0.157381, y: 0.167298}
     material_ref: electronics_housing
     thermal_tags: [payload, io]
     layout_tags: [io_board]
@@ -146,6 +155,7 @@ component_families:
     geometry:
       width: {min: 0.153, max: 0.153}
       height: {min: 0.135, max: 0.135}
+    pose_hint: {x: 0.754954, y: 0.161203}
     material_ref: electronics_housing
     thermal_tags: [payload, thermal_mass]
     layout_tags: [battery_module, thermal_buffer]
@@ -159,6 +169,7 @@ component_families:
     geometry:
       length: {min: 0.262, max: 0.262}
       width: {min: 0.06, max: 0.06}
+    pose_hint: {x: 0.165, y: 0.38}
     material_ref: electronics_housing
     rotation_deg: 90.0
     thermal_tags: [payload, io]
@@ -173,6 +184,7 @@ component_families:
     geometry:
       length: {min: 0.262, max: 0.262}
       width: {min: 0.06, max: 0.06}
+    pose_hint: {x: 0.698692, y: 0.273768}
     material_ref: electronics_housing
     rotation_deg: 0.0
     thermal_tags: [payload, sink_coupled]
@@ -187,6 +199,7 @@ component_families:
     geometry:
       length: {min: 0.212, max: 0.212}
       radius: {min: 0.036, max: 0.036}
+    pose_hint: {x: 0.882484, y: 0.210122}
     material_ref: electronics_housing
     rotation_deg: 90.0
     thermal_tags: [payload, harness]
@@ -200,6 +213,7 @@ component_families:
     count_range: {min: 1, max: 1}
     geometry:
       radius: {min: 0.074, max: 0.074}
+    pose_hint: {x: 0.30181, y: 0.505673}
     material_ref: electronics_housing
     thermal_tags: [payload, sensor]
     layout_tags: [rounded_housing, sensor_sensitive]
@@ -212,6 +226,7 @@ component_families:
     count_range: {min: 1, max: 1}
     geometry:
       radius: {min: 0.076, max: 0.076}
+    pose_hint: {x: 0.696667, y: 0.562}
     material_ref: electronics_housing
     thermal_tags: [payload, sensor]
     layout_tags: [rounded_housing, sensor_sensitive]
@@ -225,6 +240,7 @@ component_families:
     geometry:
       width: {min: 0.13, max: 0.13}
       height: {min: 0.10, max: 0.10}
+    pose_hint: {x: 0.25, y: 0.65}
     material_ref: electronics_housing
     thermal_tags: [payload, memory]
     layout_tags: [logic_board, compute_cluster]
@@ -238,6 +254,7 @@ component_families:
     geometry:
       width: {min: 0.135, max: 0.135}
       height: {min: 0.095, max: 0.095}
+    pose_hint: {x: 0.419444, y: 0.6425}
     material_ref: electronics_housing
     thermal_tags: [payload, high_power]
     layout_tags: [power_dense, sink_aware]
@@ -251,6 +268,7 @@ component_families:
     geometry:
       length: {min: 0.205, max: 0.205}
       radius: {min: 0.033, max: 0.033}
+    pose_hint: {x: 0.564224, y: 0.58209}
     material_ref: electronics_housing
     rotation_deg: 90.0
     thermal_tags: [payload, io]
@@ -264,6 +282,7 @@ component_families:
     count_range: {min: 1, max: 1}
     geometry:
       radius: {min: 0.058, max: 0.058}
+    pose_hint: {x: 0.59904, y: 0.151029}
     material_ref: electronics_housing
     thermal_tags: [payload, sensor]
     layout_tags: [rounded_housing, sensor_sensitive]
@@ -277,6 +296,7 @@ component_families:
     geometry:
       length: {min: 0.245, max: 0.245}
       width: {min: 0.054, max: 0.054}
+    pose_hint: {x: 0.398878, y: 0.087914}
     material_ref: electronics_housing
     rotation_deg: 0.0
     thermal_tags: [payload, io]

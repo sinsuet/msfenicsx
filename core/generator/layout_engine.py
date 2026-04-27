@@ -106,6 +106,23 @@ def _place_single_component(
     rotated_polygon = transform_polygon(local_polygon, {"x": 0.0, "y": 0.0, "rotation_deg": rotation_deg})
     min_x, min_y, max_x, max_y = rotated_polygon.bounds
     profile = family_profiles.get(sampled_component["family_id"], {})
+    pose_hint = sampled_component.get("pose_hint")
+    if isinstance(pose_hint, dict):
+        candidate = _candidate_from_pose(
+            component_id=component_id,
+            sampled_component=sampled_component,
+            x_value=float(pose_hint["x"]),
+            y_value=float(pose_hint["y"]),
+            rotation_deg=rotation_deg,
+        )
+        if _is_candidate_legal(
+            candidate,
+            keep_out_regions=keep_out_regions,
+            panel_domain=panel_domain,
+            existing_components=existing_components,
+            family_profiles=family_profiles,
+        ):
+            return candidate
     semantic_regions = _preferred_regions(placement_regions, profile, layout_strategy)
     candidate = _try_place_with_regions(
         component_id=component_id,
@@ -194,26 +211,13 @@ def _try_place_with_regions(
             uniform=uniform,
             rng=rng,
         )
-        candidate = {
-            "component_id": component_id,
-            "role": sampled_component["role"],
-            "shape": sampled_component["shape"],
-            "pose": {
-                "x": pose["x"],
-                "y": pose["y"],
-                "rotation_deg": float(sampled_component.get("rotation_deg", 0.0)),
-            },
-            "geometry": sampled_component["geometry"],
-            "material_ref": sampled_component["material_ref"],
-            "thermal_tags": sampled_component.get("thermal_tags", []),
-            "family_id": sampled_component["family_id"],
-        }
-        if sampled_component.get("total_power") is not None:
-            candidate["total_power"] = sampled_component["total_power"]
-        if sampled_component.get("source_area_ratio") is not None:
-            candidate["source_area_ratio"] = float(sampled_component["source_area_ratio"])
-        if sampled_component.get("clearance") is not None:
-            candidate["clearance"] = float(sampled_component["clearance"])
+        candidate = _candidate_from_pose(
+            component_id=component_id,
+            sampled_component=sampled_component,
+            x_value=pose["x"],
+            y_value=pose["y"],
+            rotation_deg=float(sampled_component.get("rotation_deg", 0.0)),
+        )
         if _is_candidate_legal(
             candidate,
             keep_out_regions=keep_out_regions,
@@ -223,6 +227,37 @@ def _try_place_with_regions(
         ):
             return candidate
     return None
+
+
+def _candidate_from_pose(
+    *,
+    component_id: str,
+    sampled_component: dict[str, Any],
+    x_value: float,
+    y_value: float,
+    rotation_deg: float,
+) -> dict[str, Any]:
+    candidate = {
+        "component_id": component_id,
+        "role": sampled_component["role"],
+        "shape": sampled_component["shape"],
+        "pose": {
+            "x": round(float(x_value), 6),
+            "y": round(float(y_value), 6),
+            "rotation_deg": float(rotation_deg),
+        },
+        "geometry": sampled_component["geometry"],
+        "material_ref": sampled_component["material_ref"],
+        "thermal_tags": sampled_component.get("thermal_tags", []),
+        "family_id": sampled_component["family_id"],
+    }
+    if sampled_component.get("total_power") is not None:
+        candidate["total_power"] = sampled_component["total_power"]
+    if sampled_component.get("source_area_ratio") is not None:
+        candidate["source_area_ratio"] = float(sampled_component["source_area_ratio"])
+    if sampled_component.get("clearance") is not None:
+        candidate["clearance"] = float(sampled_component["clearance"])
+    return candidate
 
 
 def _sample_pose(
