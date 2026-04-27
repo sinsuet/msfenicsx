@@ -17,24 +17,24 @@ constraints:
 - constraint_id: c02_peak_temperature_limit
   metric: component.c02-001.temperature_max
   relation: <=
-  limit: 332.98
+  limit: 330.712
 - constraint_id: c04_peak_temperature_limit
   metric: component.c04-001.temperature_max
   relation: <=
-  limit: 341.143
+  limit: 338.926
 - constraint_id: c06_peak_temperature_limit
   metric: component.c06-001.temperature_max
   relation: <=
-  limit: 341.213
+  limit: 337.982
 - constraint_id: c12_peak_temperature_limit
   metric: component.c12-001.temperature_max
   relation: <=
-  limit: 342.228
+  limit: 339.454
 - constraint_id: c17_peak_temperature_limit
   metric: component.c17-001.temperature_max
   relation: <=
-  limit: 326.845
+  limit: 325.933
 - constraint_id: panel_temperature_spread_limit
   metric: components.max_temperature_spread
   relation: <=
-  limit: 31.517
+  limit: 28.377
