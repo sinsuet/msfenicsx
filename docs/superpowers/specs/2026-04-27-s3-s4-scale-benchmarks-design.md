@@ -104,11 +104,11 @@ S3 should keep S2 `c01..c15` as the inherited core and add:
 
 | id | role | shape | nominal geometry | power | placement role |
 | --- | --- | --- | --- | ---: | --- |
-| `c16` | memory_stack_01 | rect | `0.130 x 0.100` | `5.5 W` | compute shoulder |
-| `c17` | aux_power_stage | rect | `0.135 x 0.095` | `8.5 W` | secondary hot core |
-| `c18` | rf_frontend | capsule | `length=0.205`, `radius=0.033` | `4.5 W` | right service edge |
-| `c19` | sensor_hub | circle | `radius=0.058` | `3.2 W` | lower support band |
-| `c20` | edge_io_micro | slot | `length=0.245`, `width=0.054` | `3.8 W` | left/bottom routing |
+| `c16` | memory_stack_01 | rect | `0.130 x 0.100` | `6.2 W` | compute shoulder |
+| `c17` | aux_power_stage | rect | `0.135 x 0.095` | `9.0 W` | secondary hot core |
+| `c18` | rf_frontend | capsule | `length=0.205`, `radius=0.033` | `5.0 W` | right service edge |
+| `c19` | sensor_hub | circle | `radius=0.058` | `3.4 W` | lower support band |
+| `c20` | edge_io_micro | slot | `length=0.245`, `width=0.054` | `4.2 W` | left/bottom routing |
 
 The five added components contribute about `0.062` raw area. With the slightly wider placement region, this should put S3 near `0.53` raw occupancy.
 
