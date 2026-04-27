@@ -1,0 +1,14 @@
+schema_version: '1.0'
+profile_meta:
+  profile_id: s3_scale20_nsga2_union_profile
+  description: S3 scale20 tuning for NSGA-II union and llm variation, matching the
+    active staged ladder.
+family: genetic
+backbone: nsga2
+mode: union
+parameters:
+  crossover:
+    eta: 10
+    prob: 0.9
+  mutation:
+    eta: 15
