@@ -1,0 +1,44 @@
+schema_version: '1.0'
+spec_meta:
+  spec_id: s4_dense25_eval
+  description: Single-case evaluation spec for the S4 25-component dense benchmark.
+objectives:
+- objective_id: minimize_peak_temperature
+  metric: summary.temperature_max
+  sense: minimize
+- objective_id: minimize_temperature_gradient_rms
+  metric: summary.temperature_gradient_rms
+  sense: minimize
+constraints:
+- constraint_id: radiator_span_budget
+  metric: case.total_radiator_span
+  relation: <=
+  limit: 0.38
+- constraint_id: c02_peak_temperature_limit
+  metric: component.c02-001.temperature_max
+  relation: <=
+  limit: 331.5
+- constraint_id: c04_peak_temperature_limit
+  metric: component.c04-001.temperature_max
+  relation: <=
+  limit: 335.0
+- constraint_id: c06_peak_temperature_limit
+  metric: component.c06-001.temperature_max
+  relation: <=
+  limit: 335.0
+- constraint_id: c12_peak_temperature_limit
+  metric: component.c12-001.temperature_max
+  relation: <=
+  limit: 332.8
+- constraint_id: c17_peak_temperature_limit
+  metric: component.c17-001.temperature_max
+  relation: <=
+  limit: 330.0
+- constraint_id: c21_peak_temperature_limit
+  metric: component.c21-001.temperature_max
+  relation: <=
+  limit: 327.5
+- constraint_id: panel_temperature_spread_limit
+  metric: components.max_temperature_spread
+  relation: <=
+  limit: 9.5
