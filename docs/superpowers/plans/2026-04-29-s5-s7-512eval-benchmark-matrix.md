@@ -31,7 +31,8 @@
 - `optimizers/matrix/config.py`：内置 S5-S7 512eval matrix 定义。
 - `optimizers/matrix/spec_snapshots.py`：生成 per-leaf optimization spec snapshot。
 - `optimizers/matrix/index.py`：读写 `run_index.csv`、状态更新、attempt 选择。
-- `optimizers/matrix/runner.py`：按 block 运行 leaf runs、resume、失败补跑。
+- `optimizers/matrix/leaf_executor.py`：封装单个 leaf run 的 `optimize-benchmark` 调用，避免 `optimizers.cli` 与 runner 互相 import。
+- `optimizers/matrix/runner.py`：按 block 运行 leaf runs、按 block cap 控制外层并发、resume、失败补跑。
 - `optimizers/matrix/aggregate.py`：汇总 outcomes、paired differences、rank、failure 和 LLM diagnostics。
 - `optimizers/matrix/figures.py`：matrix-level PNG/PDF 图。
 - `optimizers/matrix/representatives.py`：best-HV run + knee point 选择和关键 compare-runs bundle 规划。
@@ -874,9 +875,10 @@ Expected: PASS。
 
 ---
 
-## Task 6：实现 matrix runner 的单 block 执行和 resume 骨架
+## Task 6：实现 matrix runner 的单 block 执行、外层并发和 resume 骨架
 
 **Files:**
+- Create: `optimizers/matrix/leaf_executor.py`
 - Create: `optimizers/matrix/runner.py`
 - Modify: `optimizers/cli.py`
 - Test: `tests/optimizers/test_matrix_runner.py`
@@ -918,6 +920,39 @@ def test_run_matrix_block_writes_index_and_invokes_selected_leaves(tmp_path: Pat
     assert calls == [("M2_nsga2_union_512eval", "8"), ("M2_nsga2_union_512eval", "8")]
     text = index_path.read_text(encoding="utf-8")
     assert "completed" in text
+
+
+def test_run_matrix_block_uses_block_concurrency_cap(tmp_path: Path, monkeypatch) -> None:
+    captured = {}
+
+    def fake_run_rows(rows, *, matrix, leaves_by_key, max_workers):
+        captured["max_workers"] = max_workers
+        return [dict(row, status="completed") for row in rows]
+
+    monkeypatch.setattr("optimizers.matrix.runner._run_rows_concurrently", fake_run_rows)
+
+    matrix = build_s5_s7_512eval_matrix()
+    run_matrix_block(matrix, matrix_root=tmp_path, block_id="M1_raw_backbone_512eval", max_leaves=2)
+
+    assert captured["max_workers"] == 80
+
+
+def test_run_matrix_block_can_generate_attempt_two_for_failed_rows(tmp_path: Path, monkeypatch) -> None:
+    from optimizers.matrix.index import build_initial_index_rows, write_run_index
+
+    matrix = build_s5_s7_512eval_matrix()
+    rows = build_initial_index_rows(matrix.expand_leaves()[:2], matrix_root=tmp_path)
+    rows[0]["status"] = "failed"
+    rows[1]["status"] = "completed"
+    write_run_index(tmp_path / "run_index.csv", rows)
+
+    monkeypatch.setattr("optimizers.matrix.runner._run_rows_concurrently", lambda rows, **kwargs: [dict(row, status="completed") for row in rows])
+
+    run_matrix_block(matrix, matrix_root=tmp_path, block_id="M4_rerun_failed_512eval")
+
+    text = (tmp_path / "run_index.csv").read_text(encoding="utf-8")
+    assert "attempt-2" in text
+    assert ",2,1,completed," in text
 ```
 
 在 `tests/optimizers/test_optimizer_cli.py` 增加 CLI 转发测试：
@@ -968,61 +1003,21 @@ Run:
 
 Expected: FAIL。
 
-- [ ] **Step 3: 实现 runner 骨架**
+- [ ] **Step 3: 实现 leaf executor，避免 CLI import cycle**
 
-Create `optimizers/matrix/runner.py`:
+Create `optimizers/matrix/leaf_executor.py`:
 
 ```python
 from __future__ import annotations
 
-import time
-from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 from llm.openai_compatible.profile_loader import load_provider_profile_overlay
-from optimizers.cli import _run_optimize_benchmark, _temporary_env_overlay
-from optimizers.matrix.index import build_initial_index_rows, write_run_index
-from optimizers.matrix.models import MatrixConfig, MatrixLeaf
-from optimizers.matrix.spec_snapshots import write_leaf_spec_snapshot
 
 
-def run_matrix_block(
-    matrix: MatrixConfig,
-    *,
-    matrix_root: str | Path,
-    block_id: str,
-    max_leaves: int | None = None,
-) -> Path:
-    root = Path(matrix_root)
-    leaves = [leaf for leaf in matrix.expand_leaves() if leaf.block_id == block_id]
-    if max_leaves is not None:
-        leaves = leaves[: int(max_leaves)]
-    rows = build_initial_index_rows(leaves, matrix_root=root)
-    completed_rows: list[dict[str, str]] = []
-    leaves_by_key = {_leaf_key(leaf): leaf for leaf in leaves}
-    for row in rows:
-        leaf = leaves_by_key[_row_key(row)]
-        snapshot_path = write_leaf_spec_snapshot(leaf, root)
-        row["optimization_spec_snapshot"] = str(snapshot_path)
-        row["status"] = "running"
-        row["started_at"] = datetime.now().isoformat()
-        started = time.monotonic()
-        try:
-            updated = _run_leaf(row, evaluation_workers=_evaluation_workers_for_leaf(matrix, leaf))
-            row.update(updated)
-            row["status"] = updated.get("status", "completed")
-        except Exception as exc:
-            row["status"] = "failed"
-            row["failure_reason"] = str(exc)
-        row["finished_at"] = datetime.now().isoformat()
-        row["wall_seconds"] = f"{time.monotonic() - started:.6f}"
-        completed_rows.append(row)
-        write_run_index(root / "run_index.csv", completed_rows + rows[len(completed_rows):])
-    return write_run_index(root / "run_index.csv", completed_rows)
+def execute_leaf(row: dict[str, str], *, evaluation_workers: int) -> dict[str, str]:
+    from optimizers.cli import _run_optimize_benchmark, _temporary_env_overlay
 
-
-def _run_leaf(row: dict[str, str], *, evaluation_workers: int) -> dict[str, str]:
     spec_path = Path(row["optimization_spec_snapshot"])
     output_root = Path(row["run_root"])
     output_root.mkdir(parents=True, exist_ok=True)
@@ -1044,6 +1039,98 @@ def _run_leaf(row: dict[str, str], *, evaluation_workers: int) -> dict[str, str]
             skip_render=False,
         )
     return {"status": "completed"}
+```
+
+- [ ] **Step 4: 实现 runner 骨架和外层并发 cap**
+
+Create `optimizers/matrix/runner.py`:
+
+```python
+from __future__ import annotations
+
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path
+from typing import Iterable
+
+from optimizers.matrix.index import build_initial_index_rows, failed_retry_rows, read_run_index, write_run_index
+from optimizers.matrix.leaf_executor import execute_leaf
+from optimizers.matrix.models import MatrixConfig, MatrixLeaf
+from optimizers.matrix.spec_snapshots import write_leaf_spec_snapshot
+
+
+def run_matrix_block(
+    matrix: MatrixConfig,
+    *,
+    matrix_root: str | Path,
+    block_id: str,
+    max_leaves: int | None = None,
+) -> Path:
+    root = Path(matrix_root)
+    index_path = root / "run_index.csv"
+    if block_id == "M4_rerun_failed_512eval":
+        rows = failed_retry_rows(read_run_index(index_path))
+        leaves = _leaves_for_retry_rows(matrix, rows)
+    else:
+        leaves = [leaf for leaf in matrix.expand_leaves() if leaf.block_id == block_id]
+        if max_leaves is not None:
+            leaves = leaves[: int(max_leaves)]
+        rows = build_initial_index_rows(leaves, matrix_root=root)
+    leaves_by_key = {_leaf_key(leaf): leaf for leaf in leaves}
+    for row in rows:
+        leaf = leaves_by_key[_row_key(row)]
+        row["optimization_spec_snapshot"] = str(write_leaf_spec_snapshot(leaf, root))
+    completed_rows = _run_rows_concurrently(
+        rows,
+        matrix=matrix,
+        leaves_by_key=leaves_by_key,
+        max_workers=_concurrent_runs_for_block(matrix, block_id),
+    )
+    if block_id == "M4_rerun_failed_512eval" and index_path.exists():
+        all_rows = read_run_index(index_path) + completed_rows
+    else:
+        all_rows = completed_rows
+    return write_run_index(index_path, all_rows)
+
+
+def _run_rows_concurrently(
+    rows: list[dict[str, str]],
+    *,
+    matrix: MatrixConfig,
+    leaves_by_key: dict[tuple[str, str, str, str, str], MatrixLeaf],
+    max_workers: int,
+) -> list[dict[str, str]]:
+    completed: list[dict[str, str]] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {}
+        for row in rows:
+            leaf = leaves_by_key[_row_key(row)]
+            futures[executor.submit(_run_leaf_with_timing, row, matrix=matrix, leaf=leaf)] = row
+        for future in as_completed(futures):
+            completed.append(future.result())
+    return completed
+
+
+def _run_leaf_with_timing(row: dict[str, str], *, matrix: MatrixConfig, leaf: MatrixLeaf) -> dict[str, str]:
+    updated = dict(row)
+    updated["status"] = "running"
+    updated["started_at"] = datetime.now().isoformat()
+    started = time.monotonic()
+    try:
+        result = _run_leaf(updated, evaluation_workers=_evaluation_workers_for_leaf(matrix, leaf))
+        updated.update(result)
+        updated["status"] = result.get("status", "completed")
+    except Exception as exc:
+        updated["status"] = "failed"
+        updated["failure_reason"] = str(exc)
+    updated["finished_at"] = datetime.now().isoformat()
+    updated["wall_seconds"] = f"{time.monotonic() - started:.6f}"
+    return updated
+
+
+def _run_leaf(row: dict[str, str], *, evaluation_workers: int) -> dict[str, str]:
+    return execute_leaf(row, evaluation_workers=evaluation_workers)
 
 
 def _evaluation_workers_for_leaf(matrix: MatrixConfig, leaf: MatrixLeaf) -> int:
@@ -1056,15 +1143,54 @@ def _evaluation_workers_for_leaf(matrix: MatrixConfig, leaf: MatrixLeaf) -> int:
     return matrix.resource_caps["external_llm"].evaluation_workers
 
 
+def _concurrent_runs_for_block(matrix: MatrixConfig, block_id: str) -> int:
+    if block_id == "M1_raw_backbone_512eval":
+        return matrix.resource_caps["raw"].concurrent_runs
+    if block_id == "M2_nsga2_union_512eval":
+        return matrix.resource_caps["union"].concurrent_runs
+    if "gemma4" in block_id:
+        return matrix.resource_caps["gemma4"].concurrent_runs
+    if block_id.startswith("M3"):
+        return matrix.resource_caps["external_llm"].concurrent_runs
+    return 1
+
+
+def _leaves_for_retry_rows(matrix: MatrixConfig, rows: Iterable[dict[str, str]]) -> list[MatrixLeaf]:
+    leaves = {_leaf_key(leaf): leaf for leaf in matrix.expand_leaves()}
+    return [leaves[_row_key(row)] for row in rows]
+
+
 def _leaf_key(leaf: MatrixLeaf) -> tuple[str, str, str, str, str]:
     return (leaf.block_id, leaf.scenario_id, leaf.method_id, str(leaf.benchmark_seed), str(leaf.algorithm_seed))
 
 
 def _row_key(row: dict[str, str]) -> tuple[str, str, str, str, str]:
-    return (row["block_id"], row["scenario_id"], row["method_id"], row["benchmark_seed"], row["algorithm_seed"])
+    block_id = row["block_id"]
+    if block_id == "M4_rerun_failed_512eval":
+        block_id = _source_block_for_method(row["method_id"])
+    return (block_id, row["scenario_id"], row["method_id"], row["benchmark_seed"], row["algorithm_seed"])
+
+
+def _source_block_for_method(method_id: str) -> str:
+    if method_id.endswith("_raw"):
+        return "M1_raw_backbone_512eval"
+    if method_id == "nsga2_union":
+        return "M2_nsga2_union_512eval"
+    if method_id.startswith("nsga2_llm_"):
+        profile = method_id.removeprefix("nsga2_llm_")
+        letters = {
+            "gpt_5_4": "a",
+            "qwen3_6_plus": "b",
+            "glm_5": "c",
+            "minimax_m2_5": "d",
+            "deepseek_v4_flash": "e",
+            "gemma4": "f",
+        }
+        return f"M3{letters[profile]}_llm_{profile}_512eval"
+    raise ValueError(f"Unknown method_id: {method_id}")
 ```
 
-- [ ] **Step 4: 增加 CLI 子命令**
+- [ ] **Step 5: 增加 CLI 子命令**
 
 Modify `optimizers/cli.py` imports:
 
@@ -1095,7 +1221,7 @@ from optimizers.matrix.runner import run_matrix_block
         return 0
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [ ] **Step 6: 运行测试确认通过**
 
 Run:
 
@@ -1288,7 +1414,11 @@ Create `tests/optimizers/test_matrix_figures.py`:
 ```python
 from pathlib import Path
 
-from optimizers.matrix.figures import render_distribution_figure
+from optimizers.matrix.figures import (
+    render_distribution_figure,
+    render_failure_stacked_bar,
+    render_rank_heatmap,
+)
 
 
 def test_render_distribution_figure_writes_png_and_pdf(tmp_path: Path) -> None:
@@ -1304,6 +1434,33 @@ def test_render_distribution_figure_writes_png_and_pdf(tmp_path: Path) -> None:
     assert outputs == [tmp_path / "best_temperature_max_distribution.png", tmp_path / "best_temperature_max_distribution.pdf"]
     assert outputs[0].exists()
     assert outputs[1].exists()
+
+
+def test_render_rank_heatmap_writes_png_and_pdf(tmp_path: Path) -> None:
+    rows = [
+        {"scenario_id": "s5", "method_id": "raw", "rank": "2"},
+        {"scenario_id": "s5", "method_id": "union", "rank": "1"},
+        {"scenario_id": "s6", "method_id": "raw", "rank": "1"},
+        {"scenario_id": "s6", "method_id": "union", "rank": "2"},
+    ]
+
+    outputs = render_rank_heatmap(rows, output_dir=tmp_path)
+
+    assert outputs == [tmp_path / "rank_heatmap.png", tmp_path / "rank_heatmap.pdf"]
+    assert all(path.exists() for path in outputs)
+
+
+def test_render_failure_stacked_bar_writes_png_and_pdf(tmp_path: Path) -> None:
+    rows = [
+        {"method_id": "raw", "status": "completed"},
+        {"method_id": "raw", "status": "failed"},
+        {"method_id": "union", "status": "timeout"},
+    ]
+
+    outputs = render_failure_stacked_bar(rows, output_dir=tmp_path)
+
+    assert outputs == [tmp_path / "failure_stacked_bar.png", tmp_path / "failure_stacked_bar.pdf"]
+    assert all(path.exists() for path in outputs)
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -1340,18 +1497,54 @@ def render_distribution_figure(rows: Iterable[dict[str, str]], *, metric: str, o
     frame = pd.DataFrame(list(rows))
     frame[metric] = frame[metric].astype(float)
 
-    sns.set_theme(style="ticks", context="paper", font_scale=1.05)
-    sns.set_palette(OKABE_ITO)
+    _set_style()
     fig, ax = plt.subplots(figsize=(7.0, 3.5))
     sns.boxplot(data=frame, x="method_id", y=metric, hue="scenario_id", ax=ax, showfliers=False)
     sns.stripplot(data=frame, x="method_id", y=metric, hue="scenario_id", ax=ax, dodge=True, color="black", alpha=0.45, size=3, legend=False)
     ax.set_xlabel("Method")
     ax.set_ylabel(metric)
+    return _save(fig, output_root, f"{metric}_distribution")
+
+
+def render_rank_heatmap(rows: Iterable[dict[str, str]], *, output_dir: str | Path) -> list[Path]:
+    output_root = Path(output_dir)
+    output_root.mkdir(parents=True, exist_ok=True)
+    frame = pd.DataFrame(list(rows))
+    frame["rank"] = frame["rank"].astype(float)
+    pivot = frame.pivot(index="scenario_id", columns="method_id", values="rank")
+
+    _set_style()
+    fig, ax = plt.subplots(figsize=(6.5, 3.0))
+    sns.heatmap(pivot, annot=True, fmt=".1f", cmap="viridis_r", cbar_kws={"label": "Rank"}, ax=ax)
+    ax.set_xlabel("Method")
+    ax.set_ylabel("Scenario")
+    return _save(fig, output_root, "rank_heatmap")
+
+
+def render_failure_stacked_bar(rows: Iterable[dict[str, str]], *, output_dir: str | Path) -> list[Path]:
+    output_root = Path(output_dir)
+    output_root.mkdir(parents=True, exist_ok=True)
+    frame = pd.DataFrame(list(rows))
+    counts = frame.groupby(["method_id", "status"]).size().unstack(fill_value=0)
+
+    _set_style()
+    fig, ax = plt.subplots(figsize=(7.0, 3.5))
+    counts.plot(kind="bar", stacked=True, color=OKABE_ITO[: len(counts.columns)], ax=ax)
+    ax.set_xlabel("Method")
+    ax.set_ylabel("Run count")
+    return _save(fig, output_root, "failure_stacked_bar")
+
+
+def _set_style() -> None:
+    sns.set_theme(style="ticks", context="paper", font_scale=1.05)
+    sns.set_palette(OKABE_ITO)
+
+
+def _save(fig, output_root: Path, stem: str) -> list[Path]:
     sns.despine(fig=fig)
     fig.tight_layout()
-
-    png_path = output_root / f"{metric}_distribution.png"
-    pdf_path = output_root / f"{metric}_distribution.pdf"
+    png_path = output_root / f"{stem}.png"
+    pdf_path = output_root / f"{stem}.pdf"
     fig.savefig(png_path, dpi=300)
     fig.savefig(pdf_path)
     plt.close(fig)
@@ -1370,7 +1563,7 @@ Expected: PASS。
 
 ---
 
-## Task 9：实现 representative run 选择和关键 compare-runs 规划
+## Task 9：实现 representative run 选择、Pareto knee 选择和关键 compare-runs 规划
 
 **Files:**
 - Create: `optimizers/matrix/representatives.py`
@@ -1381,7 +1574,7 @@ Expected: PASS。
 Create `tests/optimizers/test_matrix_representatives.py`:
 
 ```python
-from optimizers.matrix.representatives import select_best_hv_representatives
+from optimizers.matrix.representatives import plan_compare_bundles, select_best_hv_representatives, select_knee_point
 
 
 def test_select_best_hv_representatives_picks_best_successful_run_per_cell() -> None:
@@ -1398,6 +1591,31 @@ def test_select_best_hv_representatives_picks_best_successful_run_per_cell() -> 
         {"scenario_id": "s5", "method_id": "raw", "run_root": "run-b", "final_hypervolume": 0.5},
         {"scenario_id": "s5", "method_id": "union", "run_root": "run-d", "final_hypervolume": 0.4},
     ]
+
+
+def test_select_knee_point_picks_point_nearest_ideal_after_minmax_scaling() -> None:
+    points = [
+        {"candidate_id": "a", "temperature_max": "100", "gradient_rms": "50"},
+        {"candidate_id": "b", "temperature_max": "80", "gradient_rms": "80"},
+        {"candidate_id": "c", "temperature_max": "60", "gradient_rms": "120"},
+    ]
+
+    assert select_knee_point(points) == "b"
+
+
+def test_plan_compare_bundles_pairs_key_methods_within_scenario() -> None:
+    representatives = [
+        {"scenario_id": "s5", "method_id": "nsga2_raw", "run_root": "raw"},
+        {"scenario_id": "s5", "method_id": "nsga2_union", "run_root": "union"},
+        {"scenario_id": "s5", "method_id": "nsga2_llm_gpt_5_4", "run_root": "llm"},
+    ]
+
+    plans = plan_compare_bundles(representatives)
+
+    assert plans == [
+        {"scenario_id": "s5", "baseline_run": "raw", "candidate_run": "union", "compare_id": "s5__nsga2_raw__vs__nsga2_union"},
+        {"scenario_id": "s5", "baseline_run": "union", "candidate_run": "llm", "compare_id": "s5__nsga2_union__vs__nsga2_llm_gpt_5_4"},
+    ]
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -1410,7 +1628,7 @@ Run:
 
 Expected: FAIL。
 
-- [ ] **Step 3: 实现代表 run 选择**
+- [ ] **Step 3: 实现代表 run、knee point 和 compare bundle 规划**
 
 Create `optimizers/matrix/representatives.py`:
 
@@ -1418,6 +1636,7 @@ Create `optimizers/matrix/representatives.py`:
 from __future__ import annotations
 
 from collections import defaultdict
+from math import sqrt
 from typing import Iterable
 
 
@@ -1442,6 +1661,49 @@ def select_best_hv_representatives(rows: Iterable[dict[str, str]]) -> list[dict[
             }
         )
     return selected
+
+
+def select_knee_point(points: Iterable[dict[str, str]]) -> str:
+    candidates = list(points)
+    temps = [float(point["temperature_max"]) for point in candidates]
+    grads = [float(point["gradient_rms"]) for point in candidates]
+    temp_min, temp_max = min(temps), max(temps)
+    grad_min, grad_max = min(grads), max(grads)
+
+    def score(point: dict[str, str]) -> float:
+        temp = _scale(float(point["temperature_max"]), temp_min, temp_max)
+        grad = _scale(float(point["gradient_rms"]), grad_min, grad_max)
+        return sqrt(temp * temp + grad * grad)
+
+    return str(min(candidates, key=score)["candidate_id"])
+
+
+def plan_compare_bundles(representatives: Iterable[dict[str, str]]) -> list[dict[str, str]]:
+    by_scenario: dict[str, dict[str, str]] = defaultdict(dict)
+    for row in representatives:
+        by_scenario[row["scenario_id"]][row["method_id"]] = row["run_root"]
+    plans: list[dict[str, str]] = []
+    for scenario_id, methods in sorted(by_scenario.items()):
+        pairs = [("nsga2_raw", "nsga2_union")]
+        pairs.extend(("nsga2_union", method_id) for method_id in sorted(methods) if method_id.startswith("nsga2_llm_"))
+        for baseline, candidate in pairs:
+            if baseline not in methods or candidate not in methods:
+                continue
+            plans.append(
+                {
+                    "scenario_id": scenario_id,
+                    "baseline_run": methods[baseline],
+                    "candidate_run": methods[candidate],
+                    "compare_id": f"{scenario_id}__{baseline}__vs__{candidate}",
+                }
+            )
+    return plans
+
+
+def _scale(value: float, minimum: float, maximum: float) -> float:
+    if maximum == minimum:
+        return 0.0
+    return (value - minimum) / (maximum - minimum)
 ```
 
 - [ ] **Step 4: 运行测试确认通过**
