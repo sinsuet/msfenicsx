@@ -413,7 +413,7 @@ def test_policy_snapshot_preserves_cold_start_candidate_support() -> None:
     snapshot = policy_kernel.build_policy_snapshot(_cold_start_state(), candidates)
 
     _assert_snapshot_preserves_support(snapshot, candidates)
-    assert "cold_start_stable_bootstrap" in snapshot.reason_codes
+    assert "cold_start_stable_bootstrap" not in snapshot.reason_codes
 
 
 def test_policy_snapshot_preserves_prefeasible_candidate_support() -> None:
@@ -2817,28 +2817,25 @@ def test_detect_search_phase_uses_recover_release_ready_even_when_reentry_pressu
     assert policy.phase == "post_feasible_preserve"
 
 
-def test_post_feasible_preserve_keeps_unproven_assisted_gradient_routes_out() -> None:
+def test_post_feasible_preserve_marks_unproven_assisted_gradient_routes_as_risky() -> None:
     policy_kernel = _policy_kernel_module()
-
-    policy = policy_kernel.build_policy_snapshot(
-        _post_feasible_preserve_unproven_assisted_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "component_relocate_1",
-            "hotspot_spread",
-            "gradient_band_smooth",
-            "congestion_relief",
-            "layout_rebalance",
-        ),
-    )
-
-    assert policy.phase == "post_feasible_preserve"
-    assert policy.allowed_operator_ids == (
+    candidates = (
         "vector_sbx_pm",
         "component_jitter_1",
         "component_relocate_1",
+        "hotspot_spread",
+        "gradient_band_smooth",
+        "congestion_relief",
+        "layout_rebalance",
     )
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_preserve_unproven_assisted_state(),
+        candidates,
+    )
+
+    assert policy.phase == "post_feasible_preserve"
+    _assert_snapshot_preserves_support(policy, candidates)
     assert policy.candidate_annotations["hotspot_spread"]["evidence_level"] == "speculative"
     assert policy.candidate_annotations["hotspot_spread"]["post_feasible_role"] == "risky_expand"
 
@@ -2908,209 +2905,220 @@ def test_post_feasible_expand_throttles_semantic_route_with_recent_regression_an
 
 def test_post_feasible_expand_throttles_low_success_gradient_route_family() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "gradient_band_smooth",
+        "congestion_relief",
+        "sink_retarget",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_expand_low_success_gradient_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "gradient_band_smooth",
-            "congestion_relief",
-            "sink_retarget",
-        ),
+        candidates,
     )
 
     assert policy.phase == "post_feasible_expand"
+    _assert_snapshot_preserves_support(policy, candidates)
     assert policy.candidate_annotations["congestion_relief"]["expand_budget_state"]["budget_status"] == "throttled"
     assert policy.candidate_annotations["congestion_relief"]["expand_budget_state"]["low_success_cooldown_active"] is True
-    assert "congestion_relief" not in policy.allowed_operator_ids
-    assert "gradient_band_smooth" in policy.allowed_operator_ids
-    assert "component_jitter_1" in policy.allowed_operator_ids
+    assert policy.candidate_annotations["gradient_band_smooth"]["expand_budget_state"]["budget_status"] == "neutral"
+    assert policy.candidate_annotations["component_jitter_1"]["expand_budget_state"]["budget_status"] == "preferred"
+    assert "post_feasible_expand_semantic_budget" in policy.reason_codes
 
 
 def test_post_feasible_expand_caps_sink_retarget_when_gradient_pressure_needs_polishing() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "gradient_band_smooth",
+        "congestion_relief",
+        "sink_retarget",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_expand_gradient_sink_route_dominance_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "gradient_band_smooth",
-            "congestion_relief",
-            "sink_retarget",
-        ),
+        candidates,
     )
 
     assert policy.phase == "post_feasible_expand"
-    assert "sink_retarget" not in policy.allowed_operator_ids
-    assert "gradient_band_smooth" in policy.allowed_operator_ids
-    assert "component_jitter_1" in policy.allowed_operator_ids
+    _assert_snapshot_preserves_support(policy, candidates)
+    assert policy.candidate_annotations["sink_retarget"]["route_budget_state"]["route_family"] == "sink_retarget"
+    assert policy.candidate_annotations["sink_retarget"]["route_budget_state"]["recent_family_count"] == 4
+    assert policy.candidate_annotations["sink_retarget"]["expand_budget_state"]["budget_status"] == "preferred"
+    assert policy.candidate_annotations["gradient_band_smooth"]["gradient_polish_state"]["budget_status"] == "neutral"
+    assert policy.candidate_annotations["component_jitter_1"]["gradient_polish_state"]["budget_status"] == "polish_alternative"
     assert "post_feasible_expand_objective_route_cap" in policy.reason_codes
 
 
 def test_post_feasible_expand_caps_uncredited_custom_probe_budget_within_generation() -> None:
     policy_kernel = _policy_kernel_module()
-
-    policy = policy_kernel.build_policy_snapshot(
-        _post_feasible_expand_generation_probe_budget_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "component_relocate_1",
-            "hotspot_spread",
-            "hotspot_pull_toward_sink",
-            "gradient_band_smooth",
-            "congestion_relief",
-            "layout_rebalance",
-            "sink_retarget",
-        ),
-    )
-
-    assert policy.phase == "post_feasible_expand"
-    assert "post_feasible_expand_generation_probe_budget" in policy.reason_codes
-    assert policy.allowed_operator_ids == (
+    candidates = (
         "vector_sbx_pm",
         "component_jitter_1",
         "component_relocate_1",
+        "hotspot_spread",
+        "hotspot_pull_toward_sink",
+        "gradient_band_smooth",
+        "congestion_relief",
+        "layout_rebalance",
+        "sink_retarget",
     )
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_generation_probe_budget_state(),
+        candidates,
+    )
+
+    assert policy.phase == "post_feasible_expand"
+    _assert_snapshot_preserves_support(policy, candidates)
     assert policy.candidate_annotations["hotspot_spread"]["generation_probe_state"]["budget_status"] == "throttled"
     assert policy.candidate_annotations["congestion_relief"]["generation_probe_state"]["custom_total_count"] == 4
+    assert "post_feasible_expand_generation_probe_budget" in policy.reason_codes
 
 
 def test_post_feasible_expand_keeps_credited_custom_when_generation_probe_budget_is_exhausted() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "component_relocate_1",
+        "hotspot_spread",
+        "hotspot_pull_toward_sink",
+        "gradient_band_smooth",
+        "congestion_relief",
+        "layout_rebalance",
+        "sink_retarget",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_expand_generation_probe_budget_with_credit_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "component_relocate_1",
-            "hotspot_spread",
-            "hotspot_pull_toward_sink",
-            "gradient_band_smooth",
-            "congestion_relief",
-            "layout_rebalance",
-            "sink_retarget",
-        ),
+        candidates,
     )
 
+    assert policy.phase == "post_feasible_expand"
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "post_feasible_expand_generation_probe_budget" in policy.reason_codes
-    assert "sink_retarget" in policy.allowed_operator_ids
-    assert "hotspot_spread" not in policy.allowed_operator_ids
-    assert "congestion_relief" not in policy.allowed_operator_ids
     assert policy.candidate_annotations["sink_retarget"]["generation_probe_state"]["budget_status"] == "credited"
+    assert policy.candidate_annotations["hotspot_spread"]["generation_probe_state"]["budget_status"] == "throttled"
+    assert policy.candidate_annotations["congestion_relief"]["generation_probe_state"]["budget_status"] == "throttled"
 
 
 def test_post_feasible_expand_caps_shared_gradient_route_probe_after_small_batch() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "component_relocate_1",
+        "gradient_band_smooth",
+        "congestion_relief",
+        "sink_retarget",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_expand_generation_route_probe_budget_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "component_relocate_1",
-            "gradient_band_smooth",
-            "congestion_relief",
-            "sink_retarget",
-        ),
+        candidates,
     )
 
+    assert policy.phase == "post_feasible_expand"
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "post_feasible_expand_generation_probe_budget" in policy.reason_codes
-    assert "gradient_band_smooth" not in policy.allowed_operator_ids
-    assert "congestion_relief" not in policy.allowed_operator_ids
-    assert "sink_retarget" in policy.allowed_operator_ids
-    assert "component_jitter_1" in policy.allowed_operator_ids
+    assert policy.candidate_annotations["gradient_band_smooth"]["generation_probe_state"]["budget_status"] == "throttled"
+    assert policy.candidate_annotations["congestion_relief"]["generation_probe_state"]["budget_status"] == "throttled"
+    assert policy.candidate_annotations["sink_retarget"]["generation_probe_state"]["budget_status"] == "open_probe"
 
 
 def test_post_feasible_expand_keeps_peak_budget_fill_route_after_probe_budget() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "component_relocate_1",
+        "sink_resize",
+        "hotspot_pull_toward_sink",
+        "sink_retarget",
+        "congestion_relief",
+        "layout_rebalance",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_expand_peak_budget_fill_probe_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "component_relocate_1",
-            "sink_resize",
-            "hotspot_pull_toward_sink",
-            "sink_retarget",
-            "congestion_relief",
-            "layout_rebalance",
-        ),
+        candidates,
     )
 
+    assert policy.phase == "post_feasible_expand"
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "post_feasible_expand_generation_probe_budget" in policy.reason_codes
-    assert "sink_retarget" in policy.allowed_operator_ids
-    assert "sink_resize" in policy.allowed_operator_ids
-    assert "congestion_relief" not in policy.allowed_operator_ids
     assert policy.candidate_annotations["sink_retarget"]["generation_probe_state"]["budget_status"] == "peak_budget_fill"
+    assert policy.candidate_annotations["sink_resize"]["generation_probe_state"]["budget_status"] == "peak_budget_fill"
+    assert policy.candidate_annotations["congestion_relief"]["generation_probe_state"]["budget_status"] == "throttled"
 
 
 def test_post_feasible_expand_hands_off_broad_global_after_peak_improved_gradient_stagnation() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_swap_2",
+        "component_jitter_1",
+        "component_relocate_1",
+        "gradient_band_smooth",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_expand_peak_improved_gradient_polish_state(),
-        (
-            "vector_sbx_pm",
-            "component_swap_2",
-            "component_jitter_1",
-            "component_relocate_1",
-            "gradient_band_smooth",
-        ),
+        candidates,
     )
 
+    assert policy.phase == "post_feasible_expand"
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "post_feasible_expand_gradient_polish_handoff" in policy.reason_codes
-    assert "vector_sbx_pm" not in policy.allowed_operator_ids
-    assert "component_swap_2" in policy.allowed_operator_ids
-    assert "component_jitter_1" in policy.allowed_operator_ids
-    assert policy.candidate_annotations["component_swap_2"]["gradient_polish_state"]["handoff_active"] is True
-    assert policy.candidate_annotations["component_swap_2"]["gradient_polish_state"]["escape_credit"] is True
+    assert policy.candidate_annotations["component_swap_2"]["gradient_polish_state"]["budget_status"] == "escape_credit"
+    assert policy.candidate_annotations["vector_sbx_pm"]["gradient_polish_state"]["budget_status"] == "throttled"
+    assert policy.candidate_annotations["component_jitter_1"]["gradient_polish_state"]["budget_status"] == "polish_alternative"
 
 
 def test_post_feasible_expand_suppresses_uncredited_broad_global_during_gradient_polish() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_swap_2",
+        "component_jitter_1",
+        "component_relocate_1",
+        "gradient_band_smooth",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_expand_peak_improved_uncredited_broad_state(),
-        (
-            "vector_sbx_pm",
-            "component_swap_2",
-            "component_jitter_1",
-            "component_relocate_1",
-            "gradient_band_smooth",
-        ),
+        candidates,
     )
 
+    assert policy.phase == "post_feasible_expand"
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "post_feasible_expand_gradient_polish_handoff" in policy.reason_codes
-    assert "vector_sbx_pm" not in policy.allowed_operator_ids
-    assert "component_swap_2" not in policy.allowed_operator_ids
+    assert policy.candidate_annotations["component_swap_2"]["gradient_polish_state"]["budget_status"] == "throttled"
+    assert policy.candidate_annotations["vector_sbx_pm"]["gradient_polish_state"]["budget_status"] == "throttled"
     assert policy.candidate_annotations["component_swap_2"]["gradient_polish_state"]["escape_credit"] is False
 
 
 def test_post_feasible_preserve_cools_sink_plateau_and_low_success_stable_routes() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "anchored_component_jitter",
+        "component_swap_2",
+        "sink_shift",
+        "sink_resize",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_preserve_plateau_sink_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "anchored_component_jitter",
-            "component_swap_2",
-            "sink_shift",
-            "sink_resize",
-        ),
+        candidates,
     )
 
     assert policy.phase == "post_feasible_preserve"
-    assert "sink_shift" not in policy.allowed_operator_ids
-    assert "anchored_component_jitter" not in policy.allowed_operator_ids
-    assert "vector_sbx_pm" in policy.allowed_operator_ids
-    assert "component_swap_2" in policy.allowed_operator_ids
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "post_feasible_preserve_plateau_cooldown" in policy.reason_codes
     assert "post_feasible_stable_low_success_cooldown" in policy.reason_codes
     assert policy.candidate_annotations["sink_shift"]["preserve_plateau_state"]["budget_status"] == "throttled"
@@ -3119,46 +3127,45 @@ def test_post_feasible_preserve_cools_sink_plateau_and_low_success_stable_routes
 
 def test_post_feasible_preserve_cools_assisted_sink_retarget_plateau() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "component_relocate_1",
+        "sink_shift",
+        "sink_resize",
+        "sink_retarget",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_preserve_sink_retarget_plateau_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "component_relocate_1",
-            "sink_shift",
-            "sink_resize",
-            "sink_retarget",
-        ),
+        candidates,
     )
 
     assert policy.phase == "post_feasible_preserve"
-    assert "sink_retarget" not in policy.allowed_operator_ids
-    assert "component_jitter_1" in policy.allowed_operator_ids
-    assert "component_relocate_1" in policy.allowed_operator_ids
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "post_feasible_preserve_plateau_cooldown" in policy.reason_codes
     assert policy.candidate_annotations["sink_retarget"]["preserve_plateau_state"]["budget_status"] == "throttled"
 
 
 def test_post_feasible_preserve_keeps_peak_budget_fill_routes_during_plateau() -> None:
     policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "component_relocate_1",
+        "component_swap_2",
+        "sink_shift",
+        "sink_resize",
+        "sink_retarget",
+    )
 
     policy = policy_kernel.build_policy_snapshot(
         _post_feasible_preserve_peak_budget_fill_plateau_state(),
-        (
-            "vector_sbx_pm",
-            "component_jitter_1",
-            "component_relocate_1",
-            "component_swap_2",
-            "sink_shift",
-            "sink_resize",
-            "sink_retarget",
-        ),
+        candidates,
     )
 
     assert policy.phase == "post_feasible_preserve"
-    assert "sink_resize" in policy.allowed_operator_ids
-    assert "sink_retarget" in policy.allowed_operator_ids
+    _assert_snapshot_preserves_support(policy, candidates)
     assert policy.candidate_annotations["sink_resize"]["preserve_plateau_state"]["budget_status"] == "neutral"
     assert policy.candidate_annotations["sink_retarget"]["preserve_plateau_state"]["budget_status"] == "neutral"
 

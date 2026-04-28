@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from llm.openai_compatible.client import OpenAICompatibleClient
@@ -78,6 +80,26 @@ class _FakeHTTPClient:
             status_code=self.status_code,
             content_type=self.content_type,
         )
+
+
+def _json_http_response(content_payload: dict[str, object], *, model: str = "gpt-5.4") -> str:
+    return json.dumps(
+        {
+            "id": "resp_123",
+            "object": "chat.completion",
+            "created": 1,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": json.dumps(content_payload),
+                    },
+                }
+            ],
+        }
+    )
 
 
 def _build_config(*, capability_profile: str) -> OpenAICompatibleConfig:
@@ -177,11 +199,8 @@ def test_chat_compatible_json_client_can_use_direct_http_transport(
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
     http_client = _FakeHTTPClient(
-        (
-            '{"id":"resp_123","object":"chat.completion","created":1,"model":"gpt-5.4",'
-            '"choices":[{"index":0,"message":{"role":"assistant","content":"'
-            '{\\"selected_operator_id\\":\\"global_explore\\",\\"phase\\":\\"explore\\",'
-            '\\"rationale\\":\\"widen search\\"}"}}]}'
+        _json_http_response(
+            {"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}
         )
     )
     client = OpenAICompatibleClient(
@@ -220,11 +239,8 @@ def test_chat_compatible_json_http_request_forwards_reasoning_when_configured(
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
     http_client = _FakeHTTPClient(
-        (
-            '{"id":"resp_123","object":"chat.completion","created":1,"model":"gpt-5.4",'
-            '"choices":[{"index":0,"message":{"role":"assistant","content":"'
-            '{\\"selected_operator_id\\":\\"global_explore\\",\\"phase\\":\\"explore\\",'
-            '\\"rationale\\":\\"widen search\\"}"}}]}'
+        _json_http_response(
+            {"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}
         )
     )
     client = OpenAICompatibleClient(
@@ -259,11 +275,9 @@ def test_chat_compatible_json_http_request_merges_extra_body_from_env(
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("LLM_EXTRA_BODY", '{"enable_thinking": false}')
     http_client = _FakeHTTPClient(
-        (
-            '{"id":"resp_123","object":"chat.completion","created":1,"model":"qwen3.6-plus",'
-            '"choices":[{"index":0,"message":{"role":"assistant","content":"'
-            '{\"selected_operator_id\":\"global_explore\",\"phase\":\"explore\",'
-            '\"rationale\":\"widen search\"}"}}]}'
+        _json_http_response(
+            {"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"},
+            model="qwen3.6-plus",
         )
     )
     client = OpenAICompatibleClient(
@@ -298,11 +312,8 @@ def test_chat_compatible_json_http_request_omits_reasoning_when_unset(
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
     http_client = _FakeHTTPClient(
-        (
-            '{"id":"resp_123","object":"chat.completion","created":1,"model":"gpt-5.4",'
-            '"choices":[{"index":0,"message":{"role":"assistant","content":"'
-            '{\"selected_operator_id\":\"global_explore\",\"phase\":\"explore\",'
-            '\"rationale\":\"widen search\"}"}}]}'
+        _json_http_response(
+            {"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}
         )
     )
     client = OpenAICompatibleClient(

@@ -131,7 +131,7 @@ The fixed benchmark decisions are:
 
 - Canonical execution context is WSL2 Ubuntu.
 - Even if the workspace is opened through `\\wsl$\\Ubuntu\\home\\hymn\\msfenicsx`, agents should treat the repo as Linux-first and use `/home/hymn/msfenicsx`.
-- When worktrees are needed for this repository, create them under the repo-root `.worktree/` directory. Do not use `.claude/worktrees/`; keep the location shared with Claude and Codex for a single convention.
+- When worktrees are needed for this repository, create them under the repo-root `.worktrees/` directory. Do not use `.claude/worktrees/`; keep the location shared with Claude and Codex for a single convention.
 - Use the `msfenicsx` conda environment for Python, CLI, and tests.
 - Prefer:
   - `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`

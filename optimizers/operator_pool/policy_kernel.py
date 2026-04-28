@@ -499,8 +499,10 @@ def build_policy_snapshot(
         reason_codes.append("post_feasible_expand_saturation_demotion")
 
     if phase == "cold_start":
-        filtered = _filter_to_stable_families(candidate_ids, candidate_annotations)
-        if filtered != candidate_ids:
+        if any(
+            str(annotation.get("prefeasible_role", "")) == "speculative_custom"
+            for annotation in candidate_annotations.values()
+        ):
             reason_codes.append("cold_start_stable_bootstrap")
 
     if phase.startswith("prefeasible"):

@@ -225,10 +225,10 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s4_dense25_union.yaml
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/s4_dense25_eval.yaml
-  legality_policy_id: projection_plus_local_restore
+  legality_policy_id: minimal_canonicalization
 operator_control:
   controller: llm
-  registry_profile: primitive_plus_assisted
+  registry_profile: primitive_clean
   operator_pool:
   - vector_sbx_pm
   - component_jitter_1
@@ -237,12 +237,6 @@ operator_control:
   - component_swap_2
   - sink_shift
   - sink_resize
-  - hotspot_pull_toward_sink
-  - hotspot_spread
-  - gradient_band_smooth
-  - congestion_relief
-  - sink_retarget
-  - layout_rebalance
   controller_parameters:
     provider: openai-compatible
     capability_profile: chat_compatible_json

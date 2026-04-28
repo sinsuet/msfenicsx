@@ -53,18 +53,10 @@ def _substrate_fields(spec: dict) -> dict:
         "num_generations": algorithm["num_generations"],
         "seed": algorithm["seed"],
     }
-def test_s1_typical_union_and_llm_share_search_substrate() -> None:
-    union_spec = _load_yaml("scenarios/optimization/s1_typical_union.yaml")
-    llm_spec = _load_yaml("scenarios/optimization/s1_typical_llm.yaml")
-
-    assert union_spec["operator_control"]["controller"] == "random_uniform"
-    assert llm_spec["operator_control"]["controller"] == "llm"
-    assert _substrate_fields(llm_spec) == _substrate_fields(union_spec)
-
-
-def test_s2_staged_union_and_llm_share_search_substrate() -> None:
-    union_spec = _load_yaml("scenarios/optimization/s2_staged_union.yaml")
-    llm_spec = _load_yaml("scenarios/optimization/s2_staged_llm.yaml")
+@pytest.mark.parametrize("scenario", ["s1_typical", "s2_staged", "s3_scale20", "s4_dense25"])
+def test_paper_facing_union_and_llm_share_search_substrate(scenario: str) -> None:
+    union_spec = _load_yaml(f"scenarios/optimization/{scenario}_union.yaml")
+    llm_spec = _load_yaml(f"scenarios/optimization/{scenario}_llm.yaml")
 
     assert union_spec["operator_control"]["controller"] == "random_uniform"
     assert llm_spec["operator_control"]["controller"] == "llm"
