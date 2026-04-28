@@ -114,12 +114,12 @@ _STABLE_PROMPT_OPERATOR_IDS = frozenset(
 )
 _OPERATOR_INTENTS: dict[str, str] = {
     "vector_sbx_pm": "native_baseline",
-    "component_jitter_1": "local_cleanup",
-    "anchored_component_jitter": "local_cleanup",
-    "component_relocate_1": "frontier_expand",
-    "component_swap_2": "frontier_expand",
-    "sink_shift": "sink_retarget",
-    "sink_resize": "preserve_feasible",
+    "component_jitter_1": "component_local_peak_cleanup",
+    "anchored_component_jitter": "component_local_gradient_cleanup",
+    "component_relocate_1": "component_frontier_expand",
+    "component_swap_2": "layout_frontier_diversify",
+    "sink_shift": "sink_alignment_adjust",
+    "sink_resize": "sink_budget_adjust",
     "hotspot_pull_toward_sink": "sink_retarget",
     "hotspot_spread": "hotspot_spread",
     "gradient_band_smooth": "congestion_relief",
@@ -133,14 +133,20 @@ _OPERATOR_INTENTS: dict[str, str] = {
     "spread_hottest_cluster": "hotspot_spread",
     "smooth_high_gradient_band": "local_cleanup",
     "reduce_local_congestion": "congestion_relief",
-    "repair_sink_budget": "preserve_feasible",
-    "slide_sink": "sink_retarget",
+    "repair_sink_budget": "sink_budget_adjust",
+    "slide_sink": "sink_alignment_adjust",
     "rebalance_layout": "congestion_relief",
 }
 _INTENT_SUMMARIES: dict[str, str] = {
-    "native_baseline": "fall back to the matched native baseline proposal route.",
+    "native_baseline": "use the raw genetic recombination/mutation route as a fair-pool anchor when it is comparably applicable, not only as a last fallback.",
     "frontier_expand": "seek new Pareto support while preserving acceptable feasibility stability.",
+    "component_local_peak_cleanup": "make a bounded local component move around the incumbent basin to relieve peak-temperature stagnation.",
+    "component_local_gradient_cleanup": "make a bounded anchored component move to smooth local gradient pressure without global disruption.",
+    "component_frontier_expand": "relocate one component to test a new layout basin when frontier pressure or peak stagnation is active.",
+    "layout_frontier_diversify": "swap components to diversify the layout and improve gradient/frontier coverage.",
     "local_cleanup": "make a low-risk local refinement around the incumbent basin.",
+    "sink_alignment_adjust": "shift sink alignment toward the active hotspot geometry when sink placement is the bottleneck.",
+    "sink_budget_adjust": "adjust sink span only when sink budget, span, or alignment is the active bottleneck; do not use it as a generic preserve fallback.",
     "sink_retarget": "retarget sink alignment toward the active hotspot geometry.",
     "hotspot_spread": "disperse a compact hotspot cluster to reduce local thermal pressure.",
     "congestion_relief": "open space in locally congested regions of the layout.",
@@ -728,11 +734,19 @@ class LLMOperatorController:
             "decision surface. Rank by preserve_score, frontier_score, regression_risk, objective balance, "
             "applicability, expected effects, retrieval evidence, and soft guardrails. Treat recent concentration as "
             "context, not an instruction to copy it. Keep every provided candidate operator available; policy guidance "
-            "is soft unless the candidate list itself changes. If semantic_trial_mode is encourage_bounded_trial, use "
-            "at most one listed semantic trial before returning to native_baseline. Treat exact positive retrieval matches "
-            "as strongest same-regime route evidence; when exact_positive_match_mode is prefer_exact_match, prioritize "
-            "metadata.decision_axes.exact_positive_match_operator_ids when risk is comparable. When the hotspot is already "
-            "inside the sink corridor, hotspot_spread is a direct expand move rather than a sink-retargeting detour. "
+            "is soft unless the candidate list itself changes. Prefer shared primitive operators whose intent matches "
+            "the current domain regime, but keep native_baseline as a valid fair-pool anchor rather than a fallback-only "
+            "option. Use native_baseline when it is comparably applicable or when its frontier/feasibility evidence is "
+            "not clearly weaker than domain primitives; reserve repeated native_baseline only when it is repeatedly "
+            "dominant without corresponding diversity or progress. Use sink_budget_adjust only when sink span, sink budget, "
+            "or sink alignment is the active bottleneck; do not treat it as a generic preserve-feasibility answer. If "
+            "shared_primitive_trial_candidates are listed, treat them as bounded diversification choices over the same fair "
+            "primitive pool. If semantic_trial_mode is encourage_bounded_trial, use at most one listed semantic trial before "
+            "returning to native_baseline. "
+            "Treat exact positive retrieval matches as strongest same-regime route evidence; when exact_positive_match_mode "
+            "is prefer_exact_match, prioritize metadata.decision_axes.exact_positive_match_operator_ids when risk is "
+            "comparable. When the hotspot is already inside the sink corridor, hotspot_spread is a direct expand move "
+            "rather than a sink-retargeting detour. "
             f"Intent menu: {intent_panel}. Candidate operator intents: {operator_intent_map}."
         )
         phase_policy_guidance = self._build_phase_policy_guidance(policy_snapshot)
@@ -866,6 +880,10 @@ class LLMOperatorController:
         objective_balance = regime_panel.get("objective_balance")
         if not isinstance(objective_balance, Mapping):
             objective_balance = {}
+        candidate_operator_ids = [str(operator_id) for operator_id in metadata.get("candidate_operator_ids", [])]
+        if not candidate_operator_ids:
+            candidate_operator_ids = [str(operator_id) for operator_id in operator_panel.keys()]
+        preferred_effect = str(objective_balance.get("preferred_effect", "")).strip()
 
         peak_improve_candidates: list[str] = []
         gradient_improve_candidates: list[str] = []
@@ -903,6 +921,7 @@ class LLMOperatorController:
         semantic_trial_mode = "none"
         semantic_trial_reason = ""
         semantic_trial_candidates: list[str] = []
+        shared_primitive_trial_candidates: list[str] = []
         route_family_candidates: list[str] = []
         exact_positive_match_operator_ids = LLMOperatorController._build_exact_positive_match_operator_ids(
             retrieval_panel,
@@ -932,6 +951,11 @@ class LLMOperatorController:
             route_family_candidates = LLMOperatorController._build_route_family_candidates(
                 operator_panel,
                 semantic_trial_candidates=semantic_trial_candidates,
+            )
+            shared_primitive_trial_candidates = LLMOperatorController._build_shared_primitive_trial_candidates(
+                operator_panel,
+                preferred_effect=preferred_effect,
+                frontier_score=frontier_score,
             )
             if phase == "post_feasible_expand":
                 hotspot_spread_operator_id = ""
@@ -986,6 +1010,20 @@ class LLMOperatorController:
                 exact_positive_match_route_families,
                 route_family_candidates,
             )
+        if phase in {"post_feasible_expand", "post_feasible_recover", "post_feasible_preserve"} and preserve_score >= 2:
+            shared_primitive_trial_candidates = LLMOperatorController._prioritize_shared_primitive_trial_candidates(
+                candidate_operator_ids,
+                operator_panel,
+                shared_primitive_trial_candidates,
+                preferred_effect=preferred_effect,
+                frontier_score=frontier_score,
+            )
+            if not shared_primitive_trial_candidates:
+                shared_primitive_trial_candidates = LLMOperatorController._build_shared_primitive_trial_candidates(
+                    operator_panel,
+                    preferred_effect=preferred_effect,
+                    frontier_score=frontier_score,
+                )
         return {
             "objective_balance_pressure": str(objective_balance.get("balance_pressure", "low")),
             "preferred_effect": objective_balance.get("preferred_effect"),
@@ -1007,6 +1045,7 @@ class LLMOperatorController:
             "semantic_trial_mode": semantic_trial_mode,
             "semantic_trial_reason": semantic_trial_reason,
             "semantic_trial_candidates": semantic_trial_candidates,
+            "shared_primitive_trial_candidates": shared_primitive_trial_candidates,
             "semantic_trial_limit": 1 if semantic_trial_mode == "encourage_bounded_trial" else 0,
             "route_stage": route_stage,
             "route_family_mode": route_family_mode,
@@ -1112,6 +1151,9 @@ class LLMOperatorController:
             "semantic_trial_candidates": [
                 str(operator_id) for operator_id in decision_axes.get("semantic_trial_candidates", [])
             ],
+            "shared_primitive_trial_candidates": [
+                str(operator_id) for operator_id in decision_axes.get("shared_primitive_trial_candidates", [])
+            ],
             "stable_local_handoff_active": bool(retrieval_panel.get("stable_local_handoff_active", False)),
             "positive_match_families": [
                 str(route_family)
@@ -1153,6 +1195,80 @@ class LLMOperatorController:
                 continue
             candidates.append(normalized_operator_id)
         return candidates
+
+    @staticmethod
+    def _build_shared_primitive_trial_candidates(
+        operator_panel: Mapping[str, Any],
+        *,
+        preferred_effect: str,
+        frontier_score: int,
+    ) -> list[str]:
+        candidates: list[str] = []
+        if not isinstance(operator_panel, Mapping):
+            return candidates
+        preferred_effect = str(preferred_effect or "")
+        if preferred_effect == "peak_improve":
+            ordered_operator_ids = ("component_jitter_1", "component_relocate_1", "sink_shift")
+        elif preferred_effect == "gradient_improve":
+            ordered_operator_ids = ("anchored_component_jitter", "component_swap_2")
+        elif frontier_score >= 3:
+            ordered_operator_ids = ("vector_sbx_pm", "component_relocate_1", "component_swap_2", "component_jitter_1", "anchored_component_jitter")
+        else:
+            ordered_operator_ids = ("vector_sbx_pm", "component_jitter_1", "anchored_component_jitter", "component_relocate_1", "component_swap_2")
+        for operator_id in ordered_operator_ids:
+            row = operator_panel.get(operator_id)
+            if not isinstance(row, Mapping):
+                continue
+            applicability = str(row.get("applicability", "low"))
+            if applicability not in {"medium", "high"}:
+                continue
+            risk = str(row.get("expected_feasibility_risk", row.get("recent_regression_risk", "medium")))
+            if risk == "high":
+                continue
+            if LLMOperatorController._low_post_feasible_success_trial(dict(row)):
+                continue
+            if operator_id not in candidates:
+                candidates.append(operator_id)
+        return candidates
+
+    @staticmethod
+    def _prioritize_shared_primitive_trial_candidates(
+        candidate_operator_ids: Sequence[str],
+        operator_panel: Mapping[str, Any],
+        shared_primitive_trial_candidates: Sequence[str],
+        *,
+        preferred_effect: str,
+        frontier_score: int,
+    ) -> list[str]:
+        if not shared_primitive_trial_candidates:
+            return []
+        candidate_set = {str(operator_id) for operator_id in candidate_operator_ids}
+        preferred_effect = str(preferred_effect or "")
+        prioritized: list[str] = []
+        for operator_id in shared_primitive_trial_candidates:
+            normalized_operator_id = str(operator_id)
+            if normalized_operator_id not in candidate_set:
+                continue
+            operator_row = operator_panel.get(normalized_operator_id)
+            if not isinstance(operator_row, Mapping):
+                continue
+            applicability = str(operator_row.get("applicability", "low"))
+            if applicability not in {"medium", "high"}:
+                continue
+            if preferred_effect == "peak_improve" and str(operator_row.get("expected_peak_effect", "")) == "improve":
+                prioritized.append(normalized_operator_id)
+                continue
+            if preferred_effect == "gradient_improve" and str(operator_row.get("expected_gradient_effect", "")) == "improve":
+                prioritized.append(normalized_operator_id)
+                continue
+            if frontier_score >= 3:
+                prioritized.append(normalized_operator_id)
+                continue
+            prioritized.append(normalized_operator_id)
+        if not prioritized:
+            return []
+        return list(dict.fromkeys(prioritized))
+
 
     @staticmethod
     def _low_post_feasible_success_trial(row: dict[str, Any]) -> bool:
@@ -1216,6 +1332,14 @@ class LLMOperatorController:
     ) -> list[str]:
         operator_panel_ids = {str(operator_id) for operator_id in operator_panel.keys()}
         exact_positive_match_operator_ids: list[str] = []
+        all_matches_stable = True
+        for match in retrieval_panel.get("positive_matches", []):
+            if not isinstance(match, Mapping):
+                continue
+            route_family = str(match.get("route_family", "")).strip()
+            if route_family and route_family not in STABLE_ROUTE_FAMILIES:
+                all_matches_stable = False
+                break
         for match in retrieval_panel.get("positive_matches", []):
             if not isinstance(match, Mapping):
                 continue
@@ -1225,7 +1349,7 @@ class LLMOperatorController:
                 not operator_id
                 or operator_id not in operator_panel_ids
                 or not route_family
-                or route_family in STABLE_ROUTE_FAMILIES
+                or (route_family in STABLE_ROUTE_FAMILIES and not all_matches_stable)
             ):
                 continue
             operator_row = operator_panel.get(operator_id)
@@ -1249,6 +1373,14 @@ class LLMOperatorController:
     ) -> list[str]:
         exact_positive_match_operator_id_set = {str(operator_id) for operator_id in exact_positive_match_operator_ids}
         exact_positive_match_route_families: list[str] = []
+        all_matches_stable = True
+        for match in retrieval_panel.get("positive_matches", []):
+            if not isinstance(match, Mapping):
+                continue
+            route_family = str(match.get("route_family", "")).strip()
+            if route_family and route_family not in STABLE_ROUTE_FAMILIES:
+                all_matches_stable = False
+                break
         for match in retrieval_panel.get("positive_matches", []):
             if not isinstance(match, Mapping):
                 continue
@@ -1258,7 +1390,7 @@ class LLMOperatorController:
                 not operator_id
                 or operator_id not in exact_positive_match_operator_id_set
                 or not route_family
-                or route_family in STABLE_ROUTE_FAMILIES
+                or (route_family in STABLE_ROUTE_FAMILIES and not all_matches_stable)
             ):
                 continue
             if route_family not in exact_positive_match_route_families:
@@ -1838,11 +1970,11 @@ class LLMOperatorController:
             )
         if "post_feasible_stable_low_success_cooldown" in policy_snapshot.reason_codes:
             guidance.append(
-                "A stable-operator success filter removed routes with repeated post-feasible failures and no frontier credit."
+                "A stable-operator success advisory cooled routes with repeated post-feasible failures and no frontier credit."
             )
         if any(str(code).endswith("_plateau_cooldown") for code in policy_snapshot.reason_codes):
             guidance.append(
-                "A preserve-plateau filter cooled repeated sink-only preserve moves because objective progress has stalled and viable alternatives remain."
+                "A preserve-plateau advisory cooled repeated sink-only preserve moves because objective progress has stalled and viable alternatives remain."
             )
         if "post_feasible_expand_gradient_polish_handoff" in policy_snapshot.reason_codes:
             guidance.append(
@@ -2010,12 +2142,15 @@ class LLMOperatorController:
         )
         if not viable_alternatives:
             return ""
+        dominant_strategy_group = LLMOperatorController._operator_strategy_group(dominant_operator_id)
         return (
             "Current-generation mix alert: "
             f"{dominant_operator_id} already accounts for {dominant_share:.0%} of the {accepted_count} accepted "
             "offspring in this generation. "
-            f"Prefer viable alternatives such as {', '.join(viable_alternatives)} instead of copying the current "
-            "dominant operator again unless it is uniquely required."
+            f"Prefer viable alternatives across strategy groups such as {', '.join(viable_alternatives)} instead of copying "
+            f"the current {dominant_strategy_group or 'dominant'} strategy again unless it is uniquely required. "
+            "If the dominant operator is native_baseline, require clearly stronger frontier evidence before repeating it; "
+            "if it is a sink adjustment, repeat it only when sink span, sink budget, or sink alignment remains the active bottleneck."
         )
 
     @staticmethod

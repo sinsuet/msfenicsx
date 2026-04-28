@@ -34,27 +34,27 @@ _FIT_SCORES = {
 }
 _OPERATOR_EFFECTS: dict[str, dict[str, str]] = {
     "vector_sbx_pm": {
-        "expected_peak_effect": "neutral",
-        "expected_gradient_effect": "neutral",
+        "expected_peak_effect": "diversify",
+        "expected_gradient_effect": "diversify",
     },
     "component_jitter_1": {
-        "expected_peak_effect": "neutral",
+        "expected_peak_effect": "improve",
         "expected_gradient_effect": "neutral",
     },
     "anchored_component_jitter": {
         "expected_peak_effect": "neutral",
-        "expected_gradient_effect": "neutral",
+        "expected_gradient_effect": "improve",
     },
     "component_relocate_1": {
-        "expected_peak_effect": "neutral",
+        "expected_peak_effect": "improve",
         "expected_gradient_effect": "neutral",
     },
     "component_swap_2": {
         "expected_peak_effect": "neutral",
-        "expected_gradient_effect": "neutral",
+        "expected_gradient_effect": "improve",
     },
     "sink_shift": {
-        "expected_peak_effect": "neutral",
+        "expected_peak_effect": "improve",
         "expected_gradient_effect": "neutral",
     },
     "sink_resize": {
@@ -88,8 +88,8 @@ _OPERATOR_EFFECTS: dict[str, dict[str, str]] = {
     # Legacy trace aliases kept so older LLM diagnostics still carry the same
     # prompt-surface semantics after the operator-registry split.
     "native_sbx_pm": {
-        "expected_peak_effect": "neutral",
-        "expected_gradient_effect": "neutral",
+        "expected_peak_effect": "diversify",
+        "expected_gradient_effect": "diversify",
     },
     "global_explore": {
         "expected_peak_effect": "neutral",
@@ -614,10 +614,16 @@ def _build_operator_applicability_row(
                 applicability_score += 1
             elif preferred_effect == "gradient_improve" and effects["expected_gradient_effect"] == "improve":
                 applicability_score += 1
-            elif preferred_effect == "balanced" and "improve" in {
-                effects["expected_peak_effect"],
-                effects["expected_gradient_effect"],
-            }:
+            elif preferred_effect == "balanced" and (
+                "improve" in {
+                    effects["expected_peak_effect"],
+                    effects["expected_gradient_effect"],
+                }
+                or "diversify" in {
+                    effects["expected_peak_effect"],
+                    effects["expected_gradient_effect"],
+                }
+            ):
                 applicability_score += 1
         applicability_score = _cap_weak_speculative_custom_applicability(
             operator_id=operator_id,
