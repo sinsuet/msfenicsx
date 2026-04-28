@@ -568,21 +568,12 @@ class GeneticFamilyUnionMating(InfillCriterion):
         **kwargs,
     ) -> list[np.ndarray]:
         del problem, pop, algorithm, kwargs
-        proposal = get_operator_definition(record["operator_id"]).propose(
+        raw_proposal = get_operator_definition(record["operator_id"]).propose(
             parents=record["parents"],
             state=record["state"],
             variable_layout=self.variable_layout,
             rng=rng,
         )
-        if record["operator_id"] != self.native_operator_id and self.backbone == "rvea":
-            # RVEA degrades when custom actions fully replace the reference-vector offspring;
-            # keep custom actions as a local perturbation around the selected parent.
-            raw_proposal = 0.8 * np.asarray(record["parents"].primary, dtype=np.float64) + 0.2 * np.asarray(
-                proposal,
-                dtype=np.float64,
-            )
-        else:
-            raw_proposal = np.asarray(proposal, dtype=np.float64)
         return [np.asarray(raw_proposal, dtype=np.float64)]
 
     def _append_attempt_payloads(
@@ -1045,6 +1036,11 @@ def build_genetic_union_algorithm(
         raise ValueError(f"Genetic union adapter requires algorithm.mode='union', got {algorithm_config['mode']!r}.")
     if algorithm_config["family"] != "genetic":
         raise ValueError(f"Genetic union adapter supports only family='genetic', got {algorithm_config['family']!r}.")
+    if algorithm_config["backbone"] != "nsga2":
+        raise ValueError(
+            "Genetic union adapter supports only backbone='nsga2'. "
+            f"Received backbone={algorithm_config['backbone']!r}."
+        )
 
     raw_algorithm_config = dict(algorithm_config)
     raw_algorithm_config["mode"] = "raw"

@@ -23,7 +23,6 @@ def _evaluation_spec(path: str, spec: OptimizationSpec):
     "spec_path",
     [
         "scenarios/optimization/s1_typical_spea2_raw.yaml",
-        "scenarios/optimization/s1_typical_cmopso_raw.yaml",
         "scenarios/optimization/s1_typical_moead_raw.yaml",
     ],
 )
@@ -47,7 +46,6 @@ def test_s1_additional_raw_backbones_execute_smoke(spec_path: str) -> None:
     "spec_path",
     [
         "scenarios/optimization/s2_staged_spea2_raw.yaml",
-        "scenarios/optimization/s2_staged_cmopso_raw.yaml",
         "scenarios/optimization/s2_staged_moead_raw.yaml",
     ],
 )

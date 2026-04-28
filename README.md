@@ -40,8 +40,7 @@ The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, a
   - `nsga2_llm`
 - additional raw-only algorithm comparison specs:
   - `spea2_raw`
-  - `cmopso_raw`
-  - `moead_raw` backup
+  - `moead_raw`
 
 The additional algorithms are intentionally raw-only comparison baselines. Run them with
 `optimize-benchmark` and compare the resulting concrete run roots with `compare-runs`;
@@ -58,13 +57,11 @@ Implemented (`s1_typical`):
 - union spec: `scenarios/optimization/s1_typical_union.yaml`
 - llm spec: `scenarios/optimization/s1_typical_llm.yaml`
 - SPEA2 raw spec: `scenarios/optimization/s1_typical_spea2_raw.yaml`
-- CMOPSO raw spec: `scenarios/optimization/s1_typical_cmopso_raw.yaml`
-- MOEA/D backup raw spec: `scenarios/optimization/s1_typical_moead_raw.yaml`
+- MOEA/D raw spec: `scenarios/optimization/s1_typical_moead_raw.yaml`
 - raw profile: `scenarios/optimization/profiles/s1_typical_raw.yaml`
 - union profile: `scenarios/optimization/profiles/s1_typical_union.yaml`
 - SPEA2 raw profile: `scenarios/optimization/profiles/s1_typical_spea2_raw.yaml`
-- CMOPSO raw profile: `scenarios/optimization/profiles/s1_typical_cmopso_raw.yaml`
-- MOEA/D backup raw profile: `scenarios/optimization/profiles/s1_typical_moead_raw.yaml`
+- MOEA/D raw profile: `scenarios/optimization/profiles/s1_typical_moead_raw.yaml`
 
 Implemented (`s2_staged`):
 
@@ -74,13 +71,11 @@ Implemented (`s2_staged`):
 - union spec: `scenarios/optimization/s2_staged_union.yaml`
 - llm spec: `scenarios/optimization/s2_staged_llm.yaml`
 - SPEA2 raw spec: `scenarios/optimization/s2_staged_spea2_raw.yaml`
-- CMOPSO raw spec: `scenarios/optimization/s2_staged_cmopso_raw.yaml`
-- MOEA/D backup raw spec: `scenarios/optimization/s2_staged_moead_raw.yaml`
+- MOEA/D raw spec: `scenarios/optimization/s2_staged_moead_raw.yaml`
 - raw profile: `scenarios/optimization/profiles/s2_staged_raw.yaml`
 - union profile: `scenarios/optimization/profiles/s2_staged_union.yaml`
 - SPEA2 raw profile: `scenarios/optimization/profiles/s2_staged_spea2_raw.yaml`
-- CMOPSO raw profile: `scenarios/optimization/profiles/s2_staged_cmopso_raw.yaml`
-- MOEA/D backup raw profile: `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
+- MOEA/D raw profile: `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
 
 Implemented (`s3_scale20`):
 
@@ -195,10 +190,14 @@ beside the traces:
 - `tables/*.csv` / `tables/*.tex` — summary statistics and representative-point tables
 - baseline style centralized in `visualization/style/baseline.py`
 
-`optimize-benchmark`, `run-llm`, and `run-benchmark-suite` auto-invoke
-`render-assets` unless `--skip-render` is passed. Budget knobs
+`optimize-benchmark`, `run-llm`, and `run-benchmark-suite` runs are not
+complete until `render-assets` has been executed on the final run root.
+`--skip-render` is for temporary debugging only; if used, run
+`render-assets` immediately before analysis or reporting. Budget knobs
 `--population-size` and `--num-generations` apply to all three commands.
-When a suite run includes at least two modes, `run-benchmark-suite` also auto-writes a suite-owned `comparisons/` bundle:
+When a suite run includes at least two modes, `run-benchmark-suite` also
+auto-writes a suite-owned `comparisons/` bundle that should be rendered as
+part of the same run workflow:
 
 - single-seed suite: `<run_root>/comparisons/`
 - multi-seed suite: `<run_root>/comparisons/by_seed/seed-<n>/` plus `<run_root>/comparisons/aggregate/`
@@ -254,11 +253,6 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
   --output-root ./scenario_runs/s1_typical/spea2-raw-smoke
 
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s1_typical_cmopso_raw.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s1_typical/cmopso-raw-smoke
-
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s1_typical_moead_raw.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s1_typical/moead-raw-smoke
@@ -306,7 +300,7 @@ Budget / render overrides apply to both `optimize-benchmark` and `run-llm`:
 
 - `--population-size <int>` — override algorithm.population_size
 - `--num-generations <int>` — override algorithm.num_generations
-- `--skip-render` — skip the auto-invoked `render-assets` pass
+- `--skip-render` — temporary debug-only render skip; follow immediately with `render-assets` on the produced run root before analysis or reporting
 
 `s1_typical` is a fixed single-case benchmark. Repeat experiments by varying `algorithm.seed`, not by passing multiple `benchmark_seed` values.
 

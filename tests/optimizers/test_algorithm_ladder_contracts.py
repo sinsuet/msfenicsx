@@ -11,7 +11,6 @@ from optimizers.io import load_optimization_spec
 @pytest.mark.parametrize(
     ("path", "family", "backbone"),
     [
-        ("scenarios/optimization/s1_typical_cmopso_raw.yaml", "swarm", "cmopso"),
         ("scenarios/optimization/s1_typical_spea2_raw.yaml", "genetic", "spea2"),
         ("scenarios/optimization/s1_typical_moead_raw.yaml", "decomposition", "moead"),
     ],
@@ -35,7 +34,6 @@ def test_s1_additional_algorithm_specs_are_raw_only(
     ("path", "family", "backbone"),
     [
         ("scenarios/optimization/s2_staged_spea2_raw.yaml", "genetic", "spea2"),
-        ("scenarios/optimization/s2_staged_cmopso_raw.yaml", "swarm", "cmopso"),
         ("scenarios/optimization/s2_staged_moead_raw.yaml", "decomposition", "moead"),
     ],
 )
@@ -56,10 +54,10 @@ def test_s2_additional_algorithm_specs_are_raw_only(
 
 def test_s1_additional_algorithms_do_not_add_union_or_llm_specs() -> None:
     forbidden_specs = [
-        "scenarios/optimization/s1_typical_cmopso_union.yaml",
-        "scenarios/optimization/s1_typical_cmopso_llm.yaml",
         "scenarios/optimization/s1_typical_spea2_union.yaml",
         "scenarios/optimization/s1_typical_spea2_llm.yaml",
+        "scenarios/optimization/s1_typical_moead_union.yaml",
+        "scenarios/optimization/s1_typical_moead_llm.yaml",
     ]
 
     assert all(not Path(path).exists() for path in forbidden_specs)
@@ -67,10 +65,10 @@ def test_s1_additional_algorithms_do_not_add_union_or_llm_specs() -> None:
 
 def test_s2_additional_algorithms_do_not_add_union_or_llm_specs() -> None:
     forbidden_specs = [
-        "scenarios/optimization/s2_staged_cmopso_union.yaml",
-        "scenarios/optimization/s2_staged_cmopso_llm.yaml",
         "scenarios/optimization/s2_staged_spea2_union.yaml",
         "scenarios/optimization/s2_staged_spea2_llm.yaml",
+        "scenarios/optimization/s2_staged_moead_union.yaml",
+        "scenarios/optimization/s2_staged_moead_llm.yaml",
     ]
 
     assert all(not Path(path).exists() for path in forbidden_specs)
@@ -107,7 +105,7 @@ def test_layout_panel_metadata_uses_manifest_algorithm_label(tmp_path: Path) -> 
 def test_collect_run_payload_uses_manifest_algorithm_label(tmp_path: Path) -> None:
     from optimizers.comparison_artifacts import _collect_run_payload
 
-    run_root = tmp_path / "cmopso_raw"
+    run_root = tmp_path / "spea2_raw"
     (run_root / "traces").mkdir(parents=True)
     (run_root / "run.yaml").write_text(
         "\n".join(
@@ -117,9 +115,9 @@ def test_collect_run_payload_uses_manifest_algorithm_label(tmp_path: Path) -> No
                 "  benchmark: 11",
                 "  algorithm: 7",
                 "algorithm:",
-                "  family: swarm",
-                "  backbone: cmopso",
-                "  label: CMOPSO",
+                "  family: genetic",
+                "  backbone: spea2",
+                "  label: SPEA2",
                 "",
             ]
         ),
@@ -169,8 +167,8 @@ def test_collect_run_payload_uses_manifest_algorithm_label(tmp_path: Path) -> No
 
     payload = _collect_run_payload(run_root)
 
-    assert payload["summary_row"]["algorithm"] == "CMOPSO"
-    assert payload["series_label"] == "CMOPSO raw"
+    assert payload["summary_row"]["algorithm"] == "SPEA2"
+    assert payload["series_label"] == "SPEA2 raw"
 
 
 def test_compare_pairwise_rows_use_series_labels_for_raw_algorithms() -> None:
@@ -178,12 +176,12 @@ def test_compare_pairwise_rows_use_series_labels_for_raw_algorithms() -> None:
 
     rows = [
         {"mode": "raw", "algorithm": "NSGA-II", "series_label": "raw", "first_feasible_pde_eval": 2},
-        {"mode": "raw", "algorithm": "CMOPSO", "series_label": "CMOPSO raw", "first_feasible_pde_eval": 3},
+        {"mode": "raw", "algorithm": "SPEA2", "series_label": "SPEA2 raw", "first_feasible_pde_eval": 3},
     ]
 
     pairwise = _pairwise_deltas(rows)
 
     assert pairwise[0]["left_label"] == "raw"
-    assert pairwise[0]["right_label"] == "CMOPSO raw"
+    assert pairwise[0]["right_label"] == "SPEA2 raw"
     assert pairwise[0]["left_mode"] == "raw"
     assert pairwise[0]["right_mode"] == "raw"

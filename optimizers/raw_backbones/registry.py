@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from optimizers.raw_backbones import ctaea, cmopso, moead, nsga2, nsga3, rvea, spea2
+from optimizers.raw_backbones import moead, nsga2, spea2
 
 
 RawAlgorithmBuilder = Callable[[Any, dict[str, Any]], Any]
@@ -22,12 +22,8 @@ _REGISTERED_RAW_BACKBONES = {
     (definition.family, definition.backbone): definition
     for definition in (
         RawBackboneDefinition(nsga2.FAMILY, nsga2.BACKBONE, nsga2.build_algorithm),
-        RawBackboneDefinition(nsga3.FAMILY, nsga3.BACKBONE, nsga3.build_algorithm),
-        RawBackboneDefinition(ctaea.FAMILY, ctaea.BACKBONE, ctaea.build_algorithm),
-        RawBackboneDefinition(rvea.FAMILY, rvea.BACKBONE, rvea.build_algorithm),
         RawBackboneDefinition(spea2.FAMILY, spea2.BACKBONE, spea2.build_algorithm),
         RawBackboneDefinition(moead.FAMILY, moead.BACKBONE, moead.build_algorithm),
-        RawBackboneDefinition(cmopso.FAMILY, cmopso.BACKBONE, cmopso.build_algorithm),
     )
 }
 

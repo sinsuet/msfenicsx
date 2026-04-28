@@ -271,6 +271,8 @@ def test_post_feasible_prompt_projection_keeps_spatial_panel_and_operator_applic
     assert "spatial_panel" in payload["prompt_panels"]
     assert payload["prompt_panels"]["spatial_panel"]["hotspot_inside_sink_window"] is False
     assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["applicability"] == "medium"
+    assert "local_congestion_pair" not in payload["prompt_panels"]["spatial_panel"]
+    assert "spatial_match_reason" not in payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]
 
 
 def test_prompt_projection_compacts_large_parent_retrieval_and_annotation_payloads() -> None:

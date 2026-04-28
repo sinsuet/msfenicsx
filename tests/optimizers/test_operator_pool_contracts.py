@@ -134,7 +134,7 @@ def test_registry_profile_contract_is_controller_agnostic() -> None:
 def test_behavior_profiles_cover_matrix_native_operator_ids() -> None:
     from optimizers.operator_pool.operators import get_operator_behavior_profile, native_operator_id_for_backbone
 
-    for family, backbone in (("decomposition", "moead"), ("swarm", "cmopso")):
+    for family, backbone in (("genetic", "nsga2"), ("decomposition", "moead")):
         operator_id = native_operator_id_for_backbone(family, backbone)
         profile = get_operator_behavior_profile(operator_id)
         assert profile.operator_id == operator_id
@@ -197,9 +197,9 @@ def test_random_controller_is_algorithm_agnostic() -> None:
         parent_count=2,
         vector_size=32,
     )
-    swarm_state = ControllerState(
-        family="swarm",
-        backbone="cmopso",
+    decomposition_state = ControllerState(
+        family="decomposition",
+        backbone="moead",
         generation_index=2,
         evaluation_index=9,
         parent_count=2,
@@ -211,14 +211,14 @@ def test_random_controller_is_algorithm_agnostic() -> None:
         PRIMITIVE_OPERATOR_IDS,
         np.random.default_rng(7),
     )
-    swarm_selection = controller.select_operator(
-        swarm_state,
+    decomposition_selection = controller.select_operator(
+        decomposition_state,
         PRIMITIVE_OPERATOR_IDS,
         np.random.default_rng(7),
     )
 
     assert controller.controller_id == "random_uniform"
-    assert genetic_selection == swarm_selection
+    assert genetic_selection == decomposition_selection
     assert genetic_selection in PRIMITIVE_OPERATOR_IDS
 
 

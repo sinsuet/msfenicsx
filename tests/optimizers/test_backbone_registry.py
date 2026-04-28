@@ -44,21 +44,38 @@ def _spec_payload(*, family: str = "genetic", backbone: str = "nsga2", mode: str
 
 def test_backbone_registry_lists_the_first_matrix_batch() -> None:
     assert list_supported_backbones() == [
-        "cmopso",
-        "ctaea",
         "moead",
         "nsga2",
-        "nsga3",
-        "rvea",
         "spea2",
     ]
     assert SUPPORTED_BACKBONES_BY_FAMILY == {
-        "genetic": ("nsga2", "nsga3", "ctaea", "rvea", "spea2"),
+        "genetic": ("nsga2", "spea2"),
         "decomposition": ("moead",),
-        "swarm": ("cmopso",),
     }
 
 
 def test_validation_rejects_mismatched_family_backbone_pair() -> None:
     with pytest.raises(OptimizationValidationError):
         OptimizationSpec.from_dict(_spec_payload(family="genetic", backbone="moead"))
+
+
+def test_validation_rejects_unapproved_backbone_family_pair() -> None:
+    with pytest.raises(OptimizationValidationError):
+        OptimizationSpec.from_dict(_spec_payload(family="decomposition", backbone="nsga2"))
+
+
+def test_validation_rejects_unknown_family() -> None:
+    with pytest.raises(OptimizationValidationError):
+        OptimizationSpec.from_dict(_spec_payload(family="legacy", backbone="nsga2"))
+
+
+@pytest.mark.parametrize(
+    ("family", "backbone"),
+    [
+        ("genetic", "spea2"),
+        ("decomposition", "moead"),
+    ],
+)
+def test_validation_rejects_comparison_backbones_in_union_mode(family: str, backbone: str) -> None:
+    with pytest.raises(OptimizationValidationError):
+        OptimizationSpec.from_dict(_spec_payload(family=family, backbone=backbone, mode="union"))

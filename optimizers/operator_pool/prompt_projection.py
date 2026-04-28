@@ -37,6 +37,40 @@ _POST_FEASIBLE_OPERATOR_KEYS = frozenset(
         "avg_feasible_objective_delta",
     }
 )
+_RUN_PANEL_PROMPT_KEYS = frozenset(
+    {
+        "evaluations_used",
+        "evaluations_remaining",
+        "feasible_rate",
+        "first_feasible_eval",
+        "peak_temperature",
+        "temperature_gradient_rms",
+        "sink_span",
+        "sink_budget_utilization",
+        "pareto_size",
+    }
+)
+_GENERATION_PANEL_PROMPT_KEYS = frozenset(
+    {
+        "accepted_count",
+        "target_offsprings",
+        "accepted_share",
+        "dominant_operator_id",
+        "dominant_operator_count",
+        "dominant_operator_share",
+        "dominant_operator_streak",
+        "route_family_counts",
+    }
+)
+_SPATIAL_PANEL_PROMPT_KEYS = frozenset(
+    {
+        "hotspot_to_sink_offset",
+        "hotspot_inside_sink_window",
+        "hottest_cluster_compactness",
+        "nearest_neighbor_gap_min",
+        "sink_budget_bucket",
+    }
+)
 _OPERATOR_PANEL_PROMPT_KEYS = frozenset(
     {
         "applicability",
@@ -50,7 +84,6 @@ _OPERATOR_PANEL_PROMPT_KEYS = frozenset(
         "frontier_evidence",
         "preserve_fit",
         "recent_regression_risk",
-        "spatial_match_reason",
     }
 )
 _CANDIDATE_ANNOTATION_PROMPT_KEYS = frozenset(
@@ -140,7 +173,7 @@ def _project_prompt_panels(
     projected: dict[str, Any] = {}
     run_panel = prompt_panels.get("run_panel")
     if isinstance(run_panel, Mapping):
-        projected["run_panel"] = dict(run_panel)
+        projected["run_panel"] = _project_keyed_panel(run_panel, _RUN_PANEL_PROMPT_KEYS)
     regime_panel = prompt_panels.get("regime_panel")
     if isinstance(regime_panel, Mapping):
         projected_regime_panel = dict(regime_panel)
@@ -151,10 +184,10 @@ def _project_prompt_panels(
         projected["parent_panel"] = _project_parent_panel(parent_panel)
     generation_panel = prompt_panels.get("generation_panel")
     if isinstance(generation_panel, Mapping):
-        projected["generation_panel"] = dict(generation_panel)
+        projected["generation_panel"] = _project_keyed_panel(generation_panel, _GENERATION_PANEL_PROMPT_KEYS)
     spatial_panel = prompt_panels.get("spatial_panel")
     if isinstance(spatial_panel, Mapping):
-        projected["spatial_panel"] = dict(spatial_panel)
+        projected["spatial_panel"] = _project_keyed_panel(spatial_panel, _SPATIAL_PANEL_PROMPT_KEYS)
     retrieval_panel = prompt_panels.get("retrieval_panel")
     if isinstance(retrieval_panel, Mapping):
         projected_retrieval_panel = _project_retrieval_panel(retrieval_panel)
@@ -196,6 +229,13 @@ def _project_prompt_panels(
         projected["operator_panel"] = projected_operator_panel
     return projected
 
+
+def _project_keyed_panel(panel: Mapping[str, Any], keys: frozenset[str]) -> dict[str, Any]:
+    return {
+        key: panel[key]
+        for key in keys
+        if key in panel
+    }
 
 
 def _project_parent_panel(parent_panel: Mapping[str, Any]) -> dict[str, Any]:

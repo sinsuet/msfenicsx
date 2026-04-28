@@ -4,12 +4,8 @@ from __future__ import annotations
 
 
 _BACKBONE_LABELS = {
-    "cmopso": "CMOPSO",
-    "ctaea": "C-TAEA",
     "moead": "MOEA/D",
     "nsga2": "NSGA-II",
-    "nsga3": "NSGA-III",
-    "rvea": "RVEA",
     "spea2": "SPEA2",
 }
 

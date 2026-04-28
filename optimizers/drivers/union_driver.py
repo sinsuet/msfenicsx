@@ -9,9 +9,7 @@ from typing import Any
 from pymoo.optimize import minimize
 
 from evaluation.io import load_spec
-from optimizers.adapters.decomposition_family import build_decomposition_union_algorithm
 from optimizers.adapters.genetic_family import build_genetic_union_algorithm
-from optimizers.adapters.swarm_family import build_swarm_union_algorithm
 from optimizers.algorithm_config import resolve_algorithm_config
 from optimizers.drivers.raw_driver import (
     _build_representative_candidates,
@@ -68,30 +66,18 @@ def run_union_optimization(
         evaluation_workers=evaluation_workers,
     )
 
-    family = str(algorithm_config["family"])
-    if family == "genetic":
-        adapter = build_genetic_union_algorithm(
-            problem,
-            spec_payload,
-            algorithm_config,
-            trace_output_root=trace_output_root,
+    if str(algorithm_config["family"]) != "genetic" or str(algorithm_config["backbone"]) != "nsga2":
+        raise ValueError(
+            "run_union_optimization only supports the NSGA-II ladder "
+            f"(family='genetic', backbone='nsga2'), got family={algorithm_config['family']!r}, "
+            f"backbone={algorithm_config['backbone']!r}."
         )
-    elif family == "decomposition":
-        adapter = build_decomposition_union_algorithm(
-            problem,
-            spec_payload,
-            algorithm_config,
-            trace_output_root=trace_output_root,
-        )
-    elif family == "swarm":
-        adapter = build_swarm_union_algorithm(
-            problem,
-            spec_payload,
-            algorithm_config,
-            trace_output_root=trace_output_root,
-        )
-    else:
-        raise ValueError(f"Unsupported union-driver family {family!r}.")
+    adapter = build_genetic_union_algorithm(
+        problem,
+        spec_payload,
+        algorithm_config,
+        trace_output_root=trace_output_root,
+    )
     generation_callback = GenerationSummaryCallback(objective_definitions=evaluation_payload["objectives"])
     try:
         minimize(

@@ -163,14 +163,14 @@ Run benchmark suite:
 conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs
 ```
 
-Render assets (analytics CSV + figures PNG) from an existing run:
+Render assets (analytics CSV + figures PNG) from every completed optimizer run:
 ```bash
 conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s1_typical/<run_id> [--hires]
 ```
 
-Compare multiple runs:
+Compare multiple concrete run roots before reporting comparative results:
 ```bash
-conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s1_typical/<run_a> --run ./scenario_runs/s1_typical/<run_b> --output ./compare.json
+conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s1_typical/<run_a> --run ./scenario_runs/s1_typical/<run_b> --output ./scenario_runs/compare_reports/<compare_id>
 ```
 
 Smoke harness (10×5 budget local check across modes):
@@ -178,10 +178,12 @@ Smoke harness (10×5 budget local check across modes):
 bash scripts/smoke_render_assets.sh
 ```
 
-Override algorithm budget / skip auto-render (works on `optimize-benchmark` and `run-llm`):
+Override algorithm budget (works on `optimize-benchmark` and `run-llm`):
 ```bash
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --output-root ./scenario_runs/s1_typical/raw-smoke --population-size 10 --num-generations 5 --skip-render
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --output-root ./scenario_runs/s1_typical/raw-smoke --population-size 10 --num-generations 5
 ```
+
+`--skip-render` is only for temporary debug runs. If it is used, immediately run `render-assets` on the produced run root before analysis or reporting.
 
 Install LLM dependency:
 ```bash
@@ -235,10 +237,12 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
 - Benchmark-specific tuning belongs in `scenarios/optimization/profiles/` and `algorithm.parameters`.
 - Active runtime outputs should go to `scenario_runs/`, not source folders.
 - Active optimizer runs should write under `scenario_runs/<scenario_id>/<run_id>/`.
+- Optimizer runs are not complete until `render-assets` has been executed on the final run root. Do not use `--skip-render` for normal benchmark runs; if it is used temporarily, rerun `render-assets` before any analysis or reporting.
+- When 2+ concrete run roots are part of the same comparison, also produce a `compare-runs` bundle under `scenario_runs/compare_reports/<compare_id>/` before final reporting.
 - The canonical paper-facing run layout is:
   - `scenario_runs/<scenario_id>/<MMDD_HHMM>__<mode_slug>/`
 - `mode_slug` must use the stable order: `raw`, `union`, `llm`.
-- Mixed-mode runs keep sibling mode directories plus optional `comparison/`.
+- Mixed-mode runs keep sibling mode directories plus suite-owned `comparisons/` bundles or external `scenario_runs/compare_reports/<compare_id>/` bundles; never revive legacy `comparison/`.
 - Representative solved-case bundles live under:
   - `<mode>/seeds/seed-<n>/representatives/<representative_id>/`
 - Representative bundles must preserve:
@@ -291,6 +295,7 @@ Current maintained test areas:
 - Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis.
 - Failure reasons and dominant violations are valid evidence and should remain visible in artifacts when relevant.
 - Cheap local `controller_trace` diagnostics are valid pre-live evidence before any new live rerun.
+- For reruns within the same experiment family (for example a budget sweep, a raw/union/llm ladder, or a raw-only algorithm baseline), include the rendered comparison bundle for the closest prior baseline before final reporting so the user does not need to request a second pass.
 
 ## Documentation Expectations
 

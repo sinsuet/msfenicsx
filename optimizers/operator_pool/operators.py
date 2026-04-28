@@ -23,11 +23,7 @@ APPROVED_UNION_OPERATOR_IDS = (*PRIMITIVE_OPERATOR_IDS, *ASSISTED_OPERATOR_IDS)
 
 APPROVED_NATIVE_OPERATOR_IDS_BY_BACKBONE = {
     ("genetic", "nsga2"): "native_sbx_pm",
-    ("genetic", "nsga3"): "native_sbx_pm",
-    ("genetic", "ctaea"): "native_sbx_pm",
-    ("genetic", "rvea"): "native_sbx_pm",
     ("decomposition", "moead"): "native_moead",
-    ("swarm", "cmopso"): "native_cmopso",
 }
 
 _MIN_SINK_SPAN = 0.15
@@ -963,12 +959,6 @@ _OPERATOR_BEHAVIOR_PROFILES = {
     ),
     "native_moead": OperatorBehaviorProfile(
         operator_id="native_moead",
-        family="native_baseline",
-        role="native_baseline",
-        exploration_class="stable",
-    ),
-    "native_cmopso": OperatorBehaviorProfile(
-        operator_id="native_cmopso",
         family="native_baseline",
         role="native_baseline",
         exploration_class="stable",

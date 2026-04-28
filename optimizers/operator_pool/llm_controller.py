@@ -717,35 +717,23 @@ class LLMOperatorController:
         guardrail: dict[str, Any] | None,
     ) -> str:
         intent_panel = self._build_intent_panel(candidate_operator_ids)
-        intent_guidance = " ".join(
-            f"{intent_id}: {summary}"
-            for intent_id, summary in intent_panel.items()
-        )
-        operator_guidance = " ".join(
-            f"{operator_id}: {_OPERATOR_ROLE_SUMMARIES.get(operator_id, 'specialized numeric proposal operator.')}"
+        operator_intent_map = {
+            str(operator_id): _OPERATOR_INTENTS.get(str(operator_id), "native_baseline")
             for operator_id in candidate_operator_ids
-        )
+        }
         prompt = (
             "You are an operator-selection controller for constrained multiobjective thermal optimization. "
-            "First choose the operator intent that best matches metadata.intent_panel and metadata.decision_axes. "
-            "Then choose exactly one operator from the provided candidate_operator_ids that implements that intent. "
-            "Do not emit raw design vectors. "
-            "Treat metadata.prompt_panels as the primary decision surface and phase_policy as the active controller "
-            "policy context. Use preserve_score, frontier_score, and regression_risk as the main decision axes. "
-            "Treat recent operator concentrations as context, not as an instruction to copy the most "
-            "recent dominant operator. Avoid repeatedly selecting the same operator when recent history is overly "
-            "concentrated unless the current state makes that operator uniquely necessary. "
-            "If metadata.decision_axes.semantic_trial_mode is encourage_bounded_trial, allow one bounded semantic "
-            "trial from metadata.decision_axes.semantic_trial_candidates before defaulting back to native_baseline. "
-            "Treat exact positive retrieval matches as the strongest same-regime route evidence when they are "
-            "available. "
-            "If metadata.decision_axes.exact_positive_match_mode is prefer_exact_match, prioritize "
-            "metadata.decision_axes.exact_positive_match_operator_ids before same-family substitutes when their "
-            "feasibility risk is comparable. "
-            "When the hotspot is already inside the sink corridor, hotspot_spread is a direct expand move rather "
-            "than a sink-retargeting detour. "
-            f"Intent menu: {intent_guidance} "
-            f"Candidate operator semantics: {operator_guidance}"
+            "Return one operator from candidate_operator_ids; do not emit raw design vectors. "
+            "Use metadata.prompt_panels, metadata.intent_panel, metadata.decision_axes, and phase_policy as the "
+            "decision surface. Rank by preserve_score, frontier_score, regression_risk, objective balance, "
+            "applicability, expected effects, retrieval evidence, and soft guardrails. Treat recent concentration as "
+            "context, not an instruction to copy it. Keep every provided candidate operator available; policy guidance "
+            "is soft unless the candidate list itself changes. If semantic_trial_mode is encourage_bounded_trial, use "
+            "at most one listed semantic trial before returning to native_baseline. Treat exact positive retrieval matches "
+            "as strongest same-regime route evidence; when exact_positive_match_mode is prefer_exact_match, prioritize "
+            "metadata.decision_axes.exact_positive_match_operator_ids when risk is comparable. When the hotspot is already "
+            "inside the sink corridor, hotspot_spread is a direct expand move rather than a sink-retargeting detour. "
+            f"Intent menu: {intent_panel}. Candidate operator intents: {operator_intent_map}."
         )
         phase_policy_guidance = self._build_phase_policy_guidance(policy_snapshot)
         if phase_policy_guidance:

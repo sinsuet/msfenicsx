@@ -10,9 +10,8 @@ from optimizers.operator_pool.operators import approved_operator_pool
 
 
 SUPPORTED_BACKBONES_BY_FAMILY = {
-    "genetic": ("nsga2", "nsga3", "ctaea", "rvea", "spea2"),
+    "genetic": ("nsga2", "spea2"),
     "decomposition": ("moead",),
-    "swarm": ("cmopso",),
 }
 SUPPORTED_MODES = {"raw", "union"}
 SUPPORTED_CONTROLLERS = {"random_uniform", "llm"}
@@ -105,6 +104,7 @@ def validate_algorithm_profile_payload(payload: Mapping[str, Any]) -> None:
     mode = _require_text(payload["mode"], "AlgorithmProfile.mode")
     if mode not in SUPPORTED_MODES:
         raise OptimizationValidationError(f"AlgorithmProfile.mode '{mode}' must be one of {sorted(SUPPORTED_MODES)}.")
+    _validate_mode_backbone_support(family=family, backbone=backbone, mode=mode)
     _require_mapping(payload["parameters"], "AlgorithmProfile.parameters")
 
 
@@ -153,6 +153,7 @@ def _validate_algorithm(algorithm: Any) -> dict[str, Any]:
     mode = _require_text(algorithm["mode"], "algorithm.mode")
     if mode not in SUPPORTED_MODES:
         raise OptimizationValidationError(f"algorithm.mode '{mode}' must be one of {sorted(SUPPORTED_MODES)}.")
+    _validate_mode_backbone_support(family=family, backbone=backbone, mode=mode)
     if _require_integer(algorithm["population_size"], "algorithm.population_size") <= 0:
         raise OptimizationValidationError("algorithm.population_size must be positive.")
     if _require_integer(algorithm["num_generations"], "algorithm.num_generations") <= 0:
@@ -167,6 +168,16 @@ def _validate_algorithm(algorithm: Any) -> dict[str, Any]:
     if "operator_pool" in algorithm:
         raise OptimizationValidationError("algorithm.operator_pool has moved to the top-level operator_control block.")
     return {"family": family, "backbone": backbone, "mode": mode}
+
+
+def _validate_mode_backbone_support(*, family: str, backbone: str, mode: str) -> None:
+    if mode == "raw":
+        return
+    if family == "genetic" and backbone == "nsga2":
+        return
+    raise OptimizationValidationError(
+        f"algorithm.mode '{mode}' is only approved for family='genetic', backbone='nsga2'."
+    )
 
 
 def _validate_operator_control(operator_control: Any, *, family: str, backbone: str, mode: str) -> None:

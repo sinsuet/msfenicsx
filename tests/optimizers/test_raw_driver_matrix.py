@@ -27,12 +27,8 @@ def test_readme_mentions_only_s1_typical_as_active_mainline() -> None:
 
 def test_raw_backbone_registry_contains_first_batch_algorithms() -> None:
     assert list_registered_backbones() == [
-        "cmopso",
-        "ctaea",
         "moead",
         "nsga2",
-        "nsga3",
-        "rvea",
         "spea2",
     ]
 

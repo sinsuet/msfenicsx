@@ -13,8 +13,7 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
   - `nsga2_llm`
 - Additional algorithm-comparison inputs are raw-only unless a later design explicitly promotes them:
   - `spea2_raw`
-  - `cmopso_raw`
-  - `moead_raw` backup
+  - `moead_raw`
 - The active optimizer ladder uses a matched paper-facing substrate:
   - `raw`: native backbone + clean legality policy
   - `union`: primitive operator registry + random controller + clean legality policy
@@ -58,12 +57,10 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s1_typical_union.yaml`
 - `scenarios/optimization/s1_typical_llm.yaml`
 - `scenarios/optimization/s1_typical_spea2_raw.yaml`
-- `scenarios/optimization/s1_typical_cmopso_raw.yaml`
 - `scenarios/optimization/s1_typical_moead_raw.yaml`
 - `scenarios/optimization/profiles/s1_typical_raw.yaml`
 - `scenarios/optimization/profiles/s1_typical_union.yaml`
 - `scenarios/optimization/profiles/s1_typical_spea2_raw.yaml`
-- `scenarios/optimization/profiles/s1_typical_cmopso_raw.yaml`
 - `scenarios/optimization/profiles/s1_typical_moead_raw.yaml`
 - `scenarios/templates/s2_staged.yaml`
 - `scenarios/evaluation/s2_staged_eval.yaml`
@@ -71,12 +68,10 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s2_staged_union.yaml`
 - `scenarios/optimization/s2_staged_llm.yaml`
 - `scenarios/optimization/s2_staged_spea2_raw.yaml`
-- `scenarios/optimization/s2_staged_cmopso_raw.yaml`
 - `scenarios/optimization/s2_staged_moead_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_union.yaml`
 - `scenarios/optimization/profiles/s2_staged_spea2_raw.yaml`
-- `scenarios/optimization/profiles/s2_staged_cmopso_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
 - `scenarios/templates/s3_scale20.yaml`
 - `scenarios/evaluation/s3_scale20_eval.yaml`
@@ -171,20 +166,19 @@ Preferred commands:
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/union-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/llm-smoke`
-- Raw-only algorithm comparisons should be run as standalone raw roots, then compared with `compare-runs`; do not add `spea2/cmopso/moead` as `union` or `llm` suite modes unless a later design explicitly promotes them.
+- Raw-only algorithm comparisons should be run as standalone raw roots, then compared with `compare-runs`; do not add `spea2` or `moead` as `union` or `llm` suite modes.
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/spea2-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_cmopso_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/cmopso-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/moead-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s2_staged_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s2_staged/spea2-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s2_staged_cmopso_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s2_staged/cmopso-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s2_staged_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s2_staged/moead-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs` (auto-writes suite-owned `comparisons/` when 2+ modes participate)
 - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s1_typical_llm.yaml --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
 - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/controller_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
-- `conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s1_typical/<run_id> [--hires]` (accepts a suite root, a mode root, or a concrete single-mode seed run root)
-- `conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s1_typical/<run_a> --run ./scenario_runs/s1_typical/<run_b> --output ./scenario_runs/compare_reports/<compare_id>` (accepts only concrete single-mode run roots and must write outside source runs)
+- `conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s1_typical/<run_id> [--hires]` (required follow-up for every optimizer run; accepts a suite root, a mode root, or a concrete single-mode seed run root)
+- `conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s1_typical/<run_a> --run ./scenario_runs/s1_typical/<run_b> --output ./scenario_runs/compare_reports/<compare_id>` (required whenever 2+ concrete run roots are being compared; accepts only concrete single-mode run roots and must write outside source runs)
 - `bash scripts/smoke_render_assets.sh` (10×5 local smoke harness covering raw/union/llm + render-assets + compare-runs)
-- Budget / render overrides (work on `optimize-benchmark`, `run-llm`, and `run-benchmark-suite`): `--population-size`, `--num-generations`, `--skip-render`
+- Budget overrides (work on `optimize-benchmark`, `run-llm`, and `run-benchmark-suite`): `--population-size`, `--num-generations`
+- `--skip-render` is debug-only; if it is used, immediately run `render-assets` on the produced run root before analysis or reporting.
 - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
 The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
@@ -234,6 +228,8 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 - Active runtime outputs should go to `scenario_runs/`, not source folders.
 - Single solved-case bundles written by `solve-case` should keep `fields/*.npz` + `summaries/field_view.json` and render `figures/layout.png`, `figures/temperature_field.png`, and `figures/gradient_field.png`.
 - Active optimizer runs should write under `scenario_runs/<scenario_id>/<run_id>/`.
+- Optimizer runs are not complete until `render-assets` has been executed on the final run root. Do not use `--skip-render` for normal benchmark runs; if it is used temporarily, rerun `render-assets` before any analysis or reporting.
+- When 2+ concrete run roots are part of the same comparison, also produce a `compare-runs` bundle under `scenario_runs/compare_reports/<compare_id>/` before final reporting.
 - The canonical paper-facing run layout is:
   - `scenario_runs/<scenario_id>/<MMDD_HHMM>__<mode_slug>/`
 - `mode_slug` must use the stable order:
@@ -304,6 +300,7 @@ Current maintained test areas are:
 - Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis.
 - Failure reasons and dominant violations are valid evidence and should remain visible in artifacts when relevant.
 - Cheap local `controller_trace` diagnostics are valid pre-live evidence before any new live rerun.
+- For reruns within the same experiment family (for example a budget sweep, a raw/union/llm ladder, or a raw-only algorithm baseline), include the rendered comparison bundle for the closest prior baseline before final reporting so the user does not need to request a second pass.
 
 ## Documentation Expectations
 
@@ -337,12 +334,10 @@ Current maintained test areas are:
 - `scenarios/optimization/s2_staged_union.yaml`
 - `scenarios/optimization/s2_staged_llm.yaml`
 - `scenarios/optimization/s2_staged_spea2_raw.yaml`
-- `scenarios/optimization/s2_staged_cmopso_raw.yaml`
 - `scenarios/optimization/s2_staged_moead_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_union.yaml`
 - `scenarios/optimization/profiles/s2_staged_spea2_raw.yaml`
-- `scenarios/optimization/profiles/s2_staged_cmopso_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
 - `scenarios/templates/s3_scale20.yaml`
 - `scenarios/evaluation/s3_scale20_eval.yaml`
