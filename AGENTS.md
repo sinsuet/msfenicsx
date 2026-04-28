@@ -5,8 +5,8 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 ## Repository Status
 
 - `main` already contains the clean rebuild baseline.
-- The active paper-facing mainlines are `s1_typical` and `s2_staged`.
-- `s2_staged` is the current controller-sensitive S2 companion benchmark. It shares the same `raw / union / llm` ladder as `s1_typical`, with clean baselines separated from the assisted framework line.
+- The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, and `s4_dense25`.
+- `s2_staged` is the current controller-sensitive S2 companion benchmark. `s3_scale20` and `s4_dense25` are the 20-component scale and 25-component dense companions. They share the same `raw / union / llm` ladder as `s1_typical`, with clean baselines separated from the assisted framework line.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
@@ -53,6 +53,8 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s1_typical_raw.yaml`
 - `scenarios/optimization/s1_typical_union.yaml`
 - `scenarios/optimization/s1_typical_llm.yaml`
+- `scenarios/optimization/profiles/s1_typical_raw.yaml`
+- `scenarios/optimization/profiles/s1_typical_union.yaml`
 - `scenarios/templates/s2_staged.yaml`
 - `scenarios/evaluation/s2_staged_eval.yaml`
 - `scenarios/optimization/s2_staged_raw.yaml`
@@ -60,14 +62,34 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s2_staged_llm.yaml`
 - `scenarios/optimization/profiles/s2_staged_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_union.yaml`
+- `scenarios/templates/s3_scale20.yaml`
+- `scenarios/evaluation/s3_scale20_eval.yaml`
+- `scenarios/optimization/s3_scale20_raw.yaml`
+- `scenarios/optimization/s3_scale20_union.yaml`
+- `scenarios/optimization/s3_scale20_llm.yaml`
+- `scenarios/optimization/profiles/s3_scale20_raw.yaml`
+- `scenarios/optimization/profiles/s3_scale20_union.yaml`
+- `scenarios/templates/s4_dense25.yaml`
+- `scenarios/evaluation/s4_dense25_eval.yaml`
+- `scenarios/optimization/s4_dense25_raw.yaml`
+- `scenarios/optimization/s4_dense25_union.yaml`
+- `scenarios/optimization/s4_dense25_llm.yaml`
+- `scenarios/optimization/profiles/s4_dense25_raw.yaml`
+- `scenarios/optimization/profiles/s4_dense25_union.yaml`
 
 The fixed benchmark decisions are:
 
 - one operating case
-- fifteen named components
-- all fifteen optimize `x/y` only
+- fixed named components:
+  - S1/S2: 15 components
+  - S3: 20 components
+  - S4: 25 components
+- all components optimize `x/y` only
 - no optimized rotation
-- 32 decision variables
+- scenario-specific decision dimensions:
+  - S1/S2: 32 decision variables
+  - S3: 42 decision variables
+  - S4: 52 decision variables
 - objectives:
   - `summary.temperature_max`
   - `summary.temperature_gradient_rms`
@@ -274,6 +296,8 @@ Current maintained test areas are:
 - `docs/superpowers/plans/2026-03-26-msfenicsx-clean-rebuild-phase1.md`
 - `docs/superpowers/specs/2026-04-02-s1-typical-mainline-reset-design.md`
 - `docs/superpowers/plans/2026-04-02-s1-typical-mainline-reset.md`
+- `docs/superpowers/specs/2026-04-27-s3-s4-scale-benchmarks-design.md`
+- `docs/superpowers/plans/2026-04-27-s3-s4-scale-benchmarks.md`
 - `scenarios/templates/s1_typical.yaml`
 - `scenarios/evaluation/s1_typical_eval.yaml`
 - `scenarios/optimization/s1_typical_raw.yaml`
@@ -281,6 +305,27 @@ Current maintained test areas are:
 - `scenarios/optimization/s1_typical_llm.yaml`
 - `scenarios/optimization/profiles/s1_typical_raw.yaml`
 - `scenarios/optimization/profiles/s1_typical_union.yaml`
+- `scenarios/templates/s2_staged.yaml`
+- `scenarios/evaluation/s2_staged_eval.yaml`
+- `scenarios/optimization/s2_staged_raw.yaml`
+- `scenarios/optimization/s2_staged_union.yaml`
+- `scenarios/optimization/s2_staged_llm.yaml`
+- `scenarios/optimization/profiles/s2_staged_raw.yaml`
+- `scenarios/optimization/profiles/s2_staged_union.yaml`
+- `scenarios/templates/s3_scale20.yaml`
+- `scenarios/evaluation/s3_scale20_eval.yaml`
+- `scenarios/optimization/s3_scale20_raw.yaml`
+- `scenarios/optimization/s3_scale20_union.yaml`
+- `scenarios/optimization/s3_scale20_llm.yaml`
+- `scenarios/optimization/profiles/s3_scale20_raw.yaml`
+- `scenarios/optimization/profiles/s3_scale20_union.yaml`
+- `scenarios/templates/s4_dense25.yaml`
+- `scenarios/evaluation/s4_dense25_eval.yaml`
+- `scenarios/optimization/s4_dense25_raw.yaml`
+- `scenarios/optimization/s4_dense25_union.yaml`
+- `scenarios/optimization/s4_dense25_llm.yaml`
+- `scenarios/optimization/profiles/s4_dense25_raw.yaml`
+- `scenarios/optimization/profiles/s4_dense25_union.yaml`
 - `optimizers/algorithm_config.py`
 - `optimizers/drivers/raw_driver.py`
 - `optimizers/drivers/union_driver.py`
