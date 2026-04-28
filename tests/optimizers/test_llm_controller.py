@@ -2481,6 +2481,102 @@ def test_decision_axes_prioritize_exact_positive_matches_during_prefeasible_conv
     assert axes["route_family_candidates"][:2] == ["sink_retarget", "hotspot_spread"]
 
 
+
+def test_intent_panel_describes_structured_primitives_as_shared_primitives() -> None:
+    panel = LLMOperatorController._build_intent_panel(
+        ("component_block_translate_2_4", "component_subspace_sbx")
+    )
+
+    assert set(panel) == {"structured_block_reposition", "structured_subspace_recombine"}
+    assert "shared primitive" in panel["structured_block_reposition"]
+    assert "shared primitive" in panel["structured_subspace_recombine"]
+    assert "assisted" not in panel["structured_block_reposition"]
+    assert "assisted" not in panel["structured_subspace_recombine"]
+
+
+def test_decision_axes_surface_structured_shared_primitive_trials() -> None:
+    metadata = {
+        "candidate_operator_ids": [
+            "component_block_translate_2_4",
+            "component_subspace_sbx",
+        ],
+        "prompt_panels": {
+            "regime_panel": {
+                "phase": "post_feasible_expand",
+                "preservation_pressure": "medium",
+                "frontier_pressure": "high",
+                "objective_balance": {
+                    "balance_pressure": "high",
+                    "preferred_effect": "peak_improve",
+                },
+            },
+            "operator_panel": {
+                "component_block_translate_2_4": {
+                    "applicability": "medium",
+                    "expected_peak_effect": "improve",
+                    "expected_gradient_effect": "neutral",
+                    "expected_feasibility_risk": "low",
+                    "frontier_evidence": "limited",
+                },
+                "component_subspace_sbx": {
+                    "applicability": "medium",
+                    "expected_peak_effect": "diversify",
+                    "expected_gradient_effect": "diversify",
+                    "expected_feasibility_risk": "low",
+                    "frontier_evidence": "positive",
+                },
+            },
+            "spatial_panel": {},
+        },
+    }
+
+    axes = LLMOperatorController._build_decision_axes(metadata)
+
+    assert "component_block_translate_2_4" in axes["peak_improve_candidates"]
+    assert axes["shared_primitive_trial_candidates"] == [
+        "component_block_translate_2_4",
+        "component_subspace_sbx",
+    ]
+
+
+def test_shared_primitive_trial_candidates_do_not_include_old_clean_primitives() -> None:
+    operator_panel = {
+        "vector_sbx_pm": {
+            "applicability": "high",
+            "expected_feasibility_risk": "low",
+        },
+        "component_jitter_1": {
+            "applicability": "high",
+            "expected_feasibility_risk": "low",
+        },
+        "component_relocate_1": {
+            "applicability": "high",
+            "expected_feasibility_risk": "low",
+        },
+        "sink_shift": {
+            "applicability": "high",
+            "expected_feasibility_risk": "low",
+        },
+        "component_block_translate_2_4": {
+            "applicability": "medium",
+            "expected_feasibility_risk": "low",
+        },
+        "component_subspace_sbx": {
+            "applicability": "medium",
+            "expected_feasibility_risk": "low",
+            "frontier_evidence": "positive",
+        },
+    }
+
+    candidates = LLMOperatorController._build_shared_primitive_trial_candidates(
+        operator_panel,
+        preferred_effect="peak_improve",
+        frontier_score=3,
+    )
+
+    assert candidates == ["component_block_translate_2_4", "component_subspace_sbx"]
+
+
 def test_system_prompt_objective_balance_guidance() -> None:
     """system_prompt should mention objective balance alert when balance_pressure is high."""
     from optimizers.operator_pool.policy_kernel import PolicySnapshot

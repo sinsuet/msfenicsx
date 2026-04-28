@@ -17,6 +17,8 @@ ROUTE_FAMILY_BY_OPERATOR: dict[str, str] = {
     "component_swap_2": "stable_global",
     "sink_shift": "stable_local",
     "sink_resize": "stable_local",
+    "component_block_translate_2_4": "structured_block",
+    "component_subspace_sbx": "structured_subspace",
     "hotspot_pull_toward_sink": "sink_retarget",
     "hotspot_spread": "hotspot_spread",
     "gradient_band_smooth": "congestion_relief",

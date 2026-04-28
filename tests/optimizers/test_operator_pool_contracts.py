@@ -29,6 +29,12 @@ ASSISTED_OPERATOR_IDS = (
     "layout_rebalance",
 )
 
+STRUCTURED_PRIMITIVE_OPERATOR_IDS = (
+    *PRIMITIVE_OPERATOR_IDS,
+    "component_block_translate_2_4",
+    "component_subspace_sbx",
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -110,25 +116,32 @@ def _controller_state():
     )
 
 
-def test_registry_profiles_expose_clean_vs_assisted_pools() -> None:
+def test_registry_profiles_expose_clean_structured_and_assisted_pools() -> None:
     from optimizers.operator_pool.operators import approved_operator_pool
 
     assert approved_operator_pool("primitive_clean") == PRIMITIVE_OPERATOR_IDS
+    assert approved_operator_pool("primitive_structured") == STRUCTURED_PRIMITIVE_OPERATOR_IDS
     assert approved_operator_pool("primitive_plus_assisted") == (
         *PRIMITIVE_OPERATOR_IDS,
         *ASSISTED_OPERATOR_IDS,
     )
+    assert len(approved_operator_pool("primitive_clean")) == len(set(approved_operator_pool("primitive_clean")))
+    assert len(approved_operator_pool("primitive_structured")) == len(set(approved_operator_pool("primitive_structured")))
+    with pytest.raises(KeyError):
+        approved_operator_pool("unknown_profile")
 
 
-def test_registry_profile_contract_is_controller_agnostic() -> None:
+def test_registry_profile_contract_accepts_structured_primitive_pool() -> None:
     from optimizers.models import OptimizationSpec
 
     payload = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml").to_dict()
-    payload["operator_control"]["controller"] = "llm"
-    payload["operator_control"]["registry_profile"] = "primitive_clean"
-    payload["operator_control"]["operator_pool"] = list(PRIMITIVE_OPERATOR_IDS)
+    payload["operator_control"]["registry_profile"] = "primitive_structured"
+    payload["operator_control"]["operator_pool"] = list(STRUCTURED_PRIMITIVE_OPERATOR_IDS)
 
-    assert OptimizationSpec.from_dict(payload).operator_control["registry_profile"] == "primitive_clean"
+    spec = OptimizationSpec.from_dict(payload)
+
+    assert spec.operator_control["registry_profile"] == "primitive_structured"
+    assert tuple(spec.operator_control["operator_pool"]) == STRUCTURED_PRIMITIVE_OPERATOR_IDS
 
 
 def test_behavior_profiles_cover_matrix_native_operator_ids() -> None:
@@ -143,6 +156,14 @@ def test_behavior_profiles_cover_matrix_native_operator_ids() -> None:
 
     semantic_profile = get_operator_behavior_profile("hotspot_pull_toward_sink")
     assert semantic_profile.exploration_class == "custom"
+
+
+
+def test_structured_primitive_route_families_are_explicit() -> None:
+    from optimizers.operator_pool.route_families import operator_route_family
+
+    assert operator_route_family("component_block_translate_2_4") == "structured_block"
+    assert operator_route_family("component_subspace_sbx") == "structured_subspace"
 
 
 def test_variable_layout_maps_s1_typical_variables_in_order() -> None:
@@ -222,7 +243,65 @@ def test_random_controller_is_algorithm_agnostic() -> None:
     assert genetic_selection in PRIMITIVE_OPERATOR_IDS
 
 
-@pytest.mark.parametrize("operator_id", (*PRIMITIVE_OPERATOR_IDS, *ASSISTED_OPERATOR_IDS))
+def _is_nearest_neighborhood(points: np.ndarray, selected_indices: list[int]) -> bool:
+    selected = {int(index) for index in selected_indices}
+    for seed_index in selected:
+        nearest = {
+            int(index)
+            for index in np.argsort(np.linalg.norm(points - points[seed_index], axis=1))[: len(selected)]
+        }
+        if selected == nearest:
+            return True
+    return False
+
+
+def test_component_block_translate_moves_two_to_four_nearby_components_by_same_offset() -> None:
+    from optimizers.operator_pool.operators import get_operator_definition
+
+    layout = _layout()
+    parents = _parent_bundle()
+    proposal = get_operator_definition("component_block_translate_2_4").propose(
+        parents=parents,
+        state=_controller_state(),
+        variable_layout=layout,
+        rng=np.random.default_rng(17),
+    )
+
+    component_deltas = proposal[:-2].reshape(-1, 2) - parents.primary[:-2].reshape(-1, 2)
+    moved_indices = [index for index, delta in enumerate(component_deltas) if np.linalg.norm(delta) > 1.0e-12]
+    unique_deltas = np.unique(np.round(component_deltas[moved_indices], decimals=12), axis=0)
+    primary_points = parents.primary[:-2].reshape(-1, 2)
+
+    assert 2 <= len(moved_indices) <= 4
+    assert unique_deltas.shape == (1, 2)
+    assert _is_nearest_neighborhood(primary_points, moved_indices)
+    assert np.allclose(proposal[-2:], parents.primary[-2:])
+
+
+def test_component_subspace_sbx_changes_only_compact_component_subspace_and_keeps_sink_slots() -> None:
+    from optimizers.operator_pool.operators import get_operator_definition
+
+    layout = _layout()
+    parents = _parent_bundle()
+    proposal = get_operator_definition("component_subspace_sbx").propose(
+        parents=parents,
+        state=_controller_state(),
+        variable_layout=layout,
+        rng=np.random.default_rng(17),
+    )
+
+    component_deltas = proposal[:-2].reshape(-1, 2) - parents.primary[:-2].reshape(-1, 2)
+    moved_indices = [index for index, delta in enumerate(component_deltas) if np.linalg.norm(delta) > 1.0e-12]
+    primary_points = parents.primary[:-2].reshape(-1, 2)
+    untouched_indices = [index for index in range(primary_points.shape[0]) if index not in moved_indices]
+
+    assert 2 <= len(moved_indices) <= 5
+    assert _is_nearest_neighborhood(primary_points, moved_indices)
+    assert np.allclose(component_deltas[untouched_indices], 0.0)
+    assert np.allclose(proposal[-2:], parents.primary[-2:])
+
+
+@pytest.mark.parametrize("operator_id", (*STRUCTURED_PRIMITIVE_OPERATOR_IDS, *ASSISTED_OPERATOR_IDS))
 def test_registered_operators_propose_bounded_numeric_vectors_without_mutating_parents(operator_id: str) -> None:
     from optimizers.operator_pool.operators import get_operator_definition
 

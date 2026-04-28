@@ -61,6 +61,14 @@ _OPERATOR_EFFECTS: dict[str, dict[str, str]] = {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "neutral",
     },
+    "component_block_translate_2_4": {
+        "expected_peak_effect": "improve",
+        "expected_gradient_effect": "neutral",
+    },
+    "component_subspace_sbx": {
+        "expected_peak_effect": "diversify",
+        "expected_gradient_effect": "diversify",
+    },
     "hotspot_pull_toward_sink": {
         "expected_peak_effect": "improve",
         "expected_gradient_effect": "neutral",
@@ -563,6 +571,10 @@ def _build_spatial_operator_support_row(
         applicability_score = 1
         expected_feasibility_risk = "low"
         spatial_match_reason = "primitive baseline variation remains a safe fallback anchor."
+    elif operator_id in {"component_block_translate_2_4", "component_subspace_sbx"}:
+        applicability_score = 2 if frontier_pressure == "high" else 1
+        expected_feasibility_risk = "low"
+        spatial_match_reason = "structured primitive variation can test compact component neighborhoods using only layout state."
 
     return _qualitative_rank(applicability_score), {
         "expected_feasibility_risk": expected_feasibility_risk,

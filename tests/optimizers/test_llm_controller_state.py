@@ -2209,3 +2209,50 @@ def test_prompt_operator_panel_surfaces_unseen_peak_escape_candidates() -> None:
     assert "repair_sink_budget" in panel
     assert panel["move_hottest_cluster_toward_sink"]["applicability"] == "medium"
     assert panel["repair_sink_budget"]["applicability"] == "medium"
+
+
+def test_prompt_operator_panel_exposes_structured_primitive_effects() -> None:
+    from optimizers.operator_pool.state_builder import _build_prompt_operator_panel
+
+    panel = _build_prompt_operator_panel(
+        operator_summary={},
+        candidate_operator_ids=(
+            "component_block_translate_2_4",
+            "component_subspace_sbx",
+        ),
+        regime_panel={
+            "phase": "post_feasible_expand",
+            "frontier_pressure": "high",
+            "objective_balance": {
+                "balance_pressure": "high",
+                "preferred_effect": "peak_improve",
+            },
+        },
+    )
+
+    block_row = panel["component_block_translate_2_4"]
+    subspace_row = panel["component_subspace_sbx"]
+    assert block_row["expected_peak_effect"] == "improve"
+    assert block_row["expected_gradient_effect"] == "neutral"
+    assert block_row["applicability"] == "medium"
+    assert subspace_row["expected_peak_effect"] == "diversify"
+    assert subspace_row["expected_gradient_effect"] == "diversify"
+
+
+def test_prompt_operator_panel_lists_structured_diversify_candidate_under_balanced_pressure() -> None:
+    from optimizers.operator_pool.state_builder import _build_prompt_operator_panel
+
+    panel = _build_prompt_operator_panel(
+        operator_summary={},
+        candidate_operator_ids=("component_subspace_sbx",),
+        regime_panel={
+            "phase": "post_feasible_expand",
+            "frontier_pressure": "high",
+            "objective_balance": {
+                "balance_pressure": "medium",
+                "preferred_effect": "balanced",
+            },
+        },
+    )
+
+    assert panel["component_subspace_sbx"]["applicability"] == "medium"

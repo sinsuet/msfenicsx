@@ -36,6 +36,8 @@ _OPERATOR_ROLE_SUMMARIES: dict[str, str] = {
     "component_swap_2": "swap two component positions to explore a new layout ordering.",
     "sink_shift": "shift the sink window while preserving most of its current span.",
     "sink_resize": "adjust the sink window span within the allowed budget.",
+    "component_block_translate_2_4": "translate a compact block of nearby components as a shared primitive layout move.",
+    "component_subspace_sbx": "recombine and mutate a compact component subspace as a shared primitive layout move.",
     "hotspot_pull_toward_sink": "pull the active hotspot cluster toward the sink corridor.",
     "hotspot_spread": "separate a compact hotspot cluster to reduce local thermal pressure.",
     "gradient_band_smooth": "smooth a high-gradient band through local layout blending.",
@@ -81,6 +83,8 @@ _OPERATOR_STRATEGY_GROUPS: dict[str, str] = {
     "component_swap_2": "global_explore",
     "sink_shift": "sink_retarget",
     "sink_resize": "sink_retarget",
+    "component_block_translate_2_4": "structured_block",
+    "component_subspace_sbx": "structured_subspace",
     "hotspot_pull_toward_sink": "hotspot_shift",
     "hotspot_spread": "gradient_smoothing",
     "gradient_band_smooth": "gradient_smoothing",
@@ -107,6 +111,8 @@ _STABLE_PROMPT_OPERATOR_IDS = frozenset(
         "component_swap_2",
         "sink_shift",
         "sink_resize",
+        "component_block_translate_2_4",
+        "component_subspace_sbx",
         "native_sbx_pm",
         "global_explore",
         "local_refine",
@@ -120,6 +126,8 @@ _OPERATOR_INTENTS: dict[str, str] = {
     "component_swap_2": "layout_frontier_diversify",
     "sink_shift": "sink_alignment_adjust",
     "sink_resize": "sink_budget_adjust",
+    "component_block_translate_2_4": "structured_block_reposition",
+    "component_subspace_sbx": "structured_subspace_recombine",
     "hotspot_pull_toward_sink": "sink_retarget",
     "hotspot_spread": "hotspot_spread",
     "gradient_band_smooth": "congestion_relief",
@@ -151,6 +159,8 @@ _INTENT_SUMMARIES: dict[str, str] = {
     "hotspot_spread": "disperse a compact hotspot cluster to reduce local thermal pressure.",
     "congestion_relief": "open space in locally congested regions of the layout.",
     "layout_rebalance": "rebalance the layout when global spatial distribution is the limiting factor.",
+    "structured_block_reposition": "use a shared primitive block translation to reposition nearby components using only layout coordinates and bounds.",
+    "structured_subspace_recombine": "use shared primitive subspace recombination to diversify compact component groups using only parent vectors and bounds.",
     "preserve_feasible": "protect feasibility and avoid sink-budget regressions.",
 }
 
@@ -1207,14 +1217,10 @@ class LLMOperatorController:
         if not isinstance(operator_panel, Mapping):
             return candidates
         preferred_effect = str(preferred_effect or "")
-        if preferred_effect == "peak_improve":
-            ordered_operator_ids = ("component_jitter_1", "component_relocate_1", "sink_shift")
-        elif preferred_effect == "gradient_improve":
-            ordered_operator_ids = ("anchored_component_jitter", "component_swap_2")
-        elif frontier_score >= 3:
-            ordered_operator_ids = ("vector_sbx_pm", "component_relocate_1", "component_swap_2", "component_jitter_1", "anchored_component_jitter")
+        if preferred_effect == "gradient_improve":
+            ordered_operator_ids = ("component_subspace_sbx", "component_block_translate_2_4")
         else:
-            ordered_operator_ids = ("vector_sbx_pm", "component_jitter_1", "anchored_component_jitter", "component_relocate_1", "component_swap_2")
+            ordered_operator_ids = ("component_block_translate_2_4", "component_subspace_sbx")
         for operator_id in ordered_operator_ids:
             row = operator_panel.get(operator_id)
             if not isinstance(row, Mapping):

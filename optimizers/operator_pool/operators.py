@@ -11,7 +11,7 @@ from optimizers.cheap_constraints import project_sink_interval
 from optimizers.operator_pool.assisted_registry import ASSISTED_OPERATOR_IDS
 from optimizers.operator_pool.layout import VariableLayout
 from optimizers.operator_pool.models import ParentBundle
-from optimizers.operator_pool.primitive_registry import PRIMITIVE_OPERATOR_IDS
+from optimizers.operator_pool.primitive_registry import PRIMITIVE_OPERATOR_IDS, STRUCTURED_PRIMITIVE_OPERATOR_IDS
 from optimizers.operator_pool.state import ControllerState
 
 
@@ -32,6 +32,8 @@ _MIN_SINK_SPAN = 0.15
 def approved_operator_pool(registry_profile: str) -> tuple[str, ...]:
     if registry_profile == "primitive_clean":
         return PRIMITIVE_OPERATOR_IDS
+    if registry_profile == "primitive_structured":
+        return STRUCTURED_PRIMITIVE_OPERATOR_IDS
     if registry_profile == "primitive_plus_assisted":
         return (*PRIMITIVE_OPERATOR_IDS, *ASSISTED_OPERATOR_IDS)
     raise KeyError(f"Unsupported registry profile: {registry_profile!r}")
@@ -458,6 +460,35 @@ def _anchored_component_jitter(
     return variable_layout.clip(proposal)
 
 
+def _component_block_translate_2_4(
+    parents: ParentBundle,
+    state: ControllerState,
+    variable_layout: VariableLayout,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    del state
+    proposal = _copy_primary(parents)
+    component_pairs = _component_axes(variable_layout)
+    points = _component_points(proposal, variable_layout, component_pairs)
+    block_size = min(len(component_pairs), int(rng.integers(2, 5)))
+    seed_index = int(rng.integers(0, len(component_pairs)))
+    distances = np.linalg.norm(points - points[seed_index], axis=1)
+    selected_indices = [int(index) for index in np.argsort(distances)[:block_size]]
+    angle = float(rng.uniform(0.0, 2.0 * np.pi))
+    magnitude = float(rng.uniform(0.035, 0.085))
+    dx = float(np.cos(angle) * magnitude)
+    dy = float(np.sin(angle) * magnitude)
+    for selected_index in selected_indices:
+        _apply_component_shift(
+            proposal,
+            variable_layout,
+            component_pairs[selected_index],
+            dx=dx,
+            dy=dy,
+        )
+    return variable_layout.clip(proposal)
+
+
 def _component_relocate_1(
     parents: ParentBundle,
     state: ControllerState,
@@ -541,6 +572,68 @@ def _sink_resize(
         span_override=target_span,
     )
     return variable_layout.clip(proposal)
+
+
+def _component_subspace_sbx(
+    parents: ParentBundle,
+    state: ControllerState,
+    variable_layout: VariableLayout,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    eta_c, prob_c, eta_m, prob_var = _resolve_native_parameters(state)
+    primary = _copy_primary(parents)
+    components = _component_axes(variable_layout)
+    points = _component_points(primary, variable_layout, components)
+    subspace_size = min(len(components), int(rng.integers(2, 6)))
+    seed_index = int(rng.integers(0, len(components)))
+    distances = np.linalg.norm(points - points[seed_index], axis=1)
+    selected_component_indices = [int(index) for index in np.argsort(distances)[:subspace_size]]
+    selected_variable_indices: list[int] = []
+    for component_index in selected_component_indices:
+        component = components[component_index]
+        selected_variable_indices.append(variable_layout.index_of(component.x_id))
+        selected_variable_indices.append(variable_layout.index_of(component.y_id))
+
+    child = primary.copy()
+    secondary = np.array(parents.secondary, dtype=np.float64, copy=False)
+    if float(rng.random()) < prob_c:
+        for index in selected_variable_indices:
+            lower_bound = float(variable_layout.lower_bounds[index])
+            upper_bound = float(variable_layout.upper_bounds[index])
+            x1 = float(primary[index])
+            x2 = float(secondary[index])
+            u = float(rng.random())
+            beta = (
+                (2.0 * u) ** (1.0 / (eta_c + 1.0))
+                if u <= 0.5
+                else (1.0 / (2.0 * (1.0 - u))) ** (1.0 / (eta_c + 1.0))
+            )
+            child[index] = min(max(0.5 * ((1.0 + beta) * x1 + (1.0 - beta) * x2), lower_bound), upper_bound)
+
+    mutation_rate = 1.0 / len(selected_variable_indices) if prob_var is None else prob_var
+    for index in selected_variable_indices:
+        lower_bound = float(variable_layout.lower_bounds[index])
+        upper_bound = float(variable_layout.upper_bounds[index])
+        if float(rng.random()) >= mutation_rate:
+            continue
+        span = upper_bound - lower_bound
+        if span <= 0.0:
+            continue
+        value = float(child[index])
+        delta_1 = (value - lower_bound) / span
+        delta_2 = (upper_bound - value) / span
+        u_mut = float(rng.random())
+        mut_pow = 1.0 / (eta_m + 1.0)
+        if u_mut < 0.5:
+            xy = 1.0 - delta_1
+            val = 2.0 * u_mut + (1.0 - 2.0 * u_mut) * (xy ** (eta_m + 1.0))
+            delta_q = val**mut_pow - 1.0
+        else:
+            xy = 1.0 - delta_2
+            val = 2.0 * (1.0 - u_mut) + 2.0 * (u_mut - 0.5) * (xy ** (eta_m + 1.0))
+            delta_q = 1.0 - val**mut_pow
+        child[index] = value + delta_q * span
+    return variable_layout.clip(child)
 
 
 def _global_explore(
@@ -863,6 +956,8 @@ _REGISTERED_OPERATORS = (
     OperatorDefinition("component_swap_2", _component_swap_2),
     OperatorDefinition("sink_shift", _sink_shift),
     OperatorDefinition("sink_resize", _sink_resize),
+    OperatorDefinition("component_block_translate_2_4", _component_block_translate_2_4),
+    OperatorDefinition("component_subspace_sbx", _component_subspace_sbx),
     OperatorDefinition("hotspot_pull_toward_sink", _move_hottest_cluster_toward_sink),
     OperatorDefinition("hotspot_spread", _spread_hottest_cluster),
     OperatorDefinition("gradient_band_smooth", _smooth_high_gradient_band),
@@ -914,6 +1009,18 @@ _OPERATOR_BEHAVIOR_PROFILES = {
         family="primitive_sink",
         role="sink_resize",
         exploration_class="stable",
+    ),
+    "component_block_translate_2_4": OperatorBehaviorProfile(
+        operator_id="component_block_translate_2_4",
+        family="structured_block",
+        role="primitive_structured_block",
+        exploration_class="structured",
+    ),
+    "component_subspace_sbx": OperatorBehaviorProfile(
+        operator_id="component_subspace_sbx",
+        family="structured_subspace",
+        role="primitive_structured_subspace",
+        exploration_class="structured",
     ),
     "hotspot_pull_toward_sink": OperatorBehaviorProfile(
         operator_id="hotspot_pull_toward_sink",

@@ -15,7 +15,7 @@ SUPPORTED_BACKBONES_BY_FAMILY = {
 }
 SUPPORTED_MODES = {"raw", "union"}
 SUPPORTED_CONTROLLERS = {"random_uniform", "llm"}
-SUPPORTED_REGISTRY_PROFILES = {"primitive_clean", "primitive_plus_assisted"}
+SUPPORTED_REGISTRY_PROFILES = {"primitive_clean", "primitive_structured", "primitive_plus_assisted"}
 SUPPORTED_LLM_CAPABILITY_PROFILES = {"responses_native", "chat_compatible_json"}
 SUPPORTED_LLM_PERFORMANCE_PROFILES = {"economy", "balanced", "high_reasoning"}
 SUPPORTED_LLM_FALLBACK_CONTROLLERS = {"random_uniform"}

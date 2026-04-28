@@ -12,3 +12,9 @@ PRIMITIVE_OPERATOR_IDS = (
     "sink_shift",
     "sink_resize",
 )
+
+STRUCTURED_PRIMITIVE_OPERATOR_IDS = (
+    *PRIMITIVE_OPERATOR_IDS,
+    "component_block_translate_2_4",
+    "component_subspace_sbx",
+)
