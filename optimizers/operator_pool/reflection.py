@@ -27,6 +27,8 @@ from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 _SUPPORTED_SELECTION_THRESHOLD = 3
 _SPECULATIVE_FAMILY = "speculative_custom"
 _PENALTY_SENTINEL_THRESHOLD = 1.0e9
+_CUSTOM_MIN_OUTCOME_WINDOW = 4
+_CUSTOM_MIN_POST_FEASIBLE_SUCCESS_RATE = 0.35
 
 
 def _is_fallback_selection(row: ControllerTraceRow) -> bool:
@@ -42,6 +44,7 @@ def _evidence_level(summary_row: Mapping[str, Any]) -> str:
     feasible_preservation_count = int(summary_row.get("feasible_preservation_count", 0))
     pareto_contribution_count = int(summary_row.get("pareto_contribution_count", 0))
     operator_family = str(summary_row.get("operator_family", ""))
+    exploration_class = str(summary_row.get("exploration_class", ""))
     support_count = max(
         int(summary_row.get("selection_count", 0)),
         int(summary_row.get("proposal_count", 0)),
@@ -49,6 +52,15 @@ def _evidence_level(summary_row: Mapping[str, Any]) -> str:
     )
     if feasible_entry_count > 0 or feasible_preservation_count > 0 or pareto_contribution_count > 0:
         return "trusted"
+    if exploration_class == "custom":
+        if (
+            int(summary_row.get("dominant_violation_relief_count", 0)) > 0
+            or int(summary_row.get("near_feasible_improvement_count", 0)) > 0
+            or int(summary_row.get("recent_expand_feasible_preservation_count", 0)) > 0
+            or int(summary_row.get("recent_expand_frontier_add_count", 0)) > 0
+        ):
+            return "supported"
+        return "speculative"
     if support_count >= _SUPPORTED_SELECTION_THRESHOLD and operator_family != _SPECULATIVE_FAMILY:
         return "supported"
     return "speculative"
@@ -89,6 +101,13 @@ def _expand_fit(summary_row: Mapping[str, Any]) -> str:
 
 
 def _recent_regression_risk(summary_row: Mapping[str, Any]) -> str:
+    post_feasible_selection_count = int(summary_row.get("post_feasible_selection_count", 0))
+    if post_feasible_selection_count >= _CUSTOM_MIN_OUTCOME_WINDOW:
+        success_rate = float(summary_row.get("post_feasible_success_count", 0)) / float(post_feasible_selection_count)
+        if success_rate < _CUSTOM_MIN_POST_FEASIBLE_SUCCESS_RATE:
+            return "high"
+        if success_rate < 0.50:
+            return "medium"
     if (
         int(summary_row.get("feasible_regression_count", 0)) > 0
         or float(summary_row.get("post_feasible_avg_violation_delta", 0.0)) > 0.0
@@ -253,6 +272,9 @@ def summarize_operator_history(
                     "recent_expand_feasible_preservation_count": 0,
                     "recent_expand_feasible_regression_count": 0,
                     "recent_expand_frontier_add_count": 0,
+                    "post_feasible_selection_count": 0,
+                    "post_feasible_success_count": 0,
+                    "post_feasible_thermal_infeasible_count": 0,
                     "penalty_event_count": 0,
                     "credit_by_regime": {},
                     "regime_episodes": [],
@@ -414,6 +436,9 @@ def _summarize_operator_outcomes(
                 "recent_expand_feasible_preservation_count": 0,
                 "recent_expand_feasible_regression_count": 0,
                 "recent_expand_frontier_add_count": 0,
+                "post_feasible_selection_count": 0,
+                "post_feasible_success_count": 0,
+                "post_feasible_thermal_infeasible_count": 0,
                 "penalty_event_count": 0,
                 "credit_by_regime": {},
                 "regime_episodes": [],
@@ -475,6 +500,19 @@ def _summarize_operator_outcomes(
             operator_summary["post_feasible_violation_deltas"].append(violation_delta)
 
         controller_phase = str(controller_phase_by_evaluation_index.get(int(row.evaluation_index), "")).strip()
+        if controller_phase.startswith("post_feasible"):
+            operator_summary["post_feasible_selection_count"] += 1
+            if child_feasible:
+                operator_summary["post_feasible_success_count"] += 1
+            else:
+                child_dominant = dominant_violation(child_record)
+                child_constraint_id = (
+                    str(child_dominant.get("constraint_id", ""))
+                    if isinstance(child_dominant, Mapping)
+                    else ""
+                )
+                if classify_constraint_family(child_constraint_id) == "thermal_limit":
+                    operator_summary["post_feasible_thermal_infeasible_count"] += 1
         if (
             int(row.evaluation_index) in recent_evaluation_indices
             and controller_phase == "post_feasible_expand"
@@ -641,6 +679,14 @@ def _summarize_operator_outcomes(
             ),
             "recent_expand_feasible_regression_count": int(summary["recent_expand_feasible_regression_count"]),
             "recent_expand_frontier_add_count": int(summary["recent_expand_frontier_add_count"]),
+            "post_feasible_selection_count": int(summary["post_feasible_selection_count"]),
+            "post_feasible_success_count": int(summary["post_feasible_success_count"]),
+            "post_feasible_success_rate": (
+                None
+                if int(summary["post_feasible_selection_count"]) <= 0
+                else float(summary["post_feasible_success_count"]) / float(summary["post_feasible_selection_count"])
+            ),
+            "post_feasible_thermal_infeasible_count": int(summary["post_feasible_thermal_infeasible_count"]),
             "penalty_event_count": int(summary["penalty_event_count"]),
             "credit_by_regime": {
                 regime_key: {

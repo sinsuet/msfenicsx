@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,9 +23,11 @@ class OpenAICompatibleConfig:
     reasoning: dict[str, Any] = field(default_factory=dict)
     retry: dict[str, Any] = field(default_factory=dict)
     memory: dict[str, Any] = field(default_factory=dict)
+    extra_body: dict[str, Any] = field(default_factory=dict)
     base_url: str | None = None
     model_env_var: str | None = None
     base_url_env_var: str | None = None
+    extra_body_env_var: str | None = "LLM_EXTRA_BODY"
     fallback_controller: str = "random_uniform"
 
     @classmethod
@@ -40,9 +43,17 @@ class OpenAICompatibleConfig:
             reasoning=dict(payload.get("reasoning", {})),
             retry=dict(payload.get("retry", {})),
             memory=dict(payload.get("memory", {})),
+            extra_body=dict(payload.get("extra_body", {})),
             base_url=None if payload.get("base_url") is None else str(payload["base_url"]),
             model_env_var=None if payload.get("model_env_var") is None else str(payload["model_env_var"]),
             base_url_env_var=None if payload.get("base_url_env_var") is None else str(payload["base_url_env_var"]),
+            extra_body_env_var=(
+                "LLM_EXTRA_BODY"
+                if "extra_body_env_var" not in payload
+                else None
+                if payload.get("extra_body_env_var") is None
+                else str(payload["extra_body_env_var"])
+            ),
             fallback_controller=str(payload.get("fallback_controller", "random_uniform")),
         )
 
@@ -99,6 +110,30 @@ class OpenAICompatibleConfig:
             os.environ if environ is None else environ,
             dotenv_path=dotenv_path,
         )
+
+    def resolve_extra_body(
+        self,
+        environ: Mapping[str, str] | None = None,
+        *,
+        dotenv_path: str | Path | None = None,
+    ) -> dict[str, Any]:
+        merged = dict(self.extra_body)
+        raw_extra_body = resolve_optional_env_value(
+            self.extra_body_env_var,
+            os.environ if environ is None else environ,
+            dotenv_path=dotenv_path,
+        )
+        if raw_extra_body:
+            try:
+                parsed = json.loads(raw_extra_body)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Environment variable '{self.extra_body_env_var}' must contain a JSON object."
+                ) from exc
+            if not isinstance(parsed, dict):
+                raise ValueError(f"Environment variable '{self.extra_body_env_var}' must contain a JSON object.")
+            merged.update(parsed)
+        return merged
 
     @property
     def timeout_seconds(self) -> float | None:

@@ -20,6 +20,10 @@ DEFAULT_ALGORITHM_PARAMETERS = {
         "crossover": {"operator": "sbx", "eta": 15, "prob": 0.9},
         "mutation": {"operator": "pm", "eta": 20},
     },
+    ("genetic", "spea2", "raw"): {
+        "crossover": {"operator": "sbx", "eta": 15, "prob": 0.9},
+        "mutation": {"operator": "pm", "eta": 20},
+    },
     ("genetic", "nsga3", "raw"): {
         "reference_directions": {"scheme": "uniform"},
         "crossover": {"operator": "sbx", "eta": 15, "prob": 0.9},

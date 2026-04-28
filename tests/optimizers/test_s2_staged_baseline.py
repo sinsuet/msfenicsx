@@ -79,6 +79,7 @@ def test_s2_staged_specs_load_and_registry_profiles_are_split() -> None:
 
 
 def test_s2_staged_union_uses_clean_registry_while_llm_retains_assisted_pool() -> None:
+    from optimizers.operator_pool.llm_controller import LLMOperatorController
     from optimizers.operator_pool.route_families import operator_route_family
     from optimizers.operator_pool.state_builder import _build_prompt_operator_panel
 
@@ -87,6 +88,7 @@ def test_s2_staged_union_uses_clean_registry_while_llm_retains_assisted_pool() -
     primitive_ids = {
         "vector_sbx_pm",
         "component_jitter_1",
+        "anchored_component_jitter",
         "component_relocate_1",
         "component_swap_2",
         "sink_shift",
@@ -116,6 +118,39 @@ def test_s2_staged_union_uses_clean_registry_while_llm_retains_assisted_pool() -
     assert panel["component_jitter_1"]["expected_peak_effect"] == "neutral"
     assert panel["component_jitter_1"]["expected_gradient_effect"] == "neutral"
     assert panel["sink_retarget"]["expected_peak_effect"] == "improve"
+
+    intent_panel = LLMOperatorController._build_intent_panel(
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "component_relocate_1",
+            "hotspot_pull_toward_sink",
+            "hotspot_spread",
+            "gradient_band_smooth",
+            "congestion_relief",
+            "sink_retarget",
+            "layout_rebalance",
+        )
+    )
+    assert set(intent_panel) >= {
+        "native_baseline",
+        "local_cleanup",
+        "frontier_expand",
+        "sink_retarget",
+        "hotspot_spread",
+        "congestion_relief",
+        "layout_rebalance",
+    }
+
+    semantic_trials = LLMOperatorController._build_semantic_trial_candidates(
+        {
+            "component_jitter_1": {"applicability": "high", "expected_feasibility_risk": "low"},
+            "component_relocate_1": {"applicability": "high", "expected_feasibility_risk": "low"},
+            "hotspot_spread": {"applicability": "high", "expected_feasibility_risk": "medium"},
+            "congestion_relief": {"applicability": "high", "expected_feasibility_risk": "low"},
+        }
+    )
+    assert semantic_trials == ["hotspot_spread", "congestion_relief"]
 
 
 def test_s2_staged_generated_baseline_is_infeasible_before_repair_acceptance() -> None:

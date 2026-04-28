@@ -38,6 +38,15 @@ The active paper-facing benchmark family is `s1_typical`, `s2_staged`, `s3_scale
   - `nsga2_raw`
   - `nsga2_union`
   - `nsga2_llm`
+- additional raw-only algorithm comparison specs:
+  - `spea2_raw`
+  - `cmopso_raw`
+  - `moead_raw` backup
+
+The additional algorithms are intentionally raw-only comparison baselines. Run them with
+`optimize-benchmark` and compare the resulting concrete run roots with `compare-runs`;
+the `run-benchmark-suite` ladder remains reserved for the `nsga2_raw / nsga2_union / nsga2_llm`
+mode comparison.
 
 ## Active Inputs
 
@@ -48,8 +57,14 @@ Implemented (`s1_typical`):
 - raw spec: `scenarios/optimization/s1_typical_raw.yaml`
 - union spec: `scenarios/optimization/s1_typical_union.yaml`
 - llm spec: `scenarios/optimization/s1_typical_llm.yaml`
+- SPEA2 raw spec: `scenarios/optimization/s1_typical_spea2_raw.yaml`
+- CMOPSO raw spec: `scenarios/optimization/s1_typical_cmopso_raw.yaml`
+- MOEA/D backup raw spec: `scenarios/optimization/s1_typical_moead_raw.yaml`
 - raw profile: `scenarios/optimization/profiles/s1_typical_raw.yaml`
 - union profile: `scenarios/optimization/profiles/s1_typical_union.yaml`
+- SPEA2 raw profile: `scenarios/optimization/profiles/s1_typical_spea2_raw.yaml`
+- CMOPSO raw profile: `scenarios/optimization/profiles/s1_typical_cmopso_raw.yaml`
+- MOEA/D backup raw profile: `scenarios/optimization/profiles/s1_typical_moead_raw.yaml`
 
 Implemented (`s2_staged`):
 
@@ -58,8 +73,14 @@ Implemented (`s2_staged`):
 - raw spec: `scenarios/optimization/s2_staged_raw.yaml`
 - union spec: `scenarios/optimization/s2_staged_union.yaml`
 - llm spec: `scenarios/optimization/s2_staged_llm.yaml`
+- SPEA2 raw spec: `scenarios/optimization/s2_staged_spea2_raw.yaml`
+- CMOPSO raw spec: `scenarios/optimization/s2_staged_cmopso_raw.yaml`
+- MOEA/D backup raw spec: `scenarios/optimization/s2_staged_moead_raw.yaml`
 - raw profile: `scenarios/optimization/profiles/s2_staged_raw.yaml`
 - union profile: `scenarios/optimization/profiles/s2_staged_union.yaml`
+- SPEA2 raw profile: `scenarios/optimization/profiles/s2_staged_spea2_raw.yaml`
+- CMOPSO raw profile: `scenarios/optimization/profiles/s2_staged_cmopso_raw.yaml`
+- MOEA/D backup raw profile: `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
 
 Implemented (`s3_scale20`):
 
@@ -227,6 +248,21 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s1_typical/llm-smoke
 
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+  --optimization-spec scenarios/optimization/s1_typical_spea2_raw.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/spea2-raw-smoke
+
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+  --optimization-spec scenarios/optimization/s1_typical_cmopso_raw.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/cmopso-raw-smoke
+
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+  --optimization-spec scenarios/optimization/s1_typical_moead_raw.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/moead-raw-smoke
+
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
   --evaluation-workers 2 \
@@ -287,32 +323,34 @@ The optimizer CLI uses a desktop-safe default worker budget when `--evaluation-w
 
 The `nsga2_llm` route uses the OpenAI-compatible client in `llm/openai_compatible/` and expects:
 
-- one of the provider profiles declared in `llm/openai_compatible/profiles.yaml`
+- one of the model profiles declared in `llm/openai_compatible/profiles.yaml`
 - provider credentials from process environment or repository-root `.env`
 - the active paper-facing `s1_typical_llm` spec now resolves runtime provider identity through:
   - `LLM_API_KEY`
   - `LLM_BASE_URL`
   - `LLM_MODEL`
 
-Edit the repository-root `.env` at `/home/hymn/msfenicsx/.env` to declare each provider once:
+Edit the repository-root `.env` at `/home/hymn/msfenicsx/.env` to declare each runtime route once:
 
 ```env
-GPT_PROXY_API_KEY=...
-GPT_PROXY_BASE_URL=https://apiproxy.work/v1
-
-CLAUDE_PROXY_API_KEY=...
-CLAUDE_PROXY_BASE_URL=https://apiproxy.work/v1
-
 QWEN_PROXY_API_KEY=...
-QWEN_PROXY_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1
+
+DEEPSEEK_PROXY_API_KEY=...
+DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1
+
+GEMMA4_API_KEY=...
+GEMMA4_BASE_URL=...
 ```
 
-The bundled provider registry maps:
+The bundled model registry maps:
 
-- `default -> gpt -> GPT_PROXY_* -> gpt-5.4`
-- `claude -> CLAUDE_PROXY_* -> claude-sonnet-4-6`
-- `qwen -> QWEN_PROXY_* -> qwen3.6-plus`
-- edit `llm/openai_compatible/profiles.yaml` if you want to change the bundled default model names later
+- `default -> QWEN_PROXY_* -> qwen3.6-plus`
+- `qwen3_6_plus -> QWEN_PROXY_* -> qwen3.6-plus`
+- `glm_5 -> QWEN_PROXY_* -> glm-5`
+- `minimax_m2_5 -> QWEN_PROXY_* -> MiniMax-M2.5`
+- `deepseek_v4_flash -> DEEPSEEK_PROXY_* -> DeepSeek-V4-Flash`
+- `gemma4 -> GEMMA4_* -> gemma-4` as a placeholder until credentials and the exact model id are configured
 
 Recommended LLM benchmark invocation:
 
@@ -323,22 +361,30 @@ Recommended LLM benchmark invocation:
   --output-root ./scenario_runs/s1_typical/llm-default-smoke
 ```
 
-This uses the bundled `default` profile, which points to GPT by default. To switch providers explicitly:
+This uses the bundled `default` profile, which points to `qwen3.6-plus` by default. To switch models explicitly:
 
 ```bash
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
-  claude \
+  glm_5 \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
   --evaluation-workers 2 \
-  --output-root ./scenario_runs/s1_typical/llm-claude-smoke
+  --output-root ./scenario_runs/s1_typical/llm-glm5-smoke
 ```
 
 ```bash
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
-  qwen \
+  minimax_m2_5 \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
   --evaluation-workers 2 \
-  --output-root ./scenario_runs/s1_typical/llm-qwen-smoke
+  --output-root ./scenario_runs/s1_typical/llm-minimax-m25-smoke
+```
+
+```bash
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+  deepseek_v4_flash \
+  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/llm-deepseek-v4-flash-smoke
 ```
 
 Direct `optimize-benchmark` execution for `s1_typical_llm.yaml` still works, but only if you explicitly provide:

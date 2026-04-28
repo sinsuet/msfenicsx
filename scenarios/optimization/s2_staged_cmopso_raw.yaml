@@ -1,9 +1,9 @@
 schema_version: "1.0"
 spec_meta:
-  spec_id: s1_typical_nsga2_union
-  description: S1 typical single-case NSGA-II union-uniform mode with the primitive clean action registry.
+  spec_id: s2_staged_cmopso_raw
+  description: S2 staged single-case CMOPSO raw baseline; same 32D encoding and budget as the shared ladder, with the staged benchmark calibrated on the repaired optimizer baseline.
 benchmark_source:
-  template_path: scenarios/templates/s1_typical.yaml
+  template_path: scenarios/templates/s2_staged.yaml
   seed: 11
 design_variables:
   - variable_id: c01_x
@@ -16,11 +16,11 @@ design_variables:
     upper_bound: 0.68
   - variable_id: c02_x
     path: components[1].pose.x
-    lower_bound: 0.1
+    lower_bound: 0.45
     upper_bound: 0.9
   - variable_id: c02_y
     path: components[1].pose.y
-    lower_bound: 0.1
+    lower_bound: 0.11
     upper_bound: 0.68
   - variable_id: c03_x
     path: components[2].pose.x
@@ -32,7 +32,7 @@ design_variables:
     upper_bound: 0.68
   - variable_id: c04_x
     path: components[3].pose.x
-    lower_bound: 0.1
+    lower_bound: 0.45
     upper_bound: 0.9
   - variable_id: c04_y
     path: components[3].pose.y
@@ -48,7 +48,7 @@ design_variables:
     upper_bound: 0.68
   - variable_id: c06_x
     path: components[5].pose.x
-    lower_bound: 0.1
+    lower_bound: 0.45
     upper_bound: 0.9
   - variable_id: c06_y
     path: components[5].pose.y
@@ -96,7 +96,7 @@ design_variables:
     upper_bound: 0.68
   - variable_id: c12_x
     path: components[11].pose.x
-    lower_bound: 0.1
+    lower_bound: 0.45
     upper_bound: 0.9
   - variable_id: c12_y
     path: components[11].pose.y
@@ -135,24 +135,13 @@ design_variables:
     lower_bound: 0.2
     upper_bound: 0.95
 algorithm:
-  family: genetic
-  backbone: nsga2
-  mode: union
+  family: swarm
+  backbone: cmopso
+  mode: raw
   population_size: 20
   num_generations: 10
   seed: 7
-  profile_path: scenarios/optimization/profiles/s1_typical_union.yaml
-operator_control:
-  controller: random_uniform
-  registry_profile: primitive_clean
-  operator_pool:
-    - vector_sbx_pm
-    - component_jitter_1
-    - anchored_component_jitter
-    - component_relocate_1
-    - component_swap_2
-    - sink_shift
-    - sink_resize
+  profile_path: scenarios/optimization/profiles/s2_staged_cmopso_raw.yaml
 evaluation_protocol:
-  evaluation_spec_path: scenarios/evaluation/s1_typical_eval.yaml
+  evaluation_spec_path: scenarios/evaluation/s2_staged_eval.yaml
   legality_policy_id: minimal_canonicalization

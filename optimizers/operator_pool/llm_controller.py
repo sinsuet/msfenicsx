@@ -29,6 +29,19 @@ from optimizers.traces.prompt_store import PromptStore
 
 
 _OPERATOR_ROLE_SUMMARIES: dict[str, str] = {
+    "vector_sbx_pm": "native NSGA-II SBX plus polynomial mutation baseline proposal.",
+    "component_jitter_1": "small one-component local perturbation around the current layout.",
+    "anchored_component_jitter": "component perturbation paired with a right-shifted sink anchor.",
+    "component_relocate_1": "relocate one component to broaden layout exploration.",
+    "component_swap_2": "swap two component positions to explore a new layout ordering.",
+    "sink_shift": "shift the sink window while preserving most of its current span.",
+    "sink_resize": "adjust the sink window span within the allowed budget.",
+    "hotspot_pull_toward_sink": "pull the active hotspot cluster toward the sink corridor.",
+    "hotspot_spread": "separate a compact hotspot cluster to reduce local thermal pressure.",
+    "gradient_band_smooth": "smooth a high-gradient band through local layout blending.",
+    "congestion_relief": "open space around the most congested local component pair.",
+    "sink_retarget": "retarget sink alignment toward the active hotspot geometry.",
+    "layout_rebalance": "rebalance the overall component distribution across the panel.",
     "native_sbx_pm": "native NSGA-II SBX plus polynomial mutation baseline proposal.",
     "global_explore": "more aggressive full-vector SBX plus mutation exploration across the complete layout.",
     "local_refine": "small local cleanup around the current cluster arrangement and sink placement.",
@@ -46,7 +59,7 @@ _RECENT_DOMINANCE_MIN_SHARE = 0.75
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_WINDOW = 4
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_COUNT = 4
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_SHARE = 0.75
-_NATIVE_BASELINE_OPERATOR_IDS = frozenset({"native_sbx_pm"})
+_NATIVE_BASELINE_OPERATOR_IDS = frozenset({"vector_sbx_pm", "native_sbx_pm"})
 _GENERATION_LOCAL_DOMINANCE_PHASES = frozenset(
     {"post_feasible_expand", "post_feasible_recover", "post_feasible_preserve"}
 )
@@ -61,6 +74,19 @@ _GENERATION_LOCAL_STRATEGY_GROUP_THRESHOLDS = {
     "post_feasible_preserve": {"min_window": 6, "min_count": 5, "min_share": 0.8},
 }
 _OPERATOR_STRATEGY_GROUPS: dict[str, str] = {
+    "vector_sbx_pm": "baseline",
+    "component_jitter_1": "local_peak_refine",
+    "anchored_component_jitter": "local_peak_refine",
+    "component_relocate_1": "global_explore",
+    "component_swap_2": "global_explore",
+    "sink_shift": "sink_retarget",
+    "sink_resize": "sink_retarget",
+    "hotspot_pull_toward_sink": "hotspot_shift",
+    "hotspot_spread": "gradient_smoothing",
+    "gradient_band_smooth": "gradient_smoothing",
+    "congestion_relief": "gradient_smoothing",
+    "sink_retarget": "sink_retarget",
+    "layout_rebalance": "layout_rebalance",
     "native_sbx_pm": "baseline",
     "global_explore": "global_explore",
     "local_refine": "local_peak_refine",
@@ -72,8 +98,34 @@ _OPERATOR_STRATEGY_GROUPS: dict[str, str] = {
     "slide_sink": "sink_retarget",
     "rebalance_layout": "layout_rebalance",
 }
-_STABLE_PROMPT_OPERATOR_IDS = frozenset({"native_sbx_pm", "global_explore", "local_refine"})
+_STABLE_PROMPT_OPERATOR_IDS = frozenset(
+    {
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "anchored_component_jitter",
+        "component_relocate_1",
+        "component_swap_2",
+        "sink_shift",
+        "sink_resize",
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+    }
+)
 _OPERATOR_INTENTS: dict[str, str] = {
+    "vector_sbx_pm": "native_baseline",
+    "component_jitter_1": "local_cleanup",
+    "anchored_component_jitter": "local_cleanup",
+    "component_relocate_1": "frontier_expand",
+    "component_swap_2": "frontier_expand",
+    "sink_shift": "sink_retarget",
+    "sink_resize": "preserve_feasible",
+    "hotspot_pull_toward_sink": "sink_retarget",
+    "hotspot_spread": "hotspot_spread",
+    "gradient_band_smooth": "congestion_relief",
+    "congestion_relief": "congestion_relief",
+    "sink_retarget": "sink_retarget",
+    "layout_rebalance": "layout_rebalance",
     "native_sbx_pm": "native_baseline",
     "global_explore": "frontier_expand",
     "local_refine": "local_cleanup",
@@ -92,6 +144,7 @@ _INTENT_SUMMARIES: dict[str, str] = {
     "sink_retarget": "retarget sink alignment toward the active hotspot geometry.",
     "hotspot_spread": "disperse a compact hotspot cluster to reduce local thermal pressure.",
     "congestion_relief": "open space in locally congested regions of the layout.",
+    "layout_rebalance": "rebalance the layout when global spatial distribution is the limiting factor.",
     "preserve_feasible": "protect feasibility and avoid sink-budget regressions.",
 }
 
@@ -899,18 +952,23 @@ class LLMOperatorController:
                 semantic_trial_candidates=semantic_trial_candidates,
             )
             if phase == "post_feasible_expand":
+                hotspot_spread_operator_id = ""
+                for candidate_id in ("hotspot_spread", "spread_hottest_cluster"):
+                    if candidate_id in semantic_trial_candidates:
+                        hotspot_spread_operator_id = candidate_id
+                        break
                 if (
                     bool(spatial_panel.get("hotspot_inside_sink_window", False))
-                    and "spread_hottest_cluster" in semantic_trial_candidates
+                    and hotspot_spread_operator_id
                 ):
                     semantic_trial_mode = "encourage_bounded_trial"
                     semantic_trial_reason = "sink_aligned_compact_hotspot"
                     semantic_trial_candidates = [
-                        "spread_hottest_cluster",
+                        hotspot_spread_operator_id,
                         *[
                             operator_id
                             for operator_id in semantic_trial_candidates
-                            if operator_id != "spread_hottest_cluster"
+                            if operator_id != hotspot_spread_operator_id
                         ],
                     ]
                 elif frontier_score >= 3 and semantic_trial_candidates:
@@ -1096,15 +1154,35 @@ class LLMOperatorController:
             normalized_operator_id = str(operator_id)
             if normalized_operator_id in _STABLE_PROMPT_OPERATOR_IDS or not isinstance(row, dict):
                 continue
-            if str(row.get("applicability", "low")) != "high":
-                continue
             expected_feasibility_risk = str(
                 row.get("expected_feasibility_risk", row.get("recent_regression_risk", "medium"))
             )
             if expected_feasibility_risk == "high":
                 continue
+            if LLMOperatorController._low_post_feasible_success_trial(row):
+                continue
+            applicability = str(row.get("applicability", "low"))
+            medium_gradient_smoothing = (
+                normalized_operator_id == "gradient_band_smooth"
+                and applicability == "medium"
+                and str(row.get("expected_gradient_effect", "")) == "improve"
+            )
+            if applicability != "high" and not medium_gradient_smoothing:
+                continue
             candidates.append(normalized_operator_id)
         return candidates
+
+    @staticmethod
+    def _low_post_feasible_success_trial(row: dict[str, Any]) -> bool:
+        selection_count = int(row.get("post_feasible_selection_count", 0))
+        if selection_count < 4:
+            return False
+        success_rate = row.get("post_feasible_success_rate")
+        if success_rate is None:
+            success_rate = float(row.get("post_feasible_success_count", 0)) / float(selection_count)
+        if float(success_rate) >= 0.35:
+            return False
+        return str(row.get("frontier_evidence", "limited")) != "positive"
 
     @staticmethod
     def _build_route_family_candidates(
@@ -1120,7 +1198,9 @@ class LLMOperatorController:
         for operator_id in operator_panel.keys() if isinstance(operator_panel, dict) else ():
             normalized_operator_id = str(operator_id)
             if normalized_operator_id not in ordered_operator_ids:
-                ordered_operator_ids.append(normalized_operator_id)
+                row = operator_panel.get(normalized_operator_id)
+                if isinstance(row, Mapping) and LLMOperatorController._positive_route_trial_candidate(row):
+                    ordered_operator_ids.append(normalized_operator_id)
 
         route_family_candidates: list[str] = []
         for operator_id in ordered_operator_ids:
@@ -1130,6 +1210,21 @@ class LLMOperatorController:
             if route_family not in route_family_candidates:
                 route_family_candidates.append(route_family)
         return route_family_candidates
+
+    @staticmethod
+    def _positive_route_trial_candidate(row: Mapping[str, Any]) -> bool:
+        feasibility_risk = str(
+            row.get("expected_feasibility_risk", row.get("recent_regression_risk", "medium"))
+        ).strip()
+        if feasibility_risk == "high":
+            return False
+        if LLMOperatorController._low_post_feasible_success_trial(dict(row)):
+            return False
+        return (
+            str(row.get("frontier_evidence", "")).strip() == "positive"
+            or int(row.get("recent_expand_frontier_credit", 0)) > 0
+            or int(row.get("recent_expand_preserve_credit", 0)) > 0
+        )
 
     @staticmethod
     def _build_exact_positive_match_operator_ids(
@@ -1751,6 +1846,18 @@ class LLMOperatorController:
             guidance.append(
                 "A recent expand-budget filter suppressed semantic route families that recently regressed feasibility without frontier return."
             )
+        if "post_feasible_stable_low_success_cooldown" in policy_snapshot.reason_codes:
+            guidance.append(
+                "A stable-operator success filter removed routes with repeated post-feasible failures and no frontier credit."
+            )
+        if any(str(code).endswith("_plateau_cooldown") for code in policy_snapshot.reason_codes):
+            guidance.append(
+                "A preserve-plateau filter cooled repeated sink-only preserve moves because objective progress has stalled and viable alternatives remain."
+            )
+        if "post_feasible_expand_gradient_polish_handoff" in policy_snapshot.reason_codes:
+            guidance.append(
+                "A gradient-polish handoff cooled uncredited broad moves while keeping broad operators that already earned frontier or objective credit visible as controlled escapes."
+            )
         if "post_feasible_expand_saturation_demotion" in policy_snapshot.reason_codes:
             guidance.append(
                 "An expand saturation governor demoted this decision from expand to preserve because the frontier "
@@ -1956,6 +2063,15 @@ class LLMOperatorController:
             for operator_id in candidate_operator_ids
             if isinstance(operator_panel.get(operator_id), Mapping)
             and str(dict(operator_panel[operator_id]).get(effect_key, "")) == "improve"
+            and str(dict(operator_panel[operator_id]).get("applicability", "low")) in {"medium", "high"}
+            and not LLMOperatorController._low_post_feasible_success_trial(dict(operator_panel[operator_id]))
+            and str(
+                dict(operator_panel[operator_id]).get(
+                    "expected_feasibility_risk",
+                    dict(operator_panel[operator_id]).get("recent_regression_risk", "medium"),
+                )
+            )
+            != "high"
         ]
         candidate_text = f" especially {', '.join(candidates)}" if candidates else ""
         stagnant_text = ", ".join(stagnant_objectives) if stagnant_objectives else "one objective"

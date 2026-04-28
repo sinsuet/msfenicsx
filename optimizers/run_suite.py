@@ -139,6 +139,8 @@ def run_benchmark_suite(
             write_run_manifest(
                 mode_root / "seeds" / f"seed-{seed}" / "run.yaml",
                 mode=mode,
+                algorithm_family=str(seeded_spec.algorithm["family"]),
+                algorithm_backbone=str(seeded_spec.algorithm["backbone"]),
                 benchmark_seed=int(seed),
                 algorithm_seed=int(seeded_spec.algorithm["seed"]),
                 optimization_spec_path=str(spec_path),

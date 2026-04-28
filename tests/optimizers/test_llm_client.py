@@ -251,6 +251,63 @@ def test_chat_compatible_json_http_request_forwards_reasoning_when_configured(
 
     assert http_client.last_json is not None
     assert http_client.last_json["reasoning"] == {"effort": "medium"}
+
+
+def test_chat_compatible_json_http_request_merges_extra_body_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_EXTRA_BODY", '{"enable_thinking": false}')
+    http_client = _FakeHTTPClient(
+        (
+            '{"id":"resp_123","object":"chat.completion","created":1,"model":"qwen3.6-plus",'
+            '"choices":[{"index":0,"message":{"role":"assistant","content":"'
+            '{\\"selected_operator_id\\":\\"global_explore\\",\\"phase\\":\\"explore\\",'
+            '\\"rationale\\":\\"widen search\\"}"}}]}'
+        )
+    )
+    client = OpenAICompatibleClient(
+        OpenAICompatibleConfig.from_dict(
+            {
+                "provider": "openai-compatible",
+                "model": "qwen3.6-plus",
+                "capability_profile": "chat_compatible_json",
+                "performance_profile": "balanced",
+                "api_key_env_var": "TEST_OPENAI_API_KEY",
+                "base_url": "https://qwen.example/v1",
+                "max_output_tokens": 256,
+                "reasoning": {"effort": "medium"},
+            }
+        ),
+        http_client=http_client,
+    )
+
+    client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
+    )
+
+    assert http_client.last_json is not None
+    assert http_client.last_json["reasoning"] == {"effort": "medium"}
+    assert http_client.last_json["enable_thinking"] is False
+
+
+def test_config_rejects_non_mapping_extra_body_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_EXTRA_BODY", '["enable_thinking", false]')
+    config = OpenAICompatibleConfig.from_dict(
+        {
+            "provider": "openai-compatible",
+            "model": "qwen3.6-plus",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 128,
+        }
+    )
+
+    with pytest.raises(ValueError, match="LLM_EXTRA_BODY"):
+        config.resolve_extra_body()
 def test_chat_compatible_json_client_injects_json_instruction_when_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

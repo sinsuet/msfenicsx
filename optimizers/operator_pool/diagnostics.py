@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -800,10 +801,21 @@ def _load_controller_trace_rows(path: str | Path) -> list[ControllerTraceRow]:
     for raw_row in _load_jsonl_rows(path):
         payload = dict(raw_row)
         metadata = dict(payload.get("metadata", {}))
+        for key in (
+            "fallback_used",
+            "policy_phase",
+            "guardrail_policy_phase",
+            "guardrail_reason_codes",
+            "guardrail_policy_reset_active",
+            "guardrail_filtered_operator_ids",
+        ):
+            if key in payload and key not in metadata:
+                metadata[key] = payload[key]
+        generation_index, evaluation_index = _controller_trace_indices(payload)
         rows.append(
             ControllerTraceRow(
-                generation_index=int(payload.get("generation_index", 0)),
-                evaluation_index=int(payload.get("evaluation_index", 0)),
+                generation_index=generation_index,
+                evaluation_index=evaluation_index,
                 family="genetic",
                 backbone="nsga2",
                 controller_id="llm",
@@ -820,6 +832,23 @@ def _load_controller_trace_rows(path: str | Path) -> list[ControllerTraceRow]:
             )
         )
     return rows
+
+
+def _controller_trace_indices(payload: Mapping[str, Any]) -> tuple[int, int]:
+    generation_index = payload.get("generation_index")
+    evaluation_index = payload.get("evaluation_index")
+    if generation_index is not None and evaluation_index is not None:
+        return int(generation_index), int(evaluation_index)
+
+    decision_id = str(payload.get("decision_id", "")).strip()
+    match = re.search(r"g(?P<generation>\d+)-e(?P<evaluation>\d+)", decision_id)
+    if match:
+        return int(match.group("generation")), int(match.group("evaluation"))
+
+    return (
+        0 if generation_index is None else int(generation_index),
+        0 if evaluation_index is None else int(evaluation_index),
+    )
 
 
 def _load_materialized_request_rows(path: str | Path) -> list[dict[str, Any]]:

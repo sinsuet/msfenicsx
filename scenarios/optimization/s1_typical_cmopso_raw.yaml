@@ -1,7 +1,7 @@
 schema_version: "1.0"
 spec_meta:
-  spec_id: s1_typical_nsga2_union
-  description: S1 typical single-case NSGA-II union-uniform mode with the primitive clean action registry.
+  spec_id: s1_typical_cmopso_raw
+  description: S1 typical single-case CMOPSO raw baseline with fixed 32D placement and sink-interval encoding.
 benchmark_source:
   template_path: scenarios/templates/s1_typical.yaml
   seed: 11
@@ -135,24 +135,13 @@ design_variables:
     lower_bound: 0.2
     upper_bound: 0.95
 algorithm:
-  family: genetic
-  backbone: nsga2
-  mode: union
+  family: swarm
+  backbone: cmopso
+  mode: raw
   population_size: 20
   num_generations: 10
   seed: 7
-  profile_path: scenarios/optimization/profiles/s1_typical_union.yaml
-operator_control:
-  controller: random_uniform
-  registry_profile: primitive_clean
-  operator_pool:
-    - vector_sbx_pm
-    - component_jitter_1
-    - anchored_component_jitter
-    - component_relocate_1
-    - component_swap_2
-    - sink_shift
-    - sink_resize
+  profile_path: scenarios/optimization/profiles/s1_typical_cmopso_raw.yaml
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/s1_typical_eval.yaml
   legality_policy_id: minimal_canonicalization

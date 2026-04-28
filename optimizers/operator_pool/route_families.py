@@ -12,6 +12,7 @@ from optimizers.operator_pool.operators import get_operator_behavior_profile
 ROUTE_FAMILY_BY_OPERATOR: dict[str, str] = {
     "vector_sbx_pm": "stable_local",
     "component_jitter_1": "stable_local",
+    "anchored_component_jitter": "stable_local",
     "component_relocate_1": "stable_global",
     "component_swap_2": "stable_global",
     "sink_shift": "stable_local",

@@ -296,6 +296,7 @@ def _seed_run_bundle(run_root: Path) -> None:
         evaluation_yaml=yaml.safe_dump(
             {
                 "metric_values": {
+                    "component.c01-001.temperature_max": 305.0,
                     "summary.temperature_max": 309.0,
                     "summary.temperature_gradient_rms": 9.1,
                 }
@@ -359,6 +360,8 @@ def test_render_assets_produces_full_mainline_outputs(tmp_path: Path) -> None:
     assert summary_rows[0]["solver_skipped_evaluations"] == "1"
     assert summary_rows[0]["first_feasible_pde_eval"] == "2"
     representative_rows = list(csv.DictReader((run_root / "tables" / "representative_points.csv").open()))
+    assert representative_rows[0]["temperature_max"] == "309.0"
+    assert representative_rows[0]["temperature_gradient_rms"] == "9.1"
     assert representative_rows[0]["temperature_figure"] == "figures/temperature_field_knee.png"
     assert representative_rows[0]["gradient_figure"] == "figures/gradient_field_knee.png"
     assert not (run_root / "representatives" / "knee" / "pages").exists()

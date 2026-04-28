@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -51,11 +52,19 @@ def load_provider_profile_overlay(
             f"Missing source base URL env var '{source_base_url_env_var}' for profile '{resolved_profile_id}'."
         )
 
-    return {
+    overlay = {
         "LLM_API_KEY": api_key,
         "LLM_BASE_URL": base_url,
         "LLM_MODEL": model,
     }
+    extra_body = raw_profile.get("extra_body")
+    if extra_body is not None:
+        if not isinstance(extra_body, Mapping):
+            raise ValueError(
+                f"LLM profiles registry field 'profile {resolved_profile_id}.extra_body' must be a mapping."
+            )
+        overlay["LLM_EXTRA_BODY"] = json.dumps(dict(extra_body), sort_keys=True, separators=(",", ":"))
+    return overlay
 
 
 def _load_profiles_registry(profiles_path: str | Path | None) -> dict[str, Any]:

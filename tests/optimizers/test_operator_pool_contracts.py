@@ -10,6 +10,7 @@ from optimizers.io import generate_benchmark_case, load_optimization_spec
 PRIMITIVE_OPERATOR_IDS = (
     "vector_sbx_pm",
     "component_jitter_1",
+    "anchored_component_jitter",
     "component_relocate_1",
     "component_swap_2",
     "sink_shift",
@@ -210,6 +211,43 @@ def test_registered_operators_propose_bounded_numeric_vectors_without_mutating_p
     assert np.all(proposal <= layout.upper_bounds + 1.0e-12)
     assert np.allclose(parents.primary, primary_before)
     assert np.allclose(parents.secondary, secondary_before)
+
+
+def test_anchored_component_jitter_couples_component_motion_to_right_shifted_sink() -> None:
+    from optimizers.operator_pool.operators import get_operator_definition
+
+    spec = load_optimization_spec("scenarios/optimization/s2_staged_union.yaml")
+    from optimizers.operator_pool.layout import VariableLayout
+    from optimizers.operator_pool.models import ParentBundle
+    from optimizers.operator_pool.state import ControllerState
+
+    layout = VariableLayout.from_optimization_spec(spec)
+    base_case = generate_benchmark_case("scenarios/optimization/s2_staged_union.yaml", spec)
+    primary = extract_decision_vector(base_case, spec)
+    parents = ParentBundle.from_vectors(primary, primary)
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=0,
+        evaluation_index=0,
+        parent_count=2,
+        vector_size=layout.vector_size,
+        metadata={"radiator_span_max": 0.32},
+    )
+
+    proposal = get_operator_definition("anchored_component_jitter").propose(
+        parents=parents,
+        state=state,
+        variable_layout=layout,
+        rng=np.random.default_rng(17),
+    )
+
+    component_delta = np.linalg.norm(proposal[:-2] - primary[:-2])
+    sink_center = 0.5 * (proposal[layout.index_of("sink_start")] + proposal[layout.index_of("sink_end")])
+
+    assert component_delta > 0.03
+    assert sink_center >= 0.50
+    assert proposal[layout.index_of("sink_end")] - proposal[layout.index_of("sink_start")] <= 0.32 + 1.0e-12
 
 
 def test_sink_peak_operators_add_bounded_rng_variation() -> None:

@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 from pymoo.algorithms.moo.moead import MOEAD, default_decomp
 
+from optimizers.clean_initialization import CleanBaselineSampling
 from optimizers.raw_backbones.common import build_reference_directions, resolve_population_fraction_size
 
 
@@ -111,6 +112,10 @@ def build_algorithm_kwargs(problem: Any, algorithm_config: dict[str, Any]) -> di
 
 def build_algorithm(problem: Any, algorithm_config: dict[str, Any]) -> ConstrainedMOEAD:
     kwargs = build_algorithm_kwargs(problem, algorithm_config)
-    algorithm = ConstrainedMOEAD(ref_dirs=kwargs["ref_dirs"], n_neighbors=kwargs["n_neighbors"])
+    algorithm = ConstrainedMOEAD(
+        ref_dirs=kwargs["ref_dirs"],
+        n_neighbors=kwargs["n_neighbors"],
+        sampling=CleanBaselineSampling(),
+    )
     algorithm.reference_direction_parameters = kwargs["reference_direction_parameters"]
     return algorithm

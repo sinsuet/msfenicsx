@@ -396,6 +396,34 @@ def _post_feasible_expand_state() -> ControllerState:
     )
 
 
+def _objective_balance_state(*, preferred_effect: str) -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=90,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "prompt_panels": {
+                "regime_panel": {
+                    "objective_balance": {
+                        "balance_pressure": "high",
+                        "preferred_effect": preferred_effect,
+                        "stagnant_objectives": ["temperature_max", "gradient_rms"],
+                        "improving_objectives": [],
+                    }
+                },
+                "spatial_panel": {
+                    "nearest_neighbor_gap_min": 0.05,
+                    "hottest_cluster_compactness": 0.09,
+                    "hotspot_inside_sink_window": False,
+                },
+            }
+        },
+    )
+
+
 def _post_feasible_recover_state() -> ControllerState:
     return ControllerState(
         family="genetic",
@@ -1003,6 +1031,144 @@ def _post_feasible_preserve_frontier_pressure_state() -> ControllerState:
     )
 
 
+def _post_feasible_preserve_unproven_assisted_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=10,
+        evaluation_index=198,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "near_feasible",
+            "run_state": {
+                "decision_index": 168,
+                "evaluations_used": 197,
+                "evaluations_remaining": 3,
+                "feasible_rate": 0.27,
+                "first_feasible_eval": 13,
+            },
+            "archive_state": {
+                "pareto_size": 2,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 140,
+                "recent_feasible_regression_count": 2,
+                "recent_feasible_preservation_count": 0,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "preserve",
+                "preserve_dwell_remaining": 1,
+                "recover_release_ready": True,
+                "recover_exit_ready": True,
+                "recent_no_progress_count": 76,
+                "recent_frontier_stagnation_count": 76,
+                "diversity_deficit_level": "medium",
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_preserve",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                    "objective_balance": {
+                        "balance_pressure": "high",
+                        "preferred_effect": "gradient_improve",
+                        "stagnant_objectives": ["gradient_rms"],
+                        "improving_objectives": ["temperature_max"],
+                    },
+                },
+                "spatial_panel": {
+                    "nearest_neighbor_gap_min": 0.107,
+                    "hottest_cluster_compactness": 0.27,
+                    "hotspot_inside_sink_window": True,
+                },
+                "retrieval_panel": {
+                    "positive_match_families": ["stable_local", "stable_global"],
+                    "visibility_floor_families": ["stable_local", "stable_global"],
+                    "positive_matches": [
+                        {
+                            "operator_id": "component_jitter_1",
+                            "route_family": "stable_local",
+                            "similarity_score": 6,
+                        },
+                        {
+                            "operator_id": "component_relocate_1",
+                            "route_family": "stable_global",
+                            "similarity_score": 6,
+                        },
+                    ],
+                    "route_family_credit": {
+                        "positive_families": ["stable_local", "stable_global"],
+                        "negative_families": [],
+                        "handoff_families": ["stable_local"],
+                    },
+                },
+            },
+            "operator_summary": {
+                "vector_sbx_pm": {
+                    "selection_count": 26,
+                    "recent_selection_count": 0,
+                    "proposal_count": 26,
+                    "feasible_entry_count": 4,
+                    "feasible_regression_count": 6,
+                    "post_feasible_success_count": 7,
+                    "post_feasible_selection_count": 15,
+                },
+                "component_jitter_1": {
+                    "selection_count": 34,
+                    "recent_selection_count": 0,
+                    "proposal_count": 34,
+                    "feasible_entry_count": 1,
+                    "feasible_preservation_count": 4,
+                    "feasible_regression_count": 1,
+                    "pareto_contribution_count": 3,
+                    "post_feasible_success_count": 13,
+                    "post_feasible_selection_count": 34,
+                },
+                "component_relocate_1": {
+                    "selection_count": 15,
+                    "recent_selection_count": 0,
+                    "proposal_count": 15,
+                    "feasible_entry_count": 1,
+                    "feasible_preservation_count": 1,
+                    "feasible_regression_count": 4,
+                    "post_feasible_success_count": 7,
+                    "post_feasible_selection_count": 15,
+                },
+                "hotspot_spread": {
+                    "selection_count": 40,
+                    "recent_selection_count": 10,
+                    "proposal_count": 40,
+                    "post_feasible_success_count": 5,
+                    "post_feasible_selection_count": 39,
+                    "post_feasible_thermal_infeasible_count": 34,
+                },
+                "gradient_band_smooth": {
+                    "selection_count": 0,
+                    "recent_selection_count": 0,
+                    "proposal_count": 0,
+                },
+                "congestion_relief": {
+                    "selection_count": 20,
+                    "recent_selection_count": 7,
+                    "proposal_count": 20,
+                    "post_feasible_success_count": 2,
+                    "post_feasible_selection_count": 20,
+                    "post_feasible_thermal_infeasible_count": 18,
+                },
+                "layout_rebalance": {
+                    "selection_count": 41,
+                    "recent_selection_count": 7,
+                    "proposal_count": 41,
+                    "post_feasible_success_count": 8,
+                    "post_feasible_selection_count": 41,
+                    "post_feasible_thermal_infeasible_count": 33,
+                },
+            },
+        },
+    )
+
+
 def _post_feasible_expand_diversity_floor_state() -> ControllerState:
     return ControllerState(
         family="genetic",
@@ -1306,6 +1472,609 @@ def _post_feasible_expand_budget_throttle_state() -> ControllerState:
             },
         },
     )
+
+
+def _post_feasible_expand_low_success_gradient_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=10,
+        evaluation_index=194,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 160,
+                "evaluations_used": 193,
+                "evaluations_remaining": 7,
+                "feasible_rate": 0.36,
+                "first_feasible_eval": 13,
+            },
+            "archive_state": {
+                "pareto_size": 1,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 28,
+                "recent_feasible_regression_count": 2,
+                "recent_feasible_preservation_count": 1,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 18,
+                "recent_frontier_stagnation_count": 18,
+                "diversity_deficit_level": "medium",
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "preservation_pressure": "medium",
+                    "frontier_pressure": "medium",
+                    "objective_balance": {
+                        "balance_pressure": "high",
+                        "preferred_effect": "gradient_improve",
+                        "stagnant_objectives": ["gradient_rms"],
+                        "improving_objectives": ["temperature_max"],
+                    },
+                },
+                "spatial_panel": {
+                    "nearest_neighbor_gap_min": 0.08,
+                    "hottest_cluster_compactness": 0.10,
+                    "hotspot_inside_sink_window": True,
+                },
+            },
+            "operator_summary": {
+                "vector_sbx_pm": {
+                    "selection_count": 34,
+                    "recent_selection_count": 2,
+                    "proposal_count": 34,
+                    "feasible_preservation_count": 5,
+                    "post_feasible_success_count": 5,
+                    "post_feasible_selection_count": 19,
+                },
+                "component_jitter_1": {
+                    "selection_count": 12,
+                    "recent_selection_count": 0,
+                    "proposal_count": 12,
+                    "feasible_preservation_count": 4,
+                    "post_feasible_success_count": 9,
+                    "post_feasible_selection_count": 12,
+                },
+                "gradient_band_smooth": {
+                    "selection_count": 1,
+                    "recent_selection_count": 0,
+                    "proposal_count": 1,
+                    "recent_expand_selection_count": 0,
+                },
+                "congestion_relief": {
+                    "selection_count": 26,
+                    "recent_selection_count": 6,
+                    "proposal_count": 26,
+                    "recent_expand_selection_count": 10,
+                    "recent_expand_feasible_preservation_count": 0,
+                    "recent_expand_feasible_regression_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                    "post_feasible_success_count": 6,
+                    "post_feasible_selection_count": 26,
+                    "post_feasible_thermal_infeasible_count": 20,
+                },
+                "sink_retarget": {
+                    "selection_count": 20,
+                    "recent_selection_count": 4,
+                    "proposal_count": 20,
+                    "post_feasible_success_count": 14,
+                    "post_feasible_selection_count": 20,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_expand_gradient_sink_route_dominance_state() -> ControllerState:
+    state = _post_feasible_expand_low_success_gradient_state()
+    state.metadata["recent_decisions"] = [
+        {
+            "evaluation_index": 180 + idx,
+            "selected_operator_id": operator_id,
+            "fallback_used": False,
+            "llm_valid": True,
+        }
+        for idx, operator_id in enumerate(
+            (
+                "sink_retarget",
+                "sink_retarget",
+                "sink_retarget",
+                "sink_retarget",
+                "congestion_relief",
+                "vector_sbx_pm",
+            )
+        )
+    ]
+    state.metadata["operator_summary"]["sink_retarget"].update(
+        {
+            "recent_expand_selection_count": 6,
+            "recent_expand_feasible_preservation_count": 4,
+            "recent_expand_feasible_regression_count": 0,
+            "recent_expand_frontier_add_count": 0,
+        }
+    )
+    return state
+
+
+def _post_feasible_expand_generation_probe_budget_state() -> ControllerState:
+    state = _post_feasible_expand_low_success_gradient_state()
+    state.metadata["recent_decisions"] = [
+        {
+            "evaluation_index": 180 + idx,
+            "selected_operator_id": operator_id,
+            "fallback_used": False,
+            "llm_valid": True,
+            "generation_local": True,
+        }
+        for idx, operator_id in enumerate(
+            (
+                "hotspot_spread",
+                "hotspot_pull_toward_sink",
+                "congestion_relief",
+                "layout_rebalance",
+            )
+        )
+    ]
+    state.metadata["generation_local_memory"] = {
+        "accepted_count": 4,
+        "target_offsprings": 20,
+        "accepted_share": 0.2,
+        "dominant_operator_id": "hotspot_spread",
+        "dominant_operator_count": 1,
+        "dominant_operator_share": 0.25,
+        "operator_counts": {
+            "hotspot_spread": {"accepted_count": 1, "accepted_share": 0.25},
+            "hotspot_pull_toward_sink": {"accepted_count": 1, "accepted_share": 0.25},
+            "congestion_relief": {"accepted_count": 1, "accepted_share": 0.25},
+            "layout_rebalance": {"accepted_count": 1, "accepted_share": 0.25},
+        },
+        "route_family_counts": {
+            "hotspot_spread": {"accepted_count": 1, "accepted_share": 0.25},
+            "sink_retarget": {"accepted_count": 1, "accepted_share": 0.25},
+            "congestion_relief": {"accepted_count": 1, "accepted_share": 0.25},
+            "layout_rebalance": {"accepted_count": 1, "accepted_share": 0.25},
+        },
+        "uncredited_custom_count": 4,
+    }
+    return state
+
+
+def _post_feasible_expand_peak_budget_fill_probe_state() -> ControllerState:
+    state = _post_feasible_expand_generation_probe_budget_state()
+    state.metadata["run_state"].update(
+        {
+            "sink_budget_utilization": 0.965,
+            "objective_extremes": {
+                "min_peak_temperature": {
+                    "evaluation_index": 102,
+                    "sink_span": 0.3088,
+                    "objective_summary": {
+                        "minimize_peak_temperature": 319.99,
+                        "minimize_temperature_gradient_rms": 15.61,
+                    },
+                },
+                "min_temperature_gradient_rms": {
+                    "evaluation_index": 102,
+                    "sink_span": 0.3088,
+                    "objective_summary": {
+                        "minimize_peak_temperature": 319.99,
+                        "minimize_temperature_gradient_rms": 15.61,
+                    },
+                },
+            },
+        }
+    )
+    state.metadata["archive_state"].update(
+        {
+            "pareto_size": 1,
+            "recent_frontier_add_count": 0,
+            "evaluations_since_frontier_add": 18,
+        }
+    )
+    state.metadata["progress_state"].update(
+        {
+            "diversity_deficit_level": "high",
+            "recent_frontier_stagnation_count": 18,
+        }
+    )
+    state.metadata["prompt_panels"]["run_panel"] = {
+        "pareto_size": 1,
+        "sink_budget_utilization": 0.965,
+        "objective_extremes": state.metadata["run_state"]["objective_extremes"],
+    }
+    state.metadata["prompt_panels"]["regime_panel"]["objective_balance"] = {
+        "balance_pressure": "high",
+        "preferred_effect": "peak_improve",
+        "stagnant_objectives": ["temperature_max"],
+        "improving_objectives": ["gradient_rms"],
+        "balance_reason": "frontier_endpoint_peak_budget_fill",
+    }
+    return state
+
+
+def _post_feasible_expand_generation_route_probe_budget_state() -> ControllerState:
+    state = _post_feasible_expand_low_success_gradient_state()
+    state.metadata["recent_decisions"] = [
+        {
+            "evaluation_index": 180 + idx,
+            "selected_operator_id": operator_id,
+            "fallback_used": False,
+            "llm_valid": True,
+            "generation_local": True,
+        }
+        for idx, operator_id in enumerate(
+            (
+                "gradient_band_smooth",
+                "congestion_relief",
+                "gradient_band_smooth",
+            )
+        )
+    ]
+    state.metadata["generation_local_memory"] = {
+        "accepted_count": 3,
+        "target_offsprings": 20,
+        "accepted_share": 0.15,
+        "operator_counts": {
+            "gradient_band_smooth": {"accepted_count": 2, "accepted_share": 2.0 / 3.0},
+            "congestion_relief": {"accepted_count": 1, "accepted_share": 1.0 / 3.0},
+        },
+        "route_family_counts": {
+            "congestion_relief": {"accepted_count": 3, "accepted_share": 1.0},
+        },
+        "uncredited_custom_count": 3,
+    }
+    return state
+
+
+def _post_feasible_expand_generation_probe_budget_with_credit_state() -> ControllerState:
+    state = _post_feasible_expand_generation_probe_budget_state()
+    state.metadata["operator_summary"]["sink_retarget"].update(
+        {
+            "pareto_contribution_count": 1,
+            "recent_expand_selection_count": 4,
+            "recent_expand_feasible_preservation_count": 1,
+            "recent_expand_feasible_regression_count": 0,
+            "recent_expand_frontier_add_count": 1,
+            "post_feasible_success_count": 3,
+            "post_feasible_selection_count": 4,
+        }
+    )
+    return state
+
+
+def _post_feasible_expand_peak_improved_gradient_polish_state() -> ControllerState:
+    state = _post_feasible_expand_low_success_gradient_state()
+    state.metadata["archive_state"].update(
+        {
+            "pareto_size": 1,
+            "recent_frontier_add_count": 0,
+            "evaluations_since_frontier_add": 34,
+        }
+    )
+    state.metadata["progress_state"].update(
+        {
+            "recent_frontier_stagnation_count": 34,
+            "post_feasible_mode": "expand",
+        }
+    )
+    state.metadata["prompt_panels"]["regime_panel"]["objective_balance"] = {
+        "balance_pressure": "high",
+        "preferred_effect": "gradient_improve",
+        "stagnant_objectives": ["gradient_rms"],
+        "improving_objectives": ["temperature_max"],
+    }
+    state.metadata["operator_summary"]["vector_sbx_pm"].update(
+        {
+            "post_feasible_success_count": 10,
+            "post_feasible_selection_count": 19,
+        }
+    )
+    state.metadata["recent_decisions"] = [
+        {
+            "evaluation_index": 180 + idx,
+            "selected_operator_id": operator_id,
+            "fallback_used": False,
+            "llm_valid": True,
+        }
+        for idx, operator_id in enumerate(
+            (
+                "vector_sbx_pm",
+                "component_swap_2",
+                "vector_sbx_pm",
+                "component_swap_2",
+                "vector_sbx_pm",
+                "component_swap_2",
+            )
+        )
+    ]
+    state.metadata["operator_summary"]["component_swap_2"] = {
+        "selection_count": 64,
+        "recent_selection_count": 5,
+        "proposal_count": 64,
+        "feasible_preservation_count": 20,
+        "pareto_contribution_count": 1,
+        "frontier_novelty_count": 1,
+        "post_feasible_success_count": 42,
+        "post_feasible_selection_count": 64,
+    }
+    state.metadata["operator_summary"]["component_relocate_1"] = {
+        "selection_count": 8,
+        "recent_selection_count": 0,
+        "proposal_count": 8,
+        "feasible_preservation_count": 2,
+        "post_feasible_success_count": 2,
+        "post_feasible_selection_count": 8,
+    }
+    return state
+
+
+def _post_feasible_expand_peak_improved_uncredited_broad_state() -> ControllerState:
+    state = _post_feasible_expand_peak_improved_gradient_polish_state()
+    state.metadata["operator_summary"]["component_swap_2"].update(
+        {
+            "pareto_contribution_count": 0,
+            "frontier_novelty_count": 0,
+            "recent_expand_frontier_add_count": 0,
+            "post_feasible_avg_objective_delta": 0.12,
+        }
+    )
+    return state
+
+
+def _post_feasible_expand_peak_improved_without_polish_alternative_state() -> ControllerState:
+    state = _post_feasible_expand_peak_improved_gradient_polish_state()
+    state.metadata["operator_summary"].pop("component_jitter_1", None)
+    state.metadata["operator_summary"].pop("component_relocate_1", None)
+    return state
+
+
+def _post_feasible_preserve_plateau_sink_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=10,
+        evaluation_index=190,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 151,
+                "evaluations_used": 189,
+                "evaluations_remaining": 11,
+                "feasible_rate": 0.41,
+                "first_feasible_eval": 23,
+            },
+            "archive_state": {
+                "pareto_size": 2,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 38,
+                "recent_feasible_regression_count": 0,
+                "recent_feasible_preservation_count": 4,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "preserve",
+                "preserve_dwell_count": 8,
+                "preserve_dwell_remaining": 1,
+                "recent_no_progress_count": 24,
+                "recent_frontier_stagnation_count": 24,
+                "diversity_deficit_level": "medium",
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_preserve",
+                    "preservation_pressure": "high",
+                    "frontier_pressure": "medium",
+                    "objective_balance": {
+                        "balance_pressure": "high",
+                        "preferred_effect": "gradient_improve",
+                        "stagnant_objectives": ["gradient_rms"],
+                        "improving_objectives": ["temperature_max"],
+                    },
+                },
+                "spatial_panel": {
+                    "nearest_neighbor_gap_min": 0.08,
+                    "hottest_cluster_compactness": 0.10,
+                    "hotspot_inside_sink_window": True,
+                },
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 180 + idx,
+                    "selected_operator_id": operator_id,
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for idx, operator_id in enumerate(
+                    (
+                        "sink_shift",
+                        "sink_shift",
+                        "anchored_component_jitter",
+                        "sink_shift",
+                        "vector_sbx_pm",
+                        "sink_shift",
+                        "anchored_component_jitter",
+                        "sink_shift",
+                    )
+                )
+            ],
+            "operator_summary": {
+                "vector_sbx_pm": {
+                    "selection_count": 29,
+                    "recent_selection_count": 1,
+                    "proposal_count": 29,
+                    "feasible_preservation_count": 4,
+                    "feasible_regression_count": 6,
+                    "pareto_contribution_count": 1,
+                    "frontier_novelty_count": 1,
+                    "post_feasible_success_count": 9,
+                    "post_feasible_selection_count": 29,
+                },
+                "component_jitter_1": {
+                    "selection_count": 10,
+                    "recent_selection_count": 0,
+                    "proposal_count": 10,
+                    "feasible_preservation_count": 3,
+                    "post_feasible_success_count": 5,
+                    "post_feasible_selection_count": 10,
+                },
+                "component_swap_2": {
+                    "selection_count": 9,
+                    "recent_selection_count": 0,
+                    "proposal_count": 9,
+                    "feasible_preservation_count": 5,
+                    "pareto_contribution_count": 1,
+                    "frontier_novelty_count": 1,
+                    "post_feasible_success_count": 5,
+                    "post_feasible_selection_count": 9,
+                },
+                "sink_shift": {
+                    "selection_count": 45,
+                    "recent_selection_count": 5,
+                    "proposal_count": 45,
+                    "feasible_preservation_count": 34,
+                    "feasible_regression_count": 0,
+                    "post_feasible_success_count": 40,
+                    "post_feasible_selection_count": 45,
+                    "post_feasible_avg_objective_delta": 0.06,
+                },
+                "anchored_component_jitter": {
+                    "selection_count": 16,
+                    "recent_selection_count": 2,
+                    "proposal_count": 16,
+                    "feasible_regression_count": 10,
+                    "post_feasible_success_count": 3,
+                    "post_feasible_selection_count": 16,
+                    "post_feasible_thermal_infeasible_count": 12,
+                },
+                "sink_resize": {
+                    "selection_count": 6,
+                    "recent_selection_count": 0,
+                    "proposal_count": 6,
+                    "feasible_preservation_count": 2,
+                    "post_feasible_success_count": 3,
+                    "post_feasible_selection_count": 6,
+                },
+            },
+        },
+    )
+
+
+def _post_feasible_preserve_low_success_stable_without_alternative_state() -> ControllerState:
+    state = _post_feasible_preserve_plateau_sink_state()
+    state.metadata["recent_decisions"] = []
+    return state
+
+
+def _post_feasible_preserve_sink_retarget_plateau_state() -> ControllerState:
+    state = _post_feasible_preserve_plateau_sink_state()
+    state.metadata["prompt_panels"]["regime_panel"]["objective_balance"] = {
+        "balance_pressure": "high",
+        "preferred_effect": "peak_improve",
+        "stagnant_objectives": ["temperature_max"],
+        "improving_objectives": ["gradient_rms"],
+    }
+    state.metadata["recent_decisions"] = [
+        {
+            "evaluation_index": 180 + idx,
+            "selected_operator_id": operator_id,
+            "fallback_used": False,
+            "llm_valid": True,
+        }
+        for idx, operator_id in enumerate(
+            (
+                "sink_retarget",
+                "sink_retarget",
+                "vector_sbx_pm",
+                "sink_retarget",
+                "sink_retarget",
+                "sink_retarget",
+                "component_jitter_1",
+                "sink_retarget",
+            )
+        )
+    ]
+    state.metadata["operator_summary"]["sink_retarget"] = {
+        "selection_count": 32,
+        "recent_selection_count": 6,
+        "proposal_count": 32,
+        "feasible_preservation_count": 18,
+        "feasible_regression_count": 0,
+        "pareto_contribution_count": 0,
+        "frontier_novelty_count": 0,
+        "post_feasible_success_count": 22,
+        "post_feasible_selection_count": 32,
+        "post_feasible_avg_objective_delta": 0.04,
+    }
+    return state
+
+
+def _post_feasible_preserve_peak_budget_fill_plateau_state() -> ControllerState:
+    state = _post_feasible_preserve_plateau_sink_state()
+    state.metadata["run_state"].update(
+        {
+            "sink_budget_utilization": 0.965,
+            "objective_extremes": {
+                "min_peak_temperature": {
+                    "evaluation_index": 153,
+                    "sink_span": 0.3088,
+                    "objective_summary": {
+                        "minimize_peak_temperature": 319.63,
+                        "minimize_temperature_gradient_rms": 15.46,
+                    },
+                },
+                "min_temperature_gradient_rms": {
+                    "evaluation_index": 153,
+                    "sink_span": 0.3088,
+                    "objective_summary": {
+                        "minimize_peak_temperature": 319.63,
+                        "minimize_temperature_gradient_rms": 15.46,
+                    },
+                },
+            },
+        }
+    )
+    state.metadata["archive_state"]["pareto_size"] = 1
+    state.metadata["progress_state"]["diversity_deficit_level"] = "high"
+    state.metadata["prompt_panels"]["run_panel"] = {
+        "pareto_size": 1,
+        "sink_budget_utilization": 0.965,
+        "objective_extremes": state.metadata["run_state"]["objective_extremes"],
+    }
+    state.metadata["prompt_panels"]["regime_panel"]["objective_balance"] = {
+        "balance_pressure": "high",
+        "preferred_effect": "peak_improve",
+        "stagnant_objectives": ["temperature_max"],
+        "improving_objectives": ["gradient_rms"],
+        "balance_reason": "frontier_endpoint_peak_budget_fill",
+    }
+    state.metadata["recent_decisions"] = [
+        {
+            "evaluation_index": 180 + idx,
+            "selected_operator_id": operator_id,
+            "fallback_used": False,
+            "llm_valid": True,
+        }
+        for idx, operator_id in enumerate(
+            (
+                "sink_resize",
+                "sink_shift",
+                "sink_resize",
+                "sink_shift",
+                "sink_resize",
+                "sink_shift",
+                "sink_resize",
+                "sink_shift",
+            )
+        )
+    ]
+    return state
 
 
 def _post_feasible_recover_semantic_monopoly_state() -> ControllerState:
@@ -1830,6 +2599,29 @@ def test_post_feasible_expand_filters_out_risky_semantic_expanders() -> None:
     assert policy.candidate_annotations["repair_sink_budget"]["post_feasible_role"] == "supported_expand"
 
 
+def test_balance_escape_candidates_use_active_assisted_operator_ids() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    peak_escape = policy_kernel._peak_balance_escape_candidates(
+        _objective_balance_state(preferred_effect="peak_improve"),
+        "post_feasible_expand",
+        ("hotspot_pull_toward_sink", "sink_retarget", "component_jitter_1"),
+    )
+    gradient_escape = policy_kernel._gradient_balance_escape_candidates(
+        _objective_balance_state(preferred_effect="gradient_improve"),
+        "post_feasible_expand",
+        ("hotspot_spread", "gradient_band_smooth", "congestion_relief", "layout_rebalance"),
+    )
+
+    assert peak_escape == ("hotspot_pull_toward_sink", "sink_retarget")
+    assert gradient_escape == (
+        "hotspot_spread",
+        "gradient_band_smooth",
+        "congestion_relief",
+        "layout_rebalance",
+    )
+
+
 def test_post_feasible_recover_keeps_only_trusted_preserve_roles() -> None:
     policy_kernel = _policy_kernel_module()
 
@@ -1971,6 +2763,32 @@ def test_detect_search_phase_uses_recover_release_ready_even_when_reentry_pressu
     assert policy.phase == "post_feasible_preserve"
 
 
+def test_post_feasible_preserve_keeps_unproven_assisted_gradient_routes_out() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_preserve_unproven_assisted_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "component_relocate_1",
+            "hotspot_spread",
+            "gradient_band_smooth",
+            "congestion_relief",
+            "layout_rebalance",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_preserve"
+    assert policy.allowed_operator_ids == (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "component_relocate_1",
+    )
+    assert policy.candidate_annotations["hotspot_spread"]["evidence_level"] == "speculative"
+    assert policy.candidate_annotations["hotspot_spread"]["post_feasible_role"] == "risky_expand"
+
+
 def test_post_feasible_expand_rebalances_away_from_cooled_route_family() -> None:
     policy_kernel = _policy_kernel_module()
 
@@ -2029,6 +2847,293 @@ def test_post_feasible_expand_throttles_semantic_route_with_recent_regression_an
     assert "post_feasible_expand_semantic_budget" in policy.reason_codes
     assert "spread_hottest_cluster" not in policy.allowed_operator_ids
     assert "smooth_high_gradient_band" in policy.allowed_operator_ids
+
+
+def test_post_feasible_expand_throttles_low_success_gradient_route_family() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_low_success_gradient_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "gradient_band_smooth",
+            "congestion_relief",
+            "sink_retarget",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+    assert policy.candidate_annotations["congestion_relief"]["expand_budget_state"]["budget_status"] == "throttled"
+    assert policy.candidate_annotations["congestion_relief"]["expand_budget_state"]["low_success_cooldown_active"] is True
+    assert "congestion_relief" not in policy.allowed_operator_ids
+    assert "gradient_band_smooth" in policy.allowed_operator_ids
+    assert "component_jitter_1" in policy.allowed_operator_ids
+
+
+def test_post_feasible_expand_caps_sink_retarget_when_gradient_pressure_needs_polishing() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_gradient_sink_route_dominance_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "gradient_band_smooth",
+            "congestion_relief",
+            "sink_retarget",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+    assert "sink_retarget" not in policy.allowed_operator_ids
+    assert "gradient_band_smooth" in policy.allowed_operator_ids
+    assert "component_jitter_1" in policy.allowed_operator_ids
+    assert "post_feasible_expand_objective_route_cap" in policy.reason_codes
+
+
+def test_post_feasible_expand_caps_uncredited_custom_probe_budget_within_generation() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_generation_probe_budget_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "component_relocate_1",
+            "hotspot_spread",
+            "hotspot_pull_toward_sink",
+            "gradient_band_smooth",
+            "congestion_relief",
+            "layout_rebalance",
+            "sink_retarget",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+    assert "post_feasible_expand_generation_probe_budget" in policy.reason_codes
+    assert policy.allowed_operator_ids == (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "component_relocate_1",
+    )
+    assert policy.candidate_annotations["hotspot_spread"]["generation_probe_state"]["budget_status"] == "throttled"
+    assert policy.candidate_annotations["congestion_relief"]["generation_probe_state"]["custom_total_count"] == 4
+
+
+def test_post_feasible_expand_keeps_credited_custom_when_generation_probe_budget_is_exhausted() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_generation_probe_budget_with_credit_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "component_relocate_1",
+            "hotspot_spread",
+            "hotspot_pull_toward_sink",
+            "gradient_band_smooth",
+            "congestion_relief",
+            "layout_rebalance",
+            "sink_retarget",
+        ),
+    )
+
+    assert "post_feasible_expand_generation_probe_budget" in policy.reason_codes
+    assert "sink_retarget" in policy.allowed_operator_ids
+    assert "hotspot_spread" not in policy.allowed_operator_ids
+    assert "congestion_relief" not in policy.allowed_operator_ids
+    assert policy.candidate_annotations["sink_retarget"]["generation_probe_state"]["budget_status"] == "credited"
+
+
+def test_post_feasible_expand_caps_shared_gradient_route_probe_after_small_batch() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_generation_route_probe_budget_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "component_relocate_1",
+            "gradient_band_smooth",
+            "congestion_relief",
+            "sink_retarget",
+        ),
+    )
+
+    assert "post_feasible_expand_generation_probe_budget" in policy.reason_codes
+    assert "gradient_band_smooth" not in policy.allowed_operator_ids
+    assert "congestion_relief" not in policy.allowed_operator_ids
+    assert "sink_retarget" in policy.allowed_operator_ids
+    assert "component_jitter_1" in policy.allowed_operator_ids
+
+
+def test_post_feasible_expand_keeps_peak_budget_fill_route_after_probe_budget() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_peak_budget_fill_probe_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "component_relocate_1",
+            "sink_resize",
+            "hotspot_pull_toward_sink",
+            "sink_retarget",
+            "congestion_relief",
+            "layout_rebalance",
+        ),
+    )
+
+    assert "post_feasible_expand_generation_probe_budget" in policy.reason_codes
+    assert "sink_retarget" in policy.allowed_operator_ids
+    assert "sink_resize" in policy.allowed_operator_ids
+    assert "congestion_relief" not in policy.allowed_operator_ids
+    assert policy.candidate_annotations["sink_retarget"]["generation_probe_state"]["budget_status"] == "peak_budget_fill"
+
+
+def test_post_feasible_expand_hands_off_broad_global_after_peak_improved_gradient_stagnation() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_peak_improved_gradient_polish_state(),
+        (
+            "vector_sbx_pm",
+            "component_swap_2",
+            "component_jitter_1",
+            "component_relocate_1",
+            "gradient_band_smooth",
+        ),
+    )
+
+    assert "post_feasible_expand_gradient_polish_handoff" in policy.reason_codes
+    assert "vector_sbx_pm" not in policy.allowed_operator_ids
+    assert "component_swap_2" in policy.allowed_operator_ids
+    assert "component_jitter_1" in policy.allowed_operator_ids
+    assert policy.candidate_annotations["component_swap_2"]["gradient_polish_state"]["handoff_active"] is True
+    assert policy.candidate_annotations["component_swap_2"]["gradient_polish_state"]["escape_credit"] is True
+
+
+def test_post_feasible_expand_suppresses_uncredited_broad_global_during_gradient_polish() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_peak_improved_uncredited_broad_state(),
+        (
+            "vector_sbx_pm",
+            "component_swap_2",
+            "component_jitter_1",
+            "component_relocate_1",
+            "gradient_band_smooth",
+        ),
+    )
+
+    assert "post_feasible_expand_gradient_polish_handoff" in policy.reason_codes
+    assert "vector_sbx_pm" not in policy.allowed_operator_ids
+    assert "component_swap_2" not in policy.allowed_operator_ids
+    assert policy.candidate_annotations["component_swap_2"]["gradient_polish_state"]["escape_credit"] is False
+
+
+def test_post_feasible_preserve_cools_sink_plateau_and_low_success_stable_routes() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_preserve_plateau_sink_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "anchored_component_jitter",
+            "component_swap_2",
+            "sink_shift",
+            "sink_resize",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_preserve"
+    assert "sink_shift" not in policy.allowed_operator_ids
+    assert "anchored_component_jitter" not in policy.allowed_operator_ids
+    assert "vector_sbx_pm" in policy.allowed_operator_ids
+    assert "component_swap_2" in policy.allowed_operator_ids
+    assert "post_feasible_preserve_plateau_cooldown" in policy.reason_codes
+    assert "post_feasible_stable_low_success_cooldown" in policy.reason_codes
+    assert policy.candidate_annotations["sink_shift"]["preserve_plateau_state"]["budget_status"] == "throttled"
+    assert policy.candidate_annotations["anchored_component_jitter"]["stable_success_state"]["budget_status"] == "throttled"
+
+
+def test_post_feasible_preserve_cools_assisted_sink_retarget_plateau() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_preserve_sink_retarget_plateau_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "component_relocate_1",
+            "sink_shift",
+            "sink_resize",
+            "sink_retarget",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_preserve"
+    assert "sink_retarget" not in policy.allowed_operator_ids
+    assert "component_jitter_1" in policy.allowed_operator_ids
+    assert "component_relocate_1" in policy.allowed_operator_ids
+    assert "post_feasible_preserve_plateau_cooldown" in policy.reason_codes
+    assert policy.candidate_annotations["sink_retarget"]["preserve_plateau_state"]["budget_status"] == "throttled"
+
+
+def test_post_feasible_preserve_keeps_peak_budget_fill_routes_during_plateau() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_preserve_peak_budget_fill_plateau_state(),
+        (
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "component_relocate_1",
+            "component_swap_2",
+            "sink_shift",
+            "sink_resize",
+            "sink_retarget",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_preserve"
+    assert "sink_resize" in policy.allowed_operator_ids
+    assert "sink_retarget" in policy.allowed_operator_ids
+    assert policy.candidate_annotations["sink_resize"]["preserve_plateau_state"]["budget_status"] == "neutral"
+    assert policy.candidate_annotations["sink_retarget"]["preserve_plateau_state"]["budget_status"] == "neutral"
+
+
+def test_post_feasible_preserve_keeps_low_success_stable_route_when_no_alternative_exists() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_preserve_low_success_stable_without_alternative_state(),
+        ("anchored_component_jitter",),
+    )
+
+    assert policy.phase == "post_feasible_preserve"
+    assert policy.allowed_operator_ids == ("anchored_component_jitter",)
+    assert "post_feasible_stable_low_success_cooldown" not in policy.reason_codes
+
+
+def test_post_feasible_expand_keeps_broad_global_when_no_polish_alternative_exists() -> None:
+    policy_kernel = _policy_kernel_module()
+
+    policy = policy_kernel.build_policy_snapshot(
+        _post_feasible_expand_peak_improved_without_polish_alternative_state(),
+        (
+            "vector_sbx_pm",
+            "component_swap_2",
+            "gradient_band_smooth",
+        ),
+    )
+
+    assert "post_feasible_expand_gradient_polish_handoff" not in policy.reason_codes
+    assert "vector_sbx_pm" in policy.allowed_operator_ids
+    assert "component_swap_2" in policy.allowed_operator_ids
 
 
 def _post_feasible_expand_saturated_state() -> ControllerState:

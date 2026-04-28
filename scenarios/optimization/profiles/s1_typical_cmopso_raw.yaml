@@ -1,0 +1,11 @@
+schema_version: "1.0"
+profile_meta:
+  profile_id: s1_typical_cmopso_raw_profile
+  description: Active S1 typical tuning for CMOPSO raw variation.
+family: swarm
+backbone: cmopso
+mode: raw
+parameters:
+  elite_archive:
+    strategy: half_population
+    min_size: 5

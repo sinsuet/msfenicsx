@@ -133,6 +133,94 @@ def render_progress_dashboard(
     plt.close(fig)
 
 
+def render_pde_budget_accounting(
+    *,
+    progress_series: Mapping[str, Sequence[Mapping[str, Any]]],
+    output: Path,
+    title: str,
+    common_pde_cutoff: int | None = None,
+    hires: bool = False,
+) -> None:
+    apply_baseline()
+    output = ensure_output_parent(Path(output))
+    series = [(str(mode), list(rows)) for mode, rows in progress_series.items() if rows]
+    if not series:
+        return
+
+    fig, axes = plt.subplots(
+        len(series),
+        1,
+        figsize=(6.4, 1.45 * len(series) + 0.65),
+        sharex=True,
+        sharey=True,
+        squeeze=False,
+    )
+    fig.suptitle(title, x=0.08, y=0.995, ha="left", fontsize=10)
+    pde_color = PALETTE_CATEGORICAL[1 % len(PALETTE_CATEGORICAL)]
+    skipped_color = PALETTE_CATEGORICAL[3 % len(PALETTE_CATEGORICAL)]
+    proposal_color = "#2f2f2f"
+
+    for row_index, (mode, rows) in enumerate(series):
+        axis = axes[row_index, 0]
+        xs = [0]
+        pde_counts = [0]
+        skipped_counts = [0]
+        for row in rows:
+            proposals = row.get("optimizer_evaluations_so_far")
+            pde_count = row.get("pde_evaluations_so_far")
+            skipped_count = row.get("solver_skipped_evaluations_so_far")
+            if proposals is None or pde_count is None or skipped_count is None:
+                continue
+            xs.append(int(proposals))
+            pde_counts.append(int(pde_count))
+            skipped_counts.append(int(skipped_count))
+        if len(xs) <= 1:
+            continue
+        totals = [pde + skipped for pde, skipped in zip(pde_counts, skipped_counts, strict=True)]
+        axis.fill_between(
+            xs,
+            [0] * len(xs),
+            pde_counts,
+            step="post",
+            color=pde_color,
+            alpha=0.36,
+            label="PDE solves",
+        )
+        axis.fill_between(
+            xs,
+            pde_counts,
+            totals,
+            step="post",
+            color=skipped_color,
+            alpha=0.30,
+            label="Cheap-screen skipped",
+        )
+        axis.step(xs, totals, where="post", color=proposal_color, linewidth=0.9, label="Proposal budget")
+        if common_pde_cutoff is not None and common_pde_cutoff > 0:
+            axis.axhline(
+                common_pde_cutoff,
+                color=proposal_color,
+                linewidth=0.7,
+                linestyle=":",
+                alpha=0.55,
+                label="Common PDE cutoff" if row_index == 0 else "_nolegend_",
+            )
+        axis.set_title(mode.upper(), loc="left", fontsize=8)
+        axis.grid(alpha=0.18, linewidth=0.4)
+
+    axes[-1, 0].set_xlabel("Optimizer proposals")
+    fig.supylabel("Cumulative evaluations", fontsize=8)
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="upper right", bbox_to_anchor=(0.98, 0.995), ncol=4, fontsize=6)
+    fig.savefig(output, dpi=DPI_HIRES if hires else DPI_DEFAULT)
+    if output.suffix.lower() == ".png":
+        pdf_path = paired_pdf_path(output)
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(pdf_path)
+    plt.close(fig)
+
+
 def render_layout_comparison(
     *,
     frames: Sequence[Mapping[str, Any]],

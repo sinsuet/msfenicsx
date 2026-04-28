@@ -63,6 +63,7 @@ def run_raw_optimization(
     finally:
         problem.close()
 
+    _assign_generation_indices_from_callback(problem.history, generation_callback.rows)
     pareto_front = _extract_pareto_front(problem.history, evaluation_payload["objectives"])
     representative_candidates = _build_representative_candidates(pareto_front, evaluation_payload["objectives"])
     result_payload = _build_result_payload(
@@ -259,6 +260,27 @@ def _representative_key(objective: dict[str, Any]) -> str:
 
 def _counts_toward_optimizer_progress(record: dict[str, Any]) -> bool:
     return str(record.get("source", "")).strip().lower() != "baseline"
+
+
+def _assign_generation_indices_from_callback(
+    history: list[dict[str, Any]],
+    generation_rows: list[dict[str, Any]],
+) -> None:
+    if not history or not generation_rows:
+        return
+    cursor = 0
+    last_generation = 0
+    for row in generation_rows:
+        if row.get("num_evaluations_so_far") is None:
+            continue
+        end = min(len(history), max(cursor, int(row["num_evaluations_so_far"])))
+        generation = max(0, int(row.get("generation_index", 0)) - 1)
+        for record in history[cursor:end]:
+            record["generation"] = generation
+        cursor = end
+        last_generation = generation
+    for record in history[cursor:]:
+        record["generation"] = last_generation
 
 
 def _build_native_operator_trace(history: list[dict[str, Any]]) -> list[dict[str, Any]]:

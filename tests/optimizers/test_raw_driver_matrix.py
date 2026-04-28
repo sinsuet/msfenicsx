@@ -33,6 +33,7 @@ def test_raw_backbone_registry_contains_first_batch_algorithms() -> None:
         "nsga2",
         "nsga3",
         "rvea",
+        "spea2",
     ]
 
 

@@ -12,7 +12,8 @@ import pytest
 from tests.optimizers.experiment_fixtures import create_mode_root_with_seed_bundles
 
 
-def _seed_run(run_root: Path, label: str) -> None:
+def _seed_run(run_root: Path, label: str, *, skipped_history_indices: set[int] | None = None) -> None:
+    skipped_history_indices = skipped_history_indices or set()
     (run_root / "traces").mkdir(parents=True, exist_ok=True)
     (run_root / "representatives" / "knee-candidate" / "fields").mkdir(parents=True, exist_ok=True)
     (run_root / "traces" / "evaluation_events.jsonl").write_text(
@@ -114,22 +115,7 @@ def _seed_run(run_root: Path, label: str) -> None:
                     "first_feasible_eval": 0,
                     "pareto_size": 3,
                 },
-                "history": [
-                    {
-                        "evaluation_index": g,
-                        "generation": g,
-                        "source": "optimizer",
-                        "feasible": True,
-                        "decision_vector": {"x": 0.2 + 0.1 * g, "y": 0.3 + 0.1 * g},
-                        "objective_values": {
-                            "minimize_peak_temperature": 320.0 - g,
-                            "minimize_temperature_gradient_rms": 3.0 - 0.1 * g,
-                        },
-                        "constraint_values": {"radiator_span_budget": 0.0},
-                        "evaluation_report": {"evaluation_meta": {"case_id": "fixture-case"}, "feasible": True},
-                    }
-                    for g in range(3)
-                ],
+                "history": [_history_row(g, skipped=g in skipped_history_indices) for g in range(3)],
                 "provenance": {
                     "benchmark_source": {"seed": 11},
                     "source_case_id": "fixture-case",
@@ -170,6 +156,39 @@ def _seed_run(run_root: Path, label: str) -> None:
         )
 
 
+def _history_row(g: int, *, skipped: bool = False) -> dict:
+    if skipped:
+        return {
+            "evaluation_index": g,
+            "generation": g,
+            "source": "optimizer",
+            "feasible": False,
+            "solver_skipped": True,
+            "failure_reason": "cheap_constraint_violation",
+            "decision_vector": {"x": 0.2 + 0.1 * g, "y": 0.3 + 0.1 * g},
+            "objective_values": {
+                "minimize_peak_temperature": 1.0e12,
+                "minimize_temperature_gradient_rms": 1.0e12,
+            },
+            "constraint_values": {"radiator_span_budget": 0.2},
+            "evaluation_report": None,
+        }
+    return {
+        "evaluation_index": g,
+        "generation": g,
+        "source": "optimizer",
+        "feasible": True,
+        "solver_skipped": False,
+        "decision_vector": {"x": 0.2 + 0.1 * g, "y": 0.3 + 0.1 * g},
+        "objective_values": {
+            "minimize_peak_temperature": 320.0 - g,
+            "minimize_temperature_gradient_rms": 3.0 - 0.1 * g,
+        },
+        "constraint_values": {"radiator_span_budget": 0.0},
+        "evaluation_report": {"evaluation_meta": {"case_id": "fixture-case"}, "feasible": True},
+    }
+
+
 def test_compare_runs_writes_summary_first_visual_bundle(tmp_path: Path) -> None:
     import matplotlib
     matplotlib.use("Agg")
@@ -204,6 +223,50 @@ def test_compare_runs_writes_summary_first_visual_bundle(tmp_path: Path) -> None
     assert llm_row["model"] == "gpt-5.4"
     assert not (run_a / "comparison").exists()
     assert not (run_b / "comparison").exists()
+
+
+def test_compare_runs_writes_pde_budget_accounting_outputs(tmp_path: Path) -> None:
+    import csv
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+
+    from optimizers.compare_runs import compare_runs
+
+    run_a = tmp_path / "0416_2030__raw"
+    run_b = tmp_path / "0416_2035__llm"
+    _seed_run(run_a, "raw", skipped_history_indices={1})
+    _seed_run(run_b, "llm")
+
+    output = tmp_path / "comparisons" / "0416_2100__raw_vs_llm"
+    compare_runs(runs=[run_a, run_b], output=output)
+
+    assert (output / "figures" / "pde_budget_accounting.png").exists()
+    assert (output / "figures" / "pdf" / "pde_budget_accounting.pdf").exists()
+    assert (output / "tables" / "pde_budget_accounting.csv").exists()
+    assert (output / "tables" / "common_pde_cutoff.csv").exists()
+
+    with (output / "tables" / "pde_budget_accounting.csv").open(encoding="utf-8", newline="") as handle:
+        budget_rows = {row["mode"]: row for row in csv.DictReader(handle)}
+    assert budget_rows["raw"]["optimizer_proposals"] == "3"
+    assert budget_rows["raw"]["pde_evaluations"] == "2"
+    assert budget_rows["raw"]["cheap_screen_skipped"] == "1"
+    assert budget_rows["raw"]["cheap_skip_rate"] == str(1.0 / 3.0)
+    assert budget_rows["llm"]["optimizer_proposals"] == "3"
+    assert budget_rows["llm"]["pde_evaluations"] == "3"
+    assert budget_rows["llm"]["cheap_screen_skipped"] == "0"
+
+    with (output / "tables" / "common_pde_cutoff.csv").open(encoding="utf-8", newline="") as handle:
+        cutoff_rows = {row["mode"]: row for row in csv.DictReader(handle)}
+    assert cutoff_rows["raw"]["common_pde_cutoff"] == "2"
+    assert cutoff_rows["raw"]["optimizer_proposals_at_cutoff"] == "3"
+    assert cutoff_rows["raw"]["cheap_screen_skipped_at_cutoff"] == "1"
+    assert cutoff_rows["raw"]["best_temperature_max_at_cutoff"] == "318.0"
+    assert cutoff_rows["llm"]["common_pde_cutoff"] == "2"
+    assert cutoff_rows["llm"]["optimizer_proposals_at_cutoff"] == "2"
+    assert cutoff_rows["llm"]["cheap_screen_skipped_at_cutoff"] == "0"
+    assert cutoff_rows["llm"]["best_temperature_max_at_cutoff"] == "319.0"
 
 
 def test_compare_runs_rejects_non_concrete_mode_root_inputs(tmp_path: Path) -> None:

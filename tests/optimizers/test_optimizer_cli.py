@@ -936,7 +936,7 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
         lambda profile, **kwargs: {
             "LLM_API_KEY": "switch-key",
             "LLM_BASE_URL": "https://switch.example/v1",
-            "LLM_MODEL": "claude-sonnet-4-6",
+            "LLM_MODEL": "glm-5",
         },
         raising=False,
     )
@@ -956,7 +956,7 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
     exit_code = main(
         [
             "run-llm",
-            "claude",
+            "glm_5",
             "--optimization-spec",
             str(spec_path),
             "--output-root",
@@ -968,7 +968,7 @@ def test_optimizer_cli_run_llm_routes_profile_overlay_into_union_execution(tmp_p
     assert captured == {
         "LLM_API_KEY": "switch-key",
         "LLM_BASE_URL": "https://switch.example/v1",
-        "LLM_MODEL": "claude-sonnet-4-6",
+        "LLM_MODEL": "glm-5",
     }
 
 
@@ -991,7 +991,7 @@ def test_optimizer_cli_optimize_benchmark_llm_uses_default_profile_overlay_when_
         lambda profile, **kwargs: {
             "LLM_API_KEY": "overlay-key",
             "LLM_BASE_URL": "https://overlay.example/v1",
-            "LLM_MODEL": "gpt-5.4",
+            "LLM_MODEL": "qwen3.6-plus",
         },
         raising=False,
     )
@@ -1022,7 +1022,7 @@ def test_optimizer_cli_optimize_benchmark_llm_uses_default_profile_overlay_when_
     assert captured == {
         "LLM_API_KEY": "overlay-key",
         "LLM_BASE_URL": "https://overlay.example/v1",
-        "LLM_MODEL": "gpt-5.4",
+        "LLM_MODEL": "qwen3.6-plus",
     }
 
 
@@ -1039,7 +1039,7 @@ def test_optimizer_cli_run_llm_uses_default_profile_when_omitted(tmp_path: Path,
         return {
             "LLM_API_KEY": "default-key",
             "LLM_BASE_URL": "https://default.example/v1",
-            "LLM_MODEL": "gpt-5.4",
+            "LLM_MODEL": "qwen3.6-plus",
         }
 
     monkeypatch.setattr(
@@ -1078,7 +1078,7 @@ def test_optimizer_cli_run_llm_rejects_non_llm_specs(tmp_path: Path) -> None:
         main(
             [
                 "run-llm",
-                "gpt",
+                "glm_5",
                 "--optimization-spec",
                 str(spec_path),
                 "--output-root",
@@ -1452,6 +1452,72 @@ def test_analyze_controller_trace_reports_route_family_entropy_and_expand_mix(tm
         "sink_retarget": 1,
     }
     assert summary["expand_route_family_entropy"] == pytest.approx(1.584962500721156)
+
+
+def test_analyze_controller_trace_parses_live_minimal_rows_with_top_level_fallback(tmp_path: Path) -> None:
+    diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
+    controller_trace_path = tmp_path / "controller_trace.jsonl"
+    controller_trace_path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                {
+                    "decision_id": "g010-e0201-d183",
+                    "phase": "post_feasible_expand",
+                    "operator_selected": "",
+                    "operator_pool_snapshot": ["component_swap_2", "sink_resize"],
+                    "fallback_used": True,
+                    "latency_ms": 3000.0,
+                },
+                {
+                    "decision_id": "g010-e0202-d184",
+                    "phase": "post_feasible_expand",
+                    "operator_selected": "sink_resize",
+                    "operator_pool_snapshot": ["component_swap_2", "sink_resize"],
+                    "fallback_used": False,
+                    "latency_ms": 2800.0,
+                },
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    optimization_result_path = tmp_path / "optimization_result.json"
+    optimization_result_path.write_text(
+        json.dumps(
+            {
+                "aggregate_metrics": {"first_feasible_eval": 13},
+                "pareto_front": [],
+                "history": [
+                    {
+                        "evaluation_index": 201,
+                        "source": "optimizer",
+                        "feasible": True,
+                        "objective_values": {},
+                        "constraint_values": {},
+                    },
+                    {
+                        "evaluation_index": 202,
+                        "source": "optimizer",
+                        "feasible": True,
+                        "objective_values": {},
+                        "constraint_values": {},
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = diagnostics.analyze_controller_trace(
+        controller_trace_path,
+        optimization_result_path=optimization_result_path,
+    )
+
+    assert summary["aggregate"]["fallback_count"] == 1
+    assert summary["aggregate"]["llm_valid_count"] == 1
+    assert summary["aggregate"]["rows_after_first_feasible"] == 2
+    assert summary["post_feasible"]["fallback_count"] == 1
 
 
 def test_optimizer_cli_analyze_controller_trace_writes_summary_artifact(tmp_path: Path) -> None:

@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 import yaml
 
+from optimizers.algorithm_identity import algorithm_label
 from optimizers.analytics.loaders import iter_jsonl
 from optimizers.analytics.pareto import pareto_front_indices
 from optimizers.analytics.rollups import rollup_per_generation
@@ -30,6 +31,7 @@ from optimizers.traces.llm_trace_io import iter_mode_seed_roots, resolve_llm_mod
 from visualization.figures.comparison_panels import (
     render_gradient_field_comparison,
     render_layout_comparison,
+    render_pde_budget_accounting,
     render_progress_dashboard,
     render_seed_outcome_dashboard,
     render_summary_overview,
@@ -64,21 +66,24 @@ def build_comparison_bundle(
     tables_root.mkdir(parents=True, exist_ok=True)
 
     payloads = [_collect_run_payload(run_root) for run_root in resolved_runs]
-    payloads.sort(key=lambda item: _mode_sort_key(str(item["mode"])))
+    payloads.sort(key=lambda item: _series_sort_key(str(item["series_label"]), mode=str(item["mode"])))
 
     hypervolume_series = {
-        str(payload["mode"]): list(payload["hypervolume_series"])
+        str(payload["series_label"]): list(payload["hypervolume_series"])
         for payload in payloads
         if payload["hypervolume_series"]
     }
     progress_series = {
-        str(payload["mode"]): list(payload["progress_rows"])
+        str(payload["series_label"]): list(payload["progress_rows"])
         for payload in payloads
         if payload["progress_rows"]
     }
     summary_rows = [dict(payload["summary_row"]) for payload in payloads]
     timeline_rollups = [dict(payload["timeline_rollup"]) for payload in payloads]
     pairwise_rows = _pairwise_deltas(summary_rows)
+    pde_budget_rows = _pde_budget_accounting_rows(progress_series)
+    common_pde_cutoff_rows = _common_pde_cutoff_rows(progress_series)
+    common_pde_cutoff = _common_pde_cutoff(progress_series)
     representative_panels = [
         dict(payload["representative_panel"])
         for payload in payloads
@@ -142,18 +147,30 @@ def build_comparison_bundle(
             title=_progress_dashboard_title(benchmark_seed=benchmark_seed),
             hires=hires,
         )
+        render_pde_budget_accounting(
+            progress_series=progress_series,
+            output=figures_root / "pde_budget_accounting.png",
+            title=_pde_budget_accounting_title(benchmark_seed=benchmark_seed),
+            common_pde_cutoff=common_pde_cutoff,
+            hires=hires,
+        )
 
     _write_json(analytics_root / "summary_rows.json", {"rows": summary_rows})
     _write_json(analytics_root / "timeline_rollups.json", {"rows": timeline_rollups})
+    _write_json(analytics_root / "pde_budget_accounting.json", {"rows": pde_budget_rows})
+    _write_json(analytics_root / "common_pde_cutoff.json", {"rows": common_pde_cutoff_rows})
     _write_table_files(tables_root / "summary_table", _summary_table_rows(summary_rows))
     _write_table_files(tables_root / "mode_metrics", summary_rows)
     _write_table_files(tables_root / "pairwise_deltas", pairwise_rows)
+    _write_table_files(tables_root / "pde_budget_accounting", pde_budget_rows)
+    _write_table_files(tables_root / "common_pde_cutoff", common_pde_cutoff_rows)
 
     manifest = {
         "comparison_kind": comparison_kind,
         "suite_root": None if suite_root is None else str(Path(suite_root)),
         "benchmark_seed": benchmark_seed,
         "mode_ids": [str(payload["mode"]) for payload in payloads],
+        "series_labels": [str(payload["series_label"]) for payload in payloads],
         "run_roots": [str(payload["run_root"]) for payload in payloads],
         "created_at": datetime.now().isoformat(),
     }
@@ -262,10 +279,11 @@ def _collect_run_payload(run_root: Path) -> dict[str, Any]:
     mode = _mode_of(run_root)
     benchmark_seed = _benchmark_seed_of(run_root)
     algorithm_seed = _algorithm_seed_of(run_root)
-    representative_panel = _load_compare_representative_panel(run_root, mode=mode)
+    algorithm = _algorithm_label_of(run_root)
+    representative_panel = _load_compare_representative_panel(run_root, mode=mode, algorithm=algorithm)
     summary_row = {
         "mode": mode,
-        "algorithm": "NSGA-II",
+        "algorithm": algorithm,
         "model": _llm_model_of(run_root),
         "run": str(run_root),
         "benchmark_seed": benchmark_seed,
@@ -282,10 +300,12 @@ def _collect_run_payload(run_root: Path) -> dict[str, Any]:
         "best_gradient_rms": _final_progress_metric(progress_rows, "best_gradient_rms_so_far"),
         "final_constraint_violation": _final_progress_metric(progress_rows, "best_total_constraint_violation_so_far"),
     }
+    summary_row["series_label"] = _series_label(summary_row)
     if representative_panel is not None:
         summary_row["representative_id"] = representative_panel["representative_id"]
     timeline_rollup = {
         "mode": mode,
+        "series_label": summary_row["series_label"],
         "benchmark_seed": benchmark_seed,
         "progress_point_count": len(progress_rows),
         "hypervolume_point_count": len(hypervolume_rows),
@@ -295,6 +315,7 @@ def _collect_run_payload(run_root: Path) -> dict[str, Any]:
     return {
         "run_root": run_root,
         "mode": mode,
+        "series_label": summary_row["series_label"],
         "front": front,
         "hypervolume_rows": hypervolume_rows,
         "hypervolume_series": hypervolume_series,
@@ -465,6 +486,32 @@ def _algorithm_seed_of(run_root: Path) -> int | None:
     return None if algorithm_seed is None else int(algorithm_seed)
 
 
+def _algorithm_label_of(run_root: Path) -> str:
+    run_yaml = _load_optional_yaml(run_root / "run.yaml")
+    algorithm = run_yaml.get("algorithm", {})
+    if isinstance(algorithm, Mapping):
+        explicit_label = algorithm.get("label")
+        if explicit_label:
+            return str(explicit_label)
+        backbone = algorithm.get("backbone")
+        if backbone:
+            return algorithm_label(str(backbone))
+    return "NSGA-II"
+
+
+def _series_label(summary_row: Mapping[str, Any]) -> str:
+    mode = str(summary_row.get("mode", "")).strip()
+    algorithm = str(summary_row.get("algorithm", "")).strip()
+    if not algorithm or algorithm == "NSGA-II":
+        return mode
+    return f"{algorithm} {mode}".strip()
+
+
+def _row_series_label(row: Mapping[str, Any]) -> str:
+    explicit = str(row.get("series_label", "")).strip()
+    return explicit or _series_label(row)
+
+
 def _first_feasible_pde_eval(rows: Sequence[Mapping[str, Any]]) -> int | None:
     for row in rows:
         if row.get("first_feasible_pde_eval_so_far") is not None:
@@ -488,6 +535,7 @@ def _summary_table_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any
     return [
         {
             "mode": row.get("mode"),
+            "series_label": row.get("series_label"),
             "algorithm": row.get("algorithm"),
             "model": row.get("model"),
             "representative_id": row.get("representative_id"),
@@ -505,12 +553,122 @@ def _summary_table_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any
     ]
 
 
+def _pde_budget_accounting_rows(
+    progress_series: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for mode, series in _ordered_progress_series(progress_series):
+        final_row = _last_progress_row(series)
+        if final_row is None:
+            continue
+        optimizer_proposals = _progress_count(final_row, "optimizer_evaluations_so_far")
+        pde_evaluations = _progress_count(final_row, "pde_evaluations_so_far")
+        cheap_skipped = _progress_count(final_row, "solver_skipped_evaluations_so_far")
+        rows.append(
+            {
+                "mode": mode,
+                "optimizer_proposals": optimizer_proposals,
+                "pde_evaluations": pde_evaluations,
+                "cheap_screen_skipped": cheap_skipped,
+                "proposal_accounting_total": None
+                if pde_evaluations is None or cheap_skipped is None
+                else pde_evaluations + cheap_skipped,
+                "pde_attempt_rate": _safe_ratio(pde_evaluations, optimizer_proposals),
+                "cheap_skip_rate": _safe_ratio(cheap_skipped, optimizer_proposals),
+            }
+        )
+    return rows
+
+
+def _common_pde_cutoff_rows(
+    progress_series: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> list[dict[str, Any]]:
+    cutoff = _common_pde_cutoff(progress_series)
+    if cutoff is None:
+        return []
+    rows: list[dict[str, Any]] = []
+    for mode, series in _ordered_progress_series(progress_series):
+        cutoff_row = _row_at_pde_cutoff(series, cutoff)
+        if cutoff_row is None:
+            continue
+        rows.append(
+            {
+                "mode": mode,
+                "common_pde_cutoff": cutoff,
+                "optimizer_proposals_at_cutoff": _progress_count(cutoff_row, "optimizer_evaluations_so_far"),
+                "pde_evaluations_at_cutoff": _progress_count(cutoff_row, "pde_evaluations_so_far"),
+                "cheap_screen_skipped_at_cutoff": _progress_count(
+                    cutoff_row,
+                    "solver_skipped_evaluations_so_far",
+                ),
+                "best_temperature_max_at_cutoff": cutoff_row.get("best_temperature_max_so_far"),
+                "best_gradient_rms_at_cutoff": cutoff_row.get("best_gradient_rms_so_far"),
+                "feasible_rate_at_cutoff": cutoff_row.get("feasible_rate_so_far"),
+                "best_constraint_violation_at_cutoff": cutoff_row.get("best_total_constraint_violation_so_far"),
+            }
+        )
+    return rows
+
+
+def _common_pde_cutoff(progress_series: Mapping[str, Sequence[Mapping[str, Any]]]) -> int | None:
+    final_counts: list[int] = []
+    for _mode, series in _ordered_progress_series(progress_series):
+        final_row = _last_progress_row(series)
+        if final_row is None:
+            continue
+        pde_evaluations = _progress_count(final_row, "pde_evaluations_so_far")
+        if pde_evaluations is not None:
+            final_counts.append(pde_evaluations)
+    return min(final_counts) if final_counts else None
+
+
+def _ordered_progress_series(
+    progress_series: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> list[tuple[str, Sequence[Mapping[str, Any]]]]:
+    return sorted(
+        ((str(mode), rows) for mode, rows in progress_series.items()),
+        key=lambda item: _series_sort_key(item[0]),
+    )
+
+
+def _last_progress_row(rows: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    for row in reversed(rows):
+        if row.get("optimizer_evaluations_so_far") is not None:
+            return row
+    return rows[-1] if rows else None
+
+
+def _row_at_pde_cutoff(rows: Sequence[Mapping[str, Any]], cutoff: int) -> Mapping[str, Any] | None:
+    candidate: Mapping[str, Any] | None = None
+    for row in rows:
+        pde_count = _progress_count(row, "pde_evaluations_so_far")
+        if pde_count is None:
+            continue
+        candidate = row
+        if pde_count >= cutoff:
+            return row
+    return candidate
+
+
+def _progress_count(row: Mapping[str, Any], key: str) -> int | None:
+    value = row.get(key)
+    return None if value is None else int(value)
+
+
+def _safe_ratio(numerator: int | None, denominator: int | None) -> float | None:
+    if numerator is None or denominator is None or denominator <= 0:
+        return None
+    return float(numerator / denominator)
+
+
 def _pairwise_deltas(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    ordered_rows = sorted(rows, key=lambda row: _mode_sort_key(str(row.get("mode", ""))))
+    ordered_rows = sorted(rows, key=lambda row: _series_sort_key(_row_series_label(row), mode=str(row.get("mode", ""))))
     pairs: list[dict[str, Any]] = []
     for left, right in combinations(ordered_rows, 2):
         pairs.append(
             {
+                "left_label": _row_series_label(left),
+                "right_label": _row_series_label(right),
                 "left_mode": left.get("mode"),
                 "right_mode": right.get("mode"),
                 "delta_first_feasible_pde_eval": _delta(
@@ -541,7 +699,7 @@ def _aggregate_mode_summary(rows: Sequence[Mapping[str, Any]]) -> list[dict[str,
         summary_rows.append(
             {
                 "mode": mode,
-                "algorithm": "NSGA-II",
+                "algorithm": next((row.get("algorithm") for row in mode_rows if row.get("algorithm")), None),
                 "model": next((row.get("model") for row in mode_rows if row.get("model")), None),
                 "seed_count": len(mode_rows),
                 "pde_evaluations_mean": _mean(_numeric_values(mode_rows, "pde_evaluations")),
@@ -816,6 +974,18 @@ def _mode_sort_key(mode: str) -> int:
     return MODE_ORDER.index(mode) if mode in MODE_ORDER else len(MODE_ORDER)
 
 
+def _series_sort_key(series_label: str, *, mode: str | None = None) -> tuple[int, int, str]:
+    mode_text = str(mode or "").strip()
+    label_text = str(series_label).strip()
+    raw_priority = 0 if label_text == "raw" else 1
+    if mode_text:
+        return (_mode_sort_key(mode_text), raw_priority, label_text)
+    for candidate in MODE_ORDER:
+        if label_text == candidate or label_text.endswith(f" {candidate}"):
+            return (_mode_sort_key(candidate), raw_priority, label_text)
+    return (len(MODE_ORDER), raw_priority, label_text)
+
+
 def _comparison_overview_title(*, benchmark_seed: int | None, comparison_kind: str) -> str:
     if benchmark_seed is not None:
         return f"Mode Summary | Seed {benchmark_seed}"
@@ -828,8 +998,12 @@ def _progress_dashboard_title(*, benchmark_seed: int | None) -> str:
     return f"Progress Dashboard | Seed {benchmark_seed}" if benchmark_seed is not None else "Progress Dashboard"
 
 
+def _pde_budget_accounting_title(*, benchmark_seed: int | None) -> str:
+    return f"PDE Budget Accounting | Seed {benchmark_seed}" if benchmark_seed is not None else "PDE Budget Accounting"
+
+
 def _comparison_tile_title(panel: Mapping[str, Any]) -> str:
-    mode = str(panel.get("mode", "")).upper()
+    mode = str(panel.get("series_label") or panel.get("mode", "")).upper()
     model = panel.get("model")
     label = str(panel.get("display_label") or panel.get("representative_id") or "")
     if model:
@@ -837,7 +1011,7 @@ def _comparison_tile_title(panel: Mapping[str, Any]) -> str:
     return f"{mode}\n{label}"
 
 
-def _load_compare_representative_panel(run_root: Path, *, mode: str) -> dict[str, Any] | None:
+def _load_compare_representative_panel(run_root: Path, *, mode: str, algorithm: str) -> dict[str, Any] | None:
     representatives_root = run_root / "representatives"
     if not representatives_root.is_dir():
         return None
@@ -855,6 +1029,8 @@ def _load_compare_representative_panel(run_root: Path, *, mode: str) -> dict[str
     xs, ys = _grid_coordinates(grid_shape, panel_domain)
     return {
         "mode": mode,
+        "algorithm": algorithm,
+        "series_label": _series_label({"mode": mode, "algorithm": algorithm}),
         "model": _llm_model_of(run_root),
         "representative_id": repr_root.name,
         "display_label": _representative_display_label(repr_root.name),

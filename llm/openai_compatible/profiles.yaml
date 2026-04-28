@@ -1,18 +1,33 @@
 schema_version: "1.0"
 profiles:
   default:
-    source_api_key_env_var: GPT_PROXY_API_KEY
-    source_base_url_env_var: GPT_PROXY_BASE_URL
-    model: gpt-5.4
-  gpt:
-    source_api_key_env_var: GPT_PROXY_API_KEY
-    source_base_url_env_var: GPT_PROXY_BASE_URL
-    model: gpt-5.4
-  claude:
-    source_api_key_env_var: CLAUDE_PROXY_API_KEY
-    source_base_url_env_var: CLAUDE_PROXY_BASE_URL
-    model: claude-sonnet-4-6
-  qwen:
     source_api_key_env_var: QWEN_PROXY_API_KEY
     source_base_url_env_var: QWEN_PROXY_BASE_URL
     model: qwen3.6-plus
+    extra_body:
+      enable_thinking: false
+  qwen3_6_plus:
+    source_api_key_env_var: QWEN_PROXY_API_KEY
+    source_base_url_env_var: QWEN_PROXY_BASE_URL
+    model: qwen3.6-plus
+    extra_body:
+      enable_thinking: false
+  glm_5:
+    source_api_key_env_var: QWEN_PROXY_API_KEY
+    source_base_url_env_var: QWEN_PROXY_BASE_URL
+    model: glm-5
+    extra_body:
+      enable_thinking: false
+  minimax_m2_5:
+    source_api_key_env_var: QWEN_PROXY_API_KEY
+    source_base_url_env_var: QWEN_PROXY_BASE_URL
+    model: MiniMax-M2.5
+  deepseek_v4_flash:
+    source_api_key_env_var: DEEPSEEK_PROXY_API_KEY
+    source_base_url_env_var: DEEPSEEK_PROXY_BASE_URL
+    model: DeepSeek-V4-Flash
+  gemma4:
+    source_api_key_env_var: GEMMA4_API_KEY
+    source_base_url_env_var: GEMMA4_BASE_URL
+    model: gemma-4
+    status: placeholder

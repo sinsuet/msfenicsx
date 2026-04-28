@@ -132,6 +132,38 @@ def _dominance_state() -> ControllerState:
     )
 
 
+def _active_baseline_dominance_state() -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=3,
+        evaluation_index=18,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "near_feasible",
+            "run_state": {
+                "decision_index": 6,
+                "evaluations_used": 17,
+                "evaluations_remaining": 80,
+                "feasible_rate": 0.0,
+                "first_feasible_eval": None,
+            },
+            "candidate_operator_ids": ["vector_sbx_pm", "component_jitter_1"],
+            "recent_decisions": [
+                {
+                    "evaluation_index": 13 + index,
+                    "selected_operator_id": "vector_sbx_pm",
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for index in range(4)
+            ],
+            "operator_summary": {},
+        },
+    )
+
+
 def _generation_local_dominance_state(*, viable_alternative: bool) -> ControllerState:
     operator_panel = {
         "native_sbx_pm": {
@@ -2129,6 +2161,102 @@ def test_llm_controller_recent_dominance_guardrail_filters_repeated_semantic_ope
     assert client.last_kwargs is not None
     assert client.last_kwargs["candidate_operator_ids"] == ("native_sbx_pm", "local_refine")
     assert controller.request_trace[0]["guardrail"]["filtered_operator_ids"] == ["move_hottest_cluster_toward_sink"]
+
+
+def test_llm_controller_recent_dominance_guardrail_keeps_active_native_baseline() -> None:
+    candidate_ids, guardrail = LLMOperatorController._apply_recent_dominance_guardrail(
+        _active_baseline_dominance_state(),
+        ("vector_sbx_pm", "component_jitter_1"),
+    )
+
+    assert candidate_ids == ("vector_sbx_pm", "component_jitter_1")
+    assert guardrail is None
+
+
+def test_semantic_trial_candidates_keep_medium_gradient_band_smooth_visible() -> None:
+    semantic_trials = LLMOperatorController._build_semantic_trial_candidates(
+        {
+            "hotspot_spread": {
+                "applicability": "high",
+                "expected_gradient_effect": "improve",
+                "expected_feasibility_risk": "medium",
+            },
+            "gradient_band_smooth": {
+                "applicability": "medium",
+                "expected_gradient_effect": "improve",
+                "expected_feasibility_risk": "low",
+            },
+            "component_jitter_1": {
+                "applicability": "high",
+                "expected_gradient_effect": "neutral",
+                "expected_feasibility_risk": "low",
+            },
+        }
+    )
+
+    assert semantic_trials == ["hotspot_spread", "gradient_band_smooth"]
+
+
+def test_semantic_trial_candidates_drop_low_success_gradient_routes_before_smooth_candidate() -> None:
+    semantic_trials = LLMOperatorController._build_semantic_trial_candidates(
+        {
+            "gradient_band_smooth": {
+                "applicability": "medium",
+                "expected_gradient_effect": "improve",
+                "expected_feasibility_risk": "low",
+            },
+            "congestion_relief": {
+                "applicability": "high",
+                "expected_gradient_effect": "improve",
+                "expected_feasibility_risk": "medium",
+                "post_feasible_selection_count": 26,
+                "post_feasible_success_count": 6,
+                "post_feasible_success_rate": 6.0 / 26.0,
+                "frontier_evidence": "limited",
+            },
+            "sink_retarget": {
+                "applicability": "high",
+                "expected_peak_effect": "improve",
+                "expected_feasibility_risk": "low",
+            },
+        }
+    )
+
+    assert semantic_trials == ["gradient_band_smooth", "sink_retarget"]
+
+
+def test_route_family_candidates_do_not_promote_uncredited_low_success_routes() -> None:
+    operator_panel = {
+        "gradient_band_smooth": {
+            "applicability": "medium",
+            "expected_gradient_effect": "improve",
+            "expected_feasibility_risk": "low",
+        },
+        "hotspot_spread": {
+            "applicability": "high",
+            "expected_gradient_effect": "improve",
+            "expected_feasibility_risk": "medium",
+            "post_feasible_selection_count": 8,
+            "post_feasible_success_count": 0,
+            "post_feasible_success_rate": 0.0,
+            "frontier_evidence": "limited",
+        },
+        "layout_rebalance": {
+            "applicability": "medium",
+            "expected_gradient_effect": "improve",
+            "expected_feasibility_risk": "medium",
+            "frontier_evidence": "positive",
+        },
+    }
+
+    semantic_trials = LLMOperatorController._build_semantic_trial_candidates(operator_panel)
+    route_families = LLMOperatorController._build_route_family_candidates(
+        operator_panel,
+        semantic_trial_candidates=semantic_trials,
+    )
+
+    assert semantic_trials == ["gradient_band_smooth"]
+    assert route_families == ["congestion_relief", "layout_rebalance"]
 
 
 def test_llm_controller_generation_local_guardrail_filters_current_generation_monopoly() -> None:

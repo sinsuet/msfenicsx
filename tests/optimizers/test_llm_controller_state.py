@@ -10,6 +10,7 @@ from optimizers.operator_pool.reflection import summarize_operator_history
 from optimizers.operator_pool.state import ControllerState
 from optimizers.operator_pool.state_builder import build_controller_state
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
+from optimizers.operator_pool.domain_state import build_prompt_regime_panel
 
 
 _S1_VARIABLE_IDS = tuple(
@@ -207,6 +208,120 @@ def _build_phase_alignment_snapshot(phase: str) -> PolicySnapshot:
     )
 
 
+def test_prompt_regime_promotes_peak_budget_fill_when_collapsed_frontier_has_sink_headroom() -> None:
+    panel = build_prompt_regime_panel(
+        run_state={
+            "first_feasible_eval": 9,
+            "sink_budget_utilization": 0.965,
+            "objective_extremes": {
+                "min_peak_temperature": {
+                    "evaluation_index": 102,
+                    "sink_span": 0.3088,
+                    "objective_summary": {
+                        "minimize_peak_temperature": 319.99,
+                        "minimize_temperature_gradient_rms": 15.61,
+                    },
+                },
+                "min_temperature_gradient_rms": {
+                    "evaluation_index": 102,
+                    "sink_span": 0.3088,
+                    "objective_summary": {
+                        "minimize_peak_temperature": 319.99,
+                        "minimize_temperature_gradient_rms": 15.61,
+                    },
+                },
+            },
+        },
+        progress_state={
+            "phase": "post_feasible_stagnation",
+            "post_feasible_mode": "expand",
+            "recent_frontier_stagnation_count": 8,
+            "diversity_deficit_level": "high",
+            "objective_stagnation": {
+                "temperature_max": {
+                    "best_value": 319.99,
+                    "evaluations_since_improvement": 12,
+                    "stagnant": True,
+                },
+                "gradient_rms": {
+                    "best_value": 15.61,
+                    "evaluations_since_improvement": 12,
+                    "stagnant": True,
+                },
+            },
+        },
+        archive_state={
+            "pareto_size": 1,
+            "recent_feasible_regression_count": 0,
+        },
+        domain_regime={
+            "phase": "feasible_refine",
+            "sink_budget_utilization": 0.965,
+        },
+    )
+
+    assert panel["objective_balance"]["preferred_effect"] == "peak_improve"
+    assert panel["objective_balance"]["balance_pressure"] == "high"
+    assert panel["objective_balance"]["balance_reason"] == "frontier_endpoint_peak_budget_fill"
+
+
+def test_prompt_regime_keeps_balanced_when_collapsed_frontier_has_full_sink_budget() -> None:
+    panel = build_prompt_regime_panel(
+        run_state={
+            "first_feasible_eval": 9,
+            "sink_budget_utilization": 1.0,
+            "objective_extremes": {
+                "min_peak_temperature": {
+                    "evaluation_index": 153,
+                    "sink_span": 0.32,
+                    "objective_summary": {
+                        "minimize_peak_temperature": 319.63,
+                        "minimize_temperature_gradient_rms": 15.46,
+                    },
+                },
+                "min_temperature_gradient_rms": {
+                    "evaluation_index": 153,
+                    "sink_span": 0.32,
+                    "objective_summary": {
+                        "minimize_peak_temperature": 319.63,
+                        "minimize_temperature_gradient_rms": 15.46,
+                    },
+                },
+            },
+        },
+        progress_state={
+            "phase": "post_feasible_stagnation",
+            "post_feasible_mode": "expand",
+            "recent_frontier_stagnation_count": 8,
+            "diversity_deficit_level": "high",
+            "objective_stagnation": {
+                "temperature_max": {
+                    "best_value": 319.63,
+                    "evaluations_since_improvement": 12,
+                    "stagnant": True,
+                },
+                "gradient_rms": {
+                    "best_value": 15.46,
+                    "evaluations_since_improvement": 12,
+                    "stagnant": True,
+                },
+            },
+        },
+        archive_state={
+            "pareto_size": 1,
+            "recent_feasible_regression_count": 0,
+        },
+        domain_regime={
+            "phase": "feasible_refine",
+            "sink_budget_utilization": 1.0,
+        },
+    )
+
+    assert panel["objective_balance"]["preferred_effect"] == "balanced"
+    assert panel["objective_balance"]["balance_pressure"] == "medium"
+    assert "balance_reason" not in panel["objective_balance"]
+
+
 def test_build_controller_state_captures_recent_decisions_and_operator_summary() -> None:
     controller_trace = [
         ControllerTraceRow(
@@ -310,6 +425,65 @@ def test_build_controller_state_captures_recent_decisions_and_operator_summary()
     assert state.metadata["operator_summary"]["local_refine"]["recent_selection_count"] == 2
     assert state.metadata["operator_summary"]["local_refine"]["fallback_selection_count"] == 1
     assert state.metadata["operator_summary"]["local_refine"]["llm_valid_selection_count"] == 1
+
+
+def test_build_controller_state_exposes_pareto_objective_extremes_in_run_panel() -> None:
+    history = [
+        _record(
+            1,
+            _vector(sink_start=0.22, sink_end=0.54),
+            feasible=True,
+            peak_temperature=319.65,
+            temperature_gradient_rms=16.15,
+            c01_temperature_violation=-1.0,
+            panel_spread_violation=-1.0,
+        ),
+        _record(
+            2,
+            _vector(sink_start=0.24, sink_end=0.56, x_shift=0.02),
+            feasible=True,
+            peak_temperature=321.02,
+            temperature_gradient_rms=15.92,
+            c01_temperature_violation=-1.0,
+            panel_spread_violation=-1.0,
+        ),
+        _record(
+            3,
+            _vector(sink_start=0.20, sink_end=0.52, y_shift=0.02),
+            feasible=True,
+            peak_temperature=320.57,
+            temperature_gradient_rms=16.03,
+            c01_temperature_violation=-1.0,
+            panel_spread_violation=-1.0,
+        ),
+    ]
+
+    state = build_controller_state(
+        _parents(),
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=4,
+        candidate_operator_ids=("vector_sbx_pm", "component_jitter_1"),
+        metadata={
+            "design_variable_ids": _S1_VARIABLE_IDS,
+            "radiator_span_max": 0.48,
+            "total_evaluation_budget": 200,
+        },
+        history=history,
+    )
+
+    run_panel = state.metadata["prompt_panels"]["run_panel"]
+    extremes = run_panel["objective_extremes"]
+
+    assert extremes["min_peak_temperature"]["evaluation_index"] == 1
+    assert extremes["min_temperature_gradient_rms"]["evaluation_index"] == 2
+    assert extremes["min_peak_temperature"]["objective_summary"][
+        "minimize_peak_temperature"
+    ] == pytest.approx(319.65)
+    assert extremes["min_temperature_gradient_rms"]["objective_summary"][
+        "minimize_temperature_gradient_rms"
+    ] == pytest.approx(15.92)
 
 
 def test_retrieval_query_phase_uses_recover_when_policy_phase_is_recover() -> None:
@@ -468,6 +642,9 @@ def test_build_controller_state_tracks_generation_local_memory_without_rewriting
     assert state.metadata["generation_local_memory"]["accepted_share"] == pytest.approx(0.5)
     assert state.metadata["generation_local_memory"]["dominant_operator_id"] == "slide_sink"
     assert state.metadata["generation_local_memory"]["dominant_operator_share"] == pytest.approx(1.0)
+    assert state.metadata["generation_local_memory"]["route_family_counts"] == {
+        "sink_retarget": {"accepted_count": 2, "accepted_share": 1.0}
+    }
     assert state.metadata["operator_summary"]["native_sbx_pm"]["selection_count"] == 1
     assert "slide_sink" not in state.metadata["operator_summary"]
 

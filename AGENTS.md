@@ -11,6 +11,10 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
   - `nsga2_raw`
   - `nsga2_union`
   - `nsga2_llm`
+- Additional algorithm-comparison inputs are raw-only unless a later design explicitly promotes them:
+  - `spea2_raw`
+  - `cmopso_raw`
+  - `moead_raw` backup
 - The active optimizer ladder now uses explicit registry and legality-policy splits:
   - `raw`: native backbone + clean legality policy
   - `union`: primitive operator registry + random controller + clean legality policy
@@ -53,15 +57,27 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s1_typical_raw.yaml`
 - `scenarios/optimization/s1_typical_union.yaml`
 - `scenarios/optimization/s1_typical_llm.yaml`
+- `scenarios/optimization/s1_typical_spea2_raw.yaml`
+- `scenarios/optimization/s1_typical_cmopso_raw.yaml`
+- `scenarios/optimization/s1_typical_moead_raw.yaml`
 - `scenarios/optimization/profiles/s1_typical_raw.yaml`
 - `scenarios/optimization/profiles/s1_typical_union.yaml`
+- `scenarios/optimization/profiles/s1_typical_spea2_raw.yaml`
+- `scenarios/optimization/profiles/s1_typical_cmopso_raw.yaml`
+- `scenarios/optimization/profiles/s1_typical_moead_raw.yaml`
 - `scenarios/templates/s2_staged.yaml`
 - `scenarios/evaluation/s2_staged_eval.yaml`
 - `scenarios/optimization/s2_staged_raw.yaml`
 - `scenarios/optimization/s2_staged_union.yaml`
 - `scenarios/optimization/s2_staged_llm.yaml`
+- `scenarios/optimization/s2_staged_spea2_raw.yaml`
+- `scenarios/optimization/s2_staged_cmopso_raw.yaml`
+- `scenarios/optimization/s2_staged_moead_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_union.yaml`
+- `scenarios/optimization/profiles/s2_staged_spea2_raw.yaml`
+- `scenarios/optimization/profiles/s2_staged_cmopso_raw.yaml`
+- `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
 - `scenarios/templates/s3_scale20.yaml`
 - `scenarios/evaluation/s3_scale20_eval.yaml`
 - `scenarios/optimization/s3_scale20_raw.yaml`
@@ -155,6 +171,13 @@ Preferred commands:
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/union-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/llm-smoke`
+- Raw-only algorithm comparisons should be run as standalone raw roots, then compared with `compare-runs`; do not add `spea2/cmopso/moead` as `union` or `llm` suite modes unless a later design explicitly promotes them.
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/spea2-raw-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_cmopso_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/cmopso-raw-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/moead-raw-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s2_staged_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s2_staged/spea2-raw-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s2_staged_cmopso_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s2_staged/cmopso-raw-smoke`
+- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s2_staged_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s2_staged/moead-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs` (auto-writes suite-owned `comparisons/` when 2+ modes participate)
 - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s1_typical_llm.yaml --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
 - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/controller_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
@@ -164,26 +187,29 @@ Preferred commands:
 - Budget / render overrides (work on `optimize-benchmark`, `run-llm`, and `run-benchmark-suite`): `--population-size`, `--num-generations`, `--skip-render`
 - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
-The active `nsga2_llm` route currently uses OpenAI-compatible provider profiles:
+The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 
-- `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to GPT
-- switch providers explicitly with `run-llm claude ...` or `run-llm qwen ...`
-- provider profile declarations live in `llm/openai_compatible/profiles.yaml`
-- bundled default models are:
-  - `gpt -> gpt-5.4`
-  - `claude -> claude-sonnet-4-6`
-  - `qwen -> qwen3.6-plus`
+- `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to `qwen3.6-plus`
+- switch models explicitly with profile names such as `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, or `run-llm deepseek_v4_flash ...`
+- model profile declarations live in `llm/openai_compatible/profiles.yaml`
+- bundled coding-plan route models share `QWEN_PROXY_API_KEY` and `QWEN_PROXY_BASE_URL`:
+  - `qwen3_6_plus -> qwen3.6-plus`
+  - `glm_5 -> glm-5`
+  - `minimax_m2_5 -> MiniMax-M2.5`
+- non-coding-plan profiles use model-named env pairs:
+  - `deepseek_v4_flash -> DEEPSEEK_PROXY_API_KEY / DEEPSEEK_PROXY_BASE_URL -> DeepSeek-V4-Flash`
+  - `gemma4 -> GEMMA4_API_KEY / GEMMA4_BASE_URL -> gemma-4` (placeholder until credentials and exact model id are configured)
 - the active `scenarios/optimization/s1_typical_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
   - `LLM_BASE_URL`
   - `LLM_MODEL`
 - repository-root `/home/hymn/msfenicsx/.env` should keep the raw provider credentials:
-  - `GPT_PROXY_API_KEY`
-  - `GPT_PROXY_BASE_URL=https://apiproxy.work/v1`
-  - `CLAUDE_PROXY_API_KEY`
-  - `CLAUDE_PROXY_BASE_URL=https://apiproxy.work/v1`
   - `QWEN_PROXY_API_KEY`
-  - `QWEN_PROXY_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1`
+  - `QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1`
+  - `DEEPSEEK_PROXY_API_KEY`
+  - `DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1`
+  - `GEMMA4_API_KEY`
+  - `GEMMA4_BASE_URL`
 
 ## Engineering Guardrails
 
@@ -310,8 +336,14 @@ Current maintained test areas are:
 - `scenarios/optimization/s2_staged_raw.yaml`
 - `scenarios/optimization/s2_staged_union.yaml`
 - `scenarios/optimization/s2_staged_llm.yaml`
+- `scenarios/optimization/s2_staged_spea2_raw.yaml`
+- `scenarios/optimization/s2_staged_cmopso_raw.yaml`
+- `scenarios/optimization/s2_staged_moead_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_union.yaml`
+- `scenarios/optimization/profiles/s2_staged_spea2_raw.yaml`
+- `scenarios/optimization/profiles/s2_staged_cmopso_raw.yaml`
+- `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
 - `scenarios/templates/s3_scale20.yaml`
 - `scenarios/evaluation/s3_scale20_eval.yaml`
 - `scenarios/optimization/s3_scale20_raw.yaml`

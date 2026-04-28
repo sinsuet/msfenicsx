@@ -13,6 +13,7 @@ from optimizers.operator_pool.operators import get_operator_behavior_profile
 _RECENT_FRONTIER_WINDOW = 4
 _OBJECTIVE_STAGNATION_THRESHOLD = 6
 _OBJECTIVE_BALANCE_STALENESS_GAP_THRESHOLD = 24
+_ENDPOINT_SINK_HEADROOM_UTILIZATION_THRESHOLD = 0.985
 _EXPAND_SATURATION_THRESHOLD = 24
 _PRESERVE_DWELL_MIN = 3
 
@@ -289,6 +290,36 @@ def _reference_record_for_run_state(history: Sequence[Mapping[str, Any]]) -> Map
     if reference_history:
         return min(reference_history, key=total_violation)
     return None
+
+
+def _objective_extreme_records(history: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+    reference_history = _optimizer_progress_history(history)
+    if not reference_history:
+        reference_history = list(history)
+    feasible_rows = [row for row in reference_history if bool(row.get("feasible", False))]
+    if not feasible_rows:
+        return {}
+    objective_metrics = {
+        "min_peak_temperature": "summary.temperature_max",
+        "min_temperature_gradient_rms": "summary.temperature_gradient_rms",
+    }
+    extremes: dict[str, dict[str, Any]] = {}
+    for extreme_id, metric_key in objective_metrics.items():
+        candidates = [
+            (metric_value, row)
+            for row in feasible_rows
+            if (metric_value := _metric_from_record(row, metric_key)) is not None
+        ]
+        if not candidates:
+            continue
+        metric_value, record = min(candidates, key=lambda item: item[0])
+        summary = summarize_record(record)
+        if summary is None:
+            continue
+        summary["metric_key"] = metric_key
+        summary["metric_value"] = float(metric_value)
+        extremes[extreme_id] = summary
+    return extremes
 
 
 def total_violation(record: Mapping[str, Any] | None) -> float:
@@ -571,6 +602,9 @@ def build_run_state(
         run_state["sink_span"] = float(sink_span)
         if sink_budget_limit is not None and float(sink_budget_limit) > 0.0:
             run_state["sink_budget_utilization"] = float(sink_span) / float(sink_budget_limit)
+    objective_extremes = _objective_extreme_records(history)
+    if objective_extremes:
+        run_state["objective_extremes"] = objective_extremes
     return run_state
 
 
@@ -1190,7 +1224,14 @@ def build_prompt_regime_panel(
         regime_panel["diversity_deficit_level"] = str(progress_state.get("diversity_deficit_level", "low"))
     objective_stagnation = progress_state.get("objective_stagnation", {})
     if isinstance(objective_stagnation, Mapping):
-        regime_panel["objective_balance"] = _build_objective_balance(objective_stagnation)
+        objective_balance = _build_objective_balance(objective_stagnation)
+        regime_panel["objective_balance"] = _adjust_objective_balance_for_endpoint_deficit(
+            objective_balance,
+            run_state=run_state,
+            progress_state=progress_state,
+            archive_state=archive_state,
+            domain_regime=domain_regime,
+        )
     if domain_regime.get("sink_budget_utilization") is not None:
         regime_panel["sink_budget_utilization"] = float(domain_regime["sink_budget_utilization"])
 
@@ -1265,6 +1306,93 @@ def _build_objective_balance(
         "balance_pressure": balance_pressure,
         "preferred_effect": preferred_effect,
     }
+
+
+def _adjust_objective_balance_for_endpoint_deficit(
+    objective_balance: Mapping[str, Any],
+    *,
+    run_state: Mapping[str, Any],
+    progress_state: Mapping[str, Any],
+    archive_state: Mapping[str, Any],
+    domain_regime: Mapping[str, Any],
+) -> dict[str, Any]:
+    adjusted = dict(objective_balance)
+    if not _frontier_endpoint_deficit_active(run_state, progress_state, archive_state):
+        return adjusted
+    preferred_effect = str(adjusted.get("preferred_effect") or "").strip()
+    if preferred_effect not in {"", "balanced"}:
+        return adjusted
+
+    sink_budget_utilization = _endpoint_sink_budget_utilization(run_state, domain_regime)
+    if (
+        sink_budget_utilization is not None
+        and sink_budget_utilization < _ENDPOINT_SINK_HEADROOM_UTILIZATION_THRESHOLD
+    ):
+        adjusted.update(
+            {
+                "balance_pressure": "high",
+                "preferred_effect": "peak_improve",
+                "stagnant_objectives": ["temperature_max"],
+                "improving_objectives": ["gradient_rms"],
+                "balance_reason": "frontier_endpoint_peak_budget_fill",
+            }
+        )
+        return adjusted
+
+    return adjusted
+
+
+def _frontier_endpoint_deficit_active(
+    run_state: Mapping[str, Any],
+    progress_state: Mapping[str, Any],
+    archive_state: Mapping[str, Any],
+) -> bool:
+    if run_state.get("first_feasible_eval") is None:
+        return False
+    pareto_size = int(archive_state.get("pareto_size", 0))
+    diversity_deficit_level = str(progress_state.get("diversity_deficit_level", "")).strip()
+    recent_frontier_stagnation_count = int(progress_state.get("recent_frontier_stagnation_count", 0))
+    if pareto_size > 1 and diversity_deficit_level != "high":
+        return False
+    if recent_frontier_stagnation_count < 2 and diversity_deficit_level not in {"high", "medium"}:
+        return False
+    return _objective_extremes_share_endpoint(run_state)
+
+
+def _objective_extremes_share_endpoint(run_state: Mapping[str, Any]) -> bool:
+    objective_extremes = run_state.get("objective_extremes")
+    if not isinstance(objective_extremes, Mapping):
+        return False
+    min_peak = objective_extremes.get("min_peak_temperature")
+    min_gradient = objective_extremes.get("min_temperature_gradient_rms")
+    if not isinstance(min_peak, Mapping) or not isinstance(min_gradient, Mapping):
+        return False
+    if min_peak.get("evaluation_index") is not None and min_peak.get("evaluation_index") == min_gradient.get(
+        "evaluation_index"
+    ):
+        return True
+    peak_summary = min_peak.get("objective_summary")
+    gradient_summary = min_gradient.get("objective_summary")
+    if not isinstance(peak_summary, Mapping) or not isinstance(gradient_summary, Mapping):
+        return False
+    keys = ("minimize_peak_temperature", "minimize_temperature_gradient_rms")
+    for key in keys:
+        if peak_summary.get(key) is None or gradient_summary.get(key) is None:
+            return False
+        if abs(float(peak_summary[key]) - float(gradient_summary[key])) > 1.0e-9:
+            return False
+    return True
+
+
+def _endpoint_sink_budget_utilization(
+    run_state: Mapping[str, Any],
+    domain_regime: Mapping[str, Any],
+) -> float | None:
+    if run_state.get("sink_budget_utilization") is not None:
+        return float(run_state["sink_budget_utilization"])
+    if domain_regime.get("sink_budget_utilization") is not None:
+        return float(domain_regime["sink_budget_utilization"])
+    return None
 
 
 def build_domain_regime(

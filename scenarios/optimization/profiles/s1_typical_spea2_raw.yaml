@@ -1,0 +1,13 @@
+schema_version: "1.0"
+profile_meta:
+  profile_id: s1_typical_spea2_raw_profile
+  description: Active S1 typical tuning for SPEA2 raw variation.
+family: genetic
+backbone: spea2
+mode: raw
+parameters:
+  crossover:
+    eta: 10
+    prob: 0.9
+  mutation:
+    eta: 15

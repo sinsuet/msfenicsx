@@ -15,6 +15,8 @@ def test_write_run_manifest_round_trips(tmp_path: Path) -> None:
     write_run_manifest(
         target,
         mode="llm",
+        algorithm_family="genetic",
+        algorithm_backbone="spea2",
         benchmark_seed=11,
         algorithm_seed=7,
         optimization_spec_path="scenarios/optimization/s1_typical_llm.yaml",
@@ -28,6 +30,9 @@ def test_write_run_manifest_round_trips(tmp_path: Path) -> None:
     assert payload["mode"] == "llm"
     assert payload["seeds"]["benchmark"] == 11
     assert payload["seeds"]["algorithm"] == 7
+    assert payload["algorithm"]["family"] == "genetic"
+    assert payload["algorithm"]["backbone"] == "spea2"
+    assert payload["algorithm"]["label"] == "SPEA2"
     assert payload["algorithm"]["population_size"] == 10
     assert payload["algorithm"]["num_generations"] == 5
     assert payload["policies"]["legality"] == "minimal_canonicalization"

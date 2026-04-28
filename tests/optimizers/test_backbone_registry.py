@@ -50,9 +50,10 @@ def test_backbone_registry_lists_the_first_matrix_batch() -> None:
         "nsga2",
         "nsga3",
         "rvea",
+        "spea2",
     ]
     assert SUPPORTED_BACKBONES_BY_FAMILY == {
-        "genetic": ("nsga2", "nsga3", "ctaea", "rvea"),
+        "genetic": ("nsga2", "nsga3", "ctaea", "rvea", "spea2"),
         "decomposition": ("moead",),
         "swarm": ("cmopso",),
     }

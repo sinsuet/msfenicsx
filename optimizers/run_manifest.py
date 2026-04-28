@@ -6,11 +6,15 @@ from pathlib import Path
 
 import yaml
 
+from optimizers.algorithm_identity import algorithm_label
+
 
 def write_run_manifest(
     path: Path,
     *,
     mode: str,
+    algorithm_family: str | None = None,
+    algorithm_backbone: str | None = None,
     benchmark_seed: int,
     algorithm_seed: int,
     optimization_spec_path: str,
@@ -31,6 +35,9 @@ def write_run_manifest(
             "evaluation": evaluation_spec_path,
         },
         "algorithm": {
+            "family": None if algorithm_family is None else str(algorithm_family),
+            "backbone": None if algorithm_backbone is None else str(algorithm_backbone),
+            "label": algorithm_label(algorithm_backbone),
             "population_size": int(population_size),
             "num_generations": int(num_generations),
         },

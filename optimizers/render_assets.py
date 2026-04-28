@@ -13,6 +13,7 @@ import numpy as np
 import yaml
 
 from core.geometry.layout_rules import component_polygon
+from optimizers.algorithm_identity import algorithm_label
 from optimizers.analytics.decisions import decision_outcomes
 from optimizers.analytics.heatmap import operator_phase_heatmap
 from optimizers.analytics.loaders import iter_jsonl
@@ -864,8 +865,17 @@ def _load_optional_yaml(path: Path) -> dict[str, Any]:
 
 
 def _metric_lookup(metric_values: Mapping[str, Any], token: str) -> float | None:
+    token_text = str(token)
+    if token_text in metric_values:
+        return float(metric_values[token_text])
+    summary_key = token_text if token_text.startswith("summary.") else f"summary.{token_text}"
+    if summary_key in metric_values:
+        return float(metric_values[summary_key])
     for key, value in metric_values.items():
-        if token in str(key):
+        if str(key) == token_text:
+            return float(value)
+    for key, value in metric_values.items():
+        if token_text in str(key):
             return float(value)
     return None
 
@@ -936,7 +946,7 @@ def _representative_title(representative_id: str, prefix: str) -> str:
 def _layout_panel_metadata(run_root: Path) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "Scenario": _scenario_label(run_root),
-        "Algorithm": "NSGA-II",
+        "Algorithm": _algorithm_label(run_root),
         "Mode": _mode_label(run_root),
     }
     benchmark_seed = _benchmark_seed(run_root)
@@ -946,6 +956,19 @@ def _layout_panel_metadata(run_root: Path) -> dict[str, Any]:
     if llm_model:
         metadata["Model"] = llm_model
     return metadata
+
+
+def _algorithm_label(run_root: Path) -> str:
+    run_yaml = _load_optional_yaml(run_root / "run.yaml")
+    algorithm = run_yaml.get("algorithm", {})
+    if isinstance(algorithm, Mapping):
+        explicit_label = algorithm.get("label")
+        if explicit_label:
+            return str(explicit_label)
+        backbone = algorithm.get("backbone")
+        if backbone:
+            return algorithm_label(str(backbone))
+    return "NSGA-II"
 
 
 def _scenario_label(run_root: Path) -> str:

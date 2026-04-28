@@ -275,7 +275,7 @@ def test_run_benchmark_suite_llm_mode_uses_default_profile_overlay_when_runtime_
         lambda profile, **kwargs: {
             "LLM_API_KEY": "suite-key",
             "LLM_BASE_URL": "https://suite.example/v1",
-            "LLM_MODEL": "gpt-5.4",
+            "LLM_MODEL": "qwen3.6-plus",
         },
         raising=False,
     )
@@ -325,5 +325,5 @@ def test_run_benchmark_suite_llm_mode_uses_default_profile_overlay_when_runtime_
     assert captured == {
         "LLM_API_KEY": "suite-key",
         "LLM_BASE_URL": "https://suite.example/v1",
-        "LLM_MODEL": "gpt-5.4",
+        "LLM_MODEL": "qwen3.6-plus",
     }

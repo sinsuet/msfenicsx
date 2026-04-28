@@ -420,6 +420,48 @@ def _component_jitter_1(
     return variable_layout.clip(proposal)
 
 
+def _anchored_component_jitter(
+    parents: ParentBundle,
+    state: ControllerState,
+    variable_layout: VariableLayout,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    proposal = _copy_primary(parents)
+    sink_state = _sink_state(proposal, variable_layout)
+    if sink_state is not None:
+        _, _, start, end, _ = sink_state
+        span = max(_MIN_SINK_SPAN, float(end - start))
+        anchors = (0.50, 0.645, 0.737)
+        target_center = anchors[int(rng.integers(0, len(anchors)))]
+        _slide_sink_to_center(
+            proposal,
+            state,
+            variable_layout,
+            target_center=target_center,
+            preserve_span=False,
+            span_override=span,
+        )
+    component_pairs = _component_axes(variable_layout)
+    component_count = min(len(component_pairs), int(rng.integers(2, 6)))
+    selected_indices = rng.choice(len(component_pairs), size=component_count, replace=False)
+    for selected_index in np.atleast_1d(selected_indices):
+        component = component_pairs[int(selected_index)]
+        x_slot = variable_layout.slot_for(component.x_id)
+        y_slot = variable_layout.slot_for(component.y_id)
+        angle = float(rng.uniform(0.0, 2.0 * np.pi))
+        magnitude = float(rng.uniform(0.025, 0.055))
+        _apply_component_shift(
+            proposal,
+            variable_layout,
+            component,
+            dx=float(np.cos(angle) * magnitude),
+            dy=float(np.sin(angle) * magnitude),
+        )
+        proposal[x_slot.index] = float(np.clip(proposal[x_slot.index], x_slot.lower_bound, x_slot.upper_bound))
+        proposal[y_slot.index] = float(np.clip(proposal[y_slot.index], y_slot.lower_bound, y_slot.upper_bound))
+    return variable_layout.clip(proposal)
+
+
 def _component_relocate_1(
     parents: ParentBundle,
     state: ControllerState,
@@ -820,6 +862,7 @@ def _rebalance_layout(
 _REGISTERED_OPERATORS = (
     OperatorDefinition("vector_sbx_pm", _native_sbx_pm),
     OperatorDefinition("component_jitter_1", _component_jitter_1),
+    OperatorDefinition("anchored_component_jitter", _anchored_component_jitter),
     OperatorDefinition("component_relocate_1", _component_relocate_1),
     OperatorDefinition("component_swap_2", _component_swap_2),
     OperatorDefinition("sink_shift", _sink_shift),
@@ -844,6 +887,12 @@ _OPERATOR_BEHAVIOR_PROFILES = {
         operator_id="component_jitter_1",
         family="primitive_component",
         role="component_jitter",
+        exploration_class="stable",
+    ),
+    "anchored_component_jitter": OperatorBehaviorProfile(
+        operator_id="anchored_component_jitter",
+        family="primitive_component",
+        role="component_sink_coupled_jitter",
         exploration_class="stable",
     ),
     "component_relocate_1": OperatorBehaviorProfile(

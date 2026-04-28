@@ -258,6 +258,9 @@ class OpenAICompatibleClient:
         }
         if self.config.temperature is not None:
             request_payload["temperature"] = self.config.temperature
+        extra_body = self.config.resolve_extra_body(self._environ)
+        if extra_body:
+            request_payload["extra_body"] = extra_body
         response = sdk_client.chat.completions.create(**request_payload)
         choices = getattr(response, "choices", None)
         if not isinstance(choices, list) or not choices:
@@ -295,6 +298,9 @@ class OpenAICompatibleClient:
             request_payload["temperature"] = self.config.temperature
         if self.config.reasoning:
             request_payload["reasoning"] = dict(self.config.reasoning)
+        extra_body = self.config.resolve_extra_body(self._environ)
+        if extra_body:
+            request_payload.update(extra_body)
         response = http_client.post(
             self._resolve_chat_completions_url(),
             headers={

@@ -6,6 +6,7 @@ from typing import Any
 
 from pymoo.algorithms.moo.cmopso import CMOPSO
 
+from optimizers.clean_initialization import CleanBaselineSampling
 from optimizers.raw_backbones.common import resolve_population_fraction_size
 
 
@@ -26,4 +27,8 @@ def build_algorithm_kwargs(problem: Any, algorithm_config: dict[str, Any]) -> di
 
 def build_algorithm(problem: Any, algorithm_config: dict[str, Any]) -> CMOPSO:
     kwargs = build_algorithm_kwargs(problem, algorithm_config)
-    return CMOPSO(pop_size=kwargs["pop_size"], elite_size=kwargs["elite_size"])
+    return CMOPSO(
+        pop_size=kwargs["pop_size"],
+        elite_size=kwargs["elite_size"],
+        sampling=CleanBaselineSampling(),
+    )

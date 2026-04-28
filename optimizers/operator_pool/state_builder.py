@@ -41,6 +41,10 @@ _OPERATOR_EFFECTS: dict[str, dict[str, str]] = {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "neutral",
     },
+    "anchored_component_jitter": {
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "neutral",
+    },
     "component_relocate_1": {
         "expected_peak_effect": "neutral",
         "expected_gradient_effect": "neutral",
@@ -214,6 +218,11 @@ def _build_generation_local_memory(
     target_offsprings: int | None,
 ) -> dict[str, Any]:
     operator_counter = Counter(row.selected_operator_id for row in generation_local_rows)
+    route_family_counter = Counter(
+        operator_route_family(row.selected_operator_id)
+        for row in generation_local_rows
+        if str(row.selected_operator_id).strip()
+    )
     llm_valid_counter = Counter(
         row.selected_operator_id
         for row in generation_local_rows
@@ -261,6 +270,17 @@ def _build_generation_local_memory(
             }
             for operator_id in sorted(operator_counter)
         },
+        "route_family_counts": {
+            route_family: {
+                "accepted_count": int(route_family_counter.get(route_family, 0)),
+                "accepted_share": (
+                    0.0
+                    if accepted_count <= 0
+                    else float(route_family_counter.get(route_family, 0)) / float(accepted_count)
+                ),
+            }
+            for route_family in sorted(route_family_counter)
+        },
     }
 
 
@@ -286,6 +306,14 @@ def _build_prompt_generation_panel(
             for operator_id, summary in operator_counts.items()
             if isinstance(summary, Mapping)
         },
+        "route_family_counts": {
+            str(route_family): {
+                "accepted_count": int(dict(summary).get("accepted_count", 0)),
+                "accepted_share": float(dict(summary).get("accepted_share", 0.0)),
+            }
+            for route_family, summary in dict(generation_local_memory.get("route_family_counts", {})).items()
+            if isinstance(summary, Mapping)
+        },
     }
 def _build_prompt_run_panel(
     *,
@@ -303,6 +331,7 @@ def _build_prompt_run_panel(
             "temperature_gradient_rms",
             "sink_span",
             "sink_budget_utilization",
+            "objective_extremes",
         )
         if key in run_state
     }
@@ -341,6 +370,10 @@ def _build_prompt_operator_panel(
                 "recent_regression_risk",
                 "frontier_evidence",
                 "dominant_violation_relief",
+                "post_feasible_selection_count",
+                "post_feasible_success_count",
+                "post_feasible_success_rate",
+                "post_feasible_thermal_infeasible_count",
             )
             if key in summary
         }
@@ -518,7 +551,7 @@ def _build_spatial_operator_support_row(
         applicability_score = (1 if absolute_offset >= 0.10 else 0) + (2 if low_gap else 0)
         expected_feasibility_risk = "medium"
         spatial_match_reason = "layout shows both sink misalignment and crowding pressure."
-    elif operator_id == "component_jitter_1":
+    elif operator_id in {"component_jitter_1", "anchored_component_jitter"}:
         applicability_score = (2 if preservation_pressure == "high" else 0) + (1 if low_gap else 0)
         expected_feasibility_risk = "low"
         spatial_match_reason = "current regime favors low-risk local cleanup around the incumbent basin."

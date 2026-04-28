@@ -10,7 +10,7 @@ from optimizers.operator_pool.operators import approved_operator_pool
 
 
 SUPPORTED_BACKBONES_BY_FAMILY = {
-    "genetic": ("nsga2", "nsga3", "ctaea", "rvea"),
+    "genetic": ("nsga2", "nsga3", "ctaea", "rvea", "spea2"),
     "decomposition": ("moead",),
     "swarm": ("cmopso",),
 }
