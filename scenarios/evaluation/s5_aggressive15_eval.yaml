@@ -1,0 +1,39 @@
+schema_version: "1.0"
+spec_meta:
+  spec_id: s5_aggressive15_eval
+  description: >-
+    Single-case evaluation spec for the S5 aggressive 15-component benchmark.
+    Constraints keep the sink budget tight and expose multiple hot-core and
+    shoulder bottlenecks without adding benchmark-specific controller policy.
+objectives:
+  - objective_id: minimize_peak_temperature
+    metric: summary.temperature_max
+    sense: minimize
+  - objective_id: minimize_temperature_gradient_rms
+    metric: summary.temperature_gradient_rms
+    sense: minimize
+constraints:
+  - constraint_id: radiator_span_budget
+    metric: case.total_radiator_span
+    relation: "<="
+    limit: 0.35
+  - constraint_id: c01_peak_temperature_limit
+    metric: component.c01-001.temperature_max
+    relation: "<="
+    limit: 333.5
+  - constraint_id: c02_peak_temperature_limit
+    metric: component.c02-001.temperature_max
+    relation: "<="
+    limit: 333.0
+  - constraint_id: c04_peak_temperature_limit
+    metric: component.c04-001.temperature_max
+    relation: "<="
+    limit: 332.5
+  - constraint_id: c06_peak_temperature_limit
+    metric: component.c06-001.temperature_max
+    relation: "<="
+    limit: 333.0
+  - constraint_id: c12_peak_temperature_limit
+    metric: component.c12-001.temperature_max
+    relation: "<="
+    limit: 332.5

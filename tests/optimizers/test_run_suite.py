@@ -275,7 +275,7 @@ def test_run_benchmark_suite_llm_mode_uses_default_profile_overlay_when_runtime_
         lambda profile, **kwargs: {
             "LLM_API_KEY": "suite-key",
             "LLM_BASE_URL": "https://suite.example/v1",
-            "LLM_MODEL": "qwen3.6-plus",
+            "LLM_MODEL": "gpt-5.4",
         },
         raising=False,
     )
@@ -325,5 +325,85 @@ def test_run_benchmark_suite_llm_mode_uses_default_profile_overlay_when_runtime_
     assert captured == {
         "LLM_API_KEY": "suite-key",
         "LLM_BASE_URL": "https://suite.example/v1",
+        "LLM_MODEL": "gpt-5.4",
+    }
+
+
+def test_run_benchmark_suite_llm_profile_selects_non_default_overlay(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    llm_spec_path = _write_small_env_backed_llm_spec(tmp_path)
+
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+
+    import optimizers.cli as cli_module
+    import optimizers.render_assets as render_assets_module
+
+    captured_profile: dict[str, str] = {}
+
+    def _fake_load_provider_profile_overlay(profile, **kwargs):
+        del kwargs
+        captured_profile["profile"] = profile
+        return {
+            "LLM_API_KEY": "qwen-key",
+            "LLM_BASE_URL": "https://qwen.example/v1",
+            "LLM_MODEL": "qwen3.6-plus",
+            "LLM_EXTRA_BODY": '{"enable_thinking":false}',
+        }
+
+    monkeypatch.setattr(cli_module, "load_provider_profile_overlay", _fake_load_provider_profile_overlay, raising=False)
+    monkeypatch.setattr(run_suite_module, "write_optimization_artifacts", lambda *args, **kwargs: Path(args[0]))
+    monkeypatch.setattr(run_suite_module, "write_run_manifest", lambda *args, **kwargs: Path(args[0]))
+    monkeypatch.setattr(render_assets_module, "render_assets", lambda *args, **kwargs: [])
+    captured_env: dict[str, str] = {}
+
+    def _fake_run_union_optimization(*args, **kwargs):
+        del args, kwargs
+        import os
+
+        captured_env["LLM_API_KEY"] = os.environ["LLM_API_KEY"]
+        captured_env["LLM_BASE_URL"] = os.environ["LLM_BASE_URL"]
+        captured_env["LLM_MODEL"] = os.environ["LLM_MODEL"]
+        captured_env["LLM_EXTRA_BODY"] = os.environ["LLM_EXTRA_BODY"]
+        return type(
+            "FakeRun",
+            (),
+            {
+                "result": type(
+                    "FakeResult",
+                    (),
+                    {
+                        "run_meta": {
+                            "run_id": "fixture-run",
+                            "optimization_spec_id": "fixture-spec",
+                            "evaluation_spec_id": "fixture-eval",
+                        },
+                        "history": [],
+                        "pareto_front": [],
+                    },
+                )(),
+                "representative_artifacts": {},
+                "generation_summary_rows": [],
+            },
+        )()
+
+    monkeypatch.setattr(run_suite_module, "run_union_optimization", _fake_run_union_optimization)
+
+    run_benchmark_suite(
+        optimization_spec_paths=[llm_spec_path],
+        benchmark_seeds=[11],
+        scenario_runs_root=tmp_path / "scenario_runs",
+        modes=["llm"],
+        llm_profile="qwen3_6_plus",
+    )
+
+    assert captured_profile["profile"] == "qwen3_6_plus"
+    assert captured_env == {
+        "LLM_API_KEY": "qwen-key",
+        "LLM_BASE_URL": "https://qwen.example/v1",
         "LLM_MODEL": "qwen3.6-plus",
+        "LLM_EXTRA_BODY": '{"enable_thinking":false}',
     }

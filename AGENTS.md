@@ -2,11 +2,17 @@
 
 This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 
+## Writing Language
+
+- Reports, plans, design documents, analysis notes, and other prose deliverables should be written in Simplified Chinese by default.
+- Keep necessary technical terms, code identifiers, command names, file paths, schema keys, model/profile IDs, and quoted API fields in their original language when translating would reduce precision.
+- This Chinese-first rule applies to future files under `docs/superpowers/specs/`, `docs/superpowers/plans/`, and similar planning/reporting artifacts unless the user explicitly asks for another language.
+
 ## Repository Status
 
 - `main` already contains the clean rebuild baseline.
-- The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, and `s4_dense25`.
-- `s2_staged` is the current controller-sensitive S2 companion benchmark. `s3_scale20` and `s4_dense25` are the 20-component scale and 25-component dense companions. They share the same `raw / union / llm` ladder as `s1_typical`.
+- The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, `s4_dense25`, and `s5_aggressive15`.
+- `s2_staged` is the current controller-sensitive S2 companion benchmark. `s3_scale20` and `s4_dense25` are the 20-component scale and 25-component dense companions. `s5_aggressive15` is an aggressive companion using the shared `primitive_structured` operator substrate for `union` and `llm`. They share the same `raw / union / llm` ladder as `s1_typical`.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
@@ -87,18 +93,25 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s4_dense25_llm.yaml`
 - `scenarios/optimization/profiles/s4_dense25_raw.yaml`
 - `scenarios/optimization/profiles/s4_dense25_union.yaml`
+- `scenarios/templates/s5_aggressive15.yaml`
+- `scenarios/evaluation/s5_aggressive15_eval.yaml`
+- `scenarios/optimization/s5_aggressive15_raw.yaml`
+- `scenarios/optimization/s5_aggressive15_union.yaml`
+- `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_union.yaml`
 
 The fixed benchmark decisions are:
 
 - one operating case
 - fixed named components:
-  - S1/S2: 15 components
+  - S1/S2/S5: 15 components
   - S3: 20 components
   - S4: 25 components
 - all components optimize `x/y` only
 - no optimized rotation
 - scenario-specific decision dimensions:
-  - S1/S2: 32 decision variables
+  - S1/S2/S5: 32 decision variables
   - S3: 42 decision variables
   - S4: 52 decision variables
 - objectives:
@@ -171,7 +184,7 @@ Preferred commands:
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/moead-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s2_staged_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s2_staged/spea2-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s2_staged_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s2_staged/moead-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs` (auto-writes suite-owned `comparisons/` when 2+ modes participate)
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs` (auto-writes suite-owned `comparisons/` when 2+ modes participate)
 - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s1_typical_llm.yaml --request-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
 - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s1_typical/<run_id>/llm/seeds/seed-11/traces/controller_trace.jsonl --output ./scenario_runs/s1_typical/<run_id>/llm/reports/<summary>.json`
 - `conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s1_typical/<run_id> [--hires]` (required follow-up for every optimizer run; accepts a suite root, a mode root, or a concrete single-mode seed run root)
@@ -183,14 +196,16 @@ Preferred commands:
 
 The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 
-- `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to `qwen3.6-plus`
-- switch models explicitly with profile names such as `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, or `run-llm deepseek_v4_flash ...`
+- `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to `gpt-5.4`
+- `run-benchmark-suite` uses the same `default` profile for LLM mode unless `--llm-profile <profile>` is provided
+- switch models explicitly with profile names such as `run-llm qwen3_6_plus ...`, `run-llm gpt ...`, `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, or `run-llm deepseek_v4_flash ...`
 - model profile declarations live in `llm/openai_compatible/profiles.yaml`
-- bundled coding-plan route models share `QWEN_PROXY_API_KEY` and `QWEN_PROXY_BASE_URL`:
-  - `qwen3_6_plus -> qwen3.6-plus`
-  - `glm_5 -> glm-5`
-  - `minimax_m2_5 -> MiniMax-M2.5`
-- non-coding-plan profiles use model-named env pairs:
+- bundled model registry maps:
+  - `default -> GPT_PROXY_API_KEY / GPT_PROXY_BASE_URL -> gpt-5.4`
+  - `gpt -> GPT_PROXY_API_KEY / GPT_PROXY_BASE_URL -> gpt-5.4`
+  - `qwen3_6_plus -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> qwen3.6-plus`
+  - `glm_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> glm-5`
+  - `minimax_m2_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> MiniMax-M2.5`
   - `deepseek_v4_flash -> DEEPSEEK_PROXY_API_KEY / DEEPSEEK_PROXY_BASE_URL -> DeepSeek-V4-Flash`
   - `gemma4 -> GEMMA4_API_KEY / GEMMA4_BASE_URL -> gemma-4` (placeholder until credentials and exact model id are configured)
 - the active `scenarios/optimization/s1_typical_llm.yaml` resolves runtime provider identity through:
@@ -198,6 +213,8 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `LLM_BASE_URL`
   - `LLM_MODEL`
 - repository-root `/home/hymn/msfenicsx/.env` should keep the raw provider credentials:
+  - `GPT_PROXY_API_KEY`
+  - `GPT_PROXY_BASE_URL`
   - `QWEN_PROXY_API_KEY`
   - `QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1`
   - `DEEPSEEK_PROXY_API_KEY`

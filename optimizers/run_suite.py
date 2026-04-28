@@ -39,6 +39,7 @@ def run_benchmark_suite(
     population_size: int | None = None,
     num_generations: int | None = None,
     skip_render: bool = False,
+    llm_profile: str = "default",
     started_at: datetime | None = None,
 ) -> Path:
     if not optimization_spec_paths:
@@ -118,7 +119,7 @@ def run_benchmark_suite(
             evaluation_spec_path_for_seed = resolve_evaluation_spec_path(spec_path, seeded_spec)
             evaluation_spec = load_spec(evaluation_spec_path_for_seed)
             _wall_start = time.monotonic()
-            with _temporary_env_overlay(_llm_env_overlay_for_spec(seeded_spec)):
+            with _temporary_env_overlay(_llm_env_overlay_for_spec(seeded_spec, profile_id=llm_profile)):
                 run = _dispatch_run(
                     base_case,
                     seeded_spec,

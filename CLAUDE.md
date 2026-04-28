@@ -2,16 +2,22 @@
 
 This file gives Claude Code repository-specific guidance for `msfenicsx`.
 
+## Writing Language
+
+- Reports, plans, design documents, analysis notes, and other prose deliverables should be written in Simplified Chinese by default.
+- Keep necessary technical terms, code identifiers, command names, file paths, schema keys, model/profile IDs, and quoted API fields in their original language when translating would reduce precision.
+- This Chinese-first rule applies to future files under `docs/superpowers/specs/`, `docs/superpowers/plans/`, and similar planning/reporting artifacts unless the user explicitly asks for another language.
+
 ## Repository Status
 
 - `main` already contains the clean rebuild baseline.
-- The active paper-facing mainlines are `s1_typical` and `s2_staged`.
-- `s2_staged` is the current controller-sensitive S2 companion benchmark. It shares the semantic shared operator registry and the same `raw / union / llm` ladder as `s1_typical`.
+- The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, `s4_dense25`, and `s5_aggressive15`.
+- `s2_staged` is the current controller-sensitive S2 companion benchmark. `s3_scale20` and `s4_dense25` are the larger companions in the same paper-facing `raw / union / llm` ladder. `s5_aggressive15` is an aggressive companion using the shared `primitive_structured` operator substrate for `union` and `llm`.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
   - `nsga2_llm`
-- The current controller line uses the semantic shared operator registry implemented for `s1_typical`.
+- The current controller line uses the shared primitive operator registry for paper-facing `union` and `llm` modes.
 - The active platform is organized around:
   - `core/`
   - `evaluation/`
@@ -57,14 +63,41 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s2_staged_llm.yaml`
 - `scenarios/optimization/profiles/s2_staged_raw.yaml`
 - `scenarios/optimization/profiles/s2_staged_union.yaml`
+- `scenarios/templates/s3_scale20.yaml`
+- `scenarios/evaluation/s3_scale20_eval.yaml`
+- `scenarios/optimization/s3_scale20_raw.yaml`
+- `scenarios/optimization/s3_scale20_union.yaml`
+- `scenarios/optimization/s3_scale20_llm.yaml`
+- `scenarios/optimization/profiles/s3_scale20_raw.yaml`
+- `scenarios/optimization/profiles/s3_scale20_union.yaml`
+- `scenarios/templates/s4_dense25.yaml`
+- `scenarios/evaluation/s4_dense25_eval.yaml`
+- `scenarios/optimization/s4_dense25_raw.yaml`
+- `scenarios/optimization/s4_dense25_union.yaml`
+- `scenarios/optimization/s4_dense25_llm.yaml`
+- `scenarios/optimization/profiles/s4_dense25_raw.yaml`
+- `scenarios/optimization/profiles/s4_dense25_union.yaml`
+- `scenarios/templates/s5_aggressive15.yaml`
+- `scenarios/evaluation/s5_aggressive15_eval.yaml`
+- `scenarios/optimization/s5_aggressive15_raw.yaml`
+- `scenarios/optimization/s5_aggressive15_union.yaml`
+- `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_union.yaml`
 
 The fixed benchmark decisions are:
 
 - one operating case
-- fifteen named components
-- all fifteen optimize `x/y` only
+- fixed named components:
+  - S1/S2/S5: 15 components
+  - S3: 20 components
+  - S4: 25 components
+- all components optimize `x/y` only
 - no optimized rotation
-- 32 decision variables
+- scenario-specific decision dimensions:
+  - S1/S2/S5: 32 decision variables
+  - S3: 42 decision variables
+  - S4: 52 decision variables
 - objectives:
   - `summary.temperature_max`
   - `summary.temperature_gradient_rms`
@@ -72,6 +105,7 @@ The fixed benchmark decisions are:
   - `case.total_radiator_span <= radiator_span_max`
 - cheap constraints must run before PDE
 - repair must use projection plus local legality restoration
+- paper-facing `union` and `llm` runs both use the shared primitive operator substrate and minimal canonicalization
 
 ## Architectural Expectations
 
@@ -160,7 +194,7 @@ conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimizatio
 
 Run benchmark suite:
 ```bash
-conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs
 ```
 
 Render assets (analytics CSV + figures PNG) from every completed optimizer run:
@@ -194,24 +228,27 @@ conda run -n msfenicsx python -m pip install "openai>=1.70"
 
 The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
 
-- `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to GPT
-- switch providers explicitly with `run-llm claude ...` or `run-llm qwen ...`
+- `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to `gpt-5.4`
+- `run-benchmark-suite` uses the same `default` profile for LLM mode unless `--llm-profile <profile>` is provided
+- switch models explicitly with profile names such as `run-llm qwen3_6_plus ...`, `run-llm gpt ...`, `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, or `run-llm deepseek_v4_flash ...`
 - provider profile declarations live in `llm/openai_compatible/profiles.yaml`
-- bundled default models are:
-  - `gpt -> gpt-5.4`
-  - `claude -> claude-sonnet-4-6`
-  - `qwen -> qwen3.6-plus`
+- bundled model registry maps:
+  - `default -> GPT_PROXY_* -> gpt-5.4`
+  - `gpt -> GPT_PROXY_* -> gpt-5.4`
+  - `qwen3_6_plus -> QWEN_PROXY_* -> qwen3.6-plus`
+  - `glm_5 -> QWEN_PROXY_* -> glm-5`
+  - `minimax_m2_5 -> QWEN_PROXY_* -> MiniMax-M2.5`
+  - `deepseek_v4_flash -> DEEPSEEK_PROXY_* -> DeepSeek-V4-Flash`
+  - `gemma4 -> GEMMA4_* -> gemma-4` as a placeholder until credentials and the exact model id are configured
 - the active `scenarios/optimization/s1_typical_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
   - `LLM_BASE_URL`
   - `LLM_MODEL`
 - repository-root `/home/hymn/msfenicsx/.env` should keep the raw provider credentials:
   - `GPT_PROXY_API_KEY`
-  - `GPT_PROXY_BASE_URL=https://rust.cat/v1`
-  - `CLAUDE_PROXY_API_KEY`
-  - `CLAUDE_PROXY_BASE_URL=https://apiproxy.work/v1`
+  - `GPT_PROXY_BASE_URL`
   - `QWEN_PROXY_API_KEY`
-  - `QWEN_PROXY_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1`
+  - `QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1`
 
 ## Engineering Guardrails
 

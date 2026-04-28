@@ -1,0 +1,14 @@
+schema_version: '1.0'
+profile_meta:
+  profile_id: s7_aggressive25_nsga2_union_profile
+  description: S7 aggressive25 tuning for NSGA-II union and llm variation over the
+    shared structured primitive pool.
+family: genetic
+backbone: nsga2
+mode: union
+parameters:
+  crossover:
+    eta: 10
+    prob: 0.9
+  mutation:
+    eta: 15

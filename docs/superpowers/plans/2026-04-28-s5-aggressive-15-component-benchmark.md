@@ -207,6 +207,7 @@ After focused tests and solver/evaluation smoke pass, run a small matched smoke:
   --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --mode raw --mode union --mode llm \
+  --llm-profile default \
   --benchmark-seed 11 \
   --population-size 10 \
   --num-generations 5 \

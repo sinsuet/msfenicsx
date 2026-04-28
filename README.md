@@ -9,7 +9,7 @@
 
 ## Active Mainline
 
-The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, and `s4_dense25`. `s2_staged` is the current controller-sensitive S2 companion benchmark. `s3_scale20` and `s4_dense25` are the larger companions in the same paper-facing `raw / union / llm` ladder. In that ladder, `union` and `llm` use the same primitive operator substrate and legality policy; `llm` differs through its representation-layer controller only.
+The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, `s4_dense25`, and `s5_aggressive15`. `s2_staged` is the current controller-sensitive S2 companion benchmark. `s3_scale20` and `s4_dense25` are the larger companions in the same paper-facing `raw / union / llm` ladder. `s5_aggressive15` is an aggressive companion using the shared `primitive_structured` operator substrate for `union` and `llm`. In that ladder, `union` and `llm` use the same primitive operator substrate and legality policy; `llm` differs through its representation-layer controller only.
 
 - one operating case
 - fixed named components per benchmark
@@ -18,7 +18,7 @@ The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, a
 - no optimized rotation
 - one top-edge sink window with movable `start/end`
 - scenario-specific decision dimensions:
-  - S1/S2: 32 variables, `c01_x/c01_y ... c15_x/c15_y + sink_start/sink_end`
+  - S1/S2/S5: 32 variables, `c01_x/c01_y ... c15_x/c15_y + sink_start/sink_end`
   - S3: 42 variables, `c01_x/c01_y ... c20_x/c20_y + sink_start/sink_end`
   - S4: 52 variables, `c01_x/c01_y ... c25_x/c25_y + sink_start/sink_end`
 - two objectives:
@@ -96,6 +96,16 @@ Implemented (`s4_dense25`):
 - llm spec: `scenarios/optimization/s4_dense25_llm.yaml`
 - raw profile: `scenarios/optimization/profiles/s4_dense25_raw.yaml`
 - union profile: `scenarios/optimization/profiles/s4_dense25_union.yaml`
+
+Implemented (`s5_aggressive15`):
+
+- template: `scenarios/templates/s5_aggressive15.yaml`
+- evaluation spec: `scenarios/evaluation/s5_aggressive15_eval.yaml`
+- raw spec: `scenarios/optimization/s5_aggressive15_raw.yaml`
+- union spec: `scenarios/optimization/s5_aggressive15_union.yaml`
+- llm spec: `scenarios/optimization/s5_aggressive15_llm.yaml`
+- raw profile: `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
+- union profile: `scenarios/optimization/profiles/s5_aggressive15_union.yaml`
 
 ## Module Boundaries
 
@@ -269,6 +279,7 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
   --mode raw \
   --mode union \
   --mode llm \
+  --llm-profile default \
   --benchmark-seed 11 \
   --evaluation-workers 2 \
   --scenario-runs-root ./scenario_runs
@@ -296,7 +307,7 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
 bash scripts/smoke_render_assets.sh
 ```
 
-Budget / render overrides apply to both `optimize-benchmark` and `run-llm`:
+Budget / render overrides apply to `optimize-benchmark`, `run-llm`, and `run-benchmark-suite`:
 
 - `--population-size <int>` — override algorithm.population_size
 - `--num-generations <int>` — override algorithm.num_generations
@@ -327,6 +338,9 @@ The `nsga2_llm` route uses the OpenAI-compatible client in `llm/openai_compatibl
 Edit the repository-root `.env` at `/home/hymn/msfenicsx/.env` to declare each runtime route once:
 
 ```env
+GPT_PROXY_API_KEY=...
+GPT_PROXY_BASE_URL=...
+
 QWEN_PROXY_API_KEY=...
 QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1
 
@@ -339,7 +353,8 @@ GEMMA4_BASE_URL=...
 
 The bundled model registry maps:
 
-- `default -> QWEN_PROXY_* -> qwen3.6-plus`
+- `default -> GPT_PROXY_* -> gpt-5.4`
+- `gpt -> GPT_PROXY_* -> gpt-5.4`
 - `qwen3_6_plus -> QWEN_PROXY_* -> qwen3.6-plus`
 - `glm_5 -> QWEN_PROXY_* -> glm-5`
 - `minimax_m2_5 -> QWEN_PROXY_* -> MiniMax-M2.5`
@@ -355,7 +370,23 @@ Recommended LLM benchmark invocation:
   --output-root ./scenario_runs/s1_typical/llm-default-smoke
 ```
 
-This uses the bundled `default` profile, which points to `qwen3.6-plus` by default. To switch models explicitly:
+This uses the bundled `default` profile, which points to `gpt-5.4`. To switch models explicitly:
+
+```bash
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+  gpt \
+  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/llm-gpt-smoke
+```
+
+```bash
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+  qwen3_6_plus \
+  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s1_typical/llm-qwen36-smoke
+```
 
 ```bash
 /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
@@ -381,11 +412,7 @@ This uses the bundled `default` profile, which points to `qwen3.6-plus` by defau
   --output-root ./scenario_runs/s1_typical/llm-deepseek-v4-flash-smoke
 ```
 
-Direct `optimize-benchmark` execution for `s1_typical_llm.yaml` still works, but only if you explicitly provide:
-
-- `LLM_API_KEY`
-- `LLM_BASE_URL`
-- `LLM_MODEL`
+Direct `optimize-benchmark` execution for `s1_typical_llm.yaml` still works. If `LLM_API_KEY`, `LLM_BASE_URL`, or `LLM_MODEL` are missing, it loads the bundled `default` profile (`gpt-5.4`) for the current process. `run-benchmark-suite` uses the same default profile for LLM mode unless `--llm-profile <profile>` is provided.
 
 If needed:
 

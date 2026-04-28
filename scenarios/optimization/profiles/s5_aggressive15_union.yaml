@@ -1,0 +1,13 @@
+schema_version: "1.0"
+profile_meta:
+  profile_id: s5_aggressive15_nsga2_union_profile
+  description: Active S5 aggressive 15-component tuning for NSGA-II union and llm variation, keeping controller comparisons apples-to-apples.
+family: genetic
+backbone: nsga2
+mode: union
+parameters:
+  crossover:
+    eta: 10
+    prob: 0.9
+  mutation:
+    eta: 15

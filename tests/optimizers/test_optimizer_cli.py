@@ -991,7 +991,7 @@ def test_optimizer_cli_optimize_benchmark_llm_uses_default_profile_overlay_when_
         lambda profile, **kwargs: {
             "LLM_API_KEY": "overlay-key",
             "LLM_BASE_URL": "https://overlay.example/v1",
-            "LLM_MODEL": "qwen3.6-plus",
+            "LLM_MODEL": "gpt-5.4",
         },
         raising=False,
     )
@@ -1022,7 +1022,7 @@ def test_optimizer_cli_optimize_benchmark_llm_uses_default_profile_overlay_when_
     assert captured == {
         "LLM_API_KEY": "overlay-key",
         "LLM_BASE_URL": "https://overlay.example/v1",
-        "LLM_MODEL": "qwen3.6-plus",
+        "LLM_MODEL": "gpt-5.4",
     }
 
 
@@ -1039,7 +1039,7 @@ def test_optimizer_cli_run_llm_uses_default_profile_when_omitted(tmp_path: Path,
         return {
             "LLM_API_KEY": "default-key",
             "LLM_BASE_URL": "https://default.example/v1",
-            "LLM_MODEL": "qwen3.6-plus",
+            "LLM_MODEL": "gpt-5.4",
         }
 
     monkeypatch.setattr(
@@ -1744,6 +1744,43 @@ def test_optimizer_cli_run_benchmark_suite_forwards_evaluation_workers(
 
     assert exit_code == 0
     assert forwarded["evaluation_workers"] == 2
+    assert forwarded["llm_profile"] == "default"
+
+
+def test_optimizer_cli_run_benchmark_suite_forwards_llm_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import optimizers.cli as cli_module
+
+    llm_spec_path = _write_small_llm_spec(tmp_path)
+    scenario_runs_root = tmp_path / "scenario_runs"
+    forwarded: dict[str, object] = {}
+
+    def _fake_run_benchmark_suite(**kwargs):
+        forwarded.update(kwargs)
+        return scenario_runs_root / "s1_typical" / "fake-run"
+
+    monkeypatch.setattr(cli_module, "run_benchmark_suite", _fake_run_benchmark_suite)
+
+    exit_code = main(
+        [
+            "run-benchmark-suite",
+            "--optimization-spec",
+            str(llm_spec_path),
+            "--mode",
+            "llm",
+            "--llm-profile",
+            "qwen3_6_plus",
+            "--benchmark-seed",
+            "11",
+            "--scenario-runs-root",
+            str(scenario_runs_root),
+        ]
+    )
+
+    assert exit_code == 0
+    assert forwarded["llm_profile"] == "qwen3_6_plus"
 
 
 def test_optimizer_cli_run_benchmark_suite_llm_mode_writes_llm_pages_and_reports(tmp_path: Path, monkeypatch) -> None:

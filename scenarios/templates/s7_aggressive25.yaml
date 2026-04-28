@@ -1,0 +1,843 @@
+schema_version: '1.0'
+template_meta:
+  template_id: s7_aggressive25
+  description: Single-case S7 25-component aggressive benchmark with dense multi-regime
+    thermal pressure and shared primitive-structured optimizer support.
+coordinate_system:
+  plane: panel_xy
+panel_domain:
+  width: 1.0
+  height: 0.8
+placement_regions:
+- region_id: main-deck
+  kind: rect
+  x_min: 0.04
+  x_max: 0.96
+  y_min: 0.04
+  y_max: 0.74
+keep_out_regions:
+- region_id: top-edge-harness-strip
+  kind: rect
+  x_min: 0.0
+  x_max: 1.0
+  y_min: 0.755
+  y_max: 0.8
+component_families:
+- family_id: c01
+  role: primary_compute_core_01
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.135
+      max: 0.135
+    height:
+      min: 0.108
+      max: 0.108
+  pose_hint:
+    x: 0.4
+    y: 0.18
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - logic
+  layout_tags:
+  - compute_cluster
+  - primary_core
+  - sink_aware
+  placement_hint: adversarial_core
+  adjacency_group: primary-hot-core
+  clearance: 0.002
+- family_id: c02
+  role: primary_power_stage_01
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.142
+      max: 0.142
+    height:
+      min: 0.103
+      max: 0.103
+  pose_hint:
+    x: 0.56
+    y: 0.34
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - high_power
+  layout_tags:
+  - power_dense
+  - primary_core
+  - sink_aware
+  placement_hint: adversarial_core
+  adjacency_group: primary-hot-core
+  clearance: 0.002
+- family_id: c03
+  role: primary_compute_core_02
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.158
+      max: 0.158
+    height:
+      min: 0.096
+      max: 0.096
+  pose_hint:
+    x: 0.39
+    y: 0.43
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - logic
+  layout_tags:
+  - compute_cluster
+  - primary_core
+  - thermal_shield
+  placement_hint: adversarial_core
+  adjacency_group: primary-hot-core
+  clearance: 0.002
+- family_id: c04
+  role: primary_power_stage_02
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.144
+      max: 0.144
+    height:
+      min: 0.114
+      max: 0.114
+  pose_hint:
+    x: 0.63
+    y: 0.52
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - high_power
+  layout_tags:
+  - power_dense
+  - primary_core
+  - sink_aware
+  placement_hint: adversarial_core
+  adjacency_group: primary-hot-core
+  clearance: 0.002
+- family_id: c05
+  role: primary_service_shield_01
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.142
+      max: 0.142
+    height:
+      min: 0.122
+      max: 0.122
+  pose_hint:
+    x: 0.5
+    y: 0.25
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - service
+  layout_tags:
+  - service_module
+  - thermal_shield
+  placement_hint: center_mass
+  adjacency_group: primary-hot-core
+  clearance: 0.002
+- family_id: c06
+  role: primary_power_stage_03
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.154
+      max: 0.154
+    height:
+      min: 0.114
+      max: 0.114
+  pose_hint:
+    x: 0.7
+    y: 0.39
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - high_power
+  layout_tags:
+  - power_dense
+  - primary_core
+  - sink_aware
+  placement_hint: adversarial_core
+  adjacency_group: primary-hot-core
+  clearance: 0.002
+- family_id: c07
+  role: secondary_compute_lane_01
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.118
+      max: 0.118
+    height:
+      min: 0.122
+      max: 0.122
+  pose_hint:
+    x: 0.31
+    y: 0.54
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - logic
+  layout_tags:
+  - logic_board
+  - secondary_lane
+  - compute_cluster
+  placement_hint: secondary_lane
+  adjacency_group: secondary-hot-lane
+  clearance: 0.002
+- family_id: c08
+  role: secondary_io_lane_01
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.148
+      max: 0.148
+    height:
+      min: 0.123
+      max: 0.123
+  pose_hint:
+    x: 0.84
+    y: 0.55
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - io
+  layout_tags:
+  - io_board
+  - secondary_lane
+  - sink_aware
+  placement_hint: right_edge
+  adjacency_group: secondary-hot-lane
+  clearance: 0.002
+- family_id: c09
+  role: secondary_io_lane_02
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.126
+      max: 0.126
+    height:
+      min: 0.132
+      max: 0.132
+  pose_hint:
+    x: 0.15
+    y: 0.38
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - io
+  layout_tags:
+  - io_board
+  - secondary_lane
+  placement_hint: left_edge
+  adjacency_group: secondary-hot-lane
+  clearance: 0.002
+- family_id: c10
+  role: secondary_thermal_mass
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.158
+      max: 0.158
+    height:
+      min: 0.138
+      max: 0.138
+  pose_hint:
+    x: 0.55
+    y: 0.12
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - thermal_mass
+  layout_tags:
+  - battery_module
+  - thermal_buffer
+  - secondary_lane
+  placement_hint: bottom_band
+  adjacency_group: secondary-hot-lane
+  clearance: 0.002
+- family_id: c11
+  role: secondary_edge_connector_left
+  shape: slot
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    length:
+      min: 0.262
+      max: 0.262
+    width:
+      min: 0.06
+      max: 0.06
+  pose_hint:
+    x: 0.19
+    y: 0.25
+  material_ref: electronics_housing
+  rotation_deg: 0.0
+  thermal_tags:
+  - payload
+  - io
+  layout_tags:
+  - edge_connector
+  - elongated
+  - secondary_lane
+  placement_hint: left_edge
+  adjacency_group: secondary-hot-lane
+  clearance: 0.002
+- family_id: c12
+  role: secondary_sink_side_bus
+  shape: slot
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    length:
+      min: 0.262
+      max: 0.262
+    width:
+      min: 0.06
+      max: 0.06
+  pose_hint:
+    x: 0.47
+    y: 0.62
+  material_ref: electronics_housing
+  rotation_deg: 0.0
+  thermal_tags:
+  - payload
+  - sink_coupled
+  layout_tags:
+  - elongated
+  - sink_aware
+  - secondary_lane
+  placement_hint: adversarial_core
+  adjacency_group: secondary-hot-lane
+  clearance: 0.002
+- family_id: c13
+  role: center_harness_capsule
+  shape: capsule
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    length:
+      min: 0.212
+      max: 0.212
+    radius:
+      min: 0.036
+      max: 0.036
+  pose_hint:
+    x: 0.7
+    y: 0.25
+  material_ref: electronics_housing
+  rotation_deg: 0.0
+  thermal_tags:
+  - payload
+  - harness
+  layout_tags:
+  - elongated
+  - service_routed
+  - center_shoulder
+  placement_hint: center_mass
+  adjacency_group: center-service-shoulder
+  clearance: 0.002
+- family_id: c14
+  role: center_sensor_pack_01
+  shape: circle
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    radius:
+      min: 0.077
+      max: 0.077
+  pose_hint:
+    x: 0.18
+    y: 0.56
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - sensor
+  layout_tags:
+  - rounded_housing
+  - sensor_sensitive
+  - center_shoulder
+  placement_hint: center_mass
+  adjacency_group: center-service-shoulder
+  clearance: 0.002
+- family_id: c15
+  role: center_sensor_pack_02
+  shape: circle
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    radius:
+      min: 0.079
+      max: 0.079
+  pose_hint:
+    x: 0.51
+    y: 0.48
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - sensor
+  layout_tags:
+  - rounded_housing
+  - sensor_sensitive
+  - center_shoulder
+  placement_hint: center_mass
+  adjacency_group: center-service-shoulder
+  clearance: 0.002
+- family_id: c16
+  role: center_memory_stack_01
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.134
+      max: 0.134
+    height:
+      min: 0.102
+      max: 0.102
+  pose_hint:
+    x: 0.28
+    y: 0.66
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - memory
+  layout_tags:
+  - logic_board
+  - compute_cluster
+  - center_shoulder
+  placement_hint: center_mass
+  adjacency_group: center-service-shoulder
+  clearance: 0.002
+- family_id: c17
+  role: center_aux_power_stage
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.135
+      max: 0.135
+    height:
+      min: 0.095
+      max: 0.095
+  pose_hint:
+    x: 0.36
+    y: 0.63
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - high_power
+  layout_tags:
+  - power_dense
+  - sink_aware
+  - center_shoulder
+  placement_hint: center_mass
+  adjacency_group: center-service-shoulder
+  clearance: 0.002
+- family_id: c18
+  role: center_rf_frontend
+  shape: capsule
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    length:
+      min: 0.205
+      max: 0.205
+    radius:
+      min: 0.033
+      max: 0.033
+  pose_hint:
+    x: 0.85
+    y: 0.33
+  material_ref: electronics_housing
+  rotation_deg: 0.0
+  thermal_tags:
+  - payload
+  - io
+  layout_tags:
+  - service_routed
+  - elongated
+  - center_shoulder
+  placement_hint: right_edge
+  adjacency_group: center-service-shoulder
+  clearance: 0.002
+- family_id: c19
+  role: edge_sensor_hub
+  shape: circle
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    radius:
+      min: 0.061
+      max: 0.061
+  pose_hint:
+    x: 0.7
+    y: 0.16
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - sensor
+  layout_tags:
+  - rounded_housing
+  - sensor_sensitive
+  - edge_belt
+  placement_hint: bottom_band
+  adjacency_group: edge-routing-belt
+  clearance: 0.002
+- family_id: c20
+  role: edge_io_micro_left
+  shape: slot
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    length:
+      min: 0.245
+      max: 0.245
+    width:
+      min: 0.054
+      max: 0.054
+  pose_hint:
+    x: 0.18
+    y: 0.08
+  material_ref: electronics_housing
+  rotation_deg: 0.0
+  thermal_tags:
+  - payload
+  - io
+  layout_tags:
+  - edge_connector
+  - elongated
+  - edge_belt
+  placement_hint: left_edge
+  adjacency_group: edge-routing-belt
+  clearance: 0.002
+- family_id: c21
+  role: edge_micro_power_stage
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.13
+      max: 0.13
+    height:
+      min: 0.095
+      max: 0.095
+  pose_hint:
+    x: 0.68
+    y: 0.66
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - high_power
+  layout_tags:
+  - power_dense
+  - sink_aware
+  - edge_belt
+  placement_hint: center_mass
+  adjacency_group: edge-routing-belt
+  clearance: 0.002
+- family_id: c22
+  role: edge_memory_stack_02
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.128
+      max: 0.128
+    height:
+      min: 0.095
+      max: 0.095
+  pose_hint:
+    x: 0.48
+    y: 0.68
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - memory
+  layout_tags:
+  - logic_board
+  - compute_cluster
+  - edge_belt
+  placement_hint: center_mass
+  adjacency_group: edge-routing-belt
+  clearance: 0.002
+- family_id: c23
+  role: edge_service_radio
+  shape: rect
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    width:
+      min: 0.165
+      max: 0.165
+    height:
+      min: 0.09
+      max: 0.09
+  pose_hint:
+    x: 0.88
+    y: 0.43
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - io
+  layout_tags:
+  - service_routed
+  - edge_belt
+  placement_hint: right_edge
+  adjacency_group: edge-routing-belt
+  clearance: 0.002
+- family_id: c24
+  role: edge_aux_sensor_disc
+  shape: circle
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    radius:
+      min: 0.061
+      max: 0.061
+  pose_hint:
+    x: 0.9
+    y: 0.2
+  material_ref: electronics_housing
+  thermal_tags:
+  - payload
+  - sensor
+  layout_tags:
+  - rounded_housing
+  - sensor_sensitive
+  - edge_belt
+  placement_hint: bottom_band
+  adjacency_group: edge-routing-belt
+  clearance: 0.002
+- family_id: c25
+  role: edge_bottom_bus
+  shape: slot
+  count_range:
+    min: 1
+    max: 1
+  geometry:
+    length:
+      min: 0.255
+      max: 0.255
+    width:
+      min: 0.054
+      max: 0.054
+  pose_hint:
+    x: 0.82
+    y: 0.08
+  material_ref: electronics_housing
+  rotation_deg: 0.0
+  thermal_tags:
+  - payload
+  - io
+  layout_tags:
+  - edge_connector
+  - elongated
+  - edge_belt
+  placement_hint: bottom_band
+  adjacency_group: edge-routing-belt
+  clearance: 0.002
+boundary_feature_families:
+- family_id: sink-top-window
+  kind: line_sink
+  edge: top
+  span:
+    min: 0.09
+    max: 0.56
+  sink_temperature:
+    min: 290.5
+    max: 290.5
+  transfer_coefficient:
+    min: 7.5
+    max: 7.5
+load_rules:
+- target_family: c01
+  total_power: 9.0
+  source_area_ratio: 0.24
+- target_family: c02
+  total_power: 16.8
+  source_area_ratio: 0.11
+- target_family: c03
+  total_power: 8.6
+  source_area_ratio: 0.25
+- target_family: c04
+  total_power: 15.2
+  source_area_ratio: 0.12
+- target_family: c05
+  total_power: 6.8
+  source_area_ratio: 0.3
+- target_family: c06
+  total_power: 14.8
+  source_area_ratio: 0.12
+- target_family: c07
+  total_power: 7.8
+  source_area_ratio: 0.28
+- target_family: c08
+  total_power: 7.2
+  source_area_ratio: 0.28
+- target_family: c09
+  total_power: 6.5
+  source_area_ratio: 0.3
+- target_family: c10
+  total_power: 5.8
+  source_area_ratio: 0.24
+- target_family: c11
+  total_power: 4.8
+  source_area_ratio: 0.38
+- target_family: c12
+  total_power: 13.1
+  source_area_ratio: 0.16
+- target_family: c13
+  total_power: 4.6
+  source_area_ratio: 0.4
+- target_family: c14
+  total_power: 4.0
+  source_area_ratio: 0.44
+- target_family: c15
+  total_power: 4.1
+  source_area_ratio: 0.44
+- target_family: c16
+  total_power: 6.6
+  source_area_ratio: 0.28
+- target_family: c17
+  total_power: 9.2
+  source_area_ratio: 0.15
+- target_family: c18
+  total_power: 5.3
+  source_area_ratio: 0.34
+- target_family: c19
+  total_power: 3.7
+  source_area_ratio: 0.44
+- target_family: c20
+  total_power: 4.5
+  source_area_ratio: 0.38
+- target_family: c21
+  total_power: 7.4
+  source_area_ratio: 0.15
+- target_family: c22
+  total_power: 5.4
+  source_area_ratio: 0.28
+- target_family: c23
+  total_power: 4.9
+  source_area_ratio: 0.34
+- target_family: c24
+  total_power: 3.4
+  source_area_ratio: 0.44
+- target_family: c25
+  total_power: 3.9
+  source_area_ratio: 0.38
+material_rules:
+- material_id: panel_substrate
+  conductivity: 3.0
+  emissivity: 0.78
+- material_id: electronics_housing
+  conductivity: 12.0
+  emissivity: 0.82
+physics:
+  kind: steady_heat_radiation
+  ambient_temperature: 292.0
+  background_boundary_cooling:
+    transfer_coefficient: 0.04
+    emissivity: 0.05
+mesh_profile:
+  nx: 52
+  ny: 42
+solver_profile:
+  nonlinear_solver: snes
+  absolute_tolerance: 1.0e-08
+  relative_tolerance: 1.0e-08
+  max_iterations: 50
+generation_rules:
+  seed_policy: external
+  max_placement_attempts: 9000
+  placement_retries: 20
+  layout_strategy:
+    kind: s7_aggressive25_multi_regime_v1
+    zones:
+      active_deck:
+        x_min: 0.05
+        x_max: 0.95
+        y_min: 0.06
+        y_max: 0.72
+      dense_core:
+        x_min: 0.28
+        x_max: 0.80
+        y_min: 0.12
+        y_max: 0.66
+      adversarial_core:
+        x_min: 0.34
+        x_max: 0.86
+        y_min: 0.13
+        y_max: 0.64
+      secondary_lane:
+        x_min: 0.20
+        x_max: 0.78
+        y_min: 0.18
+        y_max: 0.70
+      top_sink_band:
+        x_min: 0.10
+        x_max: 0.62
+        y_min: 0.54
+        y_max: 0.72
+      left_io_edge:
+        x_min: 0.05
+        x_max: 0.31
+        y_min: 0.07
+        y_max: 0.70
+      right_service_edge:
+        x_min: 0.72
+        x_max: 0.95
+        y_min: 0.08
+        y_max: 0.70

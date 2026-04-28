@@ -825,6 +825,7 @@ parallelism:
   --mode raw \
   --mode union \
   --mode llm \
+  --llm-profile default \
   --benchmark-seed 11 \
   --evaluation-workers 2 \
   --scenario-runs-root ./scenario_runs

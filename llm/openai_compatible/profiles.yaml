@@ -1,17 +1,19 @@
 schema_version: "1.0"
 profiles:
   default:
-    source_api_key_env_var: QWEN_PROXY_API_KEY
-    source_base_url_env_var: QWEN_PROXY_BASE_URL
-    model: qwen3.6-plus
-    extra_body:
-      enable_thinking: false
+    source_api_key_env_var: GPT_PROXY_API_KEY
+    source_base_url_env_var: GPT_PROXY_BASE_URL
+    model: gpt-5.4
   qwen3_6_plus:
     source_api_key_env_var: QWEN_PROXY_API_KEY
     source_base_url_env_var: QWEN_PROXY_BASE_URL
     model: qwen3.6-plus
     extra_body:
       enable_thinking: false
+  gpt:
+    source_api_key_env_var: GPT_PROXY_API_KEY
+    source_base_url_env_var: GPT_PROXY_BASE_URL
+    model: gpt-5.4
   glm_5:
     source_api_key_env_var: QWEN_PROXY_API_KEY
     source_base_url_env_var: QWEN_PROXY_BASE_URL

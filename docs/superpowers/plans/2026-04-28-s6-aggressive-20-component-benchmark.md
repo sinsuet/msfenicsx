@@ -186,6 +186,7 @@ After focused validation, run:
   --optimization-spec scenarios/optimization/s6_aggressive20_union.yaml \
   --optimization-spec scenarios/optimization/s6_aggressive20_llm.yaml \
   --mode raw --mode union --mode llm \
+  --llm-profile default \
   --benchmark-seed 11 \
   --population-size 10 \
   --num-generations 5 \

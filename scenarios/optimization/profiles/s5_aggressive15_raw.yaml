@@ -1,0 +1,13 @@
+schema_version: "1.0"
+profile_meta:
+  profile_id: s5_aggressive15_nsga2_raw_profile
+  description: Active S5 aggressive 15-component tuning for NSGA-II raw variation, matched to the shared raw/union/llm ladder.
+family: genetic
+backbone: nsga2
+mode: raw
+parameters:
+  crossover:
+    eta: 10
+    prob: 0.9
+  mutation:
+    eta: 15

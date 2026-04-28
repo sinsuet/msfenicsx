@@ -71,6 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     suite_parser.add_argument("--population-size", type=_positive_int, default=None)
     suite_parser.add_argument("--num-generations", type=_positive_int, default=None)
     suite_parser.add_argument("--skip-render", action="store_true")
+    suite_parser.add_argument("--llm-profile", default="default")
 
     replay_parser = subparsers.add_parser("replay-llm-trace")
     replay_parser.add_argument("--optimization-spec", required=True)
@@ -189,25 +190,27 @@ def _temporary_env_overlay(values: dict[str, str]):
                 os.environ[key] = value
 
 
-def _llm_env_overlay_for_spec(optimization_spec) -> dict[str, str]:
+def _llm_env_overlay_for_spec(optimization_spec, *, profile_id: str = "default") -> dict[str, str]:
     operator_control = getattr(optimization_spec, "operator_control", None)
     if operator_control is None or operator_control.get("controller") != "llm":
         return {}
+    core_keys = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
     missing_keys = [
         key
-        for key in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
+        for key in core_keys
         if not str(os.environ.get(key, "")).strip()
     ]
     if not missing_keys:
         return {}
     try:
-        overlay = load_provider_profile_overlay("default")
+        overlay = load_provider_profile_overlay(profile_id)
     except Exception:
         return {}
     return {
         key: str(value)
         for key, value in overlay.items()
-        if key in missing_keys and str(value).strip()
+        if (key in missing_keys or key not in core_keys and not str(os.environ.get(key, "")).strip())
+        and str(value).strip()
     }
 
 
@@ -250,6 +253,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             population_size=args.population_size,
             num_generations=args.num_generations,
             skip_render=args.skip_render,
+            llm_profile=args.llm_profile,
         )
         return 0
     if args.command == "replay-llm-trace":
