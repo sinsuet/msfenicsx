@@ -58,3 +58,38 @@ def test_s3_scale20_generation_is_stable_for_seed_sample(seed: int) -> None:
 
     assert len(case_payload["components"]) == 20
     _assert_no_clearance_violations(case_payload)
+
+
+def test_s4_dense25_generates_twenty_five_legal_components_for_seed_11() -> None:
+    case_payload = generate_case("scenarios/templates/s4_dense25.yaml", seed=11).to_dict()
+
+    assert case_payload["case_meta"]["scenario_id"] == "s4_dense25"
+    assert len(case_payload["components"]) == 25
+    assert len(case_payload["loads"]) == 25
+    _assert_no_clearance_violations(case_payload)
+
+
+def test_s4_dense25_layout_metrics_hit_dense_band_for_seed_11() -> None:
+    case_payload = generate_case("scenarios/templates/s4_dense25.yaml", seed=11).to_dict()
+    metrics = case_payload["provenance"]["layout_metrics"]
+
+    assert 0.60 <= metrics["component_area_ratio"] <= 0.63
+    assert metrics["nearest_neighbor_gap_mean"] >= 0.0
+    assert metrics["bbox_fill_ratio"] >= 0.45
+
+
+def test_s4_dense25_seed_11_keeps_dense_thermal_structure() -> None:
+    case_payload = generate_case("scenarios/templates/s4_dense25.yaml", seed=11).to_dict()
+    by_family = {component["family_id"]: component for component in case_payload["components"]}
+
+    for family_id in ("c02", "c04", "c06", "c12", "c21"):
+        assert float(by_family[family_id]["pose"]["x"]) >= 0.45
+    assert float(by_family["c17"]["pose"]["y"]) >= 0.60
+
+
+@pytest.mark.parametrize("seed", [11, 17, 23])
+def test_s4_dense25_generation_is_stable_for_seed_sample(seed: int) -> None:
+    case_payload = generate_case("scenarios/templates/s4_dense25.yaml", seed=seed).to_dict()
+
+    assert len(case_payload["components"]) == 25
+    _assert_no_clearance_violations(case_payload)
