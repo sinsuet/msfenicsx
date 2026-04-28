@@ -25,6 +25,7 @@ def sample_template_parameters(template: ScenarioTemplate, seed: int) -> dict[st
                     "geometry": _sample_geometry(family.get("geometry", {}), rng),
                     "material_ref": family["material_ref"],
                     "rotation_deg": _sample_value(family.get("rotation_deg", 0.0), rng),
+                    "pose_hint": dict(family["pose_hint"]) if isinstance(family.get("pose_hint"), dict) else None,
                     "thermal_tags": list(family.get("thermal_tags", [])),
                     "clearance": float(family.get("clearance", 0.0)),
                     "total_power": _sample_load_power(load_rules_by_family.get(family["family_id"]), rng),

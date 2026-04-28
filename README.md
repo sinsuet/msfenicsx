@@ -9,15 +9,18 @@
 
 ## Active Mainline
 
-The active paper-facing mainlines are `s1_typical` and `s2_staged`. `s2_staged` is the current controller-sensitive S2 companion benchmark; it shares the same paper-facing `raw / union / llm` ladder as `s1_typical`. In that ladder, `union` and `llm` use the same primitive operator substrate and legality policy; `llm` differs through its representation-layer controller only.
+The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, and `s4_dense25`. `s2_staged` is the current controller-sensitive S2 companion benchmark. `s3_scale20` and `s4_dense25` are the larger companions in the same paper-facing `raw / union / llm` ladder. In that ladder, `union` and `llm` use the same primitive operator substrate and legality policy; `llm` differs through its representation-layer controller only.
 
 - one operating case
-- fifteen fixed named components
+- fixed named components per benchmark
 - mixed-shape component families with semantic placement hints
-- all fifteen components optimize `x/y` only
+- all components optimize `x/y` only
 - no optimized rotation
 - one top-edge sink window with movable `start/end`
-- 32 decision variables: `c01_x/c01_y ... c15_x/c15_y + sink_start/sink_end`
+- scenario-specific decision dimensions:
+  - S1/S2: 32 variables, `c01_x/c01_y ... c15_x/c15_y + sink_start/sink_end`
+  - S3: 42 variables, `c01_x/c01_y ... c20_x/c20_y + sink_start/sink_end`
+  - S4: 52 variables, `c01_x/c01_y ... c25_x/c25_y + sink_start/sink_end`
 - two objectives:
   - `summary.temperature_max`
   - `summary.temperature_gradient_rms`
@@ -25,8 +28,8 @@ The active paper-facing mainlines are `s1_typical` and `s2_staged`. `s2_staged` 
   - geometry legality
   - `case.total_radiator_span <= radiator_span_max`
 - generator uses semantic band and edge hints before falling back to generic legal placement
-- template now targets `component_area_ratio ~= 0.45`, where the denominator is the official placement region rather than the full panel area
-- all fifteen components generate waste heat and declare explicit localized `source_area_ratio` values
+- S2 targets `component_area_ratio ~= 0.45`; S3 and S4 intentionally use higher occupancy targets around `0.52-0.55` and `0.60-0.63`
+- all active components generate waste heat and declare explicit localized `source_area_ratio` values
 - generation and cheap constraints enforce real minimum-clearance legality instead of overlap-only packing
 - solver keeps the official top-edge `line_sink` and adds weak ambient outer-boundary cooling for background heat leakage
 - cheap legality checks run before any expensive PDE solve
@@ -57,6 +60,26 @@ Implemented (`s2_staged`):
 - llm spec: `scenarios/optimization/s2_staged_llm.yaml`
 - raw profile: `scenarios/optimization/profiles/s2_staged_raw.yaml`
 - union profile: `scenarios/optimization/profiles/s2_staged_union.yaml`
+
+Implemented (`s3_scale20`):
+
+- template: `scenarios/templates/s3_scale20.yaml`
+- evaluation spec: `scenarios/evaluation/s3_scale20_eval.yaml`
+- raw spec: `scenarios/optimization/s3_scale20_raw.yaml`
+- union spec: `scenarios/optimization/s3_scale20_union.yaml`
+- llm spec: `scenarios/optimization/s3_scale20_llm.yaml`
+- raw profile: `scenarios/optimization/profiles/s3_scale20_raw.yaml`
+- union profile: `scenarios/optimization/profiles/s3_scale20_union.yaml`
+
+Implemented (`s4_dense25`):
+
+- template: `scenarios/templates/s4_dense25.yaml`
+- evaluation spec: `scenarios/evaluation/s4_dense25_eval.yaml`
+- raw spec: `scenarios/optimization/s4_dense25_raw.yaml`
+- union spec: `scenarios/optimization/s4_dense25_union.yaml`
+- llm spec: `scenarios/optimization/s4_dense25_llm.yaml`
+- raw profile: `scenarios/optimization/profiles/s4_dense25_raw.yaml`
+- union profile: `scenarios/optimization/profiles/s4_dense25_union.yaml`
 
 ## Module Boundaries
 
@@ -146,7 +169,7 @@ beside the traces:
 - `figures/pdf/*.pdf` — vector companions kept in a dedicated subdirectory
 - figure outputs include `pareto_front`, `hypervolume_progress`, `objective_progress`, `temperature_trace`, `gradient_trace`, `constraint_violation_progress`, `layout_initial`, `layout_final`, `layout_evolution`, `temperature_field_<repr>`, `gradient_field_<repr>`, and `operator_phase_heatmap`
 - `layout_evolution` is a best-so-far spatial-milestone replay; preserved frame PNGs live under `figures/layout_evolution_frames/step_<NNN>.png`
-- layout figures are publication panels: clean board on the left, compact run metadata on the right, internal `C01..C15` labels, and an explicit sink ribbon
+- layout figures are publication panels: clean board on the left, compact run metadata on the right, internal component labels, and an explicit sink ribbon
 - field figures keep a mandatory top title, explicit sink rendering, internal white label chips, and aligned colorbar composition
 - `tables/*.csv` / `tables/*.tex` — summary statistics and representative-point tables
 - baseline style centralized in `visualization/style/baseline.py`

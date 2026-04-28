@@ -144,6 +144,11 @@ def _validate_component_family(family: Any) -> None:
     placement_hint = family.get("placement_hint")
     if placement_hint is not None and (not isinstance(placement_hint, str) or not placement_hint):
         raise SchemaValidationError("component_family.placement_hint must be a non-empty string when provided.")
+    pose_hint = family.get("pose_hint")
+    if pose_hint is not None:
+        _require_mapping(pose_hint, "component_family.pose_hint")
+        _require_real(pose_hint.get("x"), "component_family.pose_hint.x")
+        _require_real(pose_hint.get("y"), "component_family.pose_hint.y")
     adjacency_group = family.get("adjacency_group")
     if adjacency_group is not None and (not isinstance(adjacency_group, str) or not adjacency_group):
         raise SchemaValidationError("component_family.adjacency_group must be a non-empty string when provided.")
