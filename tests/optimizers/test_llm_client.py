@@ -251,6 +251,47 @@ def test_chat_compatible_json_http_request_forwards_reasoning_when_configured(
 
     assert http_client.last_json is not None
     assert http_client.last_json["reasoning"] == {"effort": "medium"}
+
+
+def test_chat_compatible_json_http_request_omits_reasoning_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    http_client = _FakeHTTPClient(
+        (
+            '{"id":"resp_123","object":"chat.completion","created":1,"model":"gpt-5.4",'
+            '"choices":[{"index":0,"message":{"role":"assistant","content":"'
+            '{\\"selected_operator_id\\":\\"global_explore\\",\\"phase\\":\\"explore\\",'
+            '\\"rationale\\":\\"widen search\\"}"}}]}'
+        )
+    )
+    client = OpenAICompatibleClient(
+        OpenAICompatibleConfig.from_dict(
+            {
+                "provider": "openai-compatible",
+                "model": "gpt-5.4",
+                "capability_profile": "chat_compatible_json",
+                "performance_profile": "balanced",
+                "api_key_env_var": "TEST_OPENAI_API_KEY",
+                "base_url": "https://rust.cat/v1",
+                "max_output_tokens": 96,
+                "temperature": 0.7,
+            }
+        ),
+        http_client=http_client,
+    )
+
+    client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
+    )
+
+    assert http_client.last_json is not None
+    assert http_client.last_json["max_tokens"] == 96
+    assert "reasoning" not in http_client.last_json
+
+
 def test_chat_compatible_json_client_injects_json_instruction_when_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

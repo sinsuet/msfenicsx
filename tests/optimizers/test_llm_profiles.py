@@ -116,6 +116,14 @@ def test_bundled_profiles_support_default_profile_via_gpt_env(monkeypatch: pytes
             "https://bundled-qwen.example/v1",
             "qwen3.6-plus",
         ),
+        (
+            "deepseek",
+            "DEEPSEEK_PROXY_API_KEY",
+            "DEEPSEEK_RPOXY_BASE_URL",
+            "bundled-deepseek-key",
+            "https://bundled-deepseek.example/v1",
+            "DeepSeek-V4-Flash",
+        ),
     ],
 )
 def test_bundled_profiles_use_expected_default_models(

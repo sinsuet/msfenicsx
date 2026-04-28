@@ -6,15 +6,15 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 
 - `main` already contains the clean rebuild baseline.
 - The active paper-facing mainlines are `s1_typical` and `s2_staged`.
-- `s2_staged` is the current controller-sensitive S2 companion benchmark. It shares the same `raw / union / llm` ladder as `s1_typical`, with clean baselines separated from the assisted framework line.
+- `s2_staged` is the current controller-sensitive S2 companion benchmark. It shares the same `raw / union / llm` ladder as `s1_typical`.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
   - `nsga2_llm`
-- The active optimizer ladder now uses explicit registry and legality-policy splits:
+- The active optimizer ladder uses a matched paper-facing substrate:
   - `raw`: native backbone + clean legality policy
   - `union`: primitive operator registry + random controller + clean legality policy
-  - `llm`: primitive + assisted registries + assisted legality policy
+  - `llm`: same primitive operator registry + LLM representation-layer controller + same clean legality policy
 - The active platform is organized around:
   - `core/`
   - `evaluation/`
@@ -74,7 +74,7 @@ The fixed benchmark decisions are:
 - hard sink-budget constraint:
   - `case.total_radiator_span <= radiator_span_max`
 - cheap constraints must run before PDE
-- clean baselines use minimal canonicalization; assisted framework runs may use projection plus local legality restoration
+- paper-facing `union` and `llm` runs both use minimal canonicalization; `llm` may use reflection, memory, and soft policy guidance as representation-layer controller context over the same candidate support
 
 ## Architectural Expectations
 
@@ -250,8 +250,8 @@ Current maintained test areas are:
 
 - Scientific or performance claims must identify the relevant template, case, solver profile, seed, and runtime path or artifact bundle.
 - For optimization claims, identify whether evidence comes from one representative point or the Pareto set.
-- Keep the decision encoding, evaluation spec, legality policy, and expensive-evaluation budget matched across comparisons unless a document explicitly defines a different experiment class.
-- Describe `nsga2_union` as the primitive-registry clean baseline and `nsga2_llm` as the primitive-plus-assisted framework line; do not describe them as the same action registry with only the controller changed.
+- Keep the decision encoding, evaluation spec, repair/canonicalization path, legality policy, operator pool, and expensive-evaluation budget matched across paper-facing `union` / `llm` comparisons unless a document explicitly defines a different experiment class.
+- Describe `nsga2_union` and `nsga2_llm` as using the same shared primitive operator substrate; `llm` differs only through its representation-layer controller state, reflection, memory, and soft policy guidance over the same candidate support.
 - If something is not validated yet, label it as a hypothesis rather than a confirmed result.
 - Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis.
 - Failure reasons and dominant violations are valid evidence and should remain visible in artifacts when relevant.

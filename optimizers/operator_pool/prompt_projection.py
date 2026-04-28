@@ -37,6 +37,58 @@ _POST_FEASIBLE_OPERATOR_KEYS = frozenset(
         "avg_feasible_objective_delta",
     }
 )
+_OPERATOR_PANEL_PROMPT_KEYS = frozenset(
+    {
+        "applicability",
+        "dominant_violation_relief",
+        "entry_fit",
+        "expand_budget_status",
+        "expand_fit",
+        "expected_feasibility_risk",
+        "expected_gradient_effect",
+        "expected_peak_effect",
+        "frontier_evidence",
+        "preserve_fit",
+        "recent_regression_risk",
+        "spatial_match_reason",
+    }
+)
+_CANDIDATE_ANNOTATION_PROMPT_KEYS = frozenset(
+    {
+        "operator_family",
+        "role",
+        "evidence_level",
+        "prefeasible_role",
+        "post_feasible_role",
+        "entry_evidence_level",
+        "feasible_entry_count",
+        "feasible_preservation_count",
+        "feasible_regression_count",
+        "pareto_contribution_count",
+        "dominant_violation_relief_count",
+    }
+)
+_PARENT_PROMPT_KEYS = frozenset(
+    {
+        "evaluation_index",
+        "feasible",
+        "total_violation",
+        "dominant_violation",
+        "objective_values",
+        "sink_span",
+        "sink_budget_utilization",
+    }
+)
+_MATCH_EVIDENCE_PROMPT_KEYS = frozenset(
+    {
+        "frontier_add_count",
+        "feasible_regression_count",
+        "feasible_preservation_count",
+        "penalty_event_count",
+    }
+)
+_MAX_POSITIVE_MATCHES = 2
+_MAX_NEGATIVE_MATCHES = 1
 
 
 def build_prompt_projection(
@@ -62,19 +114,13 @@ def build_prompt_projection(
             candidate_operator_ids=candidate_ids,
             prompt_phase=prompt_phase,
             post_feasible_active=post_feasible_active,
+            policy_snapshot=policy_snapshot,
         )
     metadata["phase_policy"] = {
         "phase": prompt_phase,
         "reset_active": policy_snapshot.reset_active,
         "reason_codes": list(policy_snapshot.reason_codes),
-        "candidate_annotations": {
-            operator_id: _project_candidate_annotation(
-                annotation,
-                post_feasible_active=post_feasible_active,
-            )
-            for operator_id, annotation in policy_snapshot.candidate_annotations.items()
-            if operator_id in candidate_ids
-        },
+        "candidate_annotations": {},
     }
     if tuple(str(operator_id) for operator_id in original_candidate_operator_ids) != candidate_ids:
         metadata["original_candidate_operator_ids"] = [str(operator_id) for operator_id in original_candidate_operator_ids]
@@ -89,6 +135,7 @@ def _project_prompt_panels(
     candidate_operator_ids: Sequence[str],
     prompt_phase: str,
     post_feasible_active: bool,
+    policy_snapshot: PolicySnapshot,
 ) -> dict[str, Any]:
     projected: dict[str, Any] = {}
     run_panel = prompt_panels.get("run_panel")
@@ -101,7 +148,7 @@ def _project_prompt_panels(
         projected["regime_panel"] = projected_regime_panel
     parent_panel = prompt_panels.get("parent_panel")
     if isinstance(parent_panel, Mapping):
-        projected["parent_panel"] = dict(parent_panel)
+        projected["parent_panel"] = _project_parent_panel(parent_panel)
     generation_panel = prompt_panels.get("generation_panel")
     if isinstance(generation_panel, Mapping):
         projected["generation_panel"] = dict(generation_panel)
@@ -110,7 +157,7 @@ def _project_prompt_panels(
         projected["spatial_panel"] = dict(spatial_panel)
     retrieval_panel = prompt_panels.get("retrieval_panel")
     if isinstance(retrieval_panel, Mapping):
-        projected_retrieval_panel = dict(retrieval_panel)
+        projected_retrieval_panel = _project_retrieval_panel(retrieval_panel)
         query_regime = projected_retrieval_panel.get("query_regime")
         if isinstance(query_regime, Mapping):
             projected_query_regime = dict(query_regime)
@@ -134,12 +181,96 @@ def _project_prompt_panels(
             normalized_operator_id = str(operator_id)
             if normalized_operator_id not in candidate_operator_ids or not isinstance(summary, Mapping):
                 continue
-            projected_summary = dict(summary)
+            projected_summary = _project_operator_panel_row(summary)
+            annotation = policy_snapshot.candidate_annotations.get(normalized_operator_id)
+            if isinstance(annotation, Mapping):
+                projected_summary.update(
+                    _project_candidate_annotation(
+                        annotation,
+                        post_feasible_active=post_feasible_active,
+                    )
+                )
             if not post_feasible_active:
                 projected_summary.pop("frontier_evidence", None)
             projected_operator_panel[normalized_operator_id] = projected_summary
         projected["operator_panel"] = projected_operator_panel
     return projected
+
+
+
+def _project_parent_panel(parent_panel: Mapping[str, Any]) -> dict[str, Any]:
+    projected: dict[str, Any] = {}
+    for key in ("closest_to_feasible_parent", "strongest_feasible_parent"):
+        value = parent_panel.get(key)
+        if isinstance(value, Mapping):
+            projected[key] = _project_parent_summary(value)
+        else:
+            projected[key] = value
+    return projected
+
+
+def _project_parent_summary(parent_summary: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: parent_summary[key]
+        for key in _PARENT_PROMPT_KEYS
+        if key in parent_summary
+    }
+
+
+def _project_retrieval_panel(retrieval_panel: Mapping[str, Any]) -> dict[str, Any]:
+    projected: dict[str, Any] = {}
+    for key in (
+        "query_regime",
+        "positive_match_families",
+        "negative_match_families",
+        "visibility_floor_families",
+        "stable_local_handoff_active",
+        "route_family_credit",
+    ):
+        if key in retrieval_panel:
+            value = retrieval_panel[key]
+            projected[key] = dict(value) if isinstance(value, Mapping) else value
+    projected["positive_matches"] = _project_retrieval_matches(
+        retrieval_panel.get("positive_matches", []),
+        limit=_MAX_POSITIVE_MATCHES,
+    )
+    projected["negative_matches"] = _project_retrieval_matches(
+        retrieval_panel.get("negative_matches", []),
+        limit=_MAX_NEGATIVE_MATCHES,
+    )
+    return projected
+
+
+def _project_retrieval_matches(value: Any, *, limit: int) -> list[dict[str, Any]]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
+    projected_matches: list[dict[str, Any]] = []
+    for match in value:
+        if len(projected_matches) >= limit:
+            break
+        if not isinstance(match, Mapping):
+            continue
+        projected_match: dict[str, Any] = {}
+        for key in ("operator_id", "route_family", "similarity_score"):
+            if key in match:
+                projected_match[key] = match[key]
+        evidence = match.get("evidence")
+        if isinstance(evidence, Mapping):
+            projected_match["evidence"] = {
+                key: evidence[key]
+                for key in _MATCH_EVIDENCE_PROMPT_KEYS
+                if key in evidence
+            }
+        projected_matches.append(projected_match)
+    return projected_matches
+
+
+def _project_operator_panel_row(summary: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: summary[key]
+        for key in _OPERATOR_PANEL_PROMPT_KEYS
+        if key in summary
+    }
 
 
 def _resolve_prompt_phase(state: ControllerState, policy_snapshot: PolicySnapshot) -> str:
@@ -241,7 +372,24 @@ def _project_candidate_annotation(
     *,
     post_feasible_active: bool,
 ) -> dict[str, Any]:
-    projected = dict(annotation)
+    projected = {
+        key: annotation[key]
+        for key in _CANDIDATE_ANNOTATION_PROMPT_KEYS
+        if key in annotation
+    }
+    route_budget_state = annotation.get("route_budget_state")
+    if isinstance(route_budget_state, Mapping) and "cooldown_active" in route_budget_state:
+        projected["route_cooldown_active"] = bool(route_budget_state["cooldown_active"])
+    expand_budget_state = annotation.get("expand_budget_state")
+    if isinstance(expand_budget_state, Mapping):
+        for key in (
+            "expand_budget_status",
+            "recent_expand_frontier_add_count",
+            "recent_expand_feasible_preservation_count",
+            "recent_expand_feasible_regression_count",
+        ):
+            if key in expand_budget_state:
+                projected[key] = expand_budget_state[key]
     if post_feasible_active:
         projected.pop("prefeasible_role", None)
         return projected

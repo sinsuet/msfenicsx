@@ -285,8 +285,8 @@ Current maintained test areas:
 
 - Scientific or performance claims must identify the relevant template, case, solver profile, seed, and runtime path or artifact bundle.
 - For optimization claims, identify whether evidence comes from one representative point or the Pareto set.
-- Keep the decision encoding, evaluation spec, repair, and expensive-evaluation budget matched across comparisons unless a document explicitly defines a different experiment class.
-- Describe `nsga2_union` and `nsga2_llm` as using the same mixed action registry with only the controller changed.
+- Keep the decision encoding, evaluation spec, repair/canonicalization path, legality policy, operator pool, and expensive-evaluation budget matched across paper-facing `union` / `llm` comparisons unless a document explicitly defines a different experiment class.
+- Describe `nsga2_union` and `nsga2_llm` as using the same shared primitive operator substrate; `llm` differs only through its representation-layer controller state, reflection, memory, and soft policy guidance over the same candidate support.
 - If something is not validated yet, label it as a hypothesis rather than a confirmed result.
 - Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis.
 - Failure reasons and dominant violations are valid evidence and should remain visible in artifacts when relevant.

@@ -327,8 +327,6 @@ def build_policy_snapshot(
             candidate_ids,
             candidate_annotations,
         )
-    allowed_operator_ids = list(candidate_ids)
-    suppressed_operator_ids: list[str] = []
     reason_codes: list[str] = []
     reset_active = False
 
@@ -338,10 +336,6 @@ def build_policy_snapshot(
     if phase == "cold_start":
         filtered = _filter_to_stable_families(candidate_ids, candidate_annotations)
         if filtered != candidate_ids:
-            allowed_operator_ids = list(filtered)
-            suppressed_operator_ids.extend(
-                operator_id for operator_id in candidate_ids if operator_id not in allowed_operator_ids
-            )
             reason_codes.append("cold_start_stable_bootstrap")
 
     if phase.startswith("prefeasible"):
@@ -351,108 +345,65 @@ def build_policy_snapshot(
             candidate_annotations,
         )
         if suppressed_family_members:
-            allowed_operator_ids = [
-                operator_id for operator_id in allowed_operator_ids if operator_id not in suppressed_family_members
-            ]
-            suppressed_operator_ids.extend(
-                operator_id
-                for operator_id in suppressed_family_members
-                if operator_id not in suppressed_operator_ids
-            )
             reason_codes.append("prefeasible_speculative_family_collapse")
 
         if phase == "prefeasible_convert":
             required_operator_ids = _prefeasible_convert_required_operator_ids(
                 state,
-                tuple(allowed_operator_ids),
+                candidate_ids,
             )
             filtered = _prefeasible_convert_candidates(
-                tuple(allowed_operator_ids),
+                candidate_ids,
                 candidate_annotations,
                 required_operator_ids=required_operator_ids,
             )
-            if filtered and filtered != tuple(allowed_operator_ids):
-                allowed_operator_ids = list(filtered)
-                suppressed_operator_ids.extend(
-                    operator_id
-                    for operator_id in candidate_ids
-                    if operator_id not in allowed_operator_ids and operator_id not in suppressed_operator_ids
-                )
+            if filtered and filtered != candidate_ids:
                 reason_codes.append("prefeasible_convert_entry_bias")
 
         if _prefeasible_reset_active(state):
             reset_active = True
             filtered = _prefeasible_reset_candidates(
                 state,
-                tuple(allowed_operator_ids),
+                candidate_ids,
                 candidate_annotations,
             )
             if filtered:
-                allowed_operator_ids = list(filtered)
-            reason_codes.append("prefeasible_forced_reset")
+                reason_codes.append("prefeasible_forced_reset")
 
         if phase == "prefeasible_convert":
-            current_allowed_operator_ids = tuple(allowed_operator_ids)
             filtered, positive_credit_restored = _restore_positive_route_family_visibility(
                 state,
                 phase,
                 candidate_ids,
-                current_allowed_operator_ids,
+                candidate_ids,
                 candidate_annotations,
             )
-            if filtered != current_allowed_operator_ids:
-                allowed_operator_ids = list(filtered)
-                suppressed_operator_ids = [
-                    operator_id for operator_id in candidate_ids if operator_id not in allowed_operator_ids
-                ]
-            if positive_credit_restored:
+            if positive_credit_restored or filtered != candidate_ids:
                 reason_codes.append("prefeasible_convert_positive_credit_visibility")
 
     if phase.startswith("post_feasible"):
         if phase == "post_feasible_expand":
             suppressed_route_family_members = _post_feasible_expand_route_family_dominance_suppression(
                 state,
-                tuple(allowed_operator_ids),
+                candidate_ids,
                 candidate_annotations,
             )
             if suppressed_route_family_members:
-                allowed_operator_ids = [
-                    operator_id for operator_id in allowed_operator_ids if operator_id not in suppressed_route_family_members
-                ]
-                suppressed_operator_ids.extend(
-                    operator_id
-                    for operator_id in suppressed_route_family_members
-                    if operator_id not in suppressed_operator_ids
-                )
                 reason_codes.append("post_feasible_expand_route_family_dominance_cap")
-        current_allowed_operator_ids = tuple(allowed_operator_ids)
         filtered, post_feasible_reason_code = _post_feasible_candidate_filter(
             state,
             phase,
-            current_allowed_operator_ids,
+            candidate_ids,
             candidate_annotations,
         )
-        if phase == "post_feasible_expand":
-            filtered, _ = _restore_positive_route_family_visibility(
-                state,
-                phase,
-                candidate_ids,
-                tuple(filtered),
-                candidate_annotations,
-            )
         peak_balance_escape_active = bool(
-            _peak_balance_escape_candidates(state, phase, current_allowed_operator_ids)
+            _peak_balance_escape_candidates(state, phase, candidate_ids)
         )
         gradient_balance_escape_active = bool(
-            _gradient_balance_escape_candidates(state, phase, current_allowed_operator_ids)
+            _gradient_balance_escape_candidates(state, phase, candidate_ids)
         )
-        if filtered != current_allowed_operator_ids:
-            allowed_operator_ids = list(filtered)
-            suppressed_operator_ids.extend(
-                operator_id for operator_id in candidate_ids if operator_id not in allowed_operator_ids
-            )
         if post_feasible_reason_code and (
-            filtered != current_allowed_operator_ids
+            filtered != candidate_ids
             or peak_balance_escape_active
             or gradient_balance_escape_active
         ):
@@ -461,18 +412,12 @@ def build_policy_snapshot(
         if gradient_escape_reason_code and gradient_balance_escape_active:
             reason_codes.append(gradient_escape_reason_code)
 
-    if not allowed_operator_ids:
-        allowed_operator_ids = list(candidate_ids)
-        suppressed_operator_ids = []
-        reason_codes = []
-        reset_active = False
-
     return PolicySnapshot(
         phase=phase,
-        allowed_operator_ids=tuple(allowed_operator_ids),
-        suppressed_operator_ids=tuple(suppressed_operator_ids),
+        allowed_operator_ids=candidate_ids,
+        suppressed_operator_ids=(),
         reset_active=reset_active,
-        reason_codes=tuple(reason_codes),
+        reason_codes=tuple(dict.fromkeys(reason_codes)),
         candidate_annotations=candidate_annotations,
     )
 

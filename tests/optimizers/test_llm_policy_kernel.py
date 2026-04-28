@@ -14,6 +14,12 @@ def _policy_kernel_module():
         pytest.fail(f"Missing reusable policy kernel module: {exc}")
 
 
+def _assert_snapshot_preserves_support(snapshot, candidate_operator_ids: tuple[str, ...]) -> None:
+    assert snapshot.allowed_operator_ids == candidate_operator_ids
+    assert snapshot.suppressed_operator_ids == ()
+    assert set(snapshot.candidate_annotations) == set(candidate_operator_ids)
+
+
 def _cold_start_state() -> ControllerState:
     return ControllerState(
         family="genetic",
@@ -394,6 +400,52 @@ def _post_feasible_expand_state() -> ControllerState:
             },
         },
     )
+def test_policy_snapshot_preserves_cold_start_candidate_support() -> None:
+    policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "component_relocate_1",
+        "sink_shift",
+        "sink_resize",
+    )
+
+    snapshot = policy_kernel.build_policy_snapshot(_cold_start_state(), candidates)
+
+    _assert_snapshot_preserves_support(snapshot, candidates)
+    assert "cold_start_stable_bootstrap" in snapshot.reason_codes
+
+
+def test_policy_snapshot_preserves_prefeasible_candidate_support() -> None:
+    policy_kernel = _policy_kernel_module()
+    candidates = (
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+    )
+
+    snapshot = policy_kernel.build_policy_snapshot(_prefeasible_family_collapse_state(), candidates)
+
+    _assert_snapshot_preserves_support(snapshot, candidates)
+    assert "prefeasible_speculative_family_collapse" in snapshot.reason_codes
+
+
+def test_policy_snapshot_preserves_post_feasible_candidate_support() -> None:
+    policy_kernel = _policy_kernel_module()
+    candidates = (
+        "native_sbx_pm",
+        "local_refine",
+        "hotspot_pull_toward_sink",
+        "hotspot_spread",
+        "sink_retarget",
+    )
+
+    snapshot = policy_kernel.build_policy_snapshot(_post_feasible_expand_state(), candidates)
+
+    _assert_snapshot_preserves_support(snapshot, candidates)
+    assert snapshot.phase.startswith("post_feasible")
 
 
 def _post_feasible_recover_state() -> ControllerState:
@@ -1758,57 +1810,59 @@ def _post_feasible_expand_visibility_floor_state() -> ControllerState:
 
 def test_cold_start_bootstraps_only_stable_semantic_families() -> None:
     policy_kernel = _policy_kernel_module()
-
-    policy = policy_kernel.build_policy_snapshot(
-        _cold_start_state(),
-        (
-            "native_sbx_pm",
-            "global_explore",
-            "local_refine",
-            "move_hottest_cluster_toward_sink",
-        ),
+    candidates = (
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
     )
 
+    policy = policy_kernel.build_policy_snapshot(_cold_start_state(), candidates)
+
     assert policy.phase == "cold_start"
-    assert policy.allowed_operator_ids == ("native_sbx_pm", "global_explore", "local_refine")
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "cold_start_stable_bootstrap" in policy.reason_codes
+    assert policy.candidate_annotations["native_sbx_pm"]["prefeasible_role"] == "stable_baseline"
+    assert policy.candidate_annotations["global_explore"]["prefeasible_role"] == "stable_global"
+    assert policy.candidate_annotations["local_refine"]["prefeasible_role"] == "stable_local"
+    assert policy.candidate_annotations["move_hottest_cluster_toward_sink"]["prefeasible_role"] == "speculative_custom"
 
 
 def test_prefeasible_family_collapse_suppresses_overused_semantic_custom_family() -> None:
     policy_kernel = _policy_kernel_module()
-
-    policy = policy_kernel.build_policy_snapshot(
-        _prefeasible_family_collapse_state(),
-        (
-            "native_sbx_pm",
-            "local_refine",
-            "move_hottest_cluster_toward_sink",
-            "spread_hottest_cluster",
-        ),
+    candidates = (
+        "native_sbx_pm",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
     )
 
+    policy = policy_kernel.build_policy_snapshot(_prefeasible_family_collapse_state(), candidates)
+
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "prefeasible_speculative_family_collapse" in policy.reason_codes
-    assert "move_hottest_cluster_toward_sink" not in policy.allowed_operator_ids
-    assert "spread_hottest_cluster" not in policy.allowed_operator_ids
+    assert policy.candidate_annotations["move_hottest_cluster_toward_sink"]["prefeasible_role"] == "speculative_custom"
+    assert policy.candidate_annotations["spread_hottest_cluster"]["prefeasible_role"] == "speculative_custom"
 
 
 def test_prefeasible_reset_biases_back_to_stable_semantic_roles() -> None:
     policy_kernel = _policy_kernel_module()
-
-    policy = policy_kernel.build_policy_snapshot(
-        _prefeasible_reset_state(),
-        (
-            "native_sbx_pm",
-            "global_explore",
-            "local_refine",
-            "move_hottest_cluster_toward_sink",
-            "repair_sink_budget",
-        ),
+    candidates = (
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "repair_sink_budget",
     )
 
+    policy = policy_kernel.build_policy_snapshot(_prefeasible_reset_state(), candidates)
+
     assert policy.reset_active is True
+    _assert_snapshot_preserves_support(policy, candidates)
     assert "prefeasible_forced_reset" in policy.reason_codes
-    assert policy.allowed_operator_ids == ("native_sbx_pm", "global_explore", "local_refine")
+    assert policy.candidate_annotations["native_sbx_pm"]["prefeasible_role"] == "stable_baseline"
+    assert policy.candidate_annotations["global_explore"]["prefeasible_role"] == "stable_global"
+    assert policy.candidate_annotations["local_refine"]["prefeasible_role"] == "stable_local"
 
 
 def test_post_feasible_expand_filters_out_risky_semantic_expanders() -> None:
@@ -1973,62 +2027,65 @@ def test_detect_search_phase_uses_recover_release_ready_even_when_reentry_pressu
 
 def test_post_feasible_expand_rebalances_away_from_cooled_route_family() -> None:
     policy_kernel = _policy_kernel_module()
-
-    policy = policy_kernel.build_policy_snapshot(
-        _post_feasible_expand_family_rebalance_state(),
-        (
-            "native_sbx_pm",
-            "local_refine",
-            "spread_hottest_cluster",
-            "move_hottest_cluster_toward_sink",
-            "reduce_local_congestion",
-        ),
+    candidates = (
+        "native_sbx_pm",
+        "local_refine",
+        "spread_hottest_cluster",
+        "move_hottest_cluster_toward_sink",
+        "reduce_local_congestion",
     )
 
+    policy = policy_kernel.build_policy_snapshot(_post_feasible_expand_family_rebalance_state(), candidates)
+
     assert policy.phase == "post_feasible_expand"
-    assert "spread_hottest_cluster" not in policy.allowed_operator_ids
-    assert "move_hottest_cluster_toward_sink" in policy.allowed_operator_ids
-    assert "reduce_local_congestion" in policy.allowed_operator_ids
+    _assert_snapshot_preserves_support(policy, candidates)
+    assert "post_feasible_expand_route_family_dominance_cap" in policy.reason_codes
+    assert "post_feasible_expand_route_rebalance" in policy.reason_codes
+    spread_budget = policy.candidate_annotations["spread_hottest_cluster"]["route_budget_state"]
+    assert spread_budget["route_family"] == "hotspot_spread"
+    assert spread_budget["cooldown_active"] is True
+    assert policy.candidate_annotations["move_hottest_cluster_toward_sink"]["post_feasible_role"] == "supported_expand"
+    assert policy.candidate_annotations["reduce_local_congestion"]["post_feasible_role"] == "risky_expand"
 
 
 def test_post_feasible_expand_caps_recently_dominant_route_family_even_without_cooldown() -> None:
     policy_kernel = _policy_kernel_module()
-
-    policy = policy_kernel.build_policy_snapshot(
-        _post_feasible_expand_family_dominance_state(),
-        (
-            "native_sbx_pm",
-            "local_refine",
-            "spread_hottest_cluster",
-            "move_hottest_cluster_toward_sink",
-            "reduce_local_congestion",
-        ),
+    candidates = (
+        "native_sbx_pm",
+        "local_refine",
+        "spread_hottest_cluster",
+        "move_hottest_cluster_toward_sink",
+        "reduce_local_congestion",
     )
 
+    policy = policy_kernel.build_policy_snapshot(_post_feasible_expand_family_dominance_state(), candidates)
+
     assert policy.phase == "post_feasible_expand"
-    assert "spread_hottest_cluster" not in policy.allowed_operator_ids
-    assert "move_hottest_cluster_toward_sink" in policy.allowed_operator_ids
+    _assert_snapshot_preserves_support(policy, candidates)
+    assert "post_feasible_expand_route_family_dominance_cap" in policy.reason_codes
+    spread_budget = policy.candidate_annotations["spread_hottest_cluster"]["route_budget_state"]
+    assert spread_budget["route_family"] == "hotspot_spread"
+    assert spread_budget["recent_family_count"] == 5
+    assert spread_budget["cooldown_active"] is False
+    assert policy.candidate_annotations["move_hottest_cluster_toward_sink"]["post_feasible_role"] == "supported_expand"
 
 
 def test_post_feasible_expand_throttles_semantic_route_with_recent_regression_and_no_frontier_credit() -> None:
     policy_kernel = _policy_kernel_module()
-
-    policy = policy_kernel.build_policy_snapshot(
-        _post_feasible_expand_budget_throttle_state(),
-        (
-            "native_sbx_pm",
-            "local_refine",
-            "spread_hottest_cluster",
-            "smooth_high_gradient_band",
-        ),
+    candidates = (
+        "native_sbx_pm",
+        "local_refine",
+        "spread_hottest_cluster",
+        "smooth_high_gradient_band",
     )
 
+    policy = policy_kernel.build_policy_snapshot(_post_feasible_expand_budget_throttle_state(), candidates)
+
     assert policy.phase == "post_feasible_expand"
+    _assert_snapshot_preserves_support(policy, candidates)
     assert policy.candidate_annotations["spread_hottest_cluster"]["expand_budget_state"]["budget_status"] == "throttled"
     assert policy.candidate_annotations["smooth_high_gradient_band"]["expand_budget_state"]["budget_status"] == "preferred"
     assert "post_feasible_expand_semantic_budget" in policy.reason_codes
-    assert "spread_hottest_cluster" not in policy.allowed_operator_ids
-    assert "smooth_high_gradient_band" in policy.allowed_operator_ids
 
 
 def _post_feasible_expand_saturated_state() -> ControllerState:
@@ -2274,27 +2331,26 @@ def test_expand_keeps_diversity_floor_for_underused_frontier_family() -> None:
 
 def test_post_feasible_recover_retains_stable_floor_when_semantic_preserver_exists() -> None:
     policy_kernel = _policy_kernel_module()
-
-    policy = policy_kernel.build_policy_snapshot(
-        _post_feasible_recover_semantic_monopoly_state(),
-        (
-            "native_sbx_pm",
-            "global_explore",
-            "local_refine",
-            "move_hottest_cluster_toward_sink",
-            "spread_hottest_cluster",
-            "smooth_high_gradient_band",
-            "reduce_local_congestion",
-        ),
-    )
-
-    assert policy.phase == "post_feasible_recover"
-    assert policy.allowed_operator_ids == (
+    candidates = (
         "native_sbx_pm",
         "global_explore",
         "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
         "smooth_high_gradient_band",
+        "reduce_local_congestion",
     )
+
+    policy = policy_kernel.build_policy_snapshot(_post_feasible_recover_semantic_monopoly_state(), candidates)
+
+    assert policy.phase == "post_feasible_recover"
+    _assert_snapshot_preserves_support(policy, candidates)
+    assert "post_feasible_recover_preserve_bias" in policy.reason_codes
+    assert policy.candidate_annotations["native_sbx_pm"]["post_feasible_role"] == "fragile_preserve"
+    assert policy.candidate_annotations["global_explore"]["post_feasible_role"] == "fragile_preserve"
+    assert policy.candidate_annotations["local_refine"]["post_feasible_role"] == "fragile_preserve"
+    assert policy.candidate_annotations["smooth_high_gradient_band"]["post_feasible_role"] == "trusted_preserve"
+    assert policy.candidate_annotations["spread_hottest_cluster"]["post_feasible_role"] == "risky_expand"
 
 
 def test_post_feasible_recover_keeps_gradient_escape_routes_visible_when_gradient_pressure_is_high() -> None:

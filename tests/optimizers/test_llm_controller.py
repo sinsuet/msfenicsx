@@ -2089,7 +2089,7 @@ def test_llm_system_prompt_prioritizes_exact_positive_retrieval_matches_when_con
     assert "metadata.decision_axes.exact_positive_match_operator_ids" in prompt
 
 
-def test_llm_controller_recent_dominance_guardrail_filters_repeated_semantic_operator() -> None:
+def test_llm_controller_recent_dominance_guardrail_advises_without_filtering_repeated_semantic_operator() -> None:
     client = _FakeLLMClient(
         OpenAICompatibleDecision(
             selected_operator_id="local_refine",
@@ -2113,25 +2113,30 @@ def test_llm_controller_recent_dominance_guardrail_filters_repeated_semantic_ope
         },
         client=client,
     )
+    candidates = (
+        "native_sbx_pm",
+        "move_hottest_cluster_toward_sink",
+        "local_refine",
+    )
 
     decision = controller.select_decision(
         _dominance_state(),
-        (
-            "native_sbx_pm",
-            "move_hottest_cluster_toward_sink",
-            "local_refine",
-        ),
+        candidates,
         np.random.default_rng(19),
     )
 
     assert decision.selected_operator_id == "local_refine"
-    assert decision.metadata["guardrail_filtered_operator_ids"] == ["move_hottest_cluster_toward_sink"]
+    assert decision.metadata["guardrail_filtered_operator_ids"] == []
+    assert decision.metadata["guardrail_discouraged_operator_ids"] == ["move_hottest_cluster_toward_sink"]
     assert client.last_kwargs is not None
-    assert client.last_kwargs["candidate_operator_ids"] == ("native_sbx_pm", "local_refine")
-    assert controller.request_trace[0]["guardrail"]["filtered_operator_ids"] == ["move_hottest_cluster_toward_sink"]
+    assert client.last_kwargs["candidate_operator_ids"] == candidates
+    guardrail = controller.request_trace[0]["guardrail"]
+    assert guardrail["filtered_operator_ids"] == []
+    assert guardrail["discouraged_operator_ids"] == ["move_hottest_cluster_toward_sink"]
+    assert guardrail["effective_candidate_operator_ids"] == list(candidates)
 
 
-def test_llm_controller_generation_local_guardrail_filters_current_generation_monopoly() -> None:
+def test_llm_controller_generation_local_guardrail_advises_without_filtering_current_generation_monopoly() -> None:
     client = _FakeLLMClient(
         OpenAICompatibleDecision(
             selected_operator_id="local_refine",
@@ -2155,23 +2160,25 @@ def test_llm_controller_generation_local_guardrail_filters_current_generation_mo
         },
         client=client,
     )
+    candidates = (
+        "native_sbx_pm",
+        "local_refine",
+        "slide_sink",
+    )
 
     decision = controller.select_decision(
         _generation_local_dominance_state(viable_alternative=True),
-        (
-            "native_sbx_pm",
-            "local_refine",
-            "slide_sink",
-        ),
+        candidates,
         np.random.default_rng(23),
     )
 
     assert decision.selected_operator_id == "local_refine"
     assert decision.metadata["guardrail_reason"] == "generation_local_operator_dominance"
-    assert decision.metadata["guardrail_filtered_operator_ids"] == ["slide_sink"]
+    assert decision.metadata["guardrail_filtered_operator_ids"] == []
+    assert decision.metadata["guardrail_discouraged_operator_ids"] == ["slide_sink"]
     assert decision.metadata["guardrail_viable_alternative_operator_ids"] == ["local_refine"]
     assert client.last_kwargs is not None
-    assert client.last_kwargs["candidate_operator_ids"] == ("native_sbx_pm", "local_refine")
+    assert client.last_kwargs["candidate_operator_ids"] == candidates
 
 
 def test_llm_controller_generation_local_guardrail_keeps_unique_viable_operator() -> None:
@@ -2215,7 +2222,7 @@ def test_llm_controller_generation_local_guardrail_keeps_unique_viable_operator(
     assert client.last_kwargs["candidate_operator_ids"] == ("native_sbx_pm", "local_refine", "slide_sink")
 
 
-def test_llm_controller_generation_local_strategy_group_guardrail_filters_sink_rotation() -> None:
+def test_llm_controller_generation_local_strategy_group_guardrail_advises_without_filtering_sink_rotation() -> None:
     client = _FakeLLMClient(
         OpenAICompatibleDecision(
             selected_operator_id="local_refine",
@@ -2239,32 +2246,30 @@ def test_llm_controller_generation_local_strategy_group_guardrail_filters_sink_r
         },
         client=client,
     )
+    candidates = (
+        "native_sbx_pm",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "repair_sink_budget",
+        "slide_sink",
+    )
 
     decision = controller.select_decision(
         _generation_local_strategy_group_state(),
-        (
-            "native_sbx_pm",
-            "local_refine",
-            "move_hottest_cluster_toward_sink",
-            "repair_sink_budget",
-            "slide_sink",
-        ),
+        candidates,
         np.random.default_rng(31),
     )
 
     assert decision.selected_operator_id == "local_refine"
     assert decision.metadata["guardrail_reason"] == "generation_local_strategy_group_dominance"
-    assert decision.metadata["guardrail_filtered_operator_ids"] == ["repair_sink_budget", "slide_sink"]
+    assert decision.metadata["guardrail_filtered_operator_ids"] == []
+    assert decision.metadata["guardrail_discouraged_operator_ids"] == ["repair_sink_budget", "slide_sink"]
     assert decision.metadata["guardrail_viable_alternative_operator_ids"] == [
         "local_refine",
         "move_hottest_cluster_toward_sink",
     ]
     assert client.last_kwargs is not None
-    assert client.last_kwargs["candidate_operator_ids"] == (
-        "native_sbx_pm",
-        "local_refine",
-        "move_hottest_cluster_toward_sink",
-    )
+    assert client.last_kwargs["candidate_operator_ids"] == candidates
 
 
 def test_decision_axes_objective_balance_fields() -> None:
@@ -2508,7 +2513,7 @@ def test_llm_controller_request_trace_exposes_route_visibility_fields(tmp_path: 
     assert request_rows[0]["effective_candidate_pool_size"] >= 3
 
 
-def test_llm_controller_prefeasible_convert_exact_positive_contract_drops_budget_guard_escape_when_dominant_violation_is_not_sink_budget(
+def test_llm_controller_prefeasible_convert_exact_positive_contract_keeps_budget_guard_escape_visible_under_non_sink_budget_pressure(
     tmp_path: Path,
 ) -> None:
     controller = LLMOperatorController(
@@ -2540,24 +2545,26 @@ def test_llm_controller_prefeasible_convert_exact_positive_contract_drops_budget
         llm_response_trace_path=run_root / "traces" / "llm_response_trace.jsonl",
         prompt_store=PromptStore(run_root / "prompts"),
     )
+    candidates = (
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    )
 
     decision = controller.select_decision(
         _prefeasible_convert_budget_guard_dominance_state(),
-        (
-            "native_sbx_pm",
-            "global_explore",
-            "local_refine",
-            "move_hottest_cluster_toward_sink",
-            "spread_hottest_cluster",
-            "repair_sink_budget",
-            "slide_sink",
-        ),
+        candidates,
         np.random.default_rng(47),
     )
 
     assert decision.selected_operator_id == "slide_sink"
-    assert "repair_sink_budget" not in controller.request_trace[0]["candidate_operator_ids"]
-    assert "budget_guard" not in controller.request_trace[0]["visible_route_families"]
+    assert controller.request_trace[0]["candidate_operator_ids"] == list(candidates)
+    assert "budget_guard" in controller.request_trace[0]["visible_route_families"]
+    assert controller.request_trace[0]["exact_positive_match_mode"] == "prefer_exact_match"
 
 
 def test_llm_controller_prefeasible_convert_exact_positive_contract_keeps_budget_guard_escape_when_dominant_violation_is_sink_budget(
@@ -2609,13 +2616,18 @@ def test_llm_controller_prefeasible_convert_exact_positive_contract_keeps_budget
 
     assert decision.selected_operator_id == "repair_sink_budget"
     assert controller.request_trace[0]["candidate_operator_ids"] == [
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
         "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
         "repair_sink_budget",
+        "slide_sink",
     ]
     assert "budget_guard" in controller.request_trace[0]["visible_route_families"]
 
 
-def test_llm_controller_prefeasible_convert_exact_positive_contract_drops_budget_guard_even_when_supported_entry_evidence_exists_under_non_sink_budget_pressure(
+def test_llm_controller_prefeasible_convert_exact_positive_contract_keeps_budget_guard_visible_even_when_supported_entry_evidence_exists_under_non_sink_budget_pressure(
     tmp_path: Path,
 ) -> None:
     controller = LLMOperatorController(
@@ -2631,7 +2643,7 @@ def test_llm_controller_prefeasible_convert_exact_positive_contract_drops_budget
             OpenAICompatibleDecision(
                 selected_operator_id="slide_sink",
                 phase="prefeasible_convert",
-                rationale="Keep thermal-limit convert focused on exact positive routes even when budget guard has local credit.",
+                rationale="Keep thermal-limit convert focused on exact positive routes while retaining the full candidate pool.",
                 provider="openai-compatible",
                 model="GPT-5.4",
                 capability_profile="responses_native",
@@ -2647,23 +2659,26 @@ def test_llm_controller_prefeasible_convert_exact_positive_contract_drops_budget
         llm_response_trace_path=run_root / "traces" / "llm_response_trace.jsonl",
         prompt_store=PromptStore(run_root / "prompts"),
     )
+    candidates = (
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    )
 
     decision = controller.select_decision(
         _prefeasible_convert_supported_budget_guard_escape_state(),
-        (
-            "native_sbx_pm",
-            "global_explore",
-            "local_refine",
-            "move_hottest_cluster_toward_sink",
-            "spread_hottest_cluster",
-            "repair_sink_budget",
-            "slide_sink",
-        ),
+        candidates,
         np.random.default_rng(51),
     )
 
     assert decision.selected_operator_id == "slide_sink"
-    assert controller.request_trace[0]["candidate_operator_ids"] == [
+    assert controller.request_trace[0]["candidate_operator_ids"] == list(candidates)
+    assert "repair_sink_budget" in controller.request_trace[0]["candidate_operator_ids"]
+    assert controller.request_trace[0]["exact_positive_match_operator_ids"][:2] == [
         "slide_sink",
         "spread_hottest_cluster",
     ]
@@ -2973,15 +2988,31 @@ def test_llm_controller_prioritizes_exact_positive_match_operators_at_front_of_c
     )
 
     assert client.last_kwargs is not None
-    assert client.last_kwargs["candidate_operator_ids"][:2] == ("slide_sink", "spread_hottest_cluster")
-    assert controller.request_trace[0]["candidate_operator_ids"][:2] == ["slide_sink", "spread_hottest_cluster"]
+    assert client.last_kwargs["candidate_operator_ids"] == (
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    )
+    assert controller.request_trace[0]["candidate_operator_ids"] == [
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    ]
     assert controller.request_trace[0]["exact_positive_match_operator_ids"][:2] == [
         "slide_sink",
         "spread_hottest_cluster",
     ]
 
 
-def test_llm_controller_prefeasible_convert_exact_positive_contract_drops_stable_fallbacks_under_high_entry_pressure(
+def test_llm_controller_prefeasible_convert_exact_positive_contract_preserves_stable_fallbacks_under_high_entry_pressure(
     tmp_path: Path,
 ) -> None:
     client = _FakeLLMClient(
@@ -3030,14 +3061,31 @@ def test_llm_controller_prefeasible_convert_exact_positive_contract_drops_stable
     )
 
     assert client.last_kwargs is not None
-    assert client.last_kwargs["candidate_operator_ids"] == ("slide_sink", "spread_hottest_cluster")
+    assert client.last_kwargs["candidate_operator_ids"] == (
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    )
     assert controller.request_trace[0]["candidate_operator_ids"] == [
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    ]
+    assert controller.request_trace[0]["exact_positive_match_operator_ids"][:2] == [
         "slide_sink",
         "spread_hottest_cluster",
     ]
 
 
-def test_llm_controller_prefeasible_convert_exact_positive_contract_drops_non_exact_visibility_floor_custom_alternative(
+def test_llm_controller_prefeasible_convert_exact_positive_contract_preserves_non_exact_visibility_floor_custom_alternative(
     tmp_path: Path,
 ) -> None:
     client = _FakeLLMClient(
@@ -3086,8 +3134,25 @@ def test_llm_controller_prefeasible_convert_exact_positive_contract_drops_non_ex
     )
 
     assert client.last_kwargs is not None
-    assert client.last_kwargs["candidate_operator_ids"] == ("move_hottest_cluster_toward_sink",)
-    assert controller.request_trace[0]["candidate_operator_ids"] == ["move_hottest_cluster_toward_sink"]
+    assert client.last_kwargs["candidate_operator_ids"] == (
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    )
+    assert controller.request_trace[0]["candidate_operator_ids"] == [
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    ]
+    assert controller.request_trace[0]["exact_positive_match_operator_ids"] == ["move_hottest_cluster_toward_sink"]
 
 
 def test_llm_system_prompt_does_not_recommend_budget_guard_as_generation_local_convert_alternative_when_exact_positive_contract_is_active(
@@ -3142,7 +3207,17 @@ def test_llm_system_prompt_does_not_recommend_budget_guard_as_generation_local_c
     system_prompt = str(client.last_kwargs["system_prompt"])
     assert "Current-generation mix alert:" in system_prompt
     assert "slide_sink" in system_prompt
-    assert "repair_sink_budget" not in system_prompt
+    assert "repair_sink_budget" in system_prompt
+    assert "Prefer viable alternatives" in system_prompt
+    assert controller.request_trace[0]["candidate_operator_ids"] == [
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    ]
 
 
 def test_llm_system_prompt_does_not_recommend_budget_guard_as_generation_local_convert_alternative_when_it_only_has_supported_entry_evidence(
@@ -3197,7 +3272,17 @@ def test_llm_system_prompt_does_not_recommend_budget_guard_as_generation_local_c
     system_prompt = str(client.last_kwargs["system_prompt"])
     assert "Current-generation mix alert:" in system_prompt
     assert "slide_sink" in system_prompt
-    assert "repair_sink_budget" not in system_prompt
+    assert "repair_sink_budget" in system_prompt
+    assert "Prefer viable alternatives" in system_prompt
+    assert controller.request_trace[0]["candidate_operator_ids"] == [
+        "native_sbx_pm",
+        "global_explore",
+        "local_refine",
+        "move_hottest_cluster_toward_sink",
+        "spread_hottest_cluster",
+        "repair_sink_budget",
+        "slide_sink",
+    ]
 
 
 def test_llm_controller_request_trace_marks_stable_local_handoff_window(tmp_path: Path) -> None:
@@ -3480,7 +3565,7 @@ def test_llm_controller_request_trace_records_recover_release_evidence_active_wh
     assert request_entry["recover_release_evidence_active"] is True
 
 
-def test_llm_controller_request_trace_exposes_suppressed_route_families_with_reasons(tmp_path: Path) -> None:
+def test_llm_controller_request_trace_keeps_soft_advice_route_families_visible_with_reasons(tmp_path: Path) -> None:
     controller = LLMOperatorController(
         controller_parameters={
             "provider": "openai-compatible",
@@ -3524,6 +3609,8 @@ def test_llm_controller_request_trace_exposes_suppressed_route_families_with_rea
     )
 
     request_entry = controller.request_trace[0]
-    assert request_entry["suppressed_route_families"]
-    for route_family in request_entry["suppressed_route_families"]:
-        assert request_entry["suppressed_route_family_reasons"][route_family]
+    assert request_entry["suppressed_route_families"] == []
+    assert request_entry["suppressed_route_family_reasons"] == {}
+    assert "sink_retarget" in request_entry["visible_route_families"]
+    assert "congestion_relief" in request_entry["visible_route_families"]
+    assert "post_feasible_recover_gradient_escape_floor" in request_entry["policy_reason_codes"]
