@@ -9,7 +9,7 @@
 
 ## Active Mainline
 
-The active paper-facing benchmark family is `s1_typical`, `s2_staged`, `s3_scale20`, and `s4_dense25`. `s2_staged` is the 15-component controller-sensitive staged benchmark, `s3_scale20` extends that staged structure to 20 components, and `s4_dense25` is the 25-component dense companion. They share the same paper-facing `raw / union / llm` ladder, but `union` is a clean primitive-operator baseline while `llm` is the assisted framework line.
+The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, and `s4_dense25`. `s2_staged` is the current controller-sensitive S2 companion benchmark. `s3_scale20` and `s4_dense25` are the larger companions in the same paper-facing `raw / union / llm` ladder. In that ladder, `union` and `llm` use the same primitive operator substrate and legality policy; `llm` differs through its representation-layer controller only.
 
 - one operating case
 - fixed named components per benchmark
@@ -33,7 +33,7 @@ The active paper-facing benchmark family is `s1_typical`, `s2_staged`, `s3_scale
 - generation and cheap constraints enforce real minimum-clearance legality instead of overlap-only packing
 - solver keeps the official top-edge `line_sink` and adds weak ambient outer-boundary cooling for background heat leakage
 - cheap legality checks run before any expensive PDE solve
-- clean baselines use `minimal_canonicalization`; assisted `llm` runs use `projection_plus_local_restore`
+- paper-facing `union` and `llm` runs both use `minimal_canonicalization`; `llm` keeps policy and guardrail signals as soft textual guidance over the same candidate support
 - active optimizer modes:
   - `nsga2_raw`
   - `nsga2_union`

@@ -271,3 +271,148 @@ def test_post_feasible_prompt_projection_keeps_spatial_panel_and_operator_applic
     assert "spatial_panel" in payload["prompt_panels"]
     assert payload["prompt_panels"]["spatial_panel"]["hotspot_inside_sink_window"] is False
     assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["applicability"] == "medium"
+
+
+def test_prompt_projection_compacts_large_parent_retrieval_and_annotation_payloads() -> None:
+    prompt_projection = _prompt_projection_module()
+    state = _post_feasible_state()
+    state.metadata["prompt_panels"]["parent_panel"] = {
+        "closest_to_feasible_parent": {
+            "evaluation_index": 71,
+            "feasible": False,
+            "total_violation": 0.08,
+            "dominant_violation": {"constraint_id": "layout_spacing", "violation": 0.08},
+            "decision_vector": {f"x{i:02d}": i / 100 for i in range(32)},
+        },
+        "strongest_feasible_parent": {
+            "evaluation_index": 73,
+            "feasible": True,
+            "total_violation": 0.0,
+            "decision_vector": {f"x{i:02d}": i / 200 for i in range(32)},
+        },
+    }
+    state.metadata["prompt_panels"]["retrieval_panel"] = {
+        "query_regime": {
+            "phase": "post_feasible_recover",
+            "phase_fallbacks": ["post_feasible_preserve"],
+            "dominant_violation_family": "thermal_limit",
+            "sink_budget_bucket": "full_sink",
+        },
+        "positive_match_families": ["stable_local", "sink_retarget"],
+        "negative_match_families": ["stable_global"],
+        "visibility_floor_families": ["stable_local"],
+        "stable_local_handoff_active": True,
+        "route_family_credit": {
+            "positive_families": ["stable_local"],
+            "negative_families": ["stable_global"],
+            "handoff_families": ["stable_local"],
+        },
+        "positive_matches": [
+            {
+                "operator_id": "repair_sink_budget",
+                "route_family": "sink_retarget",
+                "similarity_score": 9,
+                "regime": {"phase": "post_feasible_expand", "sink_budget_bucket": "full_sink"},
+                "evidence": {
+                    "avg_objective_delta": -0.2,
+                    "avg_total_violation_delta": -0.1,
+                    "frontier_add_count": 2,
+                    "feasible_regression_count": 0,
+                    "penalty_event_count": 0,
+                },
+            },
+            {
+                "operator_id": "native_sbx_pm",
+                "route_family": "stable_local",
+                "similarity_score": 8,
+                "regime": {"phase": "post_feasible_expand"},
+                "evidence": {"frontier_add_count": 1, "feasible_regression_count": 0},
+            },
+            {
+                "operator_id": "local_refine",
+                "route_family": "stable_local",
+                "similarity_score": 7,
+                "regime": {"phase": "post_feasible_expand"},
+                "evidence": {"frontier_add_count": 1, "feasible_regression_count": 0},
+            },
+        ],
+        "negative_matches": [
+            {
+                "operator_id": "local_refine",
+                "route_family": "stable_local",
+                "similarity_score": 6,
+                "regime": {"phase": "post_feasible_recover"},
+                "evidence": {"frontier_add_count": 0, "feasible_regression_count": 2, "penalty_event_count": 1},
+            },
+            {
+                "operator_id": "repair_sink_budget",
+                "route_family": "sink_retarget",
+                "similarity_score": 5,
+                "regime": {"phase": "post_feasible_recover"},
+                "evidence": {"frontier_add_count": 0, "feasible_regression_count": 1},
+            },
+        ],
+        "matched_episodes": [
+            {"operator_id": f"op{i}", "route_family": "stable_local", "similarity_score": i, "evidence": {}}
+            for i in range(5)
+        ],
+    }
+    policy_snapshot = PolicySnapshot(
+        phase="post_feasible_expand",
+        allowed_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=("post_feasible_expand_route_rebalance",),
+        candidate_annotations={
+            "native_sbx_pm": {
+                "operator_family": "native_baseline",
+                "role": "native_baseline",
+                "evidence_level": "trusted",
+                "post_feasible_role": "fragile_preserve",
+                "avg_near_feasible_violation_delta": -1.0,
+                "post_feasible_avg_objective_delta": -0.2,
+                "recent_entry_helpful_regimes": ["thermal_limit"],
+                "route_budget_state": {
+                    "cooldown_active": False,
+                    "recent_family_count": 18,
+                    "recent_family_share": 0.9,
+                },
+                "expand_budget_state": {
+                    "expand_budget_status": "preferred",
+                    "recent_expand_frontier_add_count": 2,
+                },
+            },
+            "repair_sink_budget": {
+                "operator_family": "primitive_sink",
+                "role": "sink_resize",
+                "evidence_level": "speculative",
+                "post_feasible_role": "risky_expand",
+                "route_budget_state": {"cooldown_active": True, "recent_family_share": 0.8},
+            },
+        },
+    )
+
+    payload = prompt_projection.build_prompt_projection(
+        state,
+        candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        original_candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        policy_snapshot=policy_snapshot,
+        guardrail=None,
+    )
+
+    parent_panel = payload["prompt_panels"]["parent_panel"]
+    assert "decision_vector" not in parent_panel["closest_to_feasible_parent"]
+    assert "decision_vector" not in parent_panel["strongest_feasible_parent"]
+    retrieval_panel = payload["prompt_panels"]["retrieval_panel"]
+    assert len(retrieval_panel["positive_matches"]) == 2
+    assert len(retrieval_panel["negative_matches"]) == 1
+    assert "matched_episodes" not in retrieval_panel
+    first_positive = retrieval_panel["positive_matches"][0]
+    assert set(first_positive) == {"operator_id", "route_family", "similarity_score", "evidence"}
+    assert set(first_positive["evidence"]) == {"frontier_add_count", "feasible_regression_count", "penalty_event_count"}
+    operator_row = payload["prompt_panels"]["operator_panel"]["native_sbx_pm"]
+    assert operator_row["role"] == "native_baseline"
+    assert operator_row["route_cooldown_active"] is False
+    assert operator_row["expand_budget_status"] == "preferred"
+    assert operator_row["recent_expand_frontier_add_count"] == 2
+    assert payload["phase_policy"]["candidate_annotations"] == {}

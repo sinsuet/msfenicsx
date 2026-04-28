@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
+import yaml
 
 from optimizers.codec import extract_decision_vector
 from optimizers.io import generate_benchmark_case, load_optimization_spec
@@ -25,6 +28,47 @@ ASSISTED_OPERATOR_IDS = (
     "sink_retarget",
     "layout_rebalance",
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_yaml(path: str) -> dict:
+    with (REPO_ROOT / path).open("r", encoding="utf-8") as stream:
+        return yaml.safe_load(stream)
+
+
+def _substrate_fields(spec: dict) -> dict:
+    operator_control = spec["operator_control"]
+    evaluation_protocol = spec["evaluation_protocol"]
+    algorithm = spec["algorithm"]
+    return {
+        "design_variables": spec["design_variables"],
+        "registry_profile": operator_control["registry_profile"],
+        "operator_pool": operator_control["operator_pool"],
+        "legality_policy_id": evaluation_protocol["legality_policy_id"],
+        "evaluation_spec_path": evaluation_protocol["evaluation_spec_path"],
+        "family": algorithm["family"],
+        "backbone": algorithm["backbone"],
+        "population_size": algorithm["population_size"],
+        "num_generations": algorithm["num_generations"],
+        "seed": algorithm["seed"],
+    }
+def test_s1_typical_union_and_llm_share_search_substrate() -> None:
+    union_spec = _load_yaml("scenarios/optimization/s1_typical_union.yaml")
+    llm_spec = _load_yaml("scenarios/optimization/s1_typical_llm.yaml")
+
+    assert union_spec["operator_control"]["controller"] == "random_uniform"
+    assert llm_spec["operator_control"]["controller"] == "llm"
+    assert _substrate_fields(llm_spec) == _substrate_fields(union_spec)
+
+
+def test_s2_staged_union_and_llm_share_search_substrate() -> None:
+    union_spec = _load_yaml("scenarios/optimization/s2_staged_union.yaml")
+    llm_spec = _load_yaml("scenarios/optimization/s2_staged_llm.yaml")
+
+    assert union_spec["operator_control"]["controller"] == "random_uniform"
+    assert llm_spec["operator_control"]["controller"] == "llm"
+    assert _substrate_fields(llm_spec) == _substrate_fields(union_spec)
 
 
 def _union_spec():

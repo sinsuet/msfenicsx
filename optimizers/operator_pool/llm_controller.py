@@ -208,30 +208,22 @@ class LLMOperatorController:
         if not original_candidate_operator_ids:
             raise ValueError("LLMOperatorController requires at least one candidate operator.")
         policy_snapshot = build_policy_snapshot(state, original_candidate_operator_ids)
-        candidate_operator_ids, recent_dominance_guardrail = self._apply_recent_dominance_guardrail(
+        candidate_operator_ids = policy_snapshot.allowed_operator_ids
+        _, recent_dominance_guardrail = self._apply_recent_dominance_guardrail(
             state,
-            policy_snapshot.allowed_operator_ids,
+            candidate_operator_ids,
         )
-        candidate_operator_ids, generation_local_dominance_guardrail = (
+        _, generation_local_dominance_guardrail = (
             self._apply_generation_local_dominance_guardrail(
                 state,
                 candidate_operator_ids,
             )
         )
-        candidate_operator_ids, generation_local_strategy_group_guardrail = (
+        _, generation_local_strategy_group_guardrail = (
             self._apply_generation_local_strategy_group_guardrail(
                 state,
                 candidate_operator_ids,
             )
-        )
-        candidate_operator_ids = self._prioritize_exact_positive_candidate_operator_ids(
-            state,
-            candidate_operator_ids,
-        )
-        candidate_operator_ids = self._apply_prefeasible_convert_exact_positive_contract(
-            state,
-            candidate_operator_ids,
-            policy_snapshot=policy_snapshot,
         )
         guardrail = self._merge_guardrail_metadata(
             original_candidate_operator_ids=original_candidate_operator_ids,
@@ -784,8 +776,10 @@ class LLMOperatorController:
         dominant_share = float(guardrail.get("dominant_operator_share", 0.0))
         return (
             f"{prompt} "
-            f"A dominance guardrail removed {dominant_operator_id} from the current candidate set after "
-            f"{dominant_share:.0%} recent concentration."
+            f"A dominance guardrail detected {dominant_operator_id} at "
+            f"{dominant_share:.0%} recent concentration. Treat this as soft advice: consider alternatives "
+            "when they are comparably applicable, but keep every provided candidate operator available if the "
+            "current state makes it necessary."
         )
 
     def _build_user_prompt(
@@ -1498,12 +1492,12 @@ class LLMOperatorController:
         )
         if dominant_operator_id in protected_operator_ids:
             return tuple(candidate_operator_ids), None
-        filtered_candidate_operator_ids = tuple(
+        advised_candidate_operator_ids = tuple(
             operator_id for operator_id in candidate_operator_ids if operator_id != dominant_operator_id
         )
-        if not filtered_candidate_operator_ids:
+        if not advised_candidate_operator_ids:
             return tuple(candidate_operator_ids), None
-        return filtered_candidate_operator_ids, {
+        return tuple(candidate_operator_ids), {
             "applied": True,
             "reason": "recent_operator_dominance",
             "recent_window_size": int(recent_llm_valid_count),
@@ -1516,9 +1510,11 @@ class LLMOperatorController:
                 for operator_id in candidate_operator_ids
                 if counter.get(operator_id, 0) > 0
             },
-            "filtered_operator_ids": [dominant_operator_id],
+            "discouraged_operator_ids": [dominant_operator_id],
+            "filtered_operator_ids": [],
             "original_candidate_operator_ids": list(candidate_operator_ids),
-            "effective_candidate_operator_ids": list(filtered_candidate_operator_ids),
+            "effective_candidate_operator_ids": list(candidate_operator_ids),
+            "advised_alternative_operator_ids": list(advised_candidate_operator_ids),
         }
 
     @staticmethod
@@ -1623,15 +1619,15 @@ class LLMOperatorController:
         )
         if not viable_alternatives:
             return tuple(candidate_operator_ids), None
-        filtered_candidate_operator_ids = tuple(
+        advised_candidate_operator_ids = tuple(
             operator_id for operator_id in candidate_operator_ids if operator_id != dominant_operator_id
         )
-        if not filtered_candidate_operator_ids:
+        if not advised_candidate_operator_ids:
             return tuple(candidate_operator_ids), None
         operator_counts = generation_local_memory.get("operator_counts")
         if not isinstance(operator_counts, Mapping):
             operator_counts = {}
-        return filtered_candidate_operator_ids, {
+        return tuple(candidate_operator_ids), {
             "applied": True,
             "reason": "generation_local_operator_dominance",
             "recent_window_size": int(accepted_count),
@@ -1644,9 +1640,11 @@ class LLMOperatorController:
                 for operator_id, summary in operator_counts.items()
                 if isinstance(summary, Mapping) and int(dict(summary).get("accepted_count", 0)) > 0
             },
-            "filtered_operator_ids": [dominant_operator_id],
+            "discouraged_operator_ids": [dominant_operator_id],
+            "filtered_operator_ids": [],
             "original_candidate_operator_ids": list(candidate_operator_ids),
-            "effective_candidate_operator_ids": list(filtered_candidate_operator_ids),
+            "effective_candidate_operator_ids": list(candidate_operator_ids),
+            "advised_alternative_operator_ids": list(advised_candidate_operator_ids),
             "viable_alternative_operator_ids": list(viable_alternatives),
         }
 
@@ -1715,7 +1713,7 @@ class LLMOperatorController:
                 dominant_group_id=dominant_group_id,
             )
         )
-        filtered_candidate_operator_ids = tuple(
+        advised_candidate_operator_ids = tuple(
             operator_id
             for operator_id in candidate_operator_ids
             if (
@@ -1723,16 +1721,16 @@ class LLMOperatorController:
                 or operator_id in protected_operator_ids
             )
         )
-        if not filtered_candidate_operator_ids:
+        if not advised_candidate_operator_ids:
             return tuple(candidate_operator_ids), None
-        filtered_operator_ids = [
+        discouraged_operator_ids = [
             operator_id
             for operator_id in dominant_group_operator_ids
             if operator_id not in protected_operator_ids
         ]
-        if not filtered_operator_ids:
+        if not discouraged_operator_ids:
             return tuple(candidate_operator_ids), None
-        return filtered_candidate_operator_ids, {
+        return tuple(candidate_operator_ids), {
             "applied": True,
             "reason": "generation_local_strategy_group_dominance",
             "recent_window_size": int(accepted_count),
@@ -1744,9 +1742,11 @@ class LLMOperatorController:
                 for group_id, count in strategy_group_counter.items()
                 if int(count) > 0
             },
-            "filtered_operator_ids": filtered_operator_ids,
+            "discouraged_operator_ids": discouraged_operator_ids,
+            "filtered_operator_ids": [],
             "original_candidate_operator_ids": list(candidate_operator_ids),
-            "effective_candidate_operator_ids": list(filtered_candidate_operator_ids),
+            "effective_candidate_operator_ids": list(candidate_operator_ids),
+            "advised_alternative_operator_ids": list(advised_candidate_operator_ids),
             "viable_alternative_operator_ids": list(viable_alternatives),
         }
 
@@ -1760,6 +1760,8 @@ class LLMOperatorController:
             "guardrail_reason_codes": list(guardrail.get("reason_codes", [])),
             "guardrail_threshold_profile": str(guardrail.get("threshold_profile", "")),
             "guardrail_filtered_operator_ids": list(guardrail.get("filtered_operator_ids", [])),
+            "guardrail_discouraged_operator_ids": list(guardrail.get("discouraged_operator_ids", [])),
+            "guardrail_soft_advice_operator_ids": list(guardrail.get("soft_advice_operator_ids", [])),
             "guardrail_viable_alternative_operator_ids": list(
                 guardrail.get("viable_alternative_operator_ids", [])
             ),
@@ -2196,11 +2198,16 @@ class LLMOperatorController:
     ) -> dict[str, Any] | None:
         active_dominance_guardrails = [guardrail for guardrail in dominance_guardrails if guardrail is not None]
         filtered_operator_ids = list(policy_snapshot.suppressed_operator_ids)
+        discouraged_operator_ids: list[str] = []
         for dominance_guardrail in active_dominance_guardrails:
             for operator_id in dominance_guardrail.get("filtered_operator_ids", []):
                 normalized = str(operator_id)
                 if normalized not in filtered_operator_ids:
                     filtered_operator_ids.append(normalized)
+            for operator_id in dominance_guardrail.get("discouraged_operator_ids", []):
+                normalized = str(operator_id)
+                if normalized not in discouraged_operator_ids:
+                    discouraged_operator_ids.append(normalized)
         reason_codes = list(policy_snapshot.reason_codes)
         for dominance_guardrail in active_dominance_guardrails:
             if dominance_guardrail.get("reason"):
@@ -2210,7 +2217,7 @@ class LLMOperatorController:
             if not active_dominance_guardrails
             else active_dominance_guardrails[-1]
         )
-        applied = bool(filtered_operator_ids or policy_snapshot.reset_active or active_dominance_guardrails)
+        applied = bool(filtered_operator_ids or discouraged_operator_ids or policy_snapshot.reset_active or active_dominance_guardrails)
         if not applied:
             return None
         return {
@@ -2227,6 +2234,9 @@ class LLMOperatorController:
                 else "policy_kernel"
             ),
             "filtered_operator_ids": filtered_operator_ids,
+            "discouraged_operator_ids": discouraged_operator_ids,
+            "soft_advice_operator_ids": discouraged_operator_ids,
+            "dominance_advice_active": bool(discouraged_operator_ids),
             "dominant_operator_id": (
                 str(primary_dominance_guardrail.get("dominant_operator_id", ""))
                 if primary_dominance_guardrail is not None
