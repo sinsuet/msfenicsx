@@ -90,3 +90,73 @@ def test_s3_spec_generates_twenty_component_case() -> None:
 
     assert case.case_meta["scenario_id"] == "s3_scale20"
     assert len(case.components) == 20
+
+
+def test_s4_optimization_specs_load_with_52_variables() -> None:
+    raw = load_optimization_spec(S4_RAW)
+    union = load_optimization_spec(S4_UNION)
+    llm = load_optimization_spec(S4_LLM)
+
+    assert raw.benchmark_source["template_path"] == "scenarios/templates/s4_dense25.yaml"
+    assert raw.evaluation_protocol["evaluation_spec_path"] == "scenarios/evaluation/s4_dense25_eval.yaml"
+    assert len(raw.design_variables) == 52
+    assert len(union.design_variables) == 52
+    assert len(llm.design_variables) == 52
+    assert _variable_ids(S4_RAW)[-4:] == ["c25_x", "c25_y", "sink_start", "sink_end"]
+
+
+def test_s4_registry_split_matches_active_ladder() -> None:
+    raw = load_optimization_spec(S4_RAW).to_dict()
+    union = load_optimization_spec(S4_UNION).to_dict()
+    llm = load_optimization_spec(S4_LLM).to_dict()
+
+    assert raw["algorithm"]["mode"] == "raw"
+    assert "operator_control" not in raw
+    assert union["operator_control"]["controller"] == "random_uniform"
+    assert union["operator_control"]["registry_profile"] == "primitive_clean"
+    assert tuple(union["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_clean")
+    assert llm["operator_control"]["controller"] == "llm"
+    assert llm["operator_control"]["registry_profile"] == "primitive_plus_assisted"
+    assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_plus_assisted")
+    assert llm["evaluation_protocol"]["legality_policy_id"] == "projection_plus_local_restore"
+
+
+def test_s4_profiles_resolve_algorithm_parameters() -> None:
+    raw = load_optimization_spec(S4_RAW)
+    union = load_optimization_spec(S4_UNION)
+
+    raw_algorithm = resolve_algorithm_config(S4_RAW, raw)
+    union_algorithm = resolve_algorithm_config(S4_UNION, union)
+
+    assert raw_algorithm["parameters"]["crossover"]["eta"] == 10
+    assert raw_algorithm["parameters"]["mutation"]["eta"] == 15
+    assert union_algorithm["parameters"]["crossover"]["eta"] == 10
+    assert union_algorithm["parameters"]["mutation"]["eta"] == 15
+
+
+def test_s4_evaluation_spec_has_expected_constraints() -> None:
+    spec = load_spec(S4_EVAL).to_dict()
+    constraint_ids = {constraint["constraint_id"] for constraint in spec["constraints"]}
+
+    assert [objective["metric"] for objective in spec["objectives"]] == [
+        "summary.temperature_max",
+        "summary.temperature_gradient_rms",
+    ]
+    assert {
+        "radiator_span_budget",
+        "c02_peak_temperature_limit",
+        "c04_peak_temperature_limit",
+        "c06_peak_temperature_limit",
+        "c12_peak_temperature_limit",
+        "c17_peak_temperature_limit",
+        "c21_peak_temperature_limit",
+        "panel_temperature_spread_limit",
+    } <= constraint_ids
+
+
+def test_s4_spec_generates_twenty_five_component_case() -> None:
+    spec = load_optimization_spec(S4_RAW)
+    case = generate_benchmark_case(S4_RAW, spec)
+
+    assert case.case_meta["scenario_id"] == "s4_dense25"
+    assert len(case.components) == 25
