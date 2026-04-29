@@ -15,6 +15,9 @@ from llm.openai_compatible.replay import replay_request_trace_file, save_replay_
 from optimizers.artifacts import write_optimization_artifacts
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
+from optimizers.matrix.aggregate import aggregate_matrix
+from optimizers.matrix.config import build_s5_s7_512eval_matrix
+from optimizers.matrix.runner import run_matrix_block
 from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
 from optimizers.run_manifest import write_run_manifest
@@ -94,6 +97,15 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser = subparsers.add_parser("compare-runs")
     compare_parser.add_argument("--run", required=True, action="append")
     compare_parser.add_argument("--output", required=True)
+
+    matrix_parser = subparsers.add_parser("run-benchmark-matrix")
+    matrix_parser.add_argument("--matrix-root", required=True)
+    matrix_parser.add_argument("--block-id", required=True)
+    matrix_parser.add_argument("--max-leaves", type=_positive_int, default=None)
+
+    matrix_aggregate_parser = subparsers.add_parser("aggregate-benchmark-matrix")
+    matrix_aggregate_parser.add_argument("--run-index", required=True)
+    matrix_aggregate_parser.add_argument("--output-root", required=True)
 
     return parser
 
@@ -285,6 +297,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "compare-runs":
         from optimizers.compare_runs import compare_runs
         compare_runs(runs=[Path(r) for r in args.run], output=Path(args.output))
+        return 0
+    if args.command == "run-benchmark-matrix":
+        run_matrix_block(
+            build_s5_s7_512eval_matrix(),
+            matrix_root=Path(args.matrix_root),
+            block_id=args.block_id,
+            max_leaves=args.max_leaves,
+        )
+        return 0
+    if args.command == "aggregate-benchmark-matrix":
+        aggregate_matrix(Path(args.run_index), output_root=Path(args.output_root))
         return 0
     parser.error(f"Unsupported command: {args.command}")
     return 0

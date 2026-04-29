@@ -1,0 +1,13 @@
+schema_version: '1.0'
+profile_id: s5_aggressive15_spea2_raw
+family: genetic
+backbone: spea2
+mode: raw
+parameters:
+  crossover:
+    operator: sbx
+    eta: 15
+    prob: 0.9
+  mutation:
+    operator: pm
+    eta: 20

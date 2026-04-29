@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 实现 S5-S7 512-evaluation 大规模 benchmark 矩阵所需的规格文件、matrix runner、失败补跑、统计聚合、可视化和代表 run 比较产物。
+**Goal:** 实现 S5-S7 512-evaluation 大规模 benchmark 矩阵所需的规格文件、matrix runner、失败补跑、统计聚合、可视化和代表 run 比较产物；正式矩阵使用 5 个 unified replicate seeds，`algorithm.seed = replicate_seed + 1000`。
 
 **Architecture:** 新增 `optimizers/matrix/` 作为矩阵层，专门负责任务展开、spec snapshot、run index、聚合、figure rendering 和 representative selection；现有 `optimizers.cli optimize-benchmark`、driver、artifact writer、render-assets 和 compare-runs 继续作为 leaf run 执行与产物生成层。场景 YAML 保持手写输入职责，新增 SPEA2/MOEA-D raw specs 只声明配置，不放业务逻辑。
 
@@ -316,25 +316,25 @@ def test_s5_s7_matrix_counts_and_blocks() -> None:
     assert matrix.matrix_id == "s5_s7_512eval"
     assert matrix.population_size == 32
     assert matrix.num_generations == 16
-    assert matrix.benchmark_seeds == (11, 17, 23)
-    assert matrix.algorithm_seeds == (101, 102, 103)
+    assert matrix.replicate_seeds == (11, 17, 23, 29, 31)
+    assert matrix.algorithm_seed_offset == 1000
 
     leaves = matrix.expand_leaves()
-    assert len(leaves) == 270
+    assert len(leaves) == 150
 
     counts = {}
     for leaf in leaves:
         counts[leaf.block_id] = counts.get(leaf.block_id, 0) + 1
 
     assert counts == {
-        "M1_raw_backbone_512eval": 81,
-        "M2_nsga2_union_512eval": 27,
-        "M3a_llm_gpt_5_4_512eval": 27,
-        "M3b_llm_qwen3_6_plus_512eval": 27,
-        "M3c_llm_glm_5_512eval": 27,
-        "M3d_llm_minimax_m2_5_512eval": 27,
-        "M3e_llm_deepseek_v4_flash_512eval": 27,
-        "M3f_llm_gemma4_512eval": 27,
+        "M1_raw_backbone_512eval": 45,
+        "M2_nsga2_union_512eval": 15,
+        "M3a_llm_gpt_5_4_512eval": 15,
+        "M3b_llm_qwen3_6_plus_512eval": 15,
+        "M3c_llm_glm_5_512eval": 15,
+        "M3d_llm_minimax_m2_5_512eval": 15,
+        "M3e_llm_deepseek_v4_flash_512eval": 15,
+        "M3f_llm_gemma4_512eval": 15,
     }
 
 
@@ -396,6 +396,7 @@ class MatrixLeaf:
     algorithm_backbone: str
     mode: ModeId
     llm_profile: str | None
+    replicate_seed: int
     benchmark_seed: int
     algorithm_seed: int
     population_size: int
@@ -411,8 +412,8 @@ class MatrixLeaf:
 class MatrixConfig:
     matrix_id: str
     scenarios: tuple[str, ...]
-    benchmark_seeds: tuple[int, ...]
-    algorithm_seeds: tuple[int, ...]
+    replicate_seeds: tuple[int, ...]
+    algorithm_seed_offset: int
     population_size: int
     num_generations: int
     llm_profiles: tuple[str, ...]
@@ -422,66 +423,66 @@ class MatrixConfig:
         leaves: list[MatrixLeaf] = []
         for scenario_id in self.scenarios:
             for backbone, family in (("nsga2", "genetic"), ("spea2", "genetic"), ("moead", "decomposition")):
-                for benchmark_seed in self.benchmark_seeds:
-                    for algorithm_seed in self.algorithm_seeds:
-                        leaves.append(
-                            MatrixLeaf(
-                                matrix_id=self.matrix_id,
-                                block_id="M1_raw_backbone_512eval",
-                                scenario_id=scenario_id,
-                                method_id=f"{backbone}_raw",
-                                algorithm_family=family,
-                                algorithm_backbone=backbone,
-                                mode="raw",
-                                llm_profile=None,
-                                benchmark_seed=benchmark_seed,
-                                algorithm_seed=algorithm_seed,
-                                population_size=self.population_size,
-                                num_generations=self.num_generations,
-                                base_spec_path=Path(f"scenarios/optimization/{scenario_id}_{backbone}_raw.yaml"),
-                            )
-                        )
-            for benchmark_seed in self.benchmark_seeds:
-                for algorithm_seed in self.algorithm_seeds:
+                for replicate_seed in self.replicate_seeds:
                     leaves.append(
                         MatrixLeaf(
                             matrix_id=self.matrix_id,
-                            block_id="M2_nsga2_union_512eval",
+                            block_id="M1_raw_backbone_512eval",
                             scenario_id=scenario_id,
-                            method_id="nsga2_union",
-                            algorithm_family="genetic",
-                            algorithm_backbone="nsga2",
-                            mode="union",
+                            method_id=f"{backbone}_raw",
+                            algorithm_family=family,
+                            algorithm_backbone=backbone,
+                            mode="raw",
                             llm_profile=None,
-                            benchmark_seed=benchmark_seed,
-                            algorithm_seed=algorithm_seed,
+                            replicate_seed=replicate_seed,
+                            benchmark_seed=replicate_seed,
+                            algorithm_seed=replicate_seed + self.algorithm_seed_offset,
                             population_size=self.population_size,
                             num_generations=self.num_generations,
-                            base_spec_path=Path(f"scenarios/optimization/{scenario_id}_union.yaml"),
+                            base_spec_path=Path(f"scenarios/optimization/{scenario_id}_{backbone}_raw.yaml"),
                         )
                     )
+            for replicate_seed in self.replicate_seeds:
+                leaves.append(
+                    MatrixLeaf(
+                        matrix_id=self.matrix_id,
+                        block_id="M2_nsga2_union_512eval",
+                        scenario_id=scenario_id,
+                        method_id="nsga2_union",
+                        algorithm_family="genetic",
+                        algorithm_backbone="nsga2",
+                        mode="union",
+                        llm_profile=None,
+                        replicate_seed=replicate_seed,
+                        benchmark_seed=replicate_seed,
+                        algorithm_seed=replicate_seed + self.algorithm_seed_offset,
+                        population_size=self.population_size,
+                        num_generations=self.num_generations,
+                        base_spec_path=Path(f"scenarios/optimization/{scenario_id}_union.yaml"),
+                    )
+                )
             for profile_index, llm_profile in enumerate(self.llm_profiles):
                 block_letter = chr(ord("a") + profile_index)
                 block_id = f"M3{block_letter}_llm_{llm_profile}_512eval"
-                for benchmark_seed in self.benchmark_seeds:
-                    for algorithm_seed in self.algorithm_seeds:
-                        leaves.append(
-                            MatrixLeaf(
-                                matrix_id=self.matrix_id,
-                                block_id=block_id,
-                                scenario_id=scenario_id,
-                                method_id=f"nsga2_llm_{llm_profile}",
-                                algorithm_family="genetic",
-                                algorithm_backbone="nsga2",
-                                mode="llm",
-                                llm_profile=llm_profile,
-                                benchmark_seed=benchmark_seed,
-                                algorithm_seed=algorithm_seed,
-                                population_size=self.population_size,
-                                num_generations=self.num_generations,
-                                base_spec_path=Path(f"scenarios/optimization/{scenario_id}_llm.yaml"),
-                            )
+                for replicate_seed in self.replicate_seeds:
+                    leaves.append(
+                        MatrixLeaf(
+                            matrix_id=self.matrix_id,
+                            block_id=block_id,
+                            scenario_id=scenario_id,
+                            method_id=f"nsga2_llm_{llm_profile}",
+                            algorithm_family="genetic",
+                            algorithm_backbone="nsga2",
+                            mode="llm",
+                            llm_profile=llm_profile,
+                            replicate_seed=replicate_seed,
+                            benchmark_seed=replicate_seed,
+                            algorithm_seed=replicate_seed + self.algorithm_seed_offset,
+                            population_size=self.population_size,
+                            num_generations=self.num_generations,
+                            base_spec_path=Path(f"scenarios/optimization/{scenario_id}_llm.yaml"),
                         )
+                    )
         return leaves
 ```
 
@@ -508,8 +509,8 @@ def build_s5_s7_512eval_matrix() -> MatrixConfig:
     return MatrixConfig(
         matrix_id="s5_s7_512eval",
         scenarios=("s5_aggressive15", "s6_aggressive20", "s7_aggressive25"),
-        benchmark_seeds=(11, 17, 23),
-        algorithm_seeds=(101, 102, 103),
+        replicate_seeds=(11, 17, 23, 29, 31),
+        algorithm_seed_offset=1000,
         population_size=32,
         num_generations=16,
         llm_profiles=(
@@ -567,14 +568,15 @@ def test_write_leaf_spec_snapshot_overrides_seed_budget_and_profile(tmp_path: Pa
     snapshot = write_leaf_spec_snapshot(leaf, tmp_path)
     payload = yaml.safe_load(snapshot.read_text(encoding="utf-8"))
 
-    assert snapshot.name == "s5_aggressive15__nsga2_llm_gpt_5_4__b11__a101.yaml"
+    assert snapshot.name == "s5_aggressive15__nsga2_llm_gpt_5_4__r11.yaml"
+    assert leaf.replicate_seed == 11
     assert payload["benchmark_source"]["seed"] == 11
-    assert payload["algorithm"]["seed"] == 101
+    assert payload["algorithm"]["seed"] == 1011
     assert payload["algorithm"]["population_size"] == 32
     assert payload["algorithm"]["num_generations"] == 16
     assert payload["operator_control"]["controller"] == "llm"
     assert payload["operator_control"]["controller_parameters"]["provider_profile"] == "gpt_5_4"
-    assert payload["spec_meta"]["spec_id"] == "s5_aggressive15_nsga2_llm_gpt_5_4_b11_a101"
+    assert payload["spec_meta"]["spec_id"] == "s5_aggressive15_nsga2_llm_gpt_5_4_r11"
 
 
 def test_write_leaf_spec_snapshot_keeps_raw_without_operator_control(tmp_path: Path) -> None:
@@ -587,7 +589,7 @@ def test_write_leaf_spec_snapshot_keeps_raw_without_operator_control(tmp_path: P
     assert payload["algorithm"]["family"] == "genetic"
     assert payload["algorithm"]["backbone"] == "spea2"
     assert payload["algorithm"]["mode"] == "raw"
-    assert payload["algorithm"]["seed"] == 101
+    assert payload["algorithm"]["seed"] == 1011
     assert "operator_control" not in payload
 ```
 
@@ -648,11 +650,11 @@ def _leaf_payload(leaf: MatrixLeaf, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _snapshot_filename(leaf: MatrixLeaf) -> str:
-    return f"{leaf.scenario_id}__{leaf.method_id}__b{leaf.benchmark_seed}__a{leaf.algorithm_seed}.yaml"
+    return f"{leaf.scenario_id}__{leaf.method_id}__r{leaf.replicate_seed}.yaml"
 
 
 def _snapshot_spec_id(leaf: MatrixLeaf) -> str:
-    return f"{leaf.scenario_id}_{leaf.method_id}_b{leaf.benchmark_seed}_a{leaf.algorithm_seed}"
+    return f"{leaf.scenario_id}_{leaf.method_id}_r{leaf.replicate_seed}"
 ```
 
 - [ ] **Step 4: 运行测试确认通过**
@@ -744,6 +746,7 @@ INDEX_COLUMNS = [
     "algorithm_backbone",
     "mode",
     "llm_profile",
+    "replicate_seed",
     "benchmark_seed",
     "algorithm_seed",
     "population_size",
@@ -779,7 +782,7 @@ def build_initial_index_rows(leaves: Iterable[MatrixLeaf], *, matrix_root: str |
     root = Path(matrix_root)
     rows: list[dict[str, str]] = []
     for leaf in leaves:
-        run_root = root / leaf.block_id / leaf.scenario_id / leaf.method_id / f"b{leaf.benchmark_seed}" / f"a{leaf.algorithm_seed}" / "attempt-1"
+        run_root = root / leaf.block_id / leaf.scenario_id / leaf.method_id / f"r{leaf.replicate_seed}" / "attempt-1"
         rows.append(_row_for_leaf(leaf, run_root=run_root, attempt=1, previous_attempt=""))
     return rows
 
@@ -834,6 +837,7 @@ def _row_for_leaf(leaf: MatrixLeaf, *, run_root: Path, attempt: int, previous_at
         "algorithm_backbone": leaf.algorithm_backbone,
         "mode": leaf.mode,
         "llm_profile": "" if leaf.llm_profile is None else leaf.llm_profile,
+        "replicate_seed": str(leaf.replicate_seed),
         "benchmark_seed": str(leaf.benchmark_seed),
         "algorithm_seed": str(leaf.algorithm_seed),
         "population_size": str(leaf.population_size),
@@ -1160,15 +1164,15 @@ def _leaves_for_retry_rows(matrix: MatrixConfig, rows: Iterable[dict[str, str]])
     return [leaves[_row_key(row)] for row in rows]
 
 
-def _leaf_key(leaf: MatrixLeaf) -> tuple[str, str, str, str, str]:
-    return (leaf.block_id, leaf.scenario_id, leaf.method_id, str(leaf.benchmark_seed), str(leaf.algorithm_seed))
+def _leaf_key(leaf: MatrixLeaf) -> tuple[str, str, str, str]:
+    return (leaf.block_id, leaf.scenario_id, leaf.method_id, str(leaf.replicate_seed))
 
 
-def _row_key(row: dict[str, str]) -> tuple[str, str, str, str, str]:
+def _row_key(row: dict[str, str]) -> tuple[str, str, str, str]:
     block_id = row["block_id"]
     if block_id == "M4_rerun_failed_512eval":
         block_id = _source_block_for_method(row["method_id"])
-    return (block_id, row["scenario_id"], row["method_id"], row["benchmark_seed"], row["algorithm_seed"])
+    return (block_id, row["scenario_id"], row["method_id"], row["replicate_seed"])
 
 
 def _source_block_for_method(method_id: str) -> str:
@@ -1269,12 +1273,12 @@ def test_summarize_outcomes_reports_median_iqr_mean_std_and_feasible_rate() -> N
     assert item["feasible_rate"] == 2 / 3
 
 
-def test_paired_differences_aggregate_algorithm_seeds_within_benchmark_seed() -> None:
+def test_paired_differences_compare_matched_replicate_seeds() -> None:
     rows = [
-        {"scenario_id": "s5", "method_id": "raw", "benchmark_seed": "11", "algorithm_seed": "101", "best_temperature_max": "10"},
-        {"scenario_id": "s5", "method_id": "raw", "benchmark_seed": "11", "algorithm_seed": "102", "best_temperature_max": "12"},
-        {"scenario_id": "s5", "method_id": "union", "benchmark_seed": "11", "algorithm_seed": "101", "best_temperature_max": "8"},
-        {"scenario_id": "s5", "method_id": "union", "benchmark_seed": "11", "algorithm_seed": "102", "best_temperature_max": "10"},
+        {"scenario_id": "s5", "method_id": "raw", "replicate_seed": "11", "best_temperature_max": "10"},
+        {"scenario_id": "s5", "method_id": "raw", "replicate_seed": "17", "best_temperature_max": "12"},
+        {"scenario_id": "s5", "method_id": "union", "replicate_seed": "11", "best_temperature_max": "8"},
+        {"scenario_id": "s5", "method_id": "union", "replicate_seed": "17", "best_temperature_max": "10"},
     ]
 
     diffs = paired_differences(rows, baseline_method="raw", candidate_method="union", metric="best_temperature_max")
@@ -1282,13 +1286,22 @@ def test_paired_differences_aggregate_algorithm_seeds_within_benchmark_seed() ->
     assert diffs == [
         {
             "scenario_id": "s5",
-            "benchmark_seed": "11",
+            "replicate_seed": "11",
             "baseline_method": "raw",
             "candidate_method": "union",
-            "baseline_mean": 11.0,
-            "candidate_mean": 9.0,
+            "baseline_value": 10.0,
+            "candidate_value": 8.0,
             "difference": -2.0,
-        }
+        },
+        {
+            "scenario_id": "s5",
+            "replicate_seed": "17",
+            "baseline_method": "raw",
+            "candidate_method": "union",
+            "baseline_value": 12.0,
+            "candidate_value": 10.0,
+            "difference": -2.0,
+        },
     ]
 ```
 
@@ -1353,33 +1366,33 @@ def paired_differences(
     candidate_method: str,
     metric: str,
 ) -> list[dict[str, float | str]]:
-    grouped: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    values: dict[tuple[str, str, str], float] = {}
     for row in rows:
         if row["method_id"] not in {baseline_method, candidate_method}:
             continue
         value = str(row.get(metric, "")).strip()
         if not value:
             continue
-        key = (row["scenario_id"], row["benchmark_seed"], row["method_id"])
-        grouped[key].append(float(value))
+        key = (row["scenario_id"], row["replicate_seed"], row["method_id"])
+        values[key] = float(value)
     outputs: list[dict[str, float | str]] = []
-    scenario_seed_pairs = sorted({(scenario_id, seed) for scenario_id, seed, _ in grouped})
-    for scenario_id, benchmark_seed in scenario_seed_pairs:
-        baseline_values = grouped.get((scenario_id, benchmark_seed, baseline_method), [])
-        candidate_values = grouped.get((scenario_id, benchmark_seed, candidate_method), [])
-        if not baseline_values or not candidate_values:
+    scenario_seed_pairs = sorted({(scenario_id, seed) for scenario_id, seed, _ in values})
+    for scenario_id, replicate_seed in scenario_seed_pairs:
+        baseline_key = (scenario_id, replicate_seed, baseline_method)
+        candidate_key = (scenario_id, replicate_seed, candidate_method)
+        if baseline_key not in values or candidate_key not in values:
             continue
-        baseline_mean = float(mean(baseline_values))
-        candidate_mean = float(mean(candidate_values))
+        baseline_value = values[baseline_key]
+        candidate_value = values[candidate_key]
         outputs.append(
             {
                 "scenario_id": scenario_id,
-                "benchmark_seed": benchmark_seed,
+                "replicate_seed": replicate_seed,
                 "baseline_method": baseline_method,
                 "candidate_method": candidate_method,
-                "baseline_mean": baseline_mean,
-                "candidate_mean": candidate_mean,
-                "difference": candidate_mean - baseline_mean,
+                "baseline_value": baseline_value,
+                "candidate_value": candidate_value,
+                "difference": candidate_value - baseline_value,
             }
         )
     return outputs

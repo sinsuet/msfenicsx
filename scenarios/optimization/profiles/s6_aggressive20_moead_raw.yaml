@@ -1,0 +1,11 @@
+schema_version: '1.0'
+profile_id: s6_aggressive20_moead_raw
+family: decomposition
+backbone: moead
+mode: raw
+parameters:
+  reference_directions:
+    scheme: energy
+  neighbors:
+    strategy: half_population
+    min_size: 2

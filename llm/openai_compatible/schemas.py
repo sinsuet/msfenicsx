@@ -26,5 +26,5 @@ def build_operator_decision_schema(candidate_operator_ids: Sequence[str]) -> dic
                 "type": "string",
             },
         },
-        "required": ["selected_operator_id", "phase", "rationale"],
+        "required": ["selected_operator_id"],
     }

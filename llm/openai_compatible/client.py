@@ -329,12 +329,11 @@ class OpenAICompatibleClient:
                 normalized_prompt = f"{normalized_prompt}{suffix}"
         return (
             f"{normalized_prompt.rstrip()} "
-            "Return exactly one JSON object with the keys selected_operator_id, phase, rationale, "
-            "and optional selected_intent. "
+            "Return exactly one JSON object. "
+            "Required key: selected_operator_id. Optional keys: phase, rationale, selected_intent. "
             f"The selected_operator_id value must exactly equal one of {list(candidate_operator_ids)}. "
-            "If selected_intent is present, keep it short and route-like. "
-            "Set phase to a short search-phase label when available. "
-            "Set rationale to a brief explanation of the operator choice."
+            "If rationale is present, keep it under 12 words. "
+            "If selected_intent is present, keep it short and route-like."
         )
 
     @staticmethod
@@ -354,9 +353,10 @@ class OpenAICompatibleClient:
         return (
             f"{system_prompt.rstrip()} "
             "Previous response was invalid. "
-            "It must return JSON only with the keys selected_operator_id, phase, rationale, "
-            "and optional selected_intent. "
+            "It must return JSON only. Required key: selected_operator_id. "
+            "Optional keys: phase, rationale, selected_intent. "
             f"The selected_operator_id value must exactly equal one of {list(operator_ids)}. "
+            "If rationale is present, keep it under 12 words. "
             f"Invalid reason: {error_message}"
         )
 

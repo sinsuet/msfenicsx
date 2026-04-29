@@ -1998,17 +1998,20 @@ def test_llm_controller_builds_semantic_operator_prompt_and_metadata() -> None:
     assert decision.selected_operator_id == "move_hottest_cluster_toward_sink"
     assert client.last_kwargs is not None
     system_prompt = str(client.last_kwargs["system_prompt"])
-    assert "move_hottest_cluster_toward_sink" in system_prompt
-    assert "repair_sink_budget" in system_prompt
     assert "hot_pair" not in system_prompt
     assert "battery" not in system_prompt
 
     user_payload = json.loads(str(client.last_kwargs["user_prompt"]))
+    assert "move_hottest_cluster_toward_sink" in user_payload["candidate_operator_ids"]
+    assert "repair_sink_budget" in user_payload["candidate_operator_ids"]
     metadata = user_payload["metadata"]
     assert metadata["prompt_panels"]["run_panel"]["peak_temperature"] == pytest.approx(344.8)
     assert metadata["prompt_panels"]["run_panel"]["temperature_gradient_rms"] == pytest.approx(8.7)
     assert metadata["prompt_panels"]["regime_panel"]["phase"] == "post_feasible_expand"
-    assert metadata["prompt_panels"]["operator_panel"]["move_hottest_cluster_toward_sink"]["preserve_fit"] == "trusted"
+    operator_panel = metadata["prompt_panels"]["operator_panel"]
+    preserve_fit_index = operator_panel["columns"].index("preserve_fit")
+    operator_rows = {row[0]: row for row in operator_panel["rows"]}
+    assert operator_rows["move_hottest_cluster_toward_sink"][preserve_fit_index] == "trusted"
     assert "run_state" not in metadata
     assert "parent_state" not in metadata
     assert "archive_state" not in metadata
@@ -3838,3 +3841,463 @@ def test_llm_controller_request_trace_keeps_soft_advice_route_families_visible_w
     assert "sink_retarget" in request_entry["visible_route_families"]
     assert "congestion_relief" in request_entry["visible_route_families"]
     assert "post_feasible_recover_gradient_escape_floor" in request_entry["policy_reason_codes"]
+
+
+def test_llm_system_prompt_stays_compact_for_primitive_pool() -> None:
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model": "test-model",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 128,
+        },
+        client=object(),
+    )
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=5,
+        evaluation_index=51,
+        parent_count=2,
+        vector_size=32,
+        metadata={"search_phase": "feasible_refine"},
+    )
+    policy_snapshot = PolicySnapshot(
+        phase="post_feasible_preserve",
+        allowed_operator_ids=(
+            "vector_sbx_pm",
+            "component_jitter_1",
+            "anchored_component_jitter",
+            "component_relocate_1",
+            "component_swap_2",
+            "sink_shift",
+            "sink_resize",
+            "component_block_translate_2_4",
+            "component_subspace_sbx",
+        ),
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=(),
+        candidate_annotations={},
+    )
+
+    prompt = controller._build_system_prompt(
+        state,
+        policy_snapshot.allowed_operator_ids,
+        policy_snapshot=policy_snapshot,
+        guardrail=None,
+    )
+
+    assert len(prompt) < 1800
+    assert "Intent menu:" not in prompt
+    assert "Candidate operator intents:" not in prompt
+    assert "metadata.intent_panel" in prompt
+    assert "metadata.decision_axes" in prompt
+
+
+def test_s5_style_primitive_prompt_stays_under_budget() -> None:
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=6,
+        evaluation_index=118,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "evaluations_used": 117,
+                "evaluations_remaining": 83,
+                "feasible_rate": 0.42,
+                "first_feasible_eval": 31,
+                "peak_temperature": 341.2,
+                "temperature_gradient_rms": 8.4,
+                "sink_span": 0.33,
+                "sink_budget_utilization": 0.94,
+                "pareto_size": 6,
+            },
+            "progress_state": {
+                "first_feasible_found": True,
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_frontier_stagnation_count": 4,
+            },
+            "prompt_panels": {
+                "run_panel": {
+                    "evaluations_used": 117,
+                    "evaluations_remaining": 83,
+                    "feasible_rate": 0.42,
+                    "first_feasible_eval": 31,
+                    "peak_temperature": 341.2,
+                    "temperature_gradient_rms": 8.4,
+                    "sink_span": 0.33,
+                    "sink_budget_utilization": 0.94,
+                    "pareto_size": 6,
+                },
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "preservation_pressure": "medium",
+                    "frontier_pressure": "high",
+                    "objective_balance": {
+                        "balance_pressure": "high",
+                        "preferred_effect": "peak_improve",
+                        "stagnant_objectives": ["temperature_max", "gradient_rms"],
+                        "improving_objectives": [],
+                    },
+                },
+                "parent_panel": {
+                    "closest_to_feasible_parent": {
+                        "evaluation_index": 111,
+                        "feasible": True,
+                        "total_violation": 0.0,
+                        "dominant_violation": None,
+                        "objective_values": {
+                            "summary.temperature_max": 341.2,
+                            "summary.temperature_gradient_rms": 8.4,
+                        },
+                        "sink_span": 0.33,
+                        "sink_budget_utilization": 0.94,
+                    },
+                    "strongest_feasible_parent": {
+                        "evaluation_index": 109,
+                        "feasible": True,
+                        "total_violation": 0.0,
+                        "dominant_violation": None,
+                        "objective_values": {
+                            "summary.temperature_max": 342.0,
+                            "summary.temperature_gradient_rms": 8.1,
+                        },
+                        "sink_span": 0.31,
+                        "sink_budget_utilization": 0.89,
+                    },
+                },
+                "generation_panel": {
+                    "accepted_count": 5,
+                    "target_offsprings": 10,
+                    "accepted_share": 0.5,
+                    "dominant_operator_id": "component_block_translate_2_4",
+                    "dominant_operator_count": 2,
+                    "dominant_operator_share": 0.4,
+                    "dominant_operator_streak": 1,
+                    "route_family_counts": {
+                        "native_baseline": 1,
+                        "structured_block_reposition": 2,
+                        "structured_subspace_recombine": 1,
+                    },
+                },
+                "spatial_panel": {
+                    "hotspot_to_sink_offset": 0.18,
+                    "hotspot_inside_sink_window": False,
+                    "hottest_cluster_compactness": 0.71,
+                    "nearest_neighbor_gap_min": 0.04,
+                    "sink_budget_bucket": "near_limit",
+                },
+                "retrieval_panel": {
+                    "query_regime": {
+                        "phase": "post_feasible_expand",
+                        "preferred_effect": "peak_improve",
+                    },
+                    "positive_match_families": ["structured_block_reposition", "sink_retarget"],
+                    "negative_match_families": ["native_baseline"],
+                    "visibility_floor_families": ["structured_block_reposition"],
+                    "route_family_credit": {
+                        "positive_families": ["structured_block_reposition"],
+                        "negative_families": ["native_baseline"],
+                        "handoff_families": [],
+                    },
+                    "positive_matches": [
+                        {
+                            "operator_id": "component_block_translate_2_4",
+                            "route_family": "structured_block_reposition",
+                            "similarity_score": 7,
+                            "evidence": {
+                                "frontier_add_count": 3,
+                                "feasible_regression_count": 1,
+                                "feasible_preservation_count": 6,
+                                "penalty_event_count": 0,
+                            },
+                        },
+                        {
+                            "operator_id": "sink_shift",
+                            "route_family": "sink_retarget",
+                            "similarity_score": 5,
+                            "evidence": {
+                                "frontier_add_count": 2,
+                                "feasible_regression_count": 2,
+                                "feasible_preservation_count": 5,
+                                "penalty_event_count": 1,
+                            },
+                        },
+                    ],
+                    "negative_matches": [
+                        {
+                            "operator_id": "vector_sbx_pm",
+                            "route_family": "native_baseline",
+                            "similarity_score": 4,
+                            "evidence": {
+                                "frontier_add_count": 0,
+                                "feasible_regression_count": 4,
+                                "feasible_preservation_count": 2,
+                                "penalty_event_count": 1,
+                            },
+                        }
+                    ],
+                },
+                "operator_panel": {
+                    operator_id: {
+                        "applicability": "high" if operator_id != "vector_sbx_pm" else "medium",
+                        "entry_fit": "supported",
+                        "preserve_fit": "trusted" if operator_id != "component_relocate_1" else "supported",
+                        "expand_fit": "supported" if operator_id != "component_jitter_1" else "weak",
+                        "frontier_evidence": "positive" if operator_id in {"component_block_translate_2_4", "component_subspace_sbx"} else "limited",
+                        "expected_peak_effect": "improve" if operator_id != "component_jitter_1" else "neutral",
+                        "expected_gradient_effect": "neutral" if operator_id != "component_subspace_sbx" else "diversify",
+                        "expected_feasibility_risk": "low" if operator_id != "component_relocate_1" else "medium",
+                        "recent_regression_risk": "low" if operator_id != "sink_resize" else "medium",
+                        "role": "shared_primitive",
+                        "post_feasible_role": "expand",
+                        "expand_budget_status": "available",
+                        "count_only_noise": {"large_unused_blob": list(range(20))},
+                    }
+                    for operator_id in (
+                        "vector_sbx_pm",
+                        "component_jitter_1",
+                        "anchored_component_jitter",
+                        "component_relocate_1",
+                        "component_swap_2",
+                        "sink_shift",
+                        "sink_resize",
+                        "component_block_translate_2_4",
+                        "component_subspace_sbx",
+                    )
+                },
+            },
+        },
+    )
+    candidates = tuple(state.metadata["prompt_panels"]["operator_panel"])
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model": "test-model",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 128,
+        },
+        client=object(),
+    )
+    policy_snapshot = PolicySnapshot(
+        phase="post_feasible_expand",
+        allowed_operator_ids=candidates,
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=("post_feasible_expand",),
+        candidate_annotations={},
+    )
+
+    system_prompt = controller._build_system_prompt(
+        state,
+        candidates,
+        policy_snapshot=policy_snapshot,
+        guardrail=None,
+    )
+    user_prompt = controller._build_user_prompt(
+        state,
+        candidates,
+        original_candidate_operator_ids=candidates,
+        policy_snapshot=policy_snapshot,
+        guardrail=None,
+    )
+
+    assert len(system_prompt) < 1800
+    assert len(system_prompt) + len(user_prompt) < 9000
+    assert "large_unused_blob" not in user_prompt
+    assert "Candidate operator intents:" not in system_prompt
+
+
+def test_llm_request_trace_records_prompt_size_fields(tmp_path: Path) -> None:
+    controller_trace_path = tmp_path / "controller_trace.jsonl"
+    request_trace_path = tmp_path / "llm_request_trace.jsonl"
+    response_trace_path = tmp_path / "llm_response_trace.jsonl"
+    prompt_store = PromptStore(tmp_path / "prompts")
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model": "test-model",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 128,
+        },
+        client=object(),
+    )
+    controller.configure_trace_outputs(
+        controller_trace_path=controller_trace_path,
+        llm_request_trace_path=request_trace_path,
+        llm_response_trace_path=response_trace_path,
+        prompt_store=prompt_store,
+    )
+
+    controller._emit_controller_trace(
+        decision_id="g001-e0001-d00",
+        phase="post_feasible_preserve",
+        operator_selected="component_jitter_1",
+        operator_pool_snapshot=["component_jitter_1"],
+        input_state_digest="abc123",
+        system_prompt="system text",
+        user_prompt="user text",
+        response_body='{"selected_operator_id":"component_jitter_1"}',
+        rationale="",
+        fallback_used=False,
+        latency_ms=12.0,
+        http_status=200,
+        retries=0,
+        tokens={},
+        finish_reason="stop",
+        request_surface={"generation_index": 1},
+        response_surface={"fallback_used": False},
+    )
+
+    request_row = json.loads(request_trace_path.read_text(encoding="utf-8").splitlines()[0])
+    assert request_row["prompt_size"]["system_chars"] == len("system text")
+    assert request_row["prompt_size"]["user_chars"] == len("user text")
+    assert request_row["prompt_size"]["total_chars"] == len("system text") + len("user text")
+
+
+def test_post_feasible_mild_regression_stagnation_promotes_expand_with_exposure_priority() -> None:
+    from optimizers.operator_pool.policy_kernel import build_policy_snapshot
+
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=7,
+        evaluation_index=140,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "run_state": {"first_feasible_eval": 13},
+            "archive_state": {
+                "pareto_size": 1,
+                "recent_feasible_regression_count": 1,
+                "recent_feasible_preservation_count": 0,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "first_feasible_found": True,
+                "post_feasible_mode": "preserve",
+                "preserve_dwell_remaining": 0,
+                "recent_frontier_stagnation_count": 3,
+                "diversity_deficit_level": "high",
+            },
+            "recent_decisions": [
+                {
+                    "selected_operator_id": "component_jitter_1" if index < 6 else "component_swap_2",
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for index in range(8)
+            ],
+        },
+    )
+
+    snapshot = build_policy_snapshot(
+        state,
+        (
+            "component_jitter_1",
+            "component_swap_2",
+            "sink_shift",
+            "sink_resize",
+            "component_block_translate_2_4",
+            "component_subspace_sbx",
+        ),
+    )
+
+    assert snapshot.phase == "post_feasible_expand"
+    assert "post_feasible_bounded_exploration_exposure" in snapshot.reason_codes
+    assert snapshot.candidate_annotations["component_block_translate_2_4"]["exposure_priority"] == "structured_underexposed"
+    assert snapshot.candidate_annotations["component_subspace_sbx"]["exposure_priority"] == "structured_underexposed"
+    assert snapshot.candidate_annotations["sink_shift"]["exposure_priority"] == "sink_underexposed"
+    assert snapshot.candidate_annotations["component_jitter_1"]["exposure_status"] == "local_cleanup_cooldown"
+
+
+def test_decision_axes_surface_bounded_exploration_exposure_targets() -> None:
+    axes = LLMOperatorController._build_decision_axes(
+        {
+            "candidate_operator_ids": [
+                "component_jitter_1",
+                "sink_shift",
+                "component_block_translate_2_4",
+                "component_subspace_sbx",
+            ],
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "preservation_pressure": "medium",
+                    "frontier_pressure": "high",
+                },
+                "operator_panel": {
+                    "component_jitter_1": {
+                        "applicability": "high",
+                        "expected_peak_effect": "improve",
+                        "expected_feasibility_risk": "low",
+                        "exposure_status": "local_cleanup_cooldown",
+                    },
+                    "sink_shift": {
+                        "applicability": "medium",
+                        "expected_peak_effect": "improve",
+                        "expected_feasibility_risk": "low",
+                        "exposure_priority": "sink_underexposed",
+                    },
+                    "component_block_translate_2_4": {
+                        "applicability": "medium",
+                        "expected_peak_effect": "improve",
+                        "expected_feasibility_risk": "high",
+                        "exposure_priority": "structured_underexposed",
+                    },
+                    "component_subspace_sbx": {
+                        "applicability": "medium",
+                        "expected_gradient_effect": "diversify",
+                        "expected_feasibility_risk": "low",
+                        "exposure_priority": "structured_underexposed",
+                    },
+                },
+                "spatial_panel": {},
+            },
+        }
+    )
+
+    assert axes["exploration_exposure_mode"] == "bounded_repeat"
+    assert axes["bounded_exploration_targets"] == [
+        "sink_shift",
+        "component_block_translate_2_4",
+        "component_subspace_sbx",
+    ]
+    assert axes["local_cleanup_cooldown_targets"] == ["component_jitter_1"]
+    assert "component_block_translate_2_4" in axes["shared_primitive_trial_candidates"]
+
+
+def test_shared_primitive_exposure_priority_overrides_sparse_low_success_filter() -> None:
+    candidates = LLMOperatorController._build_shared_primitive_trial_candidates(
+        {
+            "component_block_translate_2_4": {
+                "applicability": "medium",
+                "expected_feasibility_risk": "high",
+                "post_feasible_selection_count": 4,
+                "post_feasible_success_count": 0,
+                "post_feasible_success_rate": 0.0,
+                "frontier_evidence": "limited",
+                "exposure_priority": "structured_underexposed",
+            },
+            "component_subspace_sbx": {
+                "applicability": "medium",
+                "expected_feasibility_risk": "low",
+                "frontier_evidence": "positive",
+            },
+        },
+        preferred_effect="peak_improve",
+        frontier_score=3,
+    )
+
+    assert candidates == ["component_block_translate_2_4", "component_subspace_sbx"]

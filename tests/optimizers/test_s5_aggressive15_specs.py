@@ -51,6 +51,7 @@ def test_s5_registry_split_uses_structured_primitives_for_union_and_llm() -> Non
     assert llm["operator_control"]["registry_profile"] == "primitive_structured"
     assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_structured")
     assert llm["operator_control"]["operator_pool"] == union["operator_control"]["operator_pool"]
+    assert llm["operator_control"]["controller_parameters"]["max_output_tokens"] == 128
     assert llm["evaluation_protocol"] == union["evaluation_protocol"]
 
 

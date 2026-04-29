@@ -414,7 +414,139 @@ def test_prompt_projection_compacts_large_parent_retrieval_and_annotation_payloa
     assert set(first_positive["evidence"]) == {"frontier_add_count", "feasible_regression_count", "penalty_event_count"}
     operator_row = payload["prompt_panels"]["operator_panel"]["native_sbx_pm"]
     assert operator_row["role"] == "native_baseline"
-    assert operator_row["route_cooldown_active"] is False
     assert operator_row["expand_budget_status"] == "preferred"
-    assert operator_row["recent_expand_frontier_add_count"] == 2
+    assert "route_cooldown_active" not in operator_row
+    assert "recent_expand_frontier_add_count" not in operator_row
     assert payload["phase_policy"]["candidate_annotations"] == {}
+
+
+def test_post_feasible_operator_panel_projects_compact_decision_rows() -> None:
+    prompt_projection = _prompt_projection_module()
+    state = _post_feasible_state()
+    state.metadata["prompt_panels"]["operator_panel"]["repair_sink_budget"].update(
+        {
+            "dominant_violation_relief": "supported",
+            "dominant_violation_relief_count": 4,
+            "entry_evidence_level": "trusted",
+            "evidence_level": "trusted",
+            "feasible_entry_count": 3,
+            "feasible_preservation_count": 8,
+            "feasible_regression_count": 1,
+            "operator_family": "primitive_sink",
+            "pareto_contribution_count": 2,
+            "post_feasible_role": "trusted_preserve",
+            "recent_expand_feasible_preservation_count": 4,
+            "recent_expand_feasible_regression_count": 1,
+            "recent_expand_frontier_add_count": 2,
+            "role": "sink_resize",
+            "route_cooldown_active": False,
+        }
+    )
+
+    payload = prompt_projection.build_prompt_projection(
+        state,
+        candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        original_candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        policy_snapshot=_policy_snapshot("post_feasible_expand"),
+        guardrail=None,
+    )
+
+    row = payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]
+    assert row == {
+        "applicability": "medium",
+        "entry_fit": "supported",
+        "preserve_fit": "trusted",
+        "expand_fit": "trusted",
+        "frontier_evidence": "positive",
+        "expected_peak_effect": "neutral",
+        "expected_gradient_effect": "neutral",
+        "expected_feasibility_risk": "low",
+        "role": "sink_resize",
+        "post_feasible_role": "trusted_preserve",
+    }
+
+
+def test_post_feasible_projection_omits_false_and_count_only_annotation_noise() -> None:
+    prompt_projection = _prompt_projection_module()
+    state = _post_feasible_state()
+    policy_snapshot = PolicySnapshot(
+        phase="post_feasible_expand",
+        allowed_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=(),
+        candidate_annotations={
+            "repair_sink_budget": {
+                "operator_family": "primitive_sink",
+                "role": "sink_resize",
+                "evidence_level": "trusted",
+                "post_feasible_role": "trusted_preserve",
+                "feasible_entry_count": 1,
+                "feasible_preservation_count": 3,
+                "feasible_regression_count": 0,
+                "pareto_contribution_count": 1,
+                "route_budget_state": {"cooldown_active": False},
+                "expand_budget_state": {
+                    "expand_budget_status": "preferred",
+                    "recent_expand_frontier_add_count": 2,
+                    "recent_expand_feasible_preservation_count": 2,
+                    "recent_expand_feasible_regression_count": 0,
+                },
+            }
+        },
+    )
+
+    payload = prompt_projection.build_prompt_projection(
+        state,
+        candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        original_candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        policy_snapshot=policy_snapshot,
+        guardrail=None,
+    )
+
+    row = payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]
+    assert row["expand_budget_status"] == "preferred"
+    assert row["role"] == "sink_resize"
+    assert row["post_feasible_role"] == "trusted_preserve"
+    assert "route_cooldown_active" not in row
+    assert "feasible_entry_count" not in row
+    assert "feasible_preservation_count" not in row
+    assert "feasible_regression_count" not in row
+    assert "pareto_contribution_count" not in row
+    assert "recent_expand_frontier_add_count" not in row
+    assert "recent_expand_feasible_preservation_count" not in row
+    assert "recent_expand_feasible_regression_count" not in row
+
+
+def test_post_feasible_operator_panel_preserves_exposure_fields() -> None:
+    prompt_projection = _prompt_projection_module()
+    state = _post_feasible_state()
+    policy_snapshot = PolicySnapshot(
+        phase="post_feasible_expand",
+        allowed_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=("post_feasible_bounded_exploration_exposure",),
+        candidate_annotations={
+            "native_sbx_pm": {"operator_family": "native_baseline"},
+            "repair_sink_budget": {
+                "operator_family": "primitive_sink",
+                "role": "sink_resize",
+                "post_feasible_role": "supported_expand",
+                "exposure_priority": "sink_underexposed",
+                "exposure_status": "local_cleanup_cooldown",
+            },
+        },
+    )
+
+    payload = prompt_projection.build_prompt_projection(
+        state,
+        candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        original_candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        policy_snapshot=policy_snapshot,
+        guardrail=None,
+    )
+
+    row = payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]
+    assert row["exposure_priority"] == "sink_underexposed"
+    assert row["exposure_status"] == "local_cleanup_cooldown"

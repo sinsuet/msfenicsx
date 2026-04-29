@@ -122,6 +122,21 @@ def test_bundled_profiles_support_default_profile_via_gpt_env(
     }
 
 
+def test_bundled_profiles_support_explicit_gpt_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GPT_PROXY_API_KEY", "bundled-gpt-key")
+    monkeypatch.setenv("GPT_PROXY_BASE_URL", "https://gpt.example/v1")
+
+    overlay = load_provider_profile_overlay("gpt")
+
+    assert overlay == {
+        "LLM_API_KEY": "bundled-gpt-key",
+        "LLM_BASE_URL": "https://gpt.example/v1",
+        "LLM_MODEL": "gpt-5.4",
+    }
+
+
 @pytest.mark.parametrize(
     ("profile_id", "expected_model", "exports_enable_thinking_false"),
     [
@@ -180,21 +195,6 @@ def test_bundled_gemma4_placeholder_uses_model_named_env_pair(
     }
 
 
-def test_bundled_gpt_profile_uses_explicit_gpt_proxy_env_pair(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("GPT_PROXY_API_KEY", "bundled-gpt-key")
-    monkeypatch.setenv("GPT_PROXY_BASE_URL", "https://gpt.example/v1")
-
-    overlay = load_provider_profile_overlay("gpt")
-
-    assert overlay == {
-        "LLM_API_KEY": "bundled-gpt-key",
-        "LLM_BASE_URL": "https://gpt.example/v1",
-        "LLM_MODEL": "gpt-5.4",
-    }
-
-
 @pytest.mark.parametrize("profile_id", ["claude", "qwen"])
 def test_bundled_profiles_reject_legacy_provider_style_profile_ids(profile_id: str) -> None:
     with pytest.raises(ValueError, match="Unknown LLM profile"):
@@ -217,21 +217,13 @@ def test_bundled_profiles_reject_non_selected_coding_plan_models(profile_id: str
         load_provider_profile_overlay(profile_id)
 
 
-def test_env_example_documents_profile_runtime_routes() -> None:
-    env_example = Path(".env.example")
+def test_bundled_profile_registry_keeps_gpt_as_default_and_qwen_explicit() -> None:
+    registry = yaml.safe_load(Path("llm/openai_compatible/profiles.yaml").read_text(encoding="utf-8"))
 
-    text = env_example.read_text(encoding="utf-8")
-
-    for expected in [
-        "GPT_PROXY_API_KEY=",
-        "GPT_PROXY_BASE_URL=",
-        "QWEN_PROXY_API_KEY=",
-        "QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1",
-        "DEEPSEEK_PROXY_API_KEY=",
-        "DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1",
-        "GEMMA4_API_KEY=",
-        "GEMMA4_BASE_URL=",
-    ]:
-        assert expected in text
-    assert "DEEPSEEK_V4_FLASH_API_KEY" not in text
-    assert "DEEPSEEK_V4_FLASH_BASE_URL" not in text
+    assert registry["profiles"]["default"] == {
+        "source_api_key_env_var": "GPT_PROXY_API_KEY",
+        "source_base_url_env_var": "GPT_PROXY_BASE_URL",
+        "model": "gpt-5.4",
+    }
+    assert registry["profiles"]["gpt"] == registry["profiles"]["default"]
+    assert registry["profiles"]["qwen3_6_plus"]["source_api_key_env_var"] == "QWEN_PROXY_API_KEY"

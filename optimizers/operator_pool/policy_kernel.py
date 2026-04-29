@@ -90,6 +90,17 @@ _PEAK_BUDGET_FILL_OPERATORS = frozenset(
     }
 )
 _EXPAND_SATURATION_THRESHOLD = 24
+_POST_FEASIBLE_STRUCTURED_EXPOSURE_OPERATORS = frozenset(
+    {"component_block_translate_2_4", "component_subspace_sbx"}
+)
+_POST_FEASIBLE_SINK_EXPOSURE_OPERATORS = frozenset({"sink_shift", "sink_resize"})
+_POST_FEASIBLE_CLEANUP_EXPOSURE_OPERATORS = frozenset(
+    {"component_jitter_1", "anchored_component_jitter", "component_relocate_1", "component_swap_2"}
+)
+_POST_FEASIBLE_EXPOSURE_WINDOW = 8
+_POST_FEASIBLE_STRUCTURED_TARGET_SHARE = 0.20
+_POST_FEASIBLE_SINK_TARGET_SHARE = 0.15
+_POST_FEASIBLE_CLEANUP_COOLDOWN_SHARE = 0.55
 
 
 def _is_stable_annotation(annotation: dict[str, Any]) -> bool:
@@ -340,7 +351,7 @@ def _post_feasible_expand_promotion_active(state: ControllerState) -> bool:
         int(archive_state.get("recent_feasible_regression_count", 0))
         - int(archive_state.get("recent_feasible_preservation_count", 0)),
     )
-    if regression_surplus > 0:
+    if regression_surplus > 1:
         return False
     return True
 
@@ -492,11 +503,19 @@ def build_policy_snapshot(
             candidate_ids,
             candidate_annotations,
         )
+        candidate_annotations = _annotate_post_feasible_exposure_priority(
+            state,
+            phase,
+            candidate_ids,
+            candidate_annotations,
+        )
     reason_codes: list[str] = []
     reset_active = False
 
     if _expand_saturation_demotion_active(state, phase):
         reason_codes.append("post_feasible_expand_saturation_demotion")
+    if phase.startswith("post_feasible") and _post_feasible_exposure_priority_active(candidate_annotations):
+        reason_codes.append("post_feasible_bounded_exploration_exposure")
 
     if phase == "cold_start":
         if any(
@@ -797,6 +816,102 @@ def _post_feasible_generation_probe_budget_suppression(
             .get("budget_status", "")
         )
         == "throttled"
+    )
+
+
+def _post_feasible_exposure_pressure_active(state: ControllerState, phase: str) -> bool:
+    if phase not in {"post_feasible_expand", "post_feasible_recover", "post_feasible_preserve"}:
+        return False
+    if phase == "post_feasible_expand":
+        return True
+    progress_state = state.metadata.get("progress_state")
+    if not isinstance(progress_state, dict):
+        return False
+    if int(progress_state.get("recent_frontier_stagnation_count", 0)) < 2:
+        return False
+    return _resolve_diversity_deficit_level(state) in {"high", "medium"}
+
+
+def _annotate_post_feasible_exposure_priority(
+    state: ControllerState,
+    phase: str,
+    candidate_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    exposure_active = _post_feasible_exposure_pressure_active(state, phase)
+    candidate_set = {str(operator_id) for operator_id in candidate_operator_ids}
+    recent_operator_ids = _recent_candidate_operator_ids(state, candidate_set, limit=_POST_FEASIBLE_EXPOSURE_WINDOW)
+    recent_total = len(recent_operator_ids)
+    structured_count = sum(
+        1 for operator_id in recent_operator_ids if operator_id in _POST_FEASIBLE_STRUCTURED_EXPOSURE_OPERATORS
+    )
+    sink_count = sum(
+        1 for operator_id in recent_operator_ids if operator_id in _POST_FEASIBLE_SINK_EXPOSURE_OPERATORS
+    )
+    cleanup_count = sum(
+        1 for operator_id in recent_operator_ids if operator_id in _POST_FEASIBLE_CLEANUP_EXPOSURE_OPERATORS
+    )
+    structured_share = 0.0 if recent_total <= 0 else float(structured_count) / float(recent_total)
+    sink_share = 0.0 if recent_total <= 0 else float(sink_count) / float(recent_total)
+    cleanup_share = 0.0 if recent_total <= 0 else float(cleanup_count) / float(recent_total)
+    structured_underexposed = exposure_active and structured_share < _POST_FEASIBLE_STRUCTURED_TARGET_SHARE
+    sink_underexposed = exposure_active and sink_share < _POST_FEASIBLE_SINK_TARGET_SHARE
+    cleanup_cooldown = exposure_active and cleanup_share >= _POST_FEASIBLE_CLEANUP_COOLDOWN_SHARE
+
+    annotated: dict[str, dict[str, Any]] = {}
+    for operator_id, annotation in candidate_annotations.items():
+        normalized_operator_id = str(operator_id)
+        enriched = dict(annotation)
+        exposure_priority = ""
+        exposure_status = ""
+        if normalized_operator_id in _POST_FEASIBLE_STRUCTURED_EXPOSURE_OPERATORS and structured_underexposed:
+            exposure_priority = "structured_underexposed"
+        elif normalized_operator_id in _POST_FEASIBLE_SINK_EXPOSURE_OPERATORS and sink_underexposed:
+            exposure_priority = "sink_underexposed"
+        if normalized_operator_id in _POST_FEASIBLE_CLEANUP_EXPOSURE_OPERATORS and cleanup_cooldown:
+            exposure_status = "local_cleanup_cooldown"
+        if exposure_priority:
+            enriched["exposure_priority"] = exposure_priority
+        if exposure_status:
+            enriched["exposure_status"] = exposure_status
+        enriched["exposure_state"] = {
+            "active": bool(exposure_active),
+            "recent_total": int(recent_total),
+            "structured_share": float(structured_share),
+            "sink_share": float(sink_share),
+            "cleanup_share": float(cleanup_share),
+        }
+        annotated[operator_id] = enriched
+    return annotated
+
+
+def _recent_candidate_operator_ids(
+    state: ControllerState,
+    candidate_set: set[str],
+    *,
+    limit: int,
+) -> tuple[str, ...]:
+    operator_ids: list[str] = []
+    for row in state.metadata.get("recent_decisions", []):
+        if not isinstance(row, dict):
+            continue
+        operator_id = str(row.get("selected_operator_id", "")).strip()
+        if operator_id not in candidate_set:
+            continue
+        if bool(row.get("fallback_used", False)):
+            continue
+        if row.get("llm_valid") is False:
+            continue
+        operator_ids.append(operator_id)
+    return tuple(operator_ids[-max(1, int(limit)):])
+
+
+def _post_feasible_exposure_priority_active(
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> bool:
+    return any(
+        bool(annotation.get("exposure_priority")) or bool(annotation.get("exposure_status"))
+        for annotation in candidate_annotations.values()
     )
 
 

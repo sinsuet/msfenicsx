@@ -32,6 +32,7 @@ _FIT_SCORES = {
     "supported": 1,
     "trusted": 2,
 }
+_FIT_LABEL_BY_SCORE = {score: label for label, score in _FIT_SCORES.items()}
 _OPERATOR_EFFECTS: dict[str, dict[str, str]] = {
     "vector_sbx_pm": {
         "expected_peak_effect": "diversify",
@@ -410,12 +411,23 @@ def _build_prompt_operator_panel(
     return operator_panel
 
 
-def _phase_fit_key(phase: str) -> str:
+def _phase_fit_value(summary: Mapping[str, Any], phase: str, regime_panel: Mapping[str, Any]) -> str:
     if phase == "post_feasible_expand":
-        return "expand_fit"
+        return str(summary.get("expand_fit", "weak"))
+    if phase == "post_feasible_recover":
+        preserve_score = _FIT_SCORES.get(str(summary.get("preserve_fit", "weak")), 0)
+        expand_score = _FIT_SCORES.get(str(summary.get("expand_fit", "weak")), 0)
+        return _FIT_LABEL_BY_SCORE[max(preserve_score, expand_score)]
+    if phase == "post_feasible_preserve":
+        frontier_pressure = str(regime_panel.get("frontier_pressure") or "low")
+        if frontier_pressure in {"medium", "high"}:
+            preserve_score = _FIT_SCORES.get(str(summary.get("preserve_fit", "weak")), 0)
+            expand_score = _FIT_SCORES.get(str(summary.get("expand_fit", "weak")), 0)
+            return _FIT_LABEL_BY_SCORE[max(preserve_score, expand_score)]
+        return str(summary.get("preserve_fit", "weak"))
     if phase.startswith("post_feasible"):
-        return "preserve_fit"
-    return "entry_fit"
+        return str(summary.get("preserve_fit", "weak"))
+    return str(summary.get("entry_fit", "weak"))
 
 
 def _clamp_applicability_score(score: int) -> int:
@@ -592,8 +604,7 @@ def _build_operator_applicability_row(
 ) -> dict[str, str]:
     summary = dict(summary_row) if isinstance(summary_row, Mapping) else {}
     phase = str(regime_panel.get("phase", ""))
-    fit_key = _phase_fit_key(phase)
-    fit_value = str(summary.get(fit_key, "weak"))
+    fit_value = _phase_fit_value(summary, phase, regime_panel)
     applicability_score = _FIT_SCORES.get(fit_value, 0)
     regression_risk = str(summary.get("recent_regression_risk", "medium"))
     frontier_evidence = str(summary.get("frontier_evidence", "none"))

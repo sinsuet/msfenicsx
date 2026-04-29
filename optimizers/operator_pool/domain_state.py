@@ -807,10 +807,19 @@ def build_progress_state(
         )
         recover_release_ready = preserve_dwell_signal > 0 and regression_surplus <= 1
         recover_exit_ready = recover_release_ready
-        preserve_dwell_active = preserve_dwell_signal > 0 and recover_pressure_level != "high"
+        expand_pressure_active = (
+            int(frontier_summary["recent_frontier_stagnation_count"]) >= 2
+            and diversity_deficit_level in {"high", "medium"}
+            and regression_surplus <= 1
+        )
+        preserve_dwell_active = (
+            preserve_dwell_signal > 0
+            and recover_pressure_level != "high"
+            and not expand_pressure_active
+        )
         if preserve_dwell_active:
             post_feasible_mode = "preserve"
-        elif recover_pressure_level != "low":
+        elif recover_pressure_level != "low" and not expand_pressure_active:
             post_feasible_mode = "recover"
         elif int(frontier_summary["recent_frontier_stagnation_count"]) >= 2:
             post_feasible_mode = "expand"
@@ -823,7 +832,7 @@ def build_progress_state(
                 preserve_dwell_remaining <= 0
                 and int(frontier_summary["recent_frontier_stagnation_count"]) >= 2
                 and diversity_deficit_level in {"high", "medium"}
-                and regression_surplus <= 0
+                and regression_surplus <= 1
             ):
                 post_feasible_mode = "expand"
     else:

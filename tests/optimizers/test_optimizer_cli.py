@@ -1392,6 +1392,70 @@ def test_controller_trace_summary_reports_semantic_visibility_rate(tmp_path: Pat
     assert "semantic_frontier_add_count" in summary
 
 
+def test_optimizer_cli_run_benchmark_matrix_forwards_block(tmp_path, monkeypatch):
+    import optimizers.cli as cli_module
+
+    captured = {}
+
+    def fake_run_matrix_block(matrix, *, matrix_root, block_id, max_leaves=None):
+        captured["matrix_id"] = matrix.matrix_id
+        captured["matrix_root"] = str(matrix_root)
+        captured["block_id"] = block_id
+        captured["max_leaves"] = max_leaves
+        return tmp_path / "run_index.csv"
+
+    monkeypatch.setattr(cli_module, "run_matrix_block", fake_run_matrix_block)
+
+    result = cli_module.main(
+        [
+            "run-benchmark-matrix",
+            "--matrix-root",
+            str(tmp_path),
+            "--block-id",
+            "M2_nsga2_union_512eval",
+            "--max-leaves",
+            "2",
+        ]
+    )
+
+    assert result == 0
+    assert captured == {
+        "matrix_id": "s5_s7_512eval",
+        "matrix_root": str(tmp_path),
+        "block_id": "M2_nsga2_union_512eval",
+        "max_leaves": 2,
+    }
+
+
+def test_optimizer_cli_aggregate_benchmark_matrix_forwards_paths(tmp_path, monkeypatch):
+    import optimizers.cli as cli_module
+
+    captured = {}
+
+    def fake_aggregate_matrix(index_path, *, output_root):
+        captured["index_path"] = str(index_path)
+        captured["output_root"] = str(output_root)
+        return [tmp_path / "summary.csv"]
+
+    monkeypatch.setattr(cli_module, "aggregate_matrix", fake_aggregate_matrix)
+
+    result = cli_module.main(
+        [
+            "aggregate-benchmark-matrix",
+            "--run-index",
+            str(tmp_path / "run_index.csv"),
+            "--output-root",
+            str(tmp_path / "aggregate"),
+        ]
+    )
+
+    assert result == 0
+    assert captured == {
+        "index_path": str(tmp_path / "run_index.csv"),
+        "output_root": str(tmp_path / "aggregate"),
+    }
+
+
 def test_controller_trace_summary_reports_stable_vs_semantic_pareto_ownership(tmp_path: Path) -> None:
     diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
     paths = _write_enriched_diagnostics_artifacts(tmp_path)

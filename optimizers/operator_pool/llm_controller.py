@@ -61,7 +61,24 @@ _RECENT_DOMINANCE_MIN_SHARE = 0.75
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_WINDOW = 4
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_COUNT = 4
 _PREFEASIBLE_CUSTOM_DOMINANCE_MIN_SHARE = 0.75
+_COMPACT_OPERATOR_PANEL_KEYS = (
+    "applicability",
+    "entry_fit",
+    "preserve_fit",
+    "expand_fit",
+    "frontier_evidence",
+    "expected_peak_effect",
+    "expected_gradient_effect",
+    "expected_feasibility_risk",
+    "recent_regression_risk",
+    "role",
+    "post_feasible_role",
+    "expand_budget_status",
+    "exposure_priority",
+    "exposure_status",
+)
 _NATIVE_BASELINE_OPERATOR_IDS = frozenset({"vector_sbx_pm", "native_sbx_pm"})
+
 _GENERATION_LOCAL_DOMINANCE_PHASES = frozenset(
     {"post_feasible_expand", "post_feasible_recover", "post_feasible_preserve"}
 )
@@ -651,6 +668,11 @@ class LLMOperatorController:
                 "latency_ms": float(latency_ms),
             },
         )
+        prompt_size = {
+            "system_chars": len(system_prompt),
+            "user_chars": len(user_prompt),
+            "total_chars": len(system_prompt) + len(user_prompt),
+        }
         append_jsonl(
             self._llm_request_trace_path,
             {
@@ -660,6 +682,7 @@ class LLMOperatorController:
                 "http_status": http_status,
                 "retries": int(retries),
                 "latency_ms": float(latency_ms),
+                "prompt_size": prompt_size,
                 **({} if request_surface is None else dict(request_surface)),
             },
         )
@@ -732,32 +755,14 @@ class LLMOperatorController:
         policy_snapshot: PolicySnapshot,
         guardrail: dict[str, Any] | None,
     ) -> str:
-        intent_panel = self._build_intent_panel(candidate_operator_ids)
-        operator_intent_map = {
-            str(operator_id): _OPERATOR_INTENTS.get(str(operator_id), "native_baseline")
-            for operator_id in candidate_operator_ids
-        }
         prompt = (
-            "You are an operator-selection controller for constrained multiobjective thermal optimization. "
-            "Return one operator from candidate_operator_ids; do not emit raw design vectors. "
-            "Use metadata.prompt_panels, metadata.intent_panel, metadata.decision_axes, and phase_policy as the "
-            "decision surface. Rank by preserve_score, frontier_score, regression_risk, objective balance, "
-            "applicability, expected effects, retrieval evidence, and soft guardrails. Treat recent concentration as "
-            "context, not an instruction to copy it. Keep every provided candidate operator available; policy guidance "
-            "is soft unless the candidate list itself changes. Prefer shared primitive operators whose intent matches "
-            "the current domain regime, but keep native_baseline as a valid fair-pool anchor rather than a fallback-only "
-            "option. Use native_baseline when it is comparably applicable or when its frontier/feasibility evidence is "
-            "not clearly weaker than domain primitives; reserve repeated native_baseline only when it is repeatedly "
-            "dominant without corresponding diversity or progress. Use sink_budget_adjust only when sink span, sink budget, "
-            "or sink alignment is the active bottleneck; do not treat it as a generic preserve-feasibility answer. If "
-            "shared_primitive_trial_candidates are listed, treat them as bounded diversification choices over the same fair "
-            "primitive pool. If semantic_trial_mode is encourage_bounded_trial, use at most one listed semantic trial before "
-            "returning to native_baseline. "
-            "Treat exact positive retrieval matches as strongest same-regime route evidence; when exact_positive_match_mode "
-            "is prefer_exact_match, prioritize metadata.decision_axes.exact_positive_match_operator_ids when risk is "
-            "comparable. When the hotspot is already inside the sink corridor, hotspot_spread is a direct expand move "
-            "rather than a sink-retargeting detour. "
-            f"Intent menu: {intent_panel}. Candidate operator intents: {operator_intent_map}."
+            "Select one operator for constrained thermal MOO; return one candidate_operator_ids value, no design vectors. "
+            "Use metadata.decision_axes first, operator_panel evidence, metadata.intent_panel route intent. "
+            "Rank phase, objective balance, frontier/preserve pressure, applicability, effects, retrieval, risk. "
+            "Policy is soft unless candidates change; native_baseline valid when comparable. "
+            "Treat exact positive retrieval matches strongest; prefer metadata.decision_axes.exact_positive_match_operator_ids when risk comparable. "
+            "Use sink-budget only for active sink bottlenecks. "
+            "Post-feasible small-Pareto stagnation: repeat bounded structured/sink exploration before local cleanup."
         )
         phase_policy_guidance = self._build_phase_policy_guidance(policy_snapshot)
         if phase_policy_guidance:
@@ -831,9 +836,53 @@ class LLMOperatorController:
             "parent_count": state.parent_count,
             "vector_size": state.vector_size,
             "candidate_operator_ids": list(candidate_operator_ids),
-            "metadata": metadata,
+            "metadata": LLMOperatorController._compact_prompt_metadata_for_transport(metadata),
         }
-        return json.dumps(payload, ensure_ascii=True, sort_keys=True)
+        return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+    @staticmethod
+    def _compact_prompt_metadata_for_transport(metadata: Mapping[str, Any]) -> dict[str, Any]:
+        compacted = dict(metadata)
+        prompt_panels = compacted.get("prompt_panels")
+        if not isinstance(prompt_panels, Mapping):
+            return compacted
+        compacted_prompt_panels = dict(prompt_panels)
+        operator_panel = compacted_prompt_panels.get("operator_panel")
+        if isinstance(operator_panel, Mapping):
+            compacted_prompt_panels["operator_panel"] = LLMOperatorController._compact_operator_panel_for_transport(
+                operator_panel
+            )
+        compacted["prompt_panels"] = compacted_prompt_panels
+        compacted.pop("candidate_operator_ids", None)
+        phase_policy = compacted.get("phase_policy")
+        if isinstance(phase_policy, Mapping):
+            compacted_phase_policy = dict(phase_policy)
+            if not compacted_phase_policy.get("candidate_annotations"):
+                compacted_phase_policy.pop("candidate_annotations", None)
+            compacted["phase_policy"] = compacted_phase_policy
+        return compacted
+
+    @staticmethod
+    def _compact_operator_panel_for_transport(operator_panel: Mapping[str, Any]) -> dict[str, Any]:
+        rows: list[list[Any]] = []
+        for operator_id, summary in operator_panel.items():
+            if not isinstance(summary, Mapping):
+                continue
+            row = [str(operator_id)]
+            has_value = False
+            for key in _COMPACT_OPERATOR_PANEL_KEYS:
+                value = summary.get(key)
+                if value in (None, "", [], {}):
+                    row.append(None)
+                    continue
+                has_value = True
+                row.append(value)
+            if has_value:
+                rows.append(row)
+        return {
+            "columns": ["operator_id", *_COMPACT_OPERATOR_PANEL_KEYS],
+            "rows": rows,
+        }
 
     @staticmethod
     def _build_prompt_metadata(
@@ -908,6 +957,20 @@ class LLMOperatorController:
                 peak_improve_candidates.append(normalized_operator_id)
             if str(operator_row.get("expected_gradient_effect", "")) == "improve":
                 gradient_improve_candidates.append(normalized_operator_id)
+
+        bounded_exploration_targets = [
+            str(operator_id)
+            for operator_id, operator_row in operator_panel.items()
+            if isinstance(operator_row, Mapping)
+            and str(operator_row.get("exposure_priority", "")).endswith("underexposed")
+        ]
+        local_cleanup_cooldown_targets = [
+            str(operator_id)
+            for operator_id, operator_row in operator_panel.items()
+            if isinstance(operator_row, Mapping)
+            and str(operator_row.get("exposure_status", "")) == "local_cleanup_cooldown"
+        ]
+        exploration_exposure_mode = "bounded_repeat" if bounded_exploration_targets else "none"
 
         pressure_to_score = {"low": 1, "medium": 2, "high": 3}
         preserve_score = pressure_to_score.get(str(regime_panel.get("preservation_pressure", "low")), 1)
@@ -1048,6 +1111,9 @@ class LLMOperatorController:
             "generation_dominant_operator_id": str(generation_panel.get("dominant_operator_id", "")),
             "generation_dominant_operator_share": float(generation_panel.get("dominant_operator_share", 0.0)),
             "generation_accepted_count": int(generation_panel.get("accepted_count", 0)),
+            "bounded_exploration_targets": bounded_exploration_targets,
+            "local_cleanup_cooldown_targets": local_cleanup_cooldown_targets,
+            "exploration_exposure_mode": exploration_exposure_mode,
             "preserve_score": preserve_score,
             "frontier_score": frontier_score,
             "regression_risk": regression_risk,
@@ -1229,9 +1295,12 @@ class LLMOperatorController:
             if applicability not in {"medium", "high"}:
                 continue
             risk = str(row.get("expected_feasibility_risk", row.get("recent_regression_risk", "medium")))
-            if risk == "high":
+            if risk == "high" and not str(row.get("exposure_priority", "")).endswith("underexposed"):
                 continue
-            if LLMOperatorController._low_post_feasible_success_trial(dict(row)):
+            if (
+                LLMOperatorController._low_post_feasible_success_trial(dict(row))
+                and not str(row.get("exposure_priority", "")).endswith("underexposed")
+            ):
                 continue
             if operator_id not in candidates:
                 candidates.append(operator_id)
@@ -2211,17 +2280,15 @@ class LLMOperatorController:
         if preferred_effect == "peak_improve":
             return (
                 "Objective balance alert: "
-                f"{stagnant_text} has stagnated while {improving_text} continues improving. "
-                f"Prefer operators with expected_peak_effect=improve and usable applicability{candidate_text} "
-                "over operators that only improve gradient. "
-                "A bounded temperature_max-focused trial is justified if it preserves feasibility."
+                f"{stagnant_text} has stagnated while {improving_text} improves. "
+                "Prefer metadata.decision_axes preferred-effect candidates over gradient-only detours; "
+                "keep trials bounded and feasibility-preserving."
             )
         if preferred_effect == "gradient_improve":
             return (
                 "Objective balance alert: "
-                f"{stagnant_text} has stagnated while {improving_text} continues improving. "
-                f"Prefer operators with expected_gradient_effect=improve and usable applicability{candidate_text} "
-                "over operators that only improve peak temperature."
+                f"{stagnant_text} has stagnated while {improving_text} improves. "
+                "Prefer metadata.decision_axes preferred-effect candidates over peak-only detours."
             )
         if preferred_effect == "balanced":
             return (
@@ -2250,13 +2317,12 @@ class LLMOperatorController:
         if policy_snapshot.phase == "prefeasible_convert":
             return (
                 "Convert family mix is active. Choose a route family before choosing the final operator. "
-                f"Available route families: {route_families}. "
-                "Prefer bounded entry moves that directly relieve the current bottleneck and keep the path to first feasible short."
+                "Use metadata.decision_axes.route_family_candidates, then prefer bounded entry moves that "
+                "directly relieve the current bottleneck."
             )
         return (
             "Bounded expand mix is active. Choose a route family before choosing the final operator. "
-            f"Available route families: {route_families}. "
-            "Prefer underused route families when they have comparable local evidence, and avoid reusing a cooled-down route family unless it is uniquely justified by the current spatial state."
+            "Use metadata.decision_axes.route_family_candidates; prefer underused families with comparable evidence."
         )
 
     @staticmethod

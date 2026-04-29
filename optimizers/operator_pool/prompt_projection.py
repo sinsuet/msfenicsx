@@ -71,19 +71,35 @@ _SPATIAL_PANEL_PROMPT_KEYS = frozenset(
         "sink_budget_bucket",
     }
 )
-_OPERATOR_PANEL_PROMPT_KEYS = frozenset(
+_PREFEASIBLE_OPERATOR_PANEL_PROMPT_KEYS = frozenset(
     {
         "applicability",
         "dominant_violation_relief",
         "entry_fit",
-        "expand_budget_status",
         "expand_fit",
         "expected_feasibility_risk",
         "expected_gradient_effect",
         "expected_peak_effect",
-        "frontier_evidence",
         "preserve_fit",
         "recent_regression_risk",
+    }
+)
+_POST_FEASIBLE_OPERATOR_PANEL_PROMPT_KEYS = frozenset(
+    {
+        "applicability",
+        "entry_fit",
+        "preserve_fit",
+        "expand_fit",
+        "frontier_evidence",
+        "expected_peak_effect",
+        "expected_gradient_effect",
+        "expected_feasibility_risk",
+        "recent_regression_risk",
+        "role",
+        "post_feasible_role",
+        "expand_budget_status",
+        "exposure_priority",
+        "exposure_status",
     }
 )
 _CANDIDATE_ANNOTATION_PROMPT_KEYS = frozenset(
@@ -214,7 +230,10 @@ def _project_prompt_panels(
             normalized_operator_id = str(operator_id)
             if normalized_operator_id not in candidate_operator_ids or not isinstance(summary, Mapping):
                 continue
-            projected_summary = _project_operator_panel_row(summary)
+            projected_summary = _project_operator_panel_row(
+                summary,
+                post_feasible_active=post_feasible_active,
+            )
             annotation = policy_snapshot.candidate_annotations.get(normalized_operator_id)
             if isinstance(annotation, Mapping):
                 projected_summary.update(
@@ -305,10 +324,19 @@ def _project_retrieval_matches(value: Any, *, limit: int) -> list[dict[str, Any]
     return projected_matches
 
 
-def _project_operator_panel_row(summary: Mapping[str, Any]) -> dict[str, Any]:
+def _project_operator_panel_row(
+    summary: Mapping[str, Any],
+    *,
+    post_feasible_active: bool,
+) -> dict[str, Any]:
+    keys = (
+        _POST_FEASIBLE_OPERATOR_PANEL_PROMPT_KEYS
+        if post_feasible_active
+        else _PREFEASIBLE_OPERATOR_PANEL_PROMPT_KEYS
+    )
     return {
         key: summary[key]
-        for key in _OPERATOR_PANEL_PROMPT_KEYS
+        for key in keys
         if key in summary
     }
 
@@ -432,6 +460,25 @@ def _project_candidate_annotation(
                 projected[key] = expand_budget_state[key]
     if post_feasible_active:
         projected.pop("prefeasible_role", None)
+        for key in (
+            "operator_family",
+            "evidence_level",
+            "entry_evidence_level",
+            "feasible_entry_count",
+            "feasible_preservation_count",
+            "feasible_regression_count",
+            "pareto_contribution_count",
+            "dominant_violation_relief_count",
+            "recent_expand_frontier_add_count",
+            "recent_expand_feasible_preservation_count",
+            "recent_expand_feasible_regression_count",
+        ):
+            projected.pop(key, None)
+        if projected.get("route_cooldown_active") is False:
+            projected.pop("route_cooldown_active", None)
+        for key in ("exposure_priority", "exposure_status"):
+            if annotation.get(key):
+                projected[key] = annotation[key]
         return projected
     projected.pop("post_feasible_role", None)
     return projected

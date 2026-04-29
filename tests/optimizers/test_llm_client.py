@@ -409,13 +409,20 @@ def test_chat_compatible_json_client_initial_prompt_includes_exact_operator_regi
     assert "exactly" in system_message.lower()
 
 
-def test_chat_compatible_json_prompt_demands_phase_and_rationale_fields(
+def test_operator_decision_schema_requires_only_selected_operator_id() -> None:
+    schema = build_operator_decision_schema(("native_sbx_pm", "local_refine"))
+
+    assert schema["required"] == ["selected_operator_id"]
+    assert schema["properties"]["selected_operator_id"]["enum"] == ["native_sbx_pm", "local_refine"]
+    assert "phase" in schema["properties"]
+    assert "rationale" in schema["properties"]
+
+
+def test_chat_compatible_json_prompt_marks_phase_and_rationale_optional(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
-    chat_api = _FakeChatCompletionsAPI(
-        '{"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}'
-    )
+    chat_api = _FakeChatCompletionsAPI('{"selected_operator_id": "global_explore"}')
     client = OpenAICompatibleClient(
         _build_config(capability_profile="chat_compatible_json"),
         sdk_client=_FakeSDK(chat_api=chat_api),
@@ -429,9 +436,29 @@ def test_chat_compatible_json_prompt_demands_phase_and_rationale_fields(
 
     assert chat_api.last_kwargs is not None
     system_message = str(chat_api.last_kwargs["messages"][0]["content"]).lower()
-    assert "selected_operator_id" in system_message
-    assert "phase" in system_message
-    assert "rationale" in system_message
+    assert "required key: selected_operator_id" in system_message
+    assert "optional keys: phase, rationale, selected_intent" in system_message
+
+
+def test_chat_compatible_json_client_accepts_minimal_operator_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    chat_api = _FakeChatCompletionsAPI('{"selected_operator_id": "local_refine"}')
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    response = client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "local_refine"),
+    )
+
+    assert response.selected_operator_id == "local_refine"
+    assert response.phase == ""
+    assert response.rationale == ""
 
 
 def test_chat_compatible_json_schema_allows_optional_selected_intent() -> None:
@@ -729,3 +756,29 @@ def test_config_resolves_api_key_from_main_repo_dotenv_when_running_in_worktree(
     config = _build_config(capability_profile="responses_native")
 
     assert config.resolve_api_key({}) == "repo-dotenv-key"
+
+
+def test_matrix_llm_profiles_include_gpt_5_4_alias(monkeypatch):
+    from llm.openai_compatible.profile_loader import load_provider_profile_overlay
+
+    monkeypatch.setenv("GPT_PROXY_API_KEY", "gpt-key")
+    monkeypatch.setenv("GPT_PROXY_BASE_URL", "https://gpt.example/v1")
+    monkeypatch.setenv("QWEN_PROXY_API_KEY", "qwen-key")
+    monkeypatch.setenv("QWEN_PROXY_BASE_URL", "https://qwen.example/v1")
+    monkeypatch.setenv("DEEPSEEK_PROXY_API_KEY", "deepseek-key")
+    monkeypatch.setenv("DEEPSEEK_PROXY_BASE_URL", "https://deepseek.example/v1")
+    monkeypatch.setenv("GEMMA4_API_KEY", "gemma-key")
+    monkeypatch.setenv("GEMMA4_BASE_URL", "http://127.0.0.1:8000/v1")
+
+    expected_models = {
+        "gpt_5_4": "gpt-5.4",
+        "qwen3_6_plus": "qwen3.6-plus",
+        "glm_5": "glm-5",
+        "minimax_m2_5": "MiniMax-M2.5",
+        "deepseek_v4_flash": "DeepSeek-V4-Flash",
+        "gemma4": "gemma-4",
+    }
+
+    for profile_id, model in expected_models.items():
+        overlay = load_provider_profile_overlay(profile_id)
+        assert overlay["LLM_MODEL"] == model

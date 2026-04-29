@@ -197,6 +197,16 @@ Run benchmark suite:
 conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs
 ```
 
+Run S5-S7 512eval matrix block:
+```bash
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-matrix --matrix-root ./scenario_runs/matrix_512eval_s5_s7 --block-id M1_raw_backbone_512eval
+```
+
+Aggregate S5-S7 512eval matrix:
+```bash
+conda run -n msfenicsx python -m optimizers.cli aggregate-benchmark-matrix --run-index ./scenario_runs/matrix_512eval_s5_s7/run_index.csv --output-root ./scenario_runs/matrix_512eval_s5_s7/aggregate
+```
+
 Render assets (analytics CSV + figures PNG) from every completed optimizer run:
 ```bash
 conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s1_typical/<run_id> [--hires]
