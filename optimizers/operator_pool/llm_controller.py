@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 
 from llm.openai_compatible import OpenAICompatibleClient, OpenAICompatibleConfig
+from llm.openai_compatible.client import OpenAICompatiblePriorAdvice
 from optimizers.operator_pool.decisions import ControllerDecision
 from optimizers.operator_pool.policy_kernel import PolicySnapshot, build_policy_snapshot
 from optimizers.operator_pool.prompt_projection import build_prompt_projection
@@ -22,6 +23,13 @@ from optimizers.operator_pool.route_families import (
     STABLE_ROUTE_FAMILIES,
     operator_route_family,
 )
+from optimizers.operator_pool.semantic_prior_sampler import (
+    OperatorPriorInput,
+    SemanticPriorSamplerConfig,
+    SemanticTaskPriorInput,
+    sample_operator_from_semantic_priors,
+)
+from optimizers.operator_pool.semantic_tasks import semantic_task_for_operator
 from optimizers.operator_pool.state import ControllerState
 from optimizers.traces.correlation import format_decision_id
 from optimizers.traces.jsonl_writer import append_jsonl
@@ -203,6 +211,12 @@ class LLMOperatorController:
             raise ValueError(f"Unsupported llm fallback controller '{fallback_controller_id}'.")
         self.fallback_controller = RandomUniformController()
         self.fallback_controller_id = fallback_controller_id
+        self.selection_strategy = str(self.controller_parameters.get("selection_strategy", "direct_operator")).strip()
+        if self.selection_strategy not in {"direct_operator", "semantic_prior_sampler"}:
+            raise ValueError(f"Unsupported llm selection_strategy '{self.selection_strategy}'.")
+        self.semantic_prior_sampler_config = SemanticPriorSamplerConfig.from_mapping(
+            self.controller_parameters.get("semantic_prior_sampler")
+        )
         self.request_trace: list[dict[str, Any]] = []
         self.response_trace: list[dict[str, Any]] = []
         self.reflection_trace: list[dict[str, Any]] = []
@@ -278,12 +292,20 @@ class LLMOperatorController:
             candidate_operator_ids=candidate_operator_ids,
         )
 
-        system_prompt = self._build_system_prompt(
-            state,
-            candidate_operator_ids,
-            policy_snapshot=policy_snapshot,
-            guardrail=guardrail,
-        )
+        if self.selection_strategy == "semantic_prior_sampler":
+            system_prompt = self._build_prior_system_prompt(
+                state,
+                candidate_operator_ids,
+                policy_snapshot=policy_snapshot,
+                guardrail=guardrail,
+            )
+        else:
+            system_prompt = self._build_system_prompt(
+                state,
+                candidate_operator_ids,
+                policy_snapshot=policy_snapshot,
+                guardrail=guardrail,
+            )
         prompt_metadata = self._build_prompt_metadata(
             state,
             candidate_operator_ids,
@@ -338,6 +360,22 @@ class LLMOperatorController:
             **request_surface,
             **entry_convert_metadata,
         }
+        if self.selection_strategy == "semantic_prior_sampler":
+            return self._select_decision_from_semantic_prior(
+                state=state,
+                rng=rng,
+                candidate_operator_ids=candidate_operator_ids,
+                original_candidate_operator_ids=original_candidate_operator_ids,
+                policy_snapshot=policy_snapshot,
+                guardrail=guardrail,
+                entry_convert_metadata=entry_convert_metadata,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                request_surface=request_surface,
+                request_entry=request_entry,
+                decision_id=decision_id,
+                input_state_digest=input_state_digest,
+            )
         self.request_trace.append(request_entry)
         self.metrics["request_count"] = int(self.metrics["request_count"]) + 1
         started_at = time.perf_counter()
@@ -528,6 +566,247 @@ class LLMOperatorController:
             selected_operator_id=response.selected_operator_id,
             phase=policy_snapshot.phase,
             rationale=response.rationale,
+            metadata=response_metadata,
+        )
+
+    def _select_decision_from_semantic_prior(
+        self,
+        *,
+        state: ControllerState,
+        rng: np.random.Generator,
+        candidate_operator_ids: Sequence[str],
+        original_candidate_operator_ids: Sequence[str],
+        policy_snapshot: PolicySnapshot,
+        guardrail: dict[str, Any] | None,
+        entry_convert_metadata: dict[str, Any],
+        system_prompt: str,
+        user_prompt: str,
+        request_surface: dict[str, Any],
+        request_entry: dict[str, Any],
+        decision_id: str,
+        input_state_digest: str,
+    ) -> ControllerDecision:
+        del original_candidate_operator_ids, request_surface
+        self.request_trace.append(request_entry)
+        self.metrics["request_count"] = int(self.metrics["request_count"]) + 1
+        started_at = time.perf_counter()
+        attempt_trace: list[dict[str, Any]] = []
+        try:
+            advice = self._request_operator_prior_advice(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                candidate_operator_ids=candidate_operator_ids,
+                attempt_trace=attempt_trace,
+            )
+            sampler_result = sample_operator_from_semantic_priors(
+                candidate_operator_ids=candidate_operator_ids,
+                operator_priors=self._operator_prior_inputs(advice),
+                semantic_task_priors=self._semantic_task_prior_inputs(advice),
+                state=state,
+                config=self.semantic_prior_sampler_config,
+                rng=rng,
+            )
+        except Exception as exc:
+            elapsed_seconds = max(0.0, float(time.perf_counter() - started_at))
+            self.metrics["fallback_count"] = int(self.metrics["fallback_count"]) + 1
+            self._record_attempt_metrics(attempt_trace)
+            self._record_elapsed_seconds(elapsed_seconds)
+            fallback_decision = self.fallback_controller.select_decision(state, candidate_operator_ids, rng)
+            response_entry = {
+                "decision_id": decision_id,
+                "generation_index": state.generation_index,
+                "evaluation_index": state.evaluation_index,
+                "decision_index": (
+                    None
+                    if state.metadata.get("decision_index") is None
+                    else int(state.metadata.get("decision_index"))
+                ),
+                "provider": self.config.provider,
+                "model": self.config.model,
+                "candidate_operator_ids": list(candidate_operator_ids),
+                "selection_strategy": self.selection_strategy,
+                "policy_phase": policy_snapshot.phase,
+                "phase_source": "policy_kernel",
+                "model_phase": "",
+                "model_rationale_present": False,
+                "policy_reason_codes": list(policy_snapshot.reason_codes),
+                "policy_reset_active": policy_snapshot.reset_active,
+                "guardrail": None if guardrail is None else dict(guardrail),
+                "fallback_used": True,
+                "error": str(exc),
+                "attempt_trace": list(attempt_trace),
+                "attempt_count": int(len(attempt_trace)),
+                "retry_count": int(max(0, len(attempt_trace) - 1)),
+                "elapsed_seconds": elapsed_seconds,
+                "accepted_for_evaluation": False,
+                "accepted_evaluation_indices": [],
+                "accepted_evaluation_index": None,
+                "rejection_reason": str(exc),
+                **entry_convert_metadata,
+            }
+            self.response_trace.append(response_entry)
+            prompt_ref, response_ref = self._emit_controller_trace(
+                decision_id=decision_id,
+                phase=policy_snapshot.phase,
+                operator_selected=fallback_decision.selected_operator_id,
+                operator_pool_snapshot=list(candidate_operator_ids),
+                input_state_digest=input_state_digest,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response_body=str(exc),
+                rationale="",
+                fallback_used=True,
+                latency_ms=elapsed_seconds * 1000.0,
+                http_status=None,
+                retries=max(0, len(attempt_trace) - 1),
+                tokens=None,
+                finish_reason=None,
+                request_surface=request_entry,
+                response_surface=response_entry,
+            )
+            if prompt_ref is not None:
+                request_entry["prompt_ref"] = prompt_ref
+            if response_ref is not None:
+                response_entry["response_ref"] = response_ref
+            metadata = dict(fallback_decision.metadata)
+            metadata.update(
+                {
+                    "decision_id": decision_id,
+                    "selection_strategy": self.selection_strategy,
+                    "fallback_used": True,
+                    "fallback_controller": self.fallback_controller_id,
+                    "fallback_reason": str(exc),
+                    "elapsed_seconds": elapsed_seconds,
+                    **self._decision_phase_metadata(
+                        policy_phase=policy_snapshot.phase,
+                        model_phase="",
+                        model_rationale_present=False,
+                    ),
+                    **entry_convert_metadata,
+                    **self._selected_entry_metadata(policy_snapshot, fallback_decision.selected_operator_id),
+                    "guardrail_reason_codes": list(policy_snapshot.reason_codes),
+                }
+            )
+            metadata.update(self._decision_guardrail_metadata(guardrail))
+            return ControllerDecision(
+                selected_operator_id=fallback_decision.selected_operator_id,
+                phase=policy_snapshot.phase,
+                rationale=fallback_decision.rationale,
+                metadata=metadata,
+            )
+
+        elapsed_seconds = max(0.0, float(time.perf_counter() - started_at))
+        self.metrics["response_count"] = int(self.metrics["response_count"]) + 1
+        self._record_attempt_metrics(attempt_trace)
+        self._record_elapsed_seconds(elapsed_seconds)
+        selected_operator_id = sampler_result.selected_operator_id
+        selected_semantic_task = semantic_task_for_operator(selected_operator_id)
+        llm_operator_priors = self._operator_prior_trace_rows(advice)
+        llm_semantic_task_priors = self._semantic_task_prior_trace_rows(advice)
+        response_entry = {
+            "decision_id": decision_id,
+            "generation_index": state.generation_index,
+            "evaluation_index": state.evaluation_index,
+            "decision_index": (
+                None
+                if state.metadata.get("decision_index") is None
+                else int(state.metadata.get("decision_index"))
+            ),
+            "provider": advice.provider,
+            "model": advice.model,
+            "capability_profile": advice.capability_profile,
+            "performance_profile": advice.performance_profile,
+            "selected_operator_id": selected_operator_id,
+            "selected_semantic_task": selected_semantic_task,
+            "selected_intent": None,
+            "selection_strategy": self.selection_strategy,
+            "phase": policy_snapshot.phase,
+            "phase_source": "policy_kernel",
+            "model_phase": advice.phase,
+            "model_rationale_present": bool(advice.rationale.strip()),
+            "rationale": advice.rationale,
+            "raw_payload": dict(advice.raw_payload),
+            "llm_operator_priors": llm_operator_priors,
+            "llm_semantic_task_priors": llm_semantic_task_priors,
+            "sampler_probabilities": dict(sampler_result.sampler_probabilities),
+            "selected_probability": float(sampler_result.selected_probability),
+            "sampler_suppressed_operator_ids": list(sampler_result.suppressed_operator_ids),
+            "sampler_cap_reasons": dict(sampler_result.cap_reasons),
+            "sampler_config": dict(sampler_result.config),
+            "candidate_operator_ids": list(candidate_operator_ids),
+            "guardrail": None if guardrail is None else dict(guardrail),
+            "fallback_used": False,
+            "policy_phase": policy_snapshot.phase,
+            "policy_reason_codes": list(policy_snapshot.reason_codes),
+            "policy_reset_active": policy_snapshot.reset_active,
+            "attempt_trace": list(attempt_trace),
+            "attempt_count": int(len(attempt_trace)),
+            "retry_count": int(max(0, len(attempt_trace) - 1)),
+            "elapsed_seconds": elapsed_seconds,
+            "accepted_for_evaluation": False,
+            "accepted_evaluation_indices": [],
+            "accepted_evaluation_index": None,
+            "rejection_reason": "",
+            **entry_convert_metadata,
+            **self._selected_entry_metadata(policy_snapshot, selected_operator_id),
+        }
+        self.response_trace.append(response_entry)
+        prompt_ref, response_ref = self._emit_controller_trace(
+            decision_id=decision_id,
+            phase=policy_snapshot.phase,
+            operator_selected=selected_operator_id,
+            operator_pool_snapshot=list(candidate_operator_ids),
+            input_state_digest=input_state_digest,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            response_body=json.dumps(advice.raw_payload, ensure_ascii=False, indent=2),
+            rationale=advice.rationale,
+            fallback_used=False,
+            latency_ms=elapsed_seconds * 1000.0,
+            http_status=None,
+            retries=max(0, len(attempt_trace) - 1),
+            tokens=None,
+            finish_reason=None,
+            request_surface=request_entry,
+            response_surface=response_entry,
+        )
+        if prompt_ref is not None:
+            request_entry["prompt_ref"] = prompt_ref
+        if response_ref is not None:
+            response_entry["response_ref"] = response_ref
+        response_metadata = {
+            "decision_id": decision_id,
+            "provider": advice.provider,
+            "model": advice.model,
+            "capability_profile": advice.capability_profile,
+            "performance_profile": advice.performance_profile,
+            "raw_payload": dict(advice.raw_payload),
+            "selection_strategy": self.selection_strategy,
+            "selected_semantic_task": selected_semantic_task,
+            "selected_intent": None,
+            "fallback_used": False,
+            "elapsed_seconds": elapsed_seconds,
+            "llm_operator_priors": llm_operator_priors,
+            "llm_semantic_task_priors": llm_semantic_task_priors,
+            "sampler_probabilities": dict(sampler_result.sampler_probabilities),
+            "selected_probability": float(sampler_result.selected_probability),
+            "sampler_suppressed_operator_ids": list(sampler_result.suppressed_operator_ids),
+            "sampler_cap_reasons": dict(sampler_result.cap_reasons),
+            "sampler_config": dict(sampler_result.config),
+            **self._decision_phase_metadata(
+                policy_phase=policy_snapshot.phase,
+                model_phase=advice.phase,
+                model_rationale_present=bool(advice.rationale.strip()),
+            ),
+            **entry_convert_metadata,
+            **self._selected_entry_metadata(policy_snapshot, selected_operator_id),
+            "guardrail_reason_codes": list(policy_snapshot.reason_codes),
+        }
+        response_metadata.update(self._decision_guardrail_metadata(guardrail))
+        return ControllerDecision(
+            selected_operator_id=selected_operator_id,
+            phase=policy_snapshot.phase,
+            rationale=advice.rationale,
             metadata=response_metadata,
         )
 
@@ -740,6 +1019,83 @@ class LLMOperatorController:
                 candidate_operator_ids=candidate_operator_ids,
             )
 
+    def _request_operator_prior_advice(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        candidate_operator_ids: Sequence[str],
+        attempt_trace: list[dict[str, Any]],
+    ) -> OpenAICompatiblePriorAdvice:
+        if not hasattr(self.client, "request_operator_prior_advice"):
+            raise TypeError("Configured LLM client does not support request_operator_prior_advice.")
+        try:
+            return self.client.request_operator_prior_advice(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                candidate_operator_ids=candidate_operator_ids,
+                attempt_trace=attempt_trace,
+            )
+        except TypeError as exc:
+            if "attempt_trace" not in str(exc):
+                raise
+            attempt_trace.clear()
+            return self.client.request_operator_prior_advice(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                candidate_operator_ids=candidate_operator_ids,
+            )
+
+    @staticmethod
+    def _operator_prior_inputs(advice: OpenAICompatiblePriorAdvice) -> tuple[OperatorPriorInput, ...]:
+        return tuple(
+            OperatorPriorInput(
+                operator_id=prior.operator_id,
+                prior=prior.prior,
+                risk=prior.risk,
+                confidence=prior.confidence,
+                rationale=prior.rationale,
+            )
+            for prior in advice.operator_priors
+        )
+
+    @staticmethod
+    def _semantic_task_prior_inputs(advice: OpenAICompatiblePriorAdvice) -> tuple[SemanticTaskPriorInput, ...]:
+        return tuple(
+            SemanticTaskPriorInput(
+                semantic_task=prior.semantic_task,
+                prior=prior.prior,
+                risk=prior.risk,
+                confidence=prior.confidence,
+            )
+            for prior in advice.semantic_task_priors
+        )
+
+    @staticmethod
+    def _operator_prior_trace_rows(advice: OpenAICompatiblePriorAdvice) -> list[dict[str, Any]]:
+        return [
+            {
+                "operator_id": prior.operator_id,
+                "prior": float(prior.prior),
+                "risk": float(prior.risk),
+                "confidence": float(prior.confidence),
+                "rationale": prior.rationale,
+            }
+            for prior in advice.operator_priors
+        ]
+
+    @staticmethod
+    def _semantic_task_prior_trace_rows(advice: OpenAICompatiblePriorAdvice) -> list[dict[str, Any]]:
+        return [
+            {
+                "semantic_task": prior.semantic_task,
+                "prior": float(prior.prior),
+                "risk": float(prior.risk),
+                "confidence": float(prior.confidence),
+            }
+            for prior in advice.semantic_task_priors
+        ]
+
     def _record_attempt_metrics(self, attempt_trace: Sequence[dict[str, Any]]) -> None:
         invalid_attempts = [row for row in attempt_trace if not bool(row.get("valid", False))]
         self.metrics["retry_count"] = int(self.metrics.get("retry_count", 0)) + max(0, len(attempt_trace) - 1)
@@ -805,6 +1161,35 @@ class LLMOperatorController:
             "when they are comparably applicable, but keep every provided candidate operator available if the "
             "current state makes it necessary."
         )
+
+    def _build_prior_system_prompt(
+        self,
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+        *,
+        policy_snapshot: PolicySnapshot,
+        guardrail: dict[str, Any] | None,
+    ) -> str:
+        prompt = (
+            "Return semantic/operator priors for constrained thermal MOO; do not return a final selected operator. "
+            "Estimate probability mass over semantic tasks and candidate operators from metadata.decision_axes, "
+            "operator_panel, semantic_task_panel, phase, objective balance, feasibility pressure, retrieval evidence, "
+            "recent exposure, and risk. Keep priors calibrated: low sample support means lower confidence. "
+            "Penalize recently saturated operators and saturated semantic tasks. "
+            "The downstream sampler will enforce exposure caps and sample from your priors. Return JSON only."
+        )
+        phase_policy_guidance = self._build_phase_policy_guidance(policy_snapshot)
+        if phase_policy_guidance:
+            prompt = f"{prompt} {phase_policy_guidance}"
+        objective_balance_guidance = self._build_objective_balance_guidance(state, candidate_operator_ids)
+        if objective_balance_guidance:
+            prompt = f"{prompt} {objective_balance_guidance}"
+        if guardrail is not None and str(guardrail.get("dominant_operator_id", "")).strip():
+            prompt = (
+                f"{prompt} Recent dominance advice is provided as context; express it by lowering prior mass "
+                "for saturated choices when alternatives are applicable."
+            )
+        return prompt
 
     def _build_user_prompt(
         self,

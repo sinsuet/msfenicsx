@@ -73,6 +73,18 @@ def _state() -> ControllerState:
     )
 
 
+def _state_with_metadata(metadata: dict[str, object]) -> ControllerState:
+    return ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=6,
+        evaluation_index=120,
+        parent_count=2,
+        vector_size=32,
+        metadata=metadata,
+    )
+
+
 def _dominance_state() -> ControllerState:
     return ControllerState(
         family="genetic",
@@ -2019,6 +2031,118 @@ def test_llm_controller_builds_semantic_operator_prompt_and_metadata() -> None:
     assert "progress_state" not in metadata
     assert "problem_history" not in metadata
     assert "case_reports" not in metadata
+
+
+def test_llm_controller_semantic_prior_sampler_records_probabilities() -> None:
+    from llm.openai_compatible.client import (
+        OpenAICompatiblePriorAdvice,
+        OperatorPrior,
+        SemanticTaskPrior,
+    )
+
+    class _PriorClient:
+        def request_operator_prior_advice(self, **kwargs):
+            return OpenAICompatiblePriorAdvice(
+                operator_priors=(
+                    OperatorPrior("component_subspace_sbx", prior=0.9, risk=0.0, confidence=0.9),
+                    OperatorPrior("component_jitter_1", prior=0.1, risk=0.0, confidence=0.5),
+                ),
+                semantic_task_priors=(
+                    SemanticTaskPrior("semantic_subspace_recombine", prior=0.8, risk=0.2, confidence=0.8),
+                ),
+                phase="post_feasible_expand",
+                rationale="subspace has high prior but current generation is saturated",
+                provider="openai-compatible",
+                model="fake-model",
+                capability_profile="chat_compatible_json",
+                performance_profile="balanced",
+                raw_payload={
+                    "operator_priors": [
+                        {
+                            "operator_id": "component_subspace_sbx",
+                            "prior": 0.9,
+                            "risk": 0.0,
+                            "confidence": 0.9,
+                        },
+                        {
+                            "operator_id": "component_jitter_1",
+                            "prior": 0.1,
+                            "risk": 0.0,
+                            "confidence": 0.5,
+                        },
+                    ],
+                    "semantic_task_priors": [
+                        {
+                            "semantic_task": "semantic_subspace_recombine",
+                            "prior": 0.8,
+                            "risk": 0.2,
+                            "confidence": 0.8,
+                        }
+                    ],
+                    "phase": "post_feasible_expand",
+                    "rationale": "subspace has high prior but current generation is saturated",
+                },
+            )
+
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model_env_var": "LLM_MODEL",
+            "api_key_env_var": "LLM_API_KEY",
+            "base_url_env_var": "LLM_BASE_URL",
+            "max_output_tokens": 512,
+            "selection_strategy": "semantic_prior_sampler",
+            "semantic_prior_sampler": {
+                "uniform_mix": 0.0,
+                "min_probability_floor": 0.0,
+                "generation_operator_cap_fraction": 0.35,
+            },
+        },
+        client=_PriorClient(),
+    )
+    state = _state_with_metadata(
+        {
+            "decision_index": 7,
+            "search_phase": "post_feasible_expand",
+            "progress_state": {"phase": "post_feasible_expand", "post_feasible_mode": "expand"},
+            "generation_local_memory": {
+                "accepted_count": 7,
+                "target_offsprings": 20,
+                "operator_counts": {"component_subspace_sbx": {"accepted_count": 7}},
+            },
+            "recent_decisions": [],
+            "prompt_panels": {
+                "run_panel": {"feasible_rate": 0.55, "pareto_size": 2},
+                "operator_panel": {"rows": []},
+                "semantic_task_panel": {
+                    "recommended_task_order": ["semantic_subspace_recombine", "local_polish"],
+                    "task_operator_candidates": {
+                        "semantic_subspace_recombine": ["component_subspace_sbx"],
+                        "local_polish": ["component_jitter_1"],
+                    },
+                },
+            },
+        }
+    )
+
+    decision = controller.select_decision(
+        state,
+        ("component_subspace_sbx", "component_jitter_1"),
+        np.random.default_rng(3),
+    )
+
+    assert decision.selected_operator_id == "component_jitter_1"
+    assert decision.metadata["selection_strategy"] == "semantic_prior_sampler"
+    assert decision.metadata["selected_semantic_task"] == "local_polish"
+    assert decision.metadata["sampler_probabilities"]["component_subspace_sbx"] == 0.0
+    assert decision.metadata["sampler_probabilities"]["component_jitter_1"] == 1.0
+    assert decision.metadata["selected_probability"] == 1.0
+    assert "component_subspace_sbx" in decision.metadata["sampler_suppressed_operator_ids"]
+    assert controller.response_trace[0]["selected_operator_id"] == "component_jitter_1"
+    assert controller.response_trace[0]["llm_operator_priors"][0]["operator_id"] == "component_subspace_sbx"
+    assert controller.response_trace[0]["sampler_probabilities"]["component_jitter_1"] == 1.0
 
 
 def test_llm_system_prompt_prioritizes_first_feasible_before_pareto_in_prefeasible_convert() -> None:

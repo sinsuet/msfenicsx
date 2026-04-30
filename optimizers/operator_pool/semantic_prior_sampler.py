@@ -44,20 +44,21 @@ class SemanticPriorSamplerConfig:
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "SemanticPriorSamplerConfig":
         data = {} if payload is None else dict(payload)
+        defaults = cls()
         return cls(
-            uniform_mix=_clamp_unit(data.get("uniform_mix", cls.uniform_mix)),
-            min_probability_floor=_clamp_unit(data.get("min_probability_floor", cls.min_probability_floor)),
+            uniform_mix=_clamp_unit(data.get("uniform_mix", defaults.uniform_mix)),
+            min_probability_floor=_clamp_unit(data.get("min_probability_floor", defaults.min_probability_floor)),
             generation_operator_cap_fraction=_clamp_unit(
-                data.get("generation_operator_cap_fraction", cls.generation_operator_cap_fraction)
+                data.get("generation_operator_cap_fraction", defaults.generation_operator_cap_fraction)
             ),
             rolling_operator_cap_fraction=_clamp_unit(
-                data.get("rolling_operator_cap_fraction", cls.rolling_operator_cap_fraction)
+                data.get("rolling_operator_cap_fraction", defaults.rolling_operator_cap_fraction)
             ),
             rolling_semantic_task_cap_fraction=_clamp_unit(
-                data.get("rolling_semantic_task_cap_fraction", cls.rolling_semantic_task_cap_fraction)
+                data.get("rolling_semantic_task_cap_fraction", defaults.rolling_semantic_task_cap_fraction)
             ),
-            rolling_window=max(1, int(data.get("rolling_window", cls.rolling_window))),
-            risk_penalty_weight=_clamp_unit(data.get("risk_penalty_weight", cls.risk_penalty_weight)),
+            rolling_window=max(1, int(data.get("rolling_window", defaults.rolling_window))),
+            risk_penalty_weight=_clamp_unit(data.get("risk_penalty_weight", defaults.risk_penalty_weight)),
         )
 
     def to_dict(self) -> dict[str, Any]:
