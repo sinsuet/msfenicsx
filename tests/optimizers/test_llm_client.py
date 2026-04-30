@@ -876,3 +876,101 @@ def test_matrix_llm_profiles_include_gpt_5_4_alias(monkeypatch):
     for profile_id, model in expected_models.items():
         overlay = load_provider_profile_overlay(profile_id)
         assert overlay["LLM_MODEL"] == model
+
+
+def test_operator_rank_advice_schema_requires_ranked_operators() -> None:
+    from llm.openai_compatible.schemas import build_operator_rank_advice_schema
+
+    schema = build_operator_rank_advice_schema(("sink_shift", "component_jitter_1"))
+
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is False
+    assert "ranked_operators" in schema["required"]
+    ranked_items = schema["properties"]["ranked_operators"]["items"]
+    assert ranked_items["additionalProperties"] is False
+    assert ranked_items["required"] == [
+        "operator_id",
+        "semantic_task",
+        "score",
+        "risk",
+        "confidence",
+        "rationale",
+    ]
+    assert ranked_items["properties"]["operator_id"]["enum"] == [
+        "sink_shift",
+        "component_jitter_1",
+    ]
+    for key in ("score", "risk", "confidence"):
+        assert ranked_items["properties"][key]["minimum"] == 0.0
+        assert ranked_items["properties"][key]["maximum"] == 1.0
+
+
+def test_chat_compatible_json_client_parses_operator_rank_advice() -> None:
+    chat_api = _FakeChatCompletionsAPI(
+        '{"phase":"post_feasible_expand",'
+        '"rationale":"rank sink alignment above local cleanup",'
+        '"ranked_operators":['
+        '{"operator_id":"sink_shift","semantic_task":"sink_alignment","score":0.82,'
+        '"risk":0.22,"confidence":0.74,"rationale":"align sink"},'
+        '{"operator_id":"component_jitter_1","semantic_task":"local_polish","score":0.71,'
+        '"risk":0.18,"confidence":0.61,"rationale":"bounded local move"}'
+        "]}",
+    )
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    advice = client.request_operator_rank_advice(
+        system_prompt="return ranked operators",
+        user_prompt="{}",
+        candidate_operator_ids=("sink_shift", "component_jitter_1"),
+    )
+
+    assert advice.phase == "post_feasible_expand"
+    assert advice.rationale == "rank sink alignment above local cleanup"
+    assert advice.ranked_operators[0].operator_id == "sink_shift"
+    assert advice.ranked_operators[0].semantic_task == "sink_alignment"
+    assert advice.ranked_operators[0].score == pytest.approx(0.82)
+    assert advice.ranked_operators[0].risk == pytest.approx(0.22)
+    assert advice.ranked_operators[0].confidence == pytest.approx(0.74)
+    assert chat_api.last_kwargs is not None
+    system_message = str(chat_api.last_kwargs["messages"][0]["content"])
+    assert "ranked_operators" in system_message
+    assert "operator_priors" not in system_message
+
+
+def test_operator_rank_advice_rejects_unknown_operator_id() -> None:
+    chat_api = _FakeChatCompletionsAPI(
+        '{"ranked_operators":[{"operator_id":"not_in_pool","semantic_task":"local_polish",'
+        '"score":0.8,"risk":0.1,"confidence":0.6,"rationale":"bad id"}]}'
+    )
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    with pytest.raises(ValueError, match="outside the requested operator registry"):
+        client.request_operator_rank_advice(
+            system_prompt="return ranked operators",
+            user_prompt="{}",
+            candidate_operator_ids=("sink_shift", "component_jitter_1"),
+        )
+
+
+def test_operator_rank_advice_requires_explicit_risk_and_confidence() -> None:
+    chat_api = _FakeChatCompletionsAPI(
+        '{"ranked_operators":[{"operator_id":"sink_shift","semantic_task":"sink_alignment",'
+        '"score":0.8,"confidence":0.6,"rationale":"missing risk"}]}'
+    )
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    with pytest.raises(ValueError, match="risk"):
+        client.request_operator_rank_advice(
+            system_prompt="return ranked operators",
+            user_prompt="{}",
+            candidate_operator_ids=("sink_shift", "component_jitter_1"),
+        )

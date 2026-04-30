@@ -11,7 +11,11 @@ from typing import Any
 import httpx
 
 from llm.openai_compatible.config import OpenAICompatibleConfig
-from llm.openai_compatible.schemas import build_operator_decision_schema, build_operator_prior_advice_schema
+from llm.openai_compatible.schemas import (
+    build_operator_decision_schema,
+    build_operator_prior_advice_schema,
+    build_operator_rank_advice_schema,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +53,28 @@ class SemanticTaskPrior:
 class OpenAICompatiblePriorAdvice:
     operator_priors: tuple[OperatorPrior, ...]
     semantic_task_priors: tuple[SemanticTaskPrior, ...]
+    phase: str
+    rationale: str
+    provider: str
+    model: str
+    capability_profile: str
+    performance_profile: str
+    raw_payload: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class RankedOperatorCandidate:
+    operator_id: str
+    semantic_task: str
+    score: float
+    risk: float
+    confidence: float
+    rationale: str
+
+
+@dataclass(frozen=True, slots=True)
+class OpenAICompatibleRankAdvice:
+    ranked_operators: tuple[RankedOperatorCandidate, ...]
     phase: str
     rationale: str
     provider: str
@@ -204,6 +230,78 @@ class OpenAICompatibleClient:
         assert last_error is not None
         raise last_error
 
+    def request_operator_rank_advice(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        candidate_operator_ids: Sequence[str],
+        attempt_trace: list[dict[str, Any]] | None = None,
+    ) -> OpenAICompatibleRankAdvice:
+        operator_ids = tuple(str(operator_id) for operator_id in candidate_operator_ids)
+        if not operator_ids:
+            raise ValueError("OpenAICompatibleClient requires at least one candidate operator id.")
+
+        last_error: Exception | None = None
+        current_system_prompt = system_prompt
+        for attempt_index in range(self.config.max_attempts):
+            try:
+                raw_text = self._request_raw_text(
+                    system_prompt=current_system_prompt,
+                    user_prompt=user_prompt,
+                    candidate_operator_ids=operator_ids,
+                    response_schema=build_operator_rank_advice_schema(operator_ids),
+                    response_schema_name="operator_rank_advice",
+                )
+                advice = self._parse_rank_advice(raw_text, operator_ids)
+                if attempt_trace is not None:
+                    attempt_trace.append(
+                        {
+                            "attempt_index": int(attempt_index + 1),
+                            "valid": True,
+                            "raw_text": raw_text,
+                            "ranked_operators": [
+                                {
+                                    "operator_id": row.operator_id,
+                                    "semantic_task": row.semantic_task,
+                                    "score": row.score,
+                                    "risk": row.risk,
+                                    "confidence": row.confidence,
+                                }
+                                for row in advice.ranked_operators
+                            ],
+                        }
+                    )
+                return advice
+            except ValueError as exc:
+                if attempt_trace is not None:
+                    attempt_trace.append(
+                        {
+                            "attempt_index": int(attempt_index + 1),
+                            "valid": False,
+                            "error": str(exc),
+                        }
+                    )
+                last_error = exc
+                current_system_prompt = self._build_retry_rank_system_prompt(
+                    system_prompt,
+                    operator_ids,
+                    str(exc),
+                )
+            except Exception as exc:
+                if attempt_trace is not None:
+                    attempt_trace.append(
+                        {
+                            "attempt_index": int(attempt_index + 1),
+                            "valid": False,
+                            "error": str(exc),
+                        }
+                    )
+                last_error = exc
+                raise
+        assert last_error is not None
+        raise last_error
+
     def _request_raw_text(
         self,
         *,
@@ -333,6 +431,64 @@ class OpenAICompatibleClient:
         return OpenAICompatiblePriorAdvice(
             operator_priors=tuple(operator_priors),
             semantic_task_priors=tuple(semantic_task_priors),
+            phase=str(payload.get("phase", "")),
+            rationale=str(payload.get("rationale", "")),
+            provider=self.config.provider,
+            model=resolved_model,
+            capability_profile=self.config.capability_profile,
+            performance_profile=self.config.performance_profile,
+            raw_payload=dict(payload),
+        )
+
+    def _parse_rank_advice(
+        self,
+        raw_text: str,
+        operator_ids: Sequence[str],
+    ) -> OpenAICompatibleRankAdvice:
+        resolved_model = self.config.resolve_model(self._environ)
+        normalized_raw_text = self._unwrap_markdown_code_fence(raw_text)
+        payload = json.loads(normalized_raw_text)
+        raw_ranked = payload.get("ranked_operators")
+        if not isinstance(raw_ranked, list) or not raw_ranked:
+            raise ValueError("LLM rank advice must include a non-empty ranked_operators array.")
+
+        ranked: list[RankedOperatorCandidate] = []
+        seen_operator_ids: set[str] = set()
+        for row in raw_ranked:
+            if not isinstance(row, dict):
+                raise ValueError("Each ranked_operators entry must be an object.")
+            operator_id = str(row.get("operator_id", "")).strip()
+            if operator_id not in operator_ids:
+                raise ValueError(
+                    "LLM rank advice included operator id outside the requested operator registry: "
+                    f"{operator_id!r} not in {list(operator_ids)}."
+                )
+            if operator_id in seen_operator_ids:
+                continue
+            missing_keys = [
+                key
+                for key in ("semantic_task", "score", "risk", "confidence", "rationale")
+                if key not in row
+            ]
+            if missing_keys:
+                raise ValueError(
+                    f"ranked_operators entry for {operator_id!r} missing {', '.join(missing_keys)}."
+                )
+            seen_operator_ids.add(operator_id)
+            ranked.append(
+                RankedOperatorCandidate(
+                    operator_id=operator_id,
+                    semantic_task=str(row.get("semantic_task", "")).strip(),
+                    score=_clamp_unit(row.get("score")),
+                    risk=_clamp_unit(row.get("risk")),
+                    confidence=_clamp_unit(row.get("confidence")),
+                    rationale=str(row.get("rationale", "")),
+                )
+            )
+        if not ranked:
+            raise ValueError("LLM rank advice did not include any valid ranked operators.")
+        return OpenAICompatibleRankAdvice(
+            ranked_operators=tuple(ranked),
             phase=str(payload.get("phase", "")),
             rationale=str(payload.get("rationale", "")),
             provider=self.config.provider,
@@ -519,6 +675,17 @@ class OpenAICompatibleClient:
                 normalized_prompt = f"{normalized_prompt}{suffix.strip()}"
             else:
                 normalized_prompt = f"{normalized_prompt}{suffix}"
+        if response_schema_name == "operator_rank_advice":
+            return (
+                f"{normalized_prompt.rstrip()} "
+                "Return exactly one JSON object. "
+                "Required key: ranked_operators. "
+                "Each ranked_operators item must include operator_id, semantic_task, score, risk, confidence, rationale. "
+                f"The operator_id value must exactly equal one of {list(candidate_operator_ids)}. "
+                "Rank operators in descending preference order. "
+                "Use explicit risk and confidence values; do not omit them. "
+                "If rationale is present, keep each rationale concise."
+            )
         if response_schema_name == "operator_prior_advice":
             return (
                 f"{normalized_prompt.rstrip()} "
@@ -578,6 +745,21 @@ class OpenAICompatibleClient:
             "Each operator_priors item must include operator_id and prior. "
             f"operator_id must exactly equal one of {list(operator_ids)}. "
             "Optional keys: phase, rationale, semantic_task_priors, risk, confidence."
+        )
+
+    @staticmethod
+    def _build_retry_rank_system_prompt(
+        original_system_prompt: str,
+        operator_ids: Sequence[str],
+        error_message: str,
+    ) -> str:
+        return (
+            f"{original_system_prompt}\n"
+            "Previous response was invalid: "
+            f"{error_message}\n"
+            "Return JSON only. Required key: ranked_operators. "
+            "Each ranked_operators item must include operator_id, semantic_task, score, risk, confidence, rationale. "
+            f"operator_id must exactly equal one of {list(operator_ids)}."
         )
 
     @staticmethod
