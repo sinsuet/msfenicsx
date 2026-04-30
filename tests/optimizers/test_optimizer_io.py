@@ -357,8 +357,18 @@ def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
     assert params["model_env_var"] == "LLM_MODEL"
     assert "model" not in params
     assert "base_url" not in params
-    assert params["max_output_tokens"] == 256
+    assert params["max_output_tokens"] == 512
     assert params["temperature"] == 1.0
+
+
+def test_llm_spec_accepts_semantic_prior_sampler_parameters() -> None:
+    spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_llm.yaml")
+    assert spec.operator_control is not None
+    params = spec.operator_control["controller_parameters"]
+
+    assert params["selection_strategy"] == "semantic_prior_sampler"
+    assert params["semantic_prior_sampler"]["rolling_window"] == 16
+    assert params["semantic_prior_sampler"]["generation_operator_cap_fraction"] == pytest.approx(0.35)
 
 
 def test_llm_validation_accepts_model_env_var_without_literal_model() -> None:

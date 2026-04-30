@@ -200,7 +200,16 @@ operator_control:
     model_env_var: LLM_MODEL
     api_key_env_var: LLM_API_KEY
     base_url_env_var: LLM_BASE_URL
-    max_output_tokens: 256
+    max_output_tokens: 512
+    selection_strategy: semantic_prior_sampler
+    semantic_prior_sampler:
+      uniform_mix: 0.15
+      min_probability_floor: 0.03
+      generation_operator_cap_fraction: 0.35
+      rolling_operator_cap_fraction: 0.40
+      rolling_semantic_task_cap_fraction: 0.55
+      rolling_window: 16
+      risk_penalty_weight: 0.50
     temperature: 1.0
     reasoning:
       effort: medium
