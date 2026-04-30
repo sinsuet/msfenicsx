@@ -47,9 +47,10 @@ def test_s3_registry_split_matches_active_ladder() -> None:
     assert union["operator_control"]["registry_profile"] == "primitive_clean"
     assert tuple(union["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_clean")
     assert llm["operator_control"]["controller"] == "llm"
-    assert llm["operator_control"]["registry_profile"] == "primitive_plus_assisted"
-    assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_plus_assisted")
-    assert llm["evaluation_protocol"]["legality_policy_id"] == "projection_plus_local_restore"
+    assert llm["operator_control"]["registry_profile"] == "primitive_clean"
+    assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_clean")
+    assert llm["operator_control"]["operator_pool"] == union["operator_control"]["operator_pool"]
+    assert llm["evaluation_protocol"] == union["evaluation_protocol"]
 
 
 def test_s3_profiles_resolve_algorithm_parameters() -> None:
@@ -116,9 +117,10 @@ def test_s4_registry_split_matches_active_ladder() -> None:
     assert union["operator_control"]["registry_profile"] == "primitive_clean"
     assert tuple(union["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_clean")
     assert llm["operator_control"]["controller"] == "llm"
-    assert llm["operator_control"]["registry_profile"] == "primitive_plus_assisted"
-    assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_plus_assisted")
-    assert llm["evaluation_protocol"]["legality_policy_id"] == "projection_plus_local_restore"
+    assert llm["operator_control"]["registry_profile"] == "primitive_clean"
+    assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_clean")
+    assert llm["operator_control"]["operator_pool"] == union["operator_control"]["operator_pool"]
+    assert llm["evaluation_protocol"] == union["evaluation_protocol"]
 
 
 def test_s4_profiles_resolve_algorithm_parameters() -> None:
