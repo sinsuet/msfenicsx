@@ -208,3 +208,84 @@ def test_llm_semantic_prior_trace_surfaces_sampler_metadata(tmp_path: Path) -> N
     assert response_rows[0]["llm_operator_priors"][0]["operator_id"] == "component_jitter_1"
     assert response_rows[0]["sampler_probabilities"]["component_jitter_1"] > 0.0
     assert response_rows[0]["selected_probability"] > 0.0
+
+
+def test_llm_semantic_ranked_pick_trace_surfaces_ranker_metadata(tmp_path: Path) -> None:
+    from llm.openai_compatible.client import OpenAICompatibleRankAdvice, RankedOperatorCandidate
+
+    class _RankClient:
+        def request_operator_rank_advice(self, **kwargs):
+            return OpenAICompatibleRankAdvice(
+                ranked_operators=(
+                    RankedOperatorCandidate(
+                        operator_id="component_jitter_1",
+                        semantic_task="local_polish",
+                        score=0.82,
+                        risk=0.10,
+                        confidence=0.70,
+                        rationale="bounded local polish",
+                    ),
+                    RankedOperatorCandidate(
+                        operator_id="sink_shift",
+                        semantic_task="sink_alignment",
+                        score=0.70,
+                        risk=0.30,
+                        confidence=0.60,
+                        rationale="alignment backup",
+                    ),
+                ),
+                phase="post_feasible_preserve",
+                rationale="rank local polish first",
+                provider="openai-compatible",
+                model="fake-model",
+                capability_profile="chat_compatible_json",
+                performance_profile="balanced",
+                raw_payload={"ranked_operators": [{"operator_id": "component_jitter_1"}]},
+            )
+
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model_env_var": "LLM_MODEL",
+            "api_key_env_var": "LLM_API_KEY",
+            "base_url_env_var": "LLM_BASE_URL",
+            "max_output_tokens": 512,
+            "selection_strategy": "semantic_ranked_pick",
+        },
+        client=_RankClient(),
+    )
+    controller.configure_trace_outputs(
+        controller_trace_path=tmp_path / "controller_trace.jsonl",
+        llm_request_trace_path=tmp_path / "llm_request_trace.jsonl",
+        llm_response_trace_path=tmp_path / "llm_response_trace.jsonl",
+        prompt_store=PromptStore(tmp_path / "prompts"),
+    )
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=42,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "decision_index": 3,
+            "search_phase": "post_feasible_preserve",
+            "progress_state": {"phase": "post_feasible_preserve", "post_feasible_mode": "preserve"},
+            "prompt_panels": {"run_panel": {}, "operator_panel": {"rows": []}},
+            "recent_decisions": [],
+        },
+    )
+
+    controller.select_decision(state, ("component_jitter_1", "sink_shift"), np.random.default_rng(1))
+
+    response_rows = [
+        json.loads(line) for line in (tmp_path / "llm_response_trace.jsonl").read_text().splitlines()
+    ]
+    assert response_rows[0]["selection_strategy"] == "semantic_ranked_pick"
+    assert response_rows[0]["llm_ranked_operators"][0]["operator_id"] == "component_jitter_1"
+    assert response_rows[0]["selected_rank"] == 1
+    assert response_rows[0]["ranker_config"]["rolling_window"] == 16
+    assert response_rows[0]["ranker_override_reason"] == ""
+    assert "sampler_probabilities" not in response_rows[0]
