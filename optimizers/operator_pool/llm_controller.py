@@ -76,6 +76,10 @@ _COMPACT_OPERATOR_PANEL_KEYS = (
     "expand_budget_status",
     "exposure_priority",
     "exposure_status",
+    "semantic_task",
+    "semantic_task_status",
+    "operator_portfolio_status",
+    "portfolio_priority",
 )
 _NATIVE_BASELINE_OPERATOR_IDS = frozenset({"vector_sbx_pm", "native_sbx_pm"})
 
@@ -450,6 +454,7 @@ class LLMOperatorController:
             "capability_profile": response.capability_profile,
             "performance_profile": response.performance_profile,
             "selected_operator_id": response.selected_operator_id,
+            "selected_semantic_task": response.selected_semantic_task,
             "selected_intent": response.selected_intent,
             "phase": policy_snapshot.phase,
             "phase_source": "policy_kernel",
@@ -505,6 +510,7 @@ class LLMOperatorController:
             "capability_profile": response.capability_profile,
             "performance_profile": response.performance_profile,
             "raw_payload": dict(response.raw_payload),
+            "selected_semantic_task": response.selected_semantic_task,
             "selected_intent": response.selected_intent,
             "fallback_used": False,
             "elapsed_seconds": elapsed_seconds,
@@ -762,6 +768,7 @@ class LLMOperatorController:
             "Policy is soft unless candidates change; native_baseline valid when comparable. "
             "Treat exact positive retrieval matches strongest; prefer metadata.decision_axes.exact_positive_match_operator_ids when risk comparable. "
             "Use sink-budget only for active sink bottlenecks. "
+            "Choose the semantic task first, then operator; repay task debt before saturated subspace/sink-alignment repeats unless exact positive evidence exists. "
             "Post-feasible small-Pareto stagnation: repeat bounded structured/sink exploration before local cleanup."
         )
         phase_policy_guidance = self._build_phase_policy_guidance(policy_snapshot)
@@ -864,23 +871,29 @@ class LLMOperatorController:
 
     @staticmethod
     def _compact_operator_panel_for_transport(operator_panel: Mapping[str, Any]) -> dict[str, Any]:
-        rows: list[list[Any]] = []
+        raw_rows: list[dict[str, Any]] = []
+        used_keys: list[str] = []
         for operator_id, summary in operator_panel.items():
             if not isinstance(summary, Mapping):
                 continue
-            row = [str(operator_id)]
-            has_value = False
-            for key in _COMPACT_OPERATOR_PANEL_KEYS:
-                value = summary.get(key)
-                if value in (None, "", [], {}):
-                    row.append(None)
-                    continue
-                has_value = True
-                row.append(value)
-            if has_value:
-                rows.append(row)
+            compact_summary = {
+                key: summary.get(key)
+                for key in _COMPACT_OPERATOR_PANEL_KEYS
+                if summary.get(key) not in (None, "", [], {})
+            }
+            if not compact_summary:
+                continue
+            raw_rows.append({"operator_id": str(operator_id), **compact_summary})
+            for key in compact_summary:
+                if key not in used_keys:
+                    used_keys.append(key)
+        columns = ["operator_id", *used_keys]
+        rows = [
+            [row.get(column) for column in columns]
+            for row in raw_rows
+        ]
         return {
-            "columns": ["operator_id", *_COMPACT_OPERATOR_PANEL_KEYS],
+            "columns": columns,
             "rows": rows,
         }
 
@@ -936,6 +949,9 @@ class LLMOperatorController:
         retrieval_panel = prompt_panels.get("retrieval_panel")
         if not isinstance(retrieval_panel, Mapping):
             retrieval_panel = {}
+        semantic_task_panel = prompt_panels.get("semantic_task_panel")
+        if not isinstance(semantic_task_panel, Mapping):
+            semantic_task_panel = {}
         objective_balance = regime_panel.get("objective_balance")
         if not isinstance(objective_balance, Mapping):
             objective_balance = {}
@@ -971,6 +987,81 @@ class LLMOperatorController:
             and str(operator_row.get("exposure_status", "")) == "local_cleanup_cooldown"
         ]
         exploration_exposure_mode = "bounded_repeat" if bounded_exploration_targets else "none"
+
+        semantic_task_debts = list(
+            dict.fromkeys(
+                str(row.get("semantic_task"))
+                for row in operator_panel.values()
+                if isinstance(row, Mapping)
+                and str(row.get("semantic_task", "")).strip()
+                and str(row.get("portfolio_priority", "")) == "repay_task_debt"
+            )
+        )
+        semantic_task_saturations = list(
+            dict.fromkeys(
+                str(row.get("semantic_task"))
+                for row in operator_panel.values()
+                if isinstance(row, Mapping)
+                and str(row.get("semantic_task", "")).strip()
+                and str(row.get("portfolio_priority", "")) == "avoid_saturated_repeat"
+            )
+        )
+        avoid_repeating_operators = [
+            str(operator_id)
+            for operator_id, row in operator_panel.items()
+            if isinstance(row, Mapping) and str(row.get("portfolio_priority", "")) == "avoid_saturated_repeat"
+        ]
+        semantic_task_to_operator_candidates = {}
+        raw_task_candidates = semantic_task_panel.get("task_operator_candidates", {})
+        stage_focus = str(semantic_task_panel.get("stage_focus", "balanced_portfolio"))
+        if isinstance(raw_task_candidates, Mapping):
+            semantic_task_to_operator_candidates = {
+                str(task_id): [str(operator_id) for operator_id in operator_ids]
+                for task_id, operator_ids in raw_task_candidates.items()
+                if isinstance(operator_ids, Sequence) and not isinstance(operator_ids, (str, bytes))
+            }
+        active_semantic_tasks = [
+            str(task_id)
+            for task_id in semantic_task_panel.get("recommended_task_order", [])
+            if str(task_id).strip()
+        ]
+        if stage_focus == "prefeasible_feasibility":
+            active_semantic_tasks = [
+                task_id
+                for task_id in active_semantic_tasks
+                if task_id in {"baseline_reset", "sink_budget_shape", "global_layout_expand", "sink_alignment"}
+            ][:3]
+            semantic_task_to_operator_candidates = {
+                task_id: operator_ids
+                for task_id, operator_ids in semantic_task_to_operator_candidates.items()
+                if task_id in active_semantic_tasks
+            }
+            semantic_task_debts = []
+            semantic_task_saturations = []
+            avoid_repeating_operators = []
+            semantic_portfolio_mode = "feasibility_first"
+        elif stage_focus in {"post_feasible_preserve", "post_feasible_recover"}:
+            active_semantic_tasks = [
+                task_id
+                for task_id in active_semantic_tasks
+                if task_id in {"local_polish", "baseline_reset", "sink_budget_shape", "sink_alignment", "semantic_block_move"}
+            ][:4]
+            semantic_portfolio_mode = "preserve_recover_first" if stage_focus == "post_feasible_preserve" else "recover_first"
+        else:
+            semantic_portfolio_mode = "none"
+            if semantic_task_debts and semantic_task_saturations:
+                semantic_portfolio_mode = "repay_debt_avoid_saturation"
+            elif semantic_task_debts:
+                semantic_portfolio_mode = "repay_debt"
+            elif semantic_task_saturations:
+                semantic_portfolio_mode = "avoid_saturation"
+        next_task_preference = ""
+        for task_id in active_semantic_tasks:
+            if stage_focus == "prefeasible_feasibility" or task_id in semantic_task_debts:
+                next_task_preference = task_id
+                break
+        if not next_task_preference and active_semantic_tasks:
+            next_task_preference = active_semantic_tasks[0]
 
         pressure_to_score = {"low": 1, "medium": 2, "high": 3}
         preserve_score = pressure_to_score.get(str(regime_panel.get("preservation_pressure", "low")), 1)
@@ -1097,7 +1188,7 @@ class LLMOperatorController:
                     preferred_effect=preferred_effect,
                     frontier_score=frontier_score,
                 )
-        return {
+        axes = {
             "objective_balance_pressure": str(objective_balance.get("balance_pressure", "low")),
             "preferred_effect": objective_balance.get("preferred_effect"),
             "stagnant_objectives": [
@@ -1130,6 +1221,19 @@ class LLMOperatorController:
             "exact_positive_match_operator_ids": exact_positive_match_operator_ids,
             "exact_positive_match_route_families": exact_positive_match_route_families,
         }
+        if semantic_portfolio_mode != "none" or active_semantic_tasks or semantic_task_to_operator_candidates:
+            axes.update(
+                {
+                    "semantic_portfolio_mode": semantic_portfolio_mode,
+                    "active_semantic_tasks": active_semantic_tasks,
+                    "semantic_task_debts": semantic_task_debts,
+                    "semantic_task_saturations": semantic_task_saturations,
+                    "next_task_preference": next_task_preference,
+                    "avoid_repeating_operators": avoid_repeating_operators,
+                    "semantic_task_to_operator_candidates": semantic_task_to_operator_candidates,
+                }
+            )
+        return axes
 
     @staticmethod
     def _request_surface_metadata(

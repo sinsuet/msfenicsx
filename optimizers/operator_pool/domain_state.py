@@ -1204,6 +1204,8 @@ def build_prompt_regime_panel(
         "entry_pressure": _pressure_level(entry_pressure_score),
         "preservation_pressure": _pressure_level(preservation_pressure_score),
         "frontier_pressure": _pressure_level(frontier_pressure_score),
+        "run_feasible_rate": float(run_state.get("feasible_rate", 0.0) or 0.0),
+        "recent_frontier_stagnation_count": recent_frontier_stagnation_count,
         "recover_release_ready": bool(
             resolved_recover_release_ready
             if resolved_recover_release_ready is not None

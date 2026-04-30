@@ -71,6 +71,14 @@ _SPATIAL_PANEL_PROMPT_KEYS = frozenset(
         "sink_budget_bucket",
     }
 )
+_SEMANTIC_TASK_PANEL_PROMPT_KEYS = frozenset(
+    {
+        "active_bottleneck",
+        "recommended_task_order",
+        "task_rationales",
+        "task_operator_candidates",
+    }
+)
 _PREFEASIBLE_OPERATOR_PANEL_PROMPT_KEYS = frozenset(
     {
         "applicability",
@@ -100,6 +108,10 @@ _POST_FEASIBLE_OPERATOR_PANEL_PROMPT_KEYS = frozenset(
         "expand_budget_status",
         "exposure_priority",
         "exposure_status",
+        "semantic_task",
+        "semantic_task_status",
+        "operator_portfolio_status",
+        "portfolio_priority",
     }
 )
 _CANDIDATE_ANNOTATION_PROMPT_KEYS = frozenset(
@@ -204,6 +216,9 @@ def _project_prompt_panels(
     spatial_panel = prompt_panels.get("spatial_panel")
     if isinstance(spatial_panel, Mapping):
         projected["spatial_panel"] = _project_keyed_panel(spatial_panel, _SPATIAL_PANEL_PROMPT_KEYS)
+    semantic_task_panel = prompt_panels.get("semantic_task_panel")
+    if isinstance(semantic_task_panel, Mapping):
+        projected["semantic_task_panel"] = _project_keyed_panel(semantic_task_panel, _SEMANTIC_TASK_PANEL_PROMPT_KEYS)
     retrieval_panel = prompt_panels.get("retrieval_panel")
     if isinstance(retrieval_panel, Mapping):
         projected_retrieval_panel = _project_retrieval_panel(retrieval_panel)
@@ -476,7 +491,14 @@ def _project_candidate_annotation(
             projected.pop(key, None)
         if projected.get("route_cooldown_active") is False:
             projected.pop("route_cooldown_active", None)
-        for key in ("exposure_priority", "exposure_status"):
+        for key in (
+            "exposure_priority",
+            "exposure_status",
+            "semantic_task",
+            "semantic_task_status",
+            "operator_portfolio_status",
+            "portfolio_priority",
+        ):
             if annotation.get(key):
                 projected[key] = annotation[key]
         return projected

@@ -14,6 +14,7 @@ from optimizers.operator_pool.route_families import (
     expand_budget_family_metrics,
     operator_route_family,
 )
+from optimizers.operator_pool.semantic_tasks import semantic_task_for_operator, semantic_task_target
 from optimizers.operator_pool.state import ControllerState
 
 _STABLE_FAMILIES = frozenset({"native_baseline", "global_explore", "local_refine"})
@@ -98,6 +99,8 @@ _POST_FEASIBLE_CLEANUP_EXPOSURE_OPERATORS = frozenset(
     {"component_jitter_1", "anchored_component_jitter", "component_relocate_1", "component_swap_2"}
 )
 _POST_FEASIBLE_EXPOSURE_WINDOW = 8
+_ADAPTIVE_SINK_GATE_FEASIBLE_RATE_THRESHOLD = 0.50
+_ADAPTIVE_SINK_GATE_FRONTIER_STAGNATION_THRESHOLD = 6
 _POST_FEASIBLE_STRUCTURED_TARGET_SHARE = 0.20
 _POST_FEASIBLE_SINK_TARGET_SHARE = 0.15
 _POST_FEASIBLE_CLEANUP_COOLDOWN_SHARE = 0.55
@@ -509,6 +512,12 @@ def build_policy_snapshot(
             candidate_ids,
             candidate_annotations,
         )
+        candidate_annotations = _annotate_post_feasible_semantic_portfolio(
+            state,
+            phase,
+            candidate_ids,
+            candidate_annotations,
+        )
     reason_codes: list[str] = []
     reset_active = False
 
@@ -516,6 +525,10 @@ def build_policy_snapshot(
         reason_codes.append("post_feasible_expand_saturation_demotion")
     if phase.startswith("post_feasible") and _post_feasible_exposure_priority_active(candidate_annotations):
         reason_codes.append("post_feasible_bounded_exploration_exposure")
+    if phase.startswith("post_feasible") and _post_feasible_semantic_debt_active(candidate_annotations):
+        reason_codes.append("post_feasible_semantic_portfolio_debt")
+    if phase.startswith("post_feasible") and _post_feasible_semantic_saturation_active(candidate_annotations):
+        reason_codes.append("post_feasible_semantic_portfolio_saturation")
 
     if phase == "cold_start":
         if any(
@@ -883,6 +896,134 @@ def _annotate_post_feasible_exposure_priority(
         }
         annotated[operator_id] = enriched
     return annotated
+
+
+
+def _annotate_post_feasible_semantic_portfolio(
+    state: ControllerState,
+    phase: str,
+    candidate_operator_ids: Sequence[str],
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    exposure_active = _post_feasible_exposure_pressure_active(state, phase)
+    candidate_set = {str(operator_id) for operator_id in candidate_operator_ids}
+    recent_operator_ids = _recent_candidate_operator_ids(state, candidate_set, limit=_POST_FEASIBLE_EXPOSURE_WINDOW)
+    recent_total = len(recent_operator_ids)
+    task_counter = Counter(semantic_task_for_operator(operator_id) for operator_id in recent_operator_ids)
+    operator_counter = Counter(recent_operator_ids)
+
+    annotated: dict[str, dict[str, Any]] = {}
+    for operator_id, annotation in candidate_annotations.items():
+        normalized_operator_id = str(operator_id)
+        task_id = semantic_task_for_operator(normalized_operator_id)
+        task_count = int(task_counter.get(task_id, 0))
+        operator_count = int(operator_counter.get(normalized_operator_id, 0))
+        task_share = 0.0 if recent_total <= 0 else float(task_count) / float(recent_total)
+        operator_share = 0.0 if recent_total <= 0 else float(operator_count) / float(recent_total)
+        target_low, target_high = semantic_task_target(task_id)
+        sink_budget_deprioritized = task_id == "sink_budget_shape" and _post_feasible_sink_budget_shape_deprioritized(state, phase)
+        if sink_budget_deprioritized:
+            target_low = 0.0
+            target_high = min(float(target_high), 0.05)
+        total_operator_count = int(annotation.get("post_feasible_selection_count", annotation.get("selection_count", 0)))
+        has_frontier_credit = (
+            int(annotation.get("pareto_contribution_count", 0)) > 0
+            or int(annotation.get("frontier_novelty_count", 0)) > 0
+            or int(annotation.get("recent_expand_frontier_add_count", 0)) > 0
+        )
+        task_status = "balanced"
+        if exposure_active and task_share < target_low:
+            task_status = "under_target"
+        elif exposure_active and task_share > target_high and not has_frontier_credit:
+            task_status = "saturated_no_frontier"
+        elif sink_budget_deprioritized and total_operator_count >= _POST_FEASIBLE_EXPOSURE_WINDOW and not has_frontier_credit:
+            task_status = "saturated_no_frontier"
+        operator_status = "balanced"
+        if exposure_active and operator_count <= 0 and not sink_budget_deprioritized:
+            operator_status = "underexposed"
+        elif exposure_active and operator_share >= 0.35 and not has_frontier_credit:
+            operator_status = "saturated_no_frontier"
+        priority = "neutral"
+        if task_status == "under_target" or operator_status == "underexposed":
+            priority = "repay_task_debt"
+        elif task_status == "saturated_no_frontier" or operator_status == "saturated_no_frontier":
+            priority = "avoid_saturated_repeat"
+
+        enriched = dict(annotation)
+        enriched["semantic_task"] = task_id
+        enriched["semantic_task_status"] = task_status
+        enriched["operator_portfolio_status"] = operator_status
+        enriched["portfolio_priority"] = priority
+        enriched["semantic_portfolio_state"] = {
+            "active": bool(exposure_active),
+            "recent_total": int(recent_total),
+            "task_share": float(task_share),
+            "operator_share": float(operator_share),
+            "target_low": float(target_low),
+            "target_high": float(target_high),
+        }
+        annotated[operator_id] = enriched
+    return annotated
+
+
+
+
+def _post_feasible_sink_budget_shape_deprioritized(state: ControllerState, phase: str) -> bool:
+    if phase not in {"post_feasible_expand", "post_feasible_preserve"}:
+        return False
+    if _sink_budget_pressure_active(state):
+        return False
+    run_state = state.metadata.get("run_state")
+    run_state = run_state if isinstance(run_state, dict) else {}
+    feasible_rate = float(run_state.get("feasible_rate", 0.0) or 0.0)
+    if feasible_rate < _ADAPTIVE_SINK_GATE_FEASIBLE_RATE_THRESHOLD:
+        return False
+    progress_state = state.metadata.get("progress_state")
+    progress_state = progress_state if isinstance(progress_state, dict) else {}
+    frontier_stagnation = int(progress_state.get("recent_frontier_stagnation_count", 0) or 0)
+    if frontier_stagnation < _ADAPTIVE_SINK_GATE_FRONTIER_STAGNATION_THRESHOLD:
+        return False
+    return True
+
+
+def _sink_budget_pressure_active(state: ControllerState) -> bool:
+    progress_state = state.metadata.get("progress_state")
+    if isinstance(progress_state, dict):
+        dominant_family = str(progress_state.get("recent_dominant_violation_family", "")).strip()
+        if dominant_family == "sink_budget":
+            return True
+    prompt_panels = state.metadata.get("prompt_panels")
+    prompt_panels = prompt_panels if isinstance(prompt_panels, dict) else {}
+    regime_panel = prompt_panels.get("regime_panel")
+    regime_panel = regime_panel if isinstance(regime_panel, dict) else {}
+    if str(regime_panel.get("dominant_violation_family", "")).strip() == "sink_budget":
+        return True
+    domain_regime = state.metadata.get("domain_regime")
+    if isinstance(domain_regime, dict) and str(domain_regime.get("dominant_constraint_family", "")).strip() == "sink_budget":
+        return True
+    archive_state = state.metadata.get("archive_state")
+    if isinstance(archive_state, dict) and int(archive_state.get("recent_feasible_regression_count", 0)) > 0:
+        spatial_panel = prompt_panels.get("spatial_panel")
+        spatial_panel = spatial_panel if isinstance(spatial_panel, dict) else {}
+        return str(spatial_panel.get("sink_budget_bucket", "")).strip() in {"full_sink", "near_full_sink"}
+    return False
+
+def _post_feasible_semantic_debt_active(
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> bool:
+    return any(
+        str(annotation.get("portfolio_priority", "")) == "repay_task_debt"
+        for annotation in candidate_annotations.values()
+    )
+
+
+def _post_feasible_semantic_saturation_active(
+    candidate_annotations: dict[str, dict[str, Any]],
+) -> bool:
+    return any(
+        str(annotation.get("portfolio_priority", "")) == "avoid_saturated_repeat"
+        for annotation in candidate_annotations.values()
+    )
 
 
 def _recent_candidate_operator_ids(

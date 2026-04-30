@@ -3599,6 +3599,343 @@ def test_recover_restores_visibility_floor_family_even_when_aggregate_credit_is_
     assert "local_refine" in policy.allowed_operator_ids
 
 
+
+
+def test_post_feasible_expand_marks_semantic_portfolio_debt_and_saturation() -> None:
+    policy_kernel = _policy_kernel_module()
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=120,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 48,
+                "evaluations_used": 119,
+                "evaluations_remaining": 81,
+                "feasible_rate": 0.51,
+                "first_feasible_eval": 13,
+            },
+            "archive_state": {
+                "pareto_size": 3,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 12,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 6,
+                "recent_frontier_stagnation_count": 6,
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 111 + index,
+                    "selected_operator_id": operator_id,
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for index, operator_id in enumerate(
+                    (
+                        "component_subspace_sbx",
+                        "sink_shift",
+                        "component_subspace_sbx",
+                        "sink_shift",
+                        "component_subspace_sbx",
+                        "sink_shift",
+                        "component_subspace_sbx",
+                        "component_jitter_1",
+                    )
+                )
+            ],
+            "operator_summary": {
+                "vector_sbx_pm": {"selection_count": 0, "proposal_count": 0, "pareto_contribution_count": 0},
+                "component_block_translate_2_4": {
+                    "selection_count": 0,
+                    "proposal_count": 0,
+                    "pareto_contribution_count": 0,
+                },
+                "sink_resize": {"selection_count": 0, "proposal_count": 0, "pareto_contribution_count": 0},
+                "component_subspace_sbx": {
+                    "selection_count": 24,
+                    "recent_selection_count": 4,
+                    "proposal_count": 24,
+                    "pareto_contribution_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                },
+                "sink_shift": {
+                    "selection_count": 19,
+                    "recent_selection_count": 3,
+                    "proposal_count": 19,
+                    "pareto_contribution_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                },
+            },
+        },
+    )
+
+    policy = policy_kernel.build_policy_snapshot(
+        state,
+        (
+            "vector_sbx_pm",
+            "component_block_translate_2_4",
+            "sink_resize",
+            "component_subspace_sbx",
+            "sink_shift",
+        ),
+    )
+
+    assert "post_feasible_semantic_portfolio_debt" in policy.reason_codes
+    assert "post_feasible_semantic_portfolio_saturation" in policy.reason_codes
+    assert policy.candidate_annotations["vector_sbx_pm"]["portfolio_priority"] == "repay_task_debt"
+    assert policy.candidate_annotations["component_block_translate_2_4"]["semantic_task_status"] == "under_target"
+    assert policy.candidate_annotations["sink_resize"]["operator_portfolio_status"] == "balanced"
+    assert policy.candidate_annotations["sink_resize"]["portfolio_priority"] == "neutral"
+    assert policy.candidate_annotations["component_subspace_sbx"]["semantic_task_status"] == "saturated_no_frontier"
+    assert policy.candidate_annotations["sink_shift"]["portfolio_priority"] == "avoid_saturated_repeat"
+
+
+def test_post_feasible_expand_keeps_sink_budget_stabilizer_before_feasible_rate_gate() -> None:
+    policy_kernel = _policy_kernel_module()
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=6,
+        evaluation_index=126,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 92,
+                "evaluations_used": 125,
+                "evaluations_remaining": 75,
+                "feasible_rate": 0.42,
+                "first_feasible_eval": 14,
+                "sink_budget_utilization": 1.0,
+            },
+            "archive_state": {
+                "pareto_size": 2,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 10,
+                "recent_feasible_regression_count": 0,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 7,
+                "recent_frontier_stagnation_count": 7,
+                "diversity_deficit_level": "medium",
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "dominant_violation_family": "thermal_limit",
+                    "frontier_pressure": "high",
+                    "preservation_pressure": "medium",
+                },
+                "spatial_panel": {
+                    "sink_budget_bucket": "full_sink",
+                    "hotspot_inside_sink_window": True,
+                    "nearest_neighbor_gap_min": 0.08,
+                },
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 118 + index,
+                    "selected_operator_id": operator_id,
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for index, operator_id in enumerate(
+                    (
+                        "component_jitter_1",
+                        "component_subspace_sbx",
+                        "component_relocate_1",
+                        "component_jitter_1",
+                        "vector_sbx_pm",
+                        "component_subspace_sbx",
+                        "component_relocate_1",
+                        "component_jitter_1",
+                    )
+                )
+            ],
+            "operator_summary": {
+                "sink_resize": {
+                    "selection_count": 44,
+                    "recent_selection_count": 0,
+                    "proposal_count": 44,
+                    "pareto_contribution_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                    "post_feasible_success_count": 18,
+                    "post_feasible_selection_count": 44,
+                },
+                "component_block_translate_2_4": {
+                    "selection_count": 12,
+                    "recent_selection_count": 1,
+                    "proposal_count": 12,
+                    "pareto_contribution_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                },
+                "component_subspace_sbx": {
+                    "selection_count": 18,
+                    "recent_selection_count": 1,
+                    "proposal_count": 18,
+                    "pareto_contribution_count": 1,
+                    "recent_expand_frontier_add_count": 1,
+                },
+                "component_jitter_1": {
+                    "selection_count": 20,
+                    "recent_selection_count": 2,
+                    "proposal_count": 20,
+                    "pareto_contribution_count": 1,
+                    "recent_expand_frontier_add_count": 1,
+                },
+            },
+        },
+    )
+
+    policy = policy_kernel.build_policy_snapshot(
+        state,
+        (
+            "sink_resize",
+            "component_block_translate_2_4",
+            "component_subspace_sbx",
+            "component_jitter_1",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+    assert policy.candidate_annotations["sink_resize"]["semantic_task"] == "sink_budget_shape"
+    assert policy.candidate_annotations["sink_resize"]["semantic_task_status"] == "under_target"
+    assert policy.candidate_annotations["sink_resize"]["portfolio_priority"] == "repay_task_debt"
+
+
+def test_post_feasible_expand_does_not_repay_sink_budget_debt_without_budget_pressure() -> None:
+    policy_kernel = _policy_kernel_module()
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=9,
+        evaluation_index=186,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "search_phase": "feasible_refine",
+            "run_state": {
+                "decision_index": 150,
+                "evaluations_used": 185,
+                "evaluations_remaining": 15,
+                "feasible_rate": 0.52,
+                "first_feasible_eval": 14,
+                "sink_budget_utilization": 1.0,
+            },
+            "archive_state": {
+                "pareto_size": 2,
+                "recent_frontier_add_count": 0,
+                "evaluations_since_frontier_add": 14,
+                "recent_feasible_regression_count": 0,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "post_feasible_mode": "expand",
+                "recent_no_progress_count": 8,
+                "recent_frontier_stagnation_count": 8,
+                "diversity_deficit_level": "medium",
+            },
+            "prompt_panels": {
+                "regime_panel": {
+                    "phase": "post_feasible_expand",
+                    "dominant_violation_family": "thermal_limit",
+                    "frontier_pressure": "high",
+                    "preservation_pressure": "medium",
+                    "objective_balance": {
+                        "balance_pressure": "high",
+                        "preferred_effect": "gradient_improve",
+                        "stagnant_objectives": ["gradient_rms"],
+                        "improving_objectives": ["temperature_max"],
+                    },
+                },
+                "spatial_panel": {
+                    "sink_budget_bucket": "full_sink",
+                    "hotspot_inside_sink_window": True,
+                    "nearest_neighbor_gap_min": 0.08,
+                },
+            },
+            "recent_decisions": [
+                {
+                    "evaluation_index": 178 + index,
+                    "selected_operator_id": operator_id,
+                    "fallback_used": False,
+                    "llm_valid": True,
+                }
+                for index, operator_id in enumerate(
+                    (
+                        "component_jitter_1",
+                        "component_subspace_sbx",
+                        "component_relocate_1",
+                        "component_jitter_1",
+                        "vector_sbx_pm",
+                        "component_subspace_sbx",
+                        "component_relocate_1",
+                        "component_jitter_1",
+                    )
+                )
+            ],
+            "operator_summary": {
+                "sink_resize": {
+                    "selection_count": 44,
+                    "recent_selection_count": 3,
+                    "proposal_count": 44,
+                    "pareto_contribution_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                    "post_feasible_success_count": 18,
+                    "post_feasible_selection_count": 44,
+                },
+                "component_block_translate_2_4": {
+                    "selection_count": 12,
+                    "recent_selection_count": 1,
+                    "proposal_count": 12,
+                    "pareto_contribution_count": 0,
+                    "recent_expand_frontier_add_count": 0,
+                },
+                "component_subspace_sbx": {
+                    "selection_count": 18,
+                    "recent_selection_count": 1,
+                    "proposal_count": 18,
+                    "pareto_contribution_count": 1,
+                    "recent_expand_frontier_add_count": 1,
+                },
+                "component_jitter_1": {
+                    "selection_count": 20,
+                    "recent_selection_count": 2,
+                    "proposal_count": 20,
+                    "pareto_contribution_count": 1,
+                    "recent_expand_frontier_add_count": 1,
+                },
+            },
+        },
+    )
+
+    policy = policy_kernel.build_policy_snapshot(
+        state,
+        (
+            "sink_resize",
+            "component_block_translate_2_4",
+            "component_subspace_sbx",
+            "component_jitter_1",
+        ),
+    )
+
+    assert policy.phase == "post_feasible_expand"
+    assert policy.candidate_annotations["sink_resize"]["semantic_task"] == "sink_budget_shape"
+    assert policy.candidate_annotations["sink_resize"]["semantic_task_status"] == "saturated_no_frontier"
+    assert policy.candidate_annotations["sink_resize"]["portfolio_priority"] == "avoid_saturated_repeat"
+    assert policy.candidate_annotations["component_block_translate_2_4"]["portfolio_priority"] == "repay_task_debt"
+
+
 def test_post_feasible_expand_restores_visibility_floor_family_after_route_dominance_cap() -> None:
     policy_kernel = _policy_kernel_module()
 

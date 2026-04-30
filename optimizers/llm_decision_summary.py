@@ -8,6 +8,7 @@ from typing import Any
 
 from optimizers.llm_summary import build_mode_llm_summaries
 from optimizers.mode_summary import build_mode_summaries
+from optimizers.operator_pool.semantic_tasks import semantic_task_for_operator
 from optimizers.run_telemetry import load_jsonl_rows
 from optimizers.traces.llm_trace_io import (
     iter_mode_seed_roots,
@@ -90,6 +91,10 @@ def build_llm_decision_summaries(mode_root: str | Path) -> dict[str, str]:
                         or controller_row.get("operator_selected")
                         or ""
                     ),
+                    "selected_semantic_task": _selected_semantic_task(
+                        response_row=response_row,
+                        controller_row=controller_row,
+                    ),
                     "system_prompt": str(request_row.get("system_prompt", "")),
                     "user_prompt": str(request_row.get("user_prompt", "")),
                     "response_text": str(response_row.get("response_text", "")),
@@ -131,6 +136,28 @@ def build_llm_decision_summaries(mode_root: str | Path) -> dict[str, str]:
         "llm_decision_log": str(decision_log_path.relative_to(root).as_posix()),
         "llm_key_decisions": str(key_decisions_path.relative_to(root).as_posix()),
     }
+
+
+def _selected_semantic_task(
+    *,
+    response_row: dict[str, Any],
+    controller_row: dict[str, Any],
+) -> str:
+    explicit_task = str(
+        response_row.get("selected_semantic_task")
+        or controller_row.get("selected_semantic_task")
+        or dict(controller_row.get("metadata", {})).get("selected_semantic_task")
+        or ""
+    ).strip()
+    if explicit_task:
+        return explicit_task
+    operator_id = str(
+        response_row.get("selected_operator_id")
+        or controller_row.get("selected_operator_id")
+        or controller_row.get("operator_selected")
+        or ""
+    ).strip()
+    return semantic_task_for_operator(operator_id) if operator_id else ""
 
 
 def _build_key_decisions(decision_rows: list[dict[str, Any]]) -> dict[str, Any]:

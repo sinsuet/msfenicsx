@@ -25,6 +25,7 @@ class OpenAICompatibleDecision:
     performance_profile: str
     raw_payload: dict[str, Any]
     selected_intent: str | None = None
+    selected_semantic_task: str | None = None
 
 
 class OpenAICompatibleClient:
@@ -144,6 +145,9 @@ class OpenAICompatibleClient:
                 "LLM selected operator id outside the requested operator registry: "
                 f"{selected_operator_id!r} not in {list(operator_ids)}."
             )
+        selected_semantic_task = str(
+            payload.get("selected_semantic_task") or _semantic_task_for_operator(selected_operator_id)
+        ).strip()
         return OpenAICompatibleDecision(
             selected_operator_id=selected_operator_id,
             selected_intent=(
@@ -151,6 +155,7 @@ class OpenAICompatibleClient:
                 if payload.get("selected_intent") in (None, "")
                 else str(payload.get("selected_intent")).strip()
             ),
+            selected_semantic_task=(None if not selected_semantic_task else selected_semantic_task),
             phase=str(payload.get("phase", "")),
             rationale=str(payload.get("rationale", "")),
             provider=self.config.provider,
@@ -330,10 +335,11 @@ class OpenAICompatibleClient:
         return (
             f"{normalized_prompt.rstrip()} "
             "Return exactly one JSON object. "
-            "Required key: selected_operator_id. Optional keys: phase, rationale, selected_intent. "
+            "Required key: selected_operator_id. Optional keys: phase, rationale, selected_intent, selected_semantic_task. "
             f"The selected_operator_id value must exactly equal one of {list(candidate_operator_ids)}. "
             "If rationale is present, keep it under 12 words. "
-            "If selected_intent is present, keep it short and route-like."
+            "If selected_intent is present, keep it short and route-like. "
+            "If selected_semantic_task is present, use the semantic task taxonomy."
         )
 
     @staticmethod
@@ -434,3 +440,9 @@ class OpenAICompatibleClient:
             client_kwargs["timeout"] = timeout_seconds
         self._sdk_client = OpenAI(**client_kwargs)
         return self._sdk_client
+
+
+def _semantic_task_for_operator(operator_id: str) -> str:
+    from optimizers.operator_pool.semantic_tasks import semantic_task_for_operator
+
+    return semantic_task_for_operator(operator_id)

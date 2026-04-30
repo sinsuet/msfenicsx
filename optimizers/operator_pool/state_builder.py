@@ -23,6 +23,12 @@ from optimizers.operator_pool.models import ParentBundle
 from optimizers.operator_pool.operators import get_operator_behavior_profile
 from optimizers.operator_pool.reflection import summarize_operator_history, summarize_route_family_credit
 from optimizers.operator_pool.route_families import expand_budget_family_metrics, operator_route_family
+from optimizers.operator_pool.semantic_tasks import (
+    operators_by_semantic_task,
+    semantic_task_description,
+    semantic_task_for_operator,
+    semantic_task_target,
+)
 from optimizers.operator_pool.state import ControllerState
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 
@@ -677,6 +683,186 @@ def _build_operator_applicability_row(
         ),
     }
 
+def _build_prompt_semantic_task_panel(
+    *,
+    candidate_operator_ids: Sequence[str],
+    regime_panel: Mapping[str, Any],
+    spatial_panel: Mapping[str, Any],
+    recent_decisions: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    grouped_candidates = operators_by_semantic_task(candidate_operator_ids)
+    recent_task_counts = Counter(
+        semantic_task_for_operator(str(row.get("selected_operator_id", "")))
+        for row in recent_decisions
+        if str(row.get("selected_operator_id", "")).strip()
+    )
+    recent_total = sum(recent_task_counts.values())
+    active_bottleneck = _semantic_active_bottleneck(
+        regime_panel=regime_panel,
+        spatial_panel=spatial_panel,
+    )
+    stage_focus = _semantic_stage_focus(regime_panel)
+    base_order = _semantic_base_task_order(
+        active_bottleneck=active_bottleneck,
+        regime_panel=regime_panel,
+        spatial_panel=spatial_panel,
+        stage_focus=stage_focus,
+    )
+    candidate_tasks = [task_id for task_id in base_order if task_id in grouped_candidates]
+    for task_id in grouped_candidates:
+        if task_id not in candidate_tasks:
+            candidate_tasks.append(task_id)
+
+    task_order_index = {task_id: index for index, task_id in enumerate(candidate_tasks)}
+
+    sink_budget_gate_active = _semantic_sink_budget_gate_active(regime_panel)
+
+    def task_rank(task_id: str) -> tuple[int, float, int, str]:
+        target_low, _target_high = semantic_task_target(task_id)
+        count = int(recent_task_counts.get(task_id, 0))
+        share = 0.0 if recent_total <= 0 else float(count) / float(recent_total)
+        if task_id == "baseline_reset" and stage_focus == "post_feasible_expand" and active_bottleneck in {
+            "frontier_stagnation",
+            "local_congestion",
+        }:
+            debt_rank = 2
+        elif task_id == "sink_budget_shape" and stage_focus == "post_feasible_expand" and not sink_budget_gate_active:
+            debt_rank = 0 if share < 0.50 else 1
+        elif task_id == "sink_budget_shape" and sink_budget_gate_active:
+            debt_rank = 2
+        elif share < target_low:
+            debt_rank = 0
+        else:
+            debt_rank = 1
+        return (debt_rank, share, task_order_index.get(task_id, len(task_order_index)), task_id)
+
+    recommended_task_order = sorted(candidate_tasks, key=task_rank)
+    task_rationales = {
+        task_id: _semantic_task_rationale(
+            task_id,
+            active_bottleneck=active_bottleneck,
+            regime_panel=regime_panel,
+            spatial_panel=spatial_panel,
+            recent_count=int(recent_task_counts.get(task_id, 0)),
+            recent_total=int(recent_total),
+        )
+        for task_id in recommended_task_order
+    }
+    return {
+        "active_bottleneck": active_bottleneck,
+        "stage_focus": stage_focus,
+        "recommended_task_order": recommended_task_order,
+        "task_operator_candidates": {
+            task_id: list(grouped_candidates.get(task_id, []))
+            for task_id in recommended_task_order
+        },
+        "task_rationales": task_rationales,
+    }
+
+
+def _semantic_stage_focus(regime_panel: Mapping[str, Any]) -> str:
+    phase = str(regime_panel.get("phase") or "")
+    if phase.startswith("prefeasible") or phase == "cold_start":
+        return "prefeasible_feasibility"
+    if phase == "post_feasible_expand":
+        return "post_feasible_expand"
+    if phase == "post_feasible_recover":
+        return "post_feasible_recover"
+    if phase == "post_feasible_preserve":
+        return "post_feasible_preserve"
+    return "balanced_portfolio"
+
+
+def _semantic_sink_budget_gate_active(regime_panel: Mapping[str, Any]) -> bool:
+    phase = str(regime_panel.get("phase") or "")
+    if phase not in {"post_feasible_expand", "post_feasible_preserve"}:
+        return False
+    if str(regime_panel.get("dominant_violation_family") or "") == "sink_budget":
+        return False
+    feasible_rate = float(regime_panel.get("run_feasible_rate", 0.0) or 0.0)
+    if feasible_rate < 0.50:
+        return False
+    frontier_stagnation = int(regime_panel.get("recent_frontier_stagnation_count", 0) or 0)
+    return frontier_stagnation >= 6
+
+
+def _semantic_active_bottleneck(
+    *,
+    regime_panel: Mapping[str, Any],
+    spatial_panel: Mapping[str, Any],
+) -> str:
+    sink_budget_bucket = str(spatial_panel.get("sink_budget_bucket") or "")
+    phase = str(regime_panel.get("phase") or "")
+    dominant_violation_family = str(regime_panel.get("dominant_violation_family") or "")
+    if sink_budget_bucket in {"full_sink", "near_full_sink"} and (
+        dominant_violation_family == "sink_budget" or phase.startswith("prefeasible")
+    ):
+        return "sink_budget_pressure"
+    if not bool(spatial_panel.get("hotspot_inside_sink_window", True)):
+        return "sink_misaligned_hotspot"
+    if float(spatial_panel.get("nearest_neighbor_gap_min", 1.0)) < 0.11:
+        return "local_congestion"
+    if str(regime_panel.get("frontier_pressure") or "") == "high":
+        return "frontier_stagnation"
+    return "balanced_portfolio"
+
+
+def _semantic_base_task_order(
+    *,
+    active_bottleneck: str,
+    regime_panel: Mapping[str, Any],
+    spatial_panel: Mapping[str, Any],
+    stage_focus: str,
+) -> list[str]:
+    if stage_focus == "prefeasible_feasibility":
+        if active_bottleneck == "sink_budget_pressure":
+            return ["sink_budget_shape", "baseline_reset", "global_layout_expand", "semantic_block_move"]
+        if active_bottleneck == "sink_misaligned_hotspot":
+            return ["sink_alignment", "baseline_reset", "global_layout_expand", "sink_budget_shape"]
+        return ["baseline_reset", "global_layout_expand", "sink_budget_shape", "semantic_block_move"]
+    if stage_focus == "post_feasible_preserve":
+        if active_bottleneck == "sink_budget_pressure":
+            return ["sink_budget_shape", "baseline_reset", "local_polish", "sink_alignment", "semantic_block_move"]
+        return ["local_polish", "baseline_reset", "sink_budget_shape", "sink_alignment", "semantic_block_move"]
+    if stage_focus == "post_feasible_recover":
+        if active_bottleneck == "sink_budget_pressure":
+            return ["sink_budget_shape", "baseline_reset", "sink_alignment", "local_polish", "semantic_block_move"]
+        return ["sink_alignment", "sink_budget_shape", "baseline_reset", "local_polish", "semantic_block_move"]
+    if active_bottleneck == "sink_budget_pressure":
+        return ["sink_budget_shape", "baseline_reset", "semantic_block_move", "global_layout_expand", "local_polish"]
+    if active_bottleneck == "sink_misaligned_hotspot":
+        return ["sink_alignment", "semantic_block_move", "sink_budget_shape", "baseline_reset", "local_polish"]
+    if active_bottleneck == "local_congestion":
+        return ["semantic_block_move", "local_polish", "global_layout_expand", "baseline_reset"]
+    if str(regime_panel.get("phase") or "").startswith("post_feasible_expand"):
+        return ["global_layout_expand", "semantic_block_move", "baseline_reset", "sink_budget_shape", "local_polish"]
+    return ["baseline_reset", "global_layout_expand", "local_polish", "sink_alignment", "sink_budget_shape"]
+
+
+def _semantic_task_rationale(
+    task_id: str,
+    *,
+    active_bottleneck: str,
+    regime_panel: Mapping[str, Any],
+    spatial_panel: Mapping[str, Any],
+    recent_count: int,
+    recent_total: int,
+) -> str:
+    if task_id == "sink_budget_shape" and active_bottleneck == "sink_budget_pressure":
+        return "sink budget pressure is active; reshape coverage before repeating alignment moves."
+    if task_id == "sink_alignment" and active_bottleneck == "sink_misaligned_hotspot":
+        return "hotspot offset remains outside the current sink corridor."
+    if task_id == "semantic_block_move" and active_bottleneck in {"local_congestion", "sink_misaligned_hotspot"}:
+        return "component cluster geometry is the active layout bottleneck."
+    if task_id == "baseline_reset" and recent_total > 0 and recent_count == 0:
+        return "baseline reset is underused in the recent semantic portfolio."
+    if task_id == "local_polish" and str(regime_panel.get("preservation_pressure") or "") == "high":
+        return "preservation pressure favors low-risk local refinement."
+    description = semantic_task_description(task_id)
+    if recent_total > 0:
+        return f"{description} recent portfolio count {recent_count}/{recent_total}."
+    return description
+
 
 def _build_retrieval_panel(
     *,
@@ -992,6 +1178,12 @@ def build_controller_state(
                 candidate_operator_ids=candidate_operator_ids,
                 spatial_panel=spatial_panel,
                 regime_panel=regime_panel,
+            ),
+            "semantic_task_panel": _build_prompt_semantic_task_panel(
+                candidate_operator_ids=candidate_operator_ids,
+                regime_panel=regime_panel,
+                spatial_panel=spatial_panel,
+                recent_decisions=state_metadata["recent_decisions"],
             ),
             "generation_panel": _build_prompt_generation_panel(generation_local_memory),
         }

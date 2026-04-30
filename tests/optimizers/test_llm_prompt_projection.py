@@ -550,3 +550,47 @@ def test_post_feasible_operator_panel_preserves_exposure_fields() -> None:
     row = payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]
     assert row["exposure_priority"] == "sink_underexposed"
     assert row["exposure_status"] == "local_cleanup_cooldown"
+
+
+def test_post_feasible_operator_panel_preserves_semantic_portfolio_fields() -> None:
+    prompt_projection = _prompt_projection_module()
+    state = _post_feasible_state()
+    state.metadata["prompt_panels"]["semantic_task_panel"] = {
+        "active_bottleneck": "sink_misaligned_hotspot",
+        "recommended_task_order": ["sink_alignment", "semantic_block_move"],
+        "task_operator_candidates": {
+            "sink_alignment": ["repair_sink_budget"],
+            "semantic_block_move": [],
+        },
+        "task_rationales": {"sink_alignment": "hotspot offset remains high"},
+    }
+    policy_snapshot = PolicySnapshot(
+        phase="post_feasible_expand",
+        allowed_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=("post_feasible_semantic_portfolio_debt",),
+        candidate_annotations={
+            "repair_sink_budget": {
+                "semantic_task": "sink_budget_shape",
+                "semantic_task_status": "under_target",
+                "operator_portfolio_status": "underexposed",
+                "portfolio_priority": "repay_task_debt",
+            }
+        },
+    )
+
+    payload = prompt_projection.build_prompt_projection(
+        state,
+        candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        original_candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
+        policy_snapshot=policy_snapshot,
+        guardrail=None,
+    )
+
+    assert payload["prompt_panels"]["semantic_task_panel"]["active_bottleneck"] == "sink_misaligned_hotspot"
+    row = payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]
+    assert row["semantic_task"] == "sink_budget_shape"
+    assert row["semantic_task_status"] == "under_target"
+    assert row["operator_portfolio_status"] == "underexposed"
+    assert row["portfolio_priority"] == "repay_task_debt"

@@ -4117,6 +4117,56 @@ def test_s5_style_primitive_prompt_stays_under_budget() -> None:
     assert "Candidate operator intents:" not in system_prompt
 
 
+def test_llm_response_trace_records_selected_semantic_task(tmp_path: Path) -> None:
+    run_root = tmp_path / "run"
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "model": "GPT-5.4",
+            "capability_profile": "responses_native",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 128,
+        },
+        client=_FakeLLMClient(
+            OpenAICompatibleDecision(
+                selected_operator_id="local_refine",
+                selected_semantic_task="local_polish",
+                phase="post_feasible_preserve",
+                rationale="polish stable basin",
+                provider="openai-compatible",
+                model="GPT-5.4",
+                capability_profile="responses_native",
+                performance_profile="balanced",
+                raw_payload={
+                    "selected_operator_id": "local_refine",
+                    "selected_semantic_task": "local_polish",
+                },
+            )
+        ),
+    )
+    controller.configure_trace_outputs(
+        controller_trace_path=run_root / "traces" / "controller_trace.jsonl",
+        llm_request_trace_path=run_root / "traces" / "llm_request_trace.jsonl",
+        llm_response_trace_path=run_root / "traces" / "llm_response_trace.jsonl",
+        prompt_store=PromptStore(run_root / "prompts"),
+    )
+
+    decision = controller.select_decision(
+        _state(),
+        ("native_sbx_pm", "local_refine"),
+        np.random.default_rng(17),
+    )
+
+    assert decision.metadata["selected_semantic_task"] == "local_polish"
+    assert controller.response_trace[0]["selected_semantic_task"] == "local_polish"
+    response_rows = [
+        json.loads(line)
+        for line in (run_root / "traces" / "llm_response_trace.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert response_rows[0]["selected_semantic_task"] == "local_polish"
+
+
 def test_llm_request_trace_records_prompt_size_fields(tmp_path: Path) -> None:
     controller_trace_path = tmp_path / "controller_trace.jsonl"
     request_trace_path = tmp_path / "llm_request_trace.jsonl"
@@ -4276,6 +4326,174 @@ def test_decision_axes_surface_bounded_exploration_exposure_targets() -> None:
     ]
     assert axes["local_cleanup_cooldown_targets"] == ["component_jitter_1"]
     assert "component_block_translate_2_4" in axes["shared_primitive_trial_candidates"]
+
+
+
+
+def test_decision_axes_surface_semantic_portfolio_planner_fields() -> None:
+    axes = LLMOperatorController._build_decision_axes(
+        {
+            "candidate_operator_ids": [
+                "vector_sbx_pm",
+                "sink_shift",
+                "sink_resize",
+                "component_subspace_sbx",
+            ],
+            "prompt_panels": {
+                "semantic_task_panel": {
+                    "active_bottleneck": "sink_misaligned_hotspot",
+                    "recommended_task_order": ["sink_budget_shape", "baseline_reset"],
+                    "task_operator_candidates": {
+                        "sink_budget_shape": ["sink_resize"],
+                        "baseline_reset": ["vector_sbx_pm"],
+                    },
+                },
+                "operator_panel": {
+                    "vector_sbx_pm": {
+                        "semantic_task": "baseline_reset",
+                        "semantic_task_status": "under_target",
+                        "operator_portfolio_status": "underexposed",
+                        "portfolio_priority": "repay_task_debt",
+                    },
+                    "sink_shift": {
+                        "semantic_task": "sink_alignment",
+                        "semantic_task_status": "saturated_no_frontier",
+                        "operator_portfolio_status": "saturated_no_frontier",
+                        "portfolio_priority": "avoid_saturated_repeat",
+                    },
+                    "sink_resize": {
+                        "semantic_task": "sink_budget_shape",
+                        "semantic_task_status": "under_target",
+                        "operator_portfolio_status": "underexposed",
+                        "portfolio_priority": "repay_task_debt",
+                    },
+                    "component_subspace_sbx": {
+                        "semantic_task": "semantic_subspace_recombine",
+                        "semantic_task_status": "saturated_no_frontier",
+                        "operator_portfolio_status": "saturated_no_frontier",
+                        "portfolio_priority": "avoid_saturated_repeat",
+                    },
+                },
+                "regime_panel": {"phase": "post_feasible_expand"},
+                "spatial_panel": {},
+            },
+        }
+    )
+
+    assert axes["semantic_portfolio_mode"] == "repay_debt_avoid_saturation"
+    assert axes["active_semantic_tasks"] == ["sink_budget_shape", "baseline_reset"]
+    assert axes["semantic_task_debts"] == ["baseline_reset", "sink_budget_shape"]
+    assert axes["semantic_task_saturations"] == ["sink_alignment", "semantic_subspace_recombine"]
+    assert axes["next_task_preference"] == "sink_budget_shape"
+    assert axes["avoid_repeating_operators"] == ["sink_shift", "component_subspace_sbx"]
+    assert axes["semantic_task_to_operator_candidates"] == {
+        "sink_budget_shape": ["sink_resize"],
+        "baseline_reset": ["vector_sbx_pm"],
+    }
+
+
+def test_prefeasible_decision_axes_focus_on_feasibility_tasks_before_portfolio_balance() -> None:
+    axes = LLMOperatorController._build_decision_axes(
+        {
+            "candidate_operator_ids": [
+                "vector_sbx_pm",
+                "sink_resize",
+                "component_relocate_1",
+                "component_block_translate_2_4",
+                "component_jitter_1",
+            ],
+            "prompt_panels": {
+                "semantic_task_panel": {
+                    "active_bottleneck": "sink_budget_pressure",
+                    "stage_focus": "prefeasible_feasibility",
+                    "recommended_task_order": [
+                        "sink_budget_shape",
+                        "baseline_reset",
+                        "global_layout_expand",
+                        "semantic_block_move",
+                        "local_polish",
+                    ],
+                    "task_operator_candidates": {
+                        "sink_budget_shape": ["sink_resize"],
+                        "baseline_reset": ["vector_sbx_pm"],
+                        "global_layout_expand": ["component_relocate_1"],
+                        "semantic_block_move": ["component_block_translate_2_4"],
+                        "local_polish": ["component_jitter_1"],
+                    },
+                },
+                "operator_panel": {
+                    "vector_sbx_pm": {
+                        "semantic_task": "baseline_reset",
+                        "portfolio_priority": "repay_task_debt",
+                    },
+                    "sink_resize": {
+                        "semantic_task": "sink_budget_shape",
+                        "portfolio_priority": "repay_task_debt",
+                    },
+                    "component_relocate_1": {
+                        "semantic_task": "global_layout_expand",
+                        "portfolio_priority": "repay_task_debt",
+                    },
+                    "component_block_translate_2_4": {
+                        "semantic_task": "semantic_block_move",
+                        "portfolio_priority": "repay_task_debt",
+                    },
+                    "component_jitter_1": {
+                        "semantic_task": "local_polish",
+                        "portfolio_priority": "repay_task_debt",
+                    },
+                },
+                "regime_panel": {"phase": "prefeasible_convert"},
+                "spatial_panel": {},
+            },
+        }
+    )
+
+    assert axes["semantic_portfolio_mode"] == "feasibility_first"
+    assert axes["active_semantic_tasks"] == ["sink_budget_shape", "baseline_reset", "global_layout_expand"]
+    assert axes["next_task_preference"] == "sink_budget_shape"
+    assert axes["semantic_task_debts"] == []
+    assert "local_polish" not in axes["semantic_task_to_operator_candidates"]
+
+
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model": "test-model",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 128,
+        },
+        client=object(),
+    )
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=5,
+        evaluation_index=51,
+        parent_count=2,
+        vector_size=32,
+        metadata={"search_phase": "feasible_refine"},
+    )
+    policy_snapshot = PolicySnapshot(
+        phase="post_feasible_expand",
+        allowed_operator_ids=("vector_sbx_pm", "sink_shift", "component_subspace_sbx"),
+        suppressed_operator_ids=(),
+        reset_active=False,
+        reason_codes=(),
+        candidate_annotations={},
+    )
+
+    prompt = controller._build_system_prompt(
+        state,
+        policy_snapshot.allowed_operator_ids,
+        policy_snapshot=policy_snapshot,
+        guardrail=None,
+    )
+
+    assert "Choose the semantic task first" in prompt
+    assert "repay task debt" in prompt
 
 
 def test_shared_primitive_exposure_priority_overrides_sparse_low_success_filter() -> None:

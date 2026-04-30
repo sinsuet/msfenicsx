@@ -414,6 +414,8 @@ def test_operator_decision_schema_requires_only_selected_operator_id() -> None:
 
     assert schema["required"] == ["selected_operator_id"]
     assert schema["properties"]["selected_operator_id"]["enum"] == ["native_sbx_pm", "local_refine"]
+    assert "selected_semantic_task" in schema["properties"]
+    assert "selected_semantic_task" not in schema["required"]
     assert "phase" in schema["properties"]
     assert "rationale" in schema["properties"]
 
@@ -437,7 +439,7 @@ def test_chat_compatible_json_prompt_marks_phase_and_rationale_optional(
     assert chat_api.last_kwargs is not None
     system_message = str(chat_api.last_kwargs["messages"][0]["content"]).lower()
     assert "required key: selected_operator_id" in system_message
-    assert "optional keys: phase, rationale, selected_intent" in system_message
+    assert "optional keys: phase, rationale, selected_intent, selected_semantic_task" in system_message
 
 
 def test_chat_compatible_json_client_accepts_minimal_operator_payload(
@@ -488,6 +490,29 @@ def test_chat_compatible_json_client_accepts_payload_without_selected_intent(
 
     assert response.selected_operator_id == "global_explore"
     assert response.selected_intent is None
+    assert response.selected_semantic_task == "global_layout_expand"
+
+
+def test_chat_compatible_json_client_preserves_selected_semantic_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    chat_api = _FakeChatCompletionsAPI(
+        '{"selected_operator_id": "sink_resize", "selected_semantic_task": "sink_budget_shape"}'
+    )
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    response = client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "sink_resize"),
+    )
+
+    assert response.selected_operator_id == "sink_resize"
+    assert response.selected_semantic_task == "sink_budget_shape"
 
 
 def test_chat_compatible_json_client_accepts_operator_id_alias(

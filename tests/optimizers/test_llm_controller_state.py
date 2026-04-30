@@ -8,7 +8,7 @@ from optimizers.operator_pool.policy_kernel import PolicySnapshot
 from optimizers.operator_pool.prompt_projection import build_prompt_projection
 from optimizers.operator_pool.reflection import summarize_operator_history
 from optimizers.operator_pool.state import ControllerState
-from optimizers.operator_pool.state_builder import build_controller_state
+from optimizers.operator_pool.state_builder import build_controller_state, _build_prompt_semantic_task_panel
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
 from optimizers.operator_pool.domain_state import build_prompt_regime_panel
 
@@ -857,6 +857,161 @@ def test_build_controller_state_emits_phase_aware_prompt_panels() -> None:
         "repair_sink_budget",
     }
     assert prompt_panels["operator_panel"]["move_hottest_cluster_toward_sink"]["expected_peak_effect"] == "improve"
+
+
+def test_build_controller_state_emits_semantic_task_panel() -> None:
+    parents = _parents()
+    history = [
+        _record(
+            2,
+            parents.primary,
+            feasible=False,
+            peak_temperature=352.4,
+            temperature_gradient_rms=12.6,
+            c01_temperature_violation=1.3,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            3,
+            parents.secondary,
+            feasible=True,
+            peak_temperature=347.9,
+            temperature_gradient_rms=9.8,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            4,
+            _vector(sink_start=0.24, sink_end=0.68, x_shift=0.015, y_shift=0.02),
+            feasible=True,
+            peak_temperature=344.8,
+            temperature_gradient_rms=8.7,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    state = build_controller_state(
+        parents,
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=9,
+        candidate_operator_ids=("vector_sbx_pm", "sink_shift", "sink_resize", "component_block_translate_2_4"),
+        metadata={
+            "design_variable_ids": list(_S1_VARIABLE_IDS),
+            "decision_index": 5,
+            "total_evaluation_budget": 20,
+            "radiator_span_max": 0.48,
+        },
+        controller_trace=[
+            ControllerTraceRow(
+                generation_index=1,
+                evaluation_index=5,
+                family="genetic",
+                backbone="nsga2",
+                controller_id="llm",
+                candidate_operator_ids=("sink_shift", "component_subspace_sbx"),
+                selected_operator_id="sink_shift",
+                metadata={"decision_index": 1, "fallback_used": False, "policy_phase": "post_feasible_expand"},
+            ),
+            ControllerTraceRow(
+                generation_index=1,
+                evaluation_index=6,
+                family="genetic",
+                backbone="nsga2",
+                controller_id="llm",
+                candidate_operator_ids=("sink_shift", "component_subspace_sbx"),
+                selected_operator_id="component_subspace_sbx",
+                metadata={"decision_index": 2, "fallback_used": False, "policy_phase": "post_feasible_expand"},
+            ),
+        ],
+        history=history,
+        recent_window=2,
+    )
+
+    semantic_task_panel = state.metadata["prompt_panels"]["semantic_task_panel"]
+    assert semantic_task_panel["active_bottleneck"] == "balanced_portfolio"
+    assert semantic_task_panel["stage_focus"] == "post_feasible_preserve"
+    assert semantic_task_panel["recommended_task_order"][:2] == ["baseline_reset", "sink_budget_shape"]
+    assert semantic_task_panel["task_operator_candidates"]["sink_budget_shape"] == ["sink_resize"]
+    assert semantic_task_panel["task_operator_candidates"]["baseline_reset"] == ["vector_sbx_pm"]
+
+
+def test_post_feasible_expand_semantic_panel_keeps_sink_stabilizer_before_gate() -> None:
+    semantic_task_panel = _build_prompt_semantic_task_panel(
+        candidate_operator_ids=(
+            "vector_sbx_pm",
+            "sink_resize",
+            "component_block_translate_2_4",
+            "component_jitter_1",
+        ),
+        regime_panel={
+            "phase": "post_feasible_expand",
+            "dominant_violation_family": "thermal_limit",
+            "frontier_pressure": "high",
+            "preservation_pressure": "medium",
+            "run_feasible_rate": 0.42,
+            "recent_frontier_stagnation_count": 4,
+        },
+        spatial_panel={
+            "sink_budget_bucket": "full_sink",
+            "hotspot_inside_sink_window": True,
+            "nearest_neighbor_gap_min": 0.08,
+        },
+        recent_decisions=(
+            {"selected_operator_id": "sink_resize"},
+            {"selected_operator_id": "component_jitter_1"},
+            {"selected_operator_id": "component_block_translate_2_4"},
+            {"selected_operator_id": "sink_resize"},
+        ),
+    )
+
+    assert semantic_task_panel["stage_focus"] == "post_feasible_expand"
+    assert semantic_task_panel["active_bottleneck"] != "sink_budget_pressure"
+    assert semantic_task_panel["recommended_task_order"][:4] == [
+        "semantic_block_move",
+        "local_polish",
+        "sink_budget_shape",
+        "baseline_reset",
+    ]
+
+
+def test_post_feasible_expand_semantic_panel_prioritizes_exploitation_after_sink_gate() -> None:
+    semantic_task_panel = _build_prompt_semantic_task_panel(
+        candidate_operator_ids=(
+            "vector_sbx_pm",
+            "sink_resize",
+            "component_block_translate_2_4",
+            "component_jitter_1",
+        ),
+        regime_panel={
+            "phase": "post_feasible_expand",
+            "dominant_violation_family": "thermal_limit",
+            "frontier_pressure": "high",
+            "preservation_pressure": "medium",
+            "run_feasible_rate": 0.56,
+            "recent_frontier_stagnation_count": 8,
+        },
+        spatial_panel={
+            "sink_budget_bucket": "full_sink",
+            "hotspot_inside_sink_window": True,
+            "nearest_neighbor_gap_min": 0.08,
+        },
+        recent_decisions=(
+            {"selected_operator_id": "component_jitter_1"},
+            {"selected_operator_id": "component_block_translate_2_4"},
+            {"selected_operator_id": "component_jitter_1"},
+            {"selected_operator_id": "component_block_translate_2_4"},
+        ),
+    )
+
+    assert semantic_task_panel["stage_focus"] == "post_feasible_expand"
+    assert semantic_task_panel["active_bottleneck"] != "sink_budget_pressure"
+    assert semantic_task_panel["recommended_task_order"][:2] == ["semantic_block_move", "local_polish"]
+    assert semantic_task_panel["recommended_task_order"].index("sink_budget_shape") > semantic_task_panel[
+        "recommended_task_order"
+    ].index("local_polish")
 
 
 def test_operator_summary_exposes_entry_preserve_expand_fit_fields() -> None:
