@@ -311,7 +311,7 @@ def test_union_spec_rejects_modified_semantic_operator_pool() -> None:
         OptimizationSpec.from_dict(payload)
 
 
-def test_llm_spec_shares_benchmark_source_and_extends_union_operator_pool() -> None:
+def test_llm_spec_shares_benchmark_source_and_operator_pool_with_union() -> None:
     union_spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
     llm_spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
 
@@ -319,9 +319,10 @@ def test_llm_spec_shares_benchmark_source_and_extends_union_operator_pool() -> N
     assert union_spec.operator_control is not None
     assert llm_spec.operator_control is not None
     assert union_spec.operator_control["registry_profile"] == "primitive_clean"
-    assert llm_spec.operator_control["registry_profile"] == "primitive_plus_assisted"
+    assert llm_spec.operator_control["registry_profile"] == "primitive_clean"
     assert tuple(union_spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_clean")
-    assert tuple(llm_spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_plus_assisted")
+    assert tuple(llm_spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_clean")
+    assert llm_spec.operator_control["operator_pool"] == union_spec.operator_control["operator_pool"]
     assert union_spec.operator_control["controller"] == "random_uniform"
     assert llm_spec.operator_control["controller"] == "llm"
 
@@ -337,7 +338,8 @@ def test_llm_spec_keeps_benchmark_and_budget_settings_against_union() -> None:
     assert union_spec.operator_control is not None
     assert llm_spec.operator_control is not None
     assert union_spec.operator_control["registry_profile"] == "primitive_clean"
-    assert llm_spec.operator_control["registry_profile"] == "primitive_plus_assisted"
+    assert llm_spec.operator_control["registry_profile"] == "primitive_clean"
+    assert llm_spec.operator_control["operator_pool"] == union_spec.operator_control["operator_pool"]
 
     params = llm_spec.operator_control["controller_parameters"]
     assert params["memory"]["recent_window"] > 0
