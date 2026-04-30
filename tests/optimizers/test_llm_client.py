@@ -420,6 +420,75 @@ def test_operator_decision_schema_requires_only_selected_operator_id() -> None:
     assert "rationale" in schema["properties"]
 
 
+def test_operator_prior_advice_schema_requires_operator_priors() -> None:
+    from llm.openai_compatible.schemas import build_operator_prior_advice_schema
+
+    schema = build_operator_prior_advice_schema(("sink_shift", "component_jitter_1"))
+
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is False
+    assert "operator_priors" in schema["required"]
+    operator_prior_items = schema["properties"]["operator_priors"]["items"]
+    assert operator_prior_items["properties"]["operator_id"]["enum"] == [
+        "sink_shift",
+        "component_jitter_1",
+    ]
+    assert operator_prior_items["properties"]["prior"]["minimum"] == 0.0
+    assert operator_prior_items["properties"]["prior"]["maximum"] == 1.0
+    assert operator_prior_items["properties"]["risk"]["minimum"] == 0.0
+    assert operator_prior_items["properties"]["risk"]["maximum"] == 1.0
+    assert operator_prior_items["properties"]["confidence"]["minimum"] == 0.0
+    assert operator_prior_items["properties"]["confidence"]["maximum"] == 1.0
+
+
+def test_chat_compatible_json_client_parses_operator_prior_advice() -> None:
+    chat_api = _FakeChatCompletionsAPI(
+        '{"phase":"post_feasible_expand","rationale":"balance local cleanup and expansion",'
+        '"semantic_task_priors":[{"semantic_task":"local_polish","prior":0.6,"risk":0.2,"confidence":0.7}],'
+        '"operator_priors":['
+        '{"operator_id":"anchored_component_jitter","prior":0.7,"risk":0.2,"confidence":0.8,"rationale":"bounded local polish"},'
+        '{"operator_id":"sink_shift","prior":0.3,"risk":0.5,"confidence":0.4,"rationale":"limited sink alignment"}'
+        "]}"
+    )
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    advice = client.request_operator_prior_advice(
+        system_prompt="return priors",
+        user_prompt="{}",
+        candidate_operator_ids=("anchored_component_jitter", "sink_shift"),
+    )
+
+    assert advice.phase == "post_feasible_expand"
+    assert advice.rationale == "balance local cleanup and expansion"
+    assert advice.operator_priors[0].operator_id == "anchored_component_jitter"
+    assert advice.operator_priors[0].prior == pytest.approx(0.7)
+    assert advice.operator_priors[0].risk == pytest.approx(0.2)
+    assert advice.operator_priors[0].confidence == pytest.approx(0.8)
+    assert advice.semantic_task_priors[0].semantic_task == "local_polish"
+    assert chat_api.last_kwargs is not None
+    system_message = str(chat_api.last_kwargs["messages"][0]["content"])
+    assert "operator_priors" in system_message
+    assert "selected_operator_id" not in system_message
+
+
+def test_operator_prior_advice_rejects_unknown_operator_id() -> None:
+    chat_api = _FakeChatCompletionsAPI('{"operator_priors":[{"operator_id":"not_in_pool","prior":1.0}]}')
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    with pytest.raises(ValueError, match="outside the requested operator registry"):
+        client.request_operator_prior_advice(
+            system_prompt="return priors",
+            user_prompt="{}",
+            candidate_operator_ids=("anchored_component_jitter", "sink_shift"),
+        )
+
+
 def test_chat_compatible_json_prompt_marks_phase_and_rationale_optional(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

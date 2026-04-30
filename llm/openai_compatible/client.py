@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 
 from llm.openai_compatible.config import OpenAICompatibleConfig
-from llm.openai_compatible.schemas import build_operator_decision_schema
+from llm.openai_compatible.schemas import build_operator_decision_schema, build_operator_prior_advice_schema
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +26,36 @@ class OpenAICompatibleDecision:
     raw_payload: dict[str, Any]
     selected_intent: str | None = None
     selected_semantic_task: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorPrior:
+    operator_id: str
+    prior: float
+    risk: float = 0.5
+    confidence: float = 0.5
+    rationale: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class SemanticTaskPrior:
+    semantic_task: str
+    prior: float
+    risk: float = 0.5
+    confidence: float = 0.5
+
+
+@dataclass(frozen=True, slots=True)
+class OpenAICompatiblePriorAdvice:
+    operator_priors: tuple[OperatorPrior, ...]
+    semantic_task_priors: tuple[SemanticTaskPrior, ...]
+    phase: str
+    rationale: str
+    provider: str
+    model: str
+    capability_profile: str
+    performance_profile: str
+    raw_payload: dict[str, Any]
 
 
 class OpenAICompatibleClient:
@@ -103,24 +133,100 @@ class OpenAICompatibleClient:
         assert last_error is not None
         raise last_error
 
+    def request_operator_prior_advice(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        candidate_operator_ids: Sequence[str],
+        attempt_trace: list[dict[str, Any]] | None = None,
+    ) -> OpenAICompatiblePriorAdvice:
+        operator_ids = tuple(str(operator_id) for operator_id in candidate_operator_ids)
+        if not operator_ids:
+            raise ValueError("OpenAICompatibleClient requires at least one candidate operator id.")
+
+        last_error: Exception | None = None
+        current_system_prompt = system_prompt
+        for attempt_index in range(self.config.max_attempts):
+            try:
+                raw_text = self._request_raw_text(
+                    system_prompt=current_system_prompt,
+                    user_prompt=user_prompt,
+                    candidate_operator_ids=operator_ids,
+                    response_schema=build_operator_prior_advice_schema(operator_ids),
+                    response_schema_name="operator_prior_advice",
+                )
+                advice = self._parse_prior_advice(raw_text, operator_ids)
+                if attempt_trace is not None:
+                    attempt_trace.append(
+                        {
+                            "attempt_index": int(attempt_index + 1),
+                            "valid": True,
+                            "raw_text": raw_text,
+                            "operator_priors": [
+                                {
+                                    "operator_id": prior.operator_id,
+                                    "prior": prior.prior,
+                                    "risk": prior.risk,
+                                    "confidence": prior.confidence,
+                                }
+                                for prior in advice.operator_priors
+                            ],
+                        }
+                    )
+                return advice
+            except ValueError as exc:
+                if attempt_trace is not None:
+                    attempt_trace.append(
+                        {
+                            "attempt_index": int(attempt_index + 1),
+                            "valid": False,
+                            "error": str(exc),
+                        }
+                    )
+                last_error = exc
+                current_system_prompt = self._build_retry_prior_system_prompt(
+                    system_prompt,
+                    operator_ids,
+                    str(exc),
+                )
+            except Exception as exc:
+                if attempt_trace is not None:
+                    attempt_trace.append(
+                        {
+                            "attempt_index": int(attempt_index + 1),
+                            "valid": False,
+                            "error": str(exc),
+                        }
+                    )
+                last_error = exc
+                raise
+        assert last_error is not None
+        raise last_error
+
     def _request_raw_text(
         self,
         *,
         system_prompt: str,
         user_prompt: str,
         candidate_operator_ids: Sequence[str],
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str = "operator_decision",
     ) -> str:
         if self.config.capability_profile == "responses_native":
             return self._request_via_responses_native(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 candidate_operator_ids=candidate_operator_ids,
+                response_schema=response_schema,
+                response_schema_name=response_schema_name,
             )
         if self.config.capability_profile == "chat_compatible_json":
             return self._request_via_chat_compatible_json(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 candidate_operator_ids=candidate_operator_ids,
+                response_schema_name=response_schema_name,
             )
         raise ValueError(f"Unsupported capability profile '{self.config.capability_profile}'.")
 
@@ -165,6 +271,77 @@ class OpenAICompatibleClient:
             raw_payload=dict(payload),
         )
 
+    def _parse_prior_advice(
+        self,
+        raw_text: str,
+        operator_ids: Sequence[str],
+    ) -> OpenAICompatiblePriorAdvice:
+        resolved_model = self.config.resolve_model(self._environ)
+        normalized_raw_text = self._unwrap_markdown_code_fence(raw_text)
+        payload = json.loads(normalized_raw_text)
+        raw_operator_priors = payload.get("operator_priors")
+        if not isinstance(raw_operator_priors, list):
+            raise ValueError("LLM prior advice must include an operator_priors array.")
+        operator_priors: list[OperatorPrior] = []
+        seen_operator_ids: set[str] = set()
+        for row in raw_operator_priors:
+            if not isinstance(row, dict):
+                raise ValueError("Each operator_prior entry must be an object.")
+            operator_id = str(row.get("operator_id", "")).strip()
+            if operator_id not in operator_ids:
+                raise ValueError(
+                    "LLM prior advice included operator id outside the requested operator registry: "
+                    f"{operator_id!r} not in {list(operator_ids)}."
+                )
+            if operator_id in seen_operator_ids:
+                continue
+            seen_operator_ids.add(operator_id)
+            operator_priors.append(
+                OperatorPrior(
+                    operator_id=operator_id,
+                    prior=_clamp_unit(row.get("prior", 0.0)),
+                    risk=_clamp_unit(row.get("risk", 0.5)),
+                    confidence=_clamp_unit(row.get("confidence", 0.5)),
+                    rationale=str(row.get("rationale", "")),
+                )
+            )
+        if not operator_priors:
+            raise ValueError("LLM prior advice did not include any valid operator priors.")
+
+        semantic_task_priors: list[SemanticTaskPrior] = []
+        raw_task_priors = payload.get("semantic_task_priors", [])
+        if raw_task_priors is None:
+            raw_task_priors = []
+        if not isinstance(raw_task_priors, list):
+            raise ValueError("semantic_task_priors must be an array when present.")
+        seen_task_ids: set[str] = set()
+        for row in raw_task_priors:
+            if not isinstance(row, dict):
+                raise ValueError("Each semantic_task_prior entry must be an object.")
+            task_id = str(row.get("semantic_task", "")).strip()
+            if not task_id or task_id in seen_task_ids:
+                continue
+            seen_task_ids.add(task_id)
+            semantic_task_priors.append(
+                SemanticTaskPrior(
+                    semantic_task=task_id,
+                    prior=_clamp_unit(row.get("prior", 0.0)),
+                    risk=_clamp_unit(row.get("risk", 0.5)),
+                    confidence=_clamp_unit(row.get("confidence", 0.5)),
+                )
+            )
+        return OpenAICompatiblePriorAdvice(
+            operator_priors=tuple(operator_priors),
+            semantic_task_priors=tuple(semantic_task_priors),
+            phase=str(payload.get("phase", "")),
+            rationale=str(payload.get("rationale", "")),
+            provider=self.config.provider,
+            model=resolved_model,
+            capability_profile=self.config.capability_profile,
+            performance_profile=self.config.performance_profile,
+            raw_payload=dict(payload),
+        )
+
     @staticmethod
     def _unwrap_markdown_code_fence(raw_text: str) -> str:
         stripped = raw_text.strip()
@@ -190,10 +367,12 @@ class OpenAICompatibleClient:
         system_prompt: str,
         user_prompt: str,
         candidate_operator_ids: Sequence[str],
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str = "operator_decision",
     ) -> str:
         sdk_client = self._resolve_sdk_client()
         resolved_model = self.config.resolve_model(self._environ)
-        schema = build_operator_decision_schema(candidate_operator_ids)
+        schema = build_operator_decision_schema(candidate_operator_ids) if response_schema is None else response_schema
         request_payload: dict[str, Any] = {
             "model": resolved_model,
             "input": [
@@ -204,7 +383,7 @@ class OpenAICompatibleClient:
             "text": {
                 "format": {
                     "type": "json_schema",
-                    "name": "operator_decision",
+                    "name": response_schema_name,
                     "schema": schema,
                 }
             },
@@ -225,17 +404,20 @@ class OpenAICompatibleClient:
         system_prompt: str,
         user_prompt: str,
         candidate_operator_ids: Sequence[str],
+        response_schema_name: str = "operator_decision",
     ) -> str:
         if self._sdk_client is not None and self._http_client is None:
             return self._request_via_chat_compatible_json_sdk(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 candidate_operator_ids=candidate_operator_ids,
+                response_schema_name=response_schema_name,
             )
         return self._request_via_chat_compatible_json_http(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             candidate_operator_ids=candidate_operator_ids,
+            response_schema_name=response_schema_name,
         )
 
     def _request_via_chat_compatible_json_sdk(
@@ -244,6 +426,7 @@ class OpenAICompatibleClient:
         system_prompt: str,
         user_prompt: str,
         candidate_operator_ids: Sequence[str],
+        response_schema_name: str = "operator_decision",
     ) -> str:
         sdk_client = self._resolve_sdk_client()
         resolved_model = self.config.resolve_model(self._environ)
@@ -251,6 +434,7 @@ class OpenAICompatibleClient:
             system_prompt,
             user_prompt,
             candidate_operator_ids,
+            response_schema_name=response_schema_name,
         )
         request_payload: dict[str, Any] = {
             "model": resolved_model,
@@ -282,6 +466,7 @@ class OpenAICompatibleClient:
         system_prompt: str,
         user_prompt: str,
         candidate_operator_ids: Sequence[str],
+        response_schema_name: str = "operator_decision",
     ) -> str:
         http_client = self._resolve_http_client()
         resolved_model = self.config.resolve_model(self._environ)
@@ -289,6 +474,7 @@ class OpenAICompatibleClient:
             system_prompt,
             user_prompt,
             candidate_operator_ids,
+            response_schema_name=response_schema_name,
         )
         request_payload: dict[str, Any] = {
             "model": resolved_model,
@@ -323,6 +509,7 @@ class OpenAICompatibleClient:
         system_prompt: str,
         user_prompt: str,
         candidate_operator_ids: Sequence[str],
+        response_schema_name: str = "operator_decision",
     ) -> str:
         normalized_prompt = system_prompt
         combined_prompt = f"{system_prompt}\n{user_prompt}".lower()
@@ -332,6 +519,17 @@ class OpenAICompatibleClient:
                 normalized_prompt = f"{normalized_prompt}{suffix.strip()}"
             else:
                 normalized_prompt = f"{normalized_prompt}{suffix}"
+        if response_schema_name == "operator_prior_advice":
+            return (
+                f"{normalized_prompt.rstrip()} "
+                "Return exactly one JSON object. "
+                "Required key: operator_priors. "
+                "Each operator_priors item must include operator_id and prior. "
+                f"The operator_id value must exactly equal one of {list(candidate_operator_ids)}. "
+                "Optional keys: phase, rationale, semantic_task_priors, risk, confidence. "
+                "If rationale is present, keep it concise. "
+                "If semantic_task_priors is present, use the semantic task taxonomy."
+            )
         return (
             f"{normalized_prompt.rstrip()} "
             "Return exactly one JSON object. "
@@ -364,6 +562,22 @@ class OpenAICompatibleClient:
             f"The selected_operator_id value must exactly equal one of {list(operator_ids)}. "
             "If rationale is present, keep it under 12 words. "
             f"Invalid reason: {error_message}"
+        )
+
+    @staticmethod
+    def _build_retry_prior_system_prompt(
+        original_system_prompt: str,
+        operator_ids: Sequence[str],
+        error_message: str,
+    ) -> str:
+        return (
+            f"{original_system_prompt}\n"
+            "Previous response was invalid: "
+            f"{error_message}\n"
+            "Return JSON only. Required key: operator_priors. "
+            "Each operator_priors item must include operator_id and prior. "
+            f"operator_id must exactly equal one of {list(operator_ids)}. "
+            "Optional keys: phase, rationale, semantic_task_priors, risk, confidence."
         )
 
     @staticmethod
@@ -446,3 +660,15 @@ def _semantic_task_for_operator(operator_id: str) -> str:
     from optimizers.operator_pool.semantic_tasks import semantic_task_for_operator
 
     return semantic_task_for_operator(operator_id)
+
+
+def _clamp_unit(value: Any) -> float:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        numeric = 0.0
+    if numeric < 0.0:
+        return 0.0
+    if numeric > 1.0:
+        return 1.0
+    return float(numeric)
