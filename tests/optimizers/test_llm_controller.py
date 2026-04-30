@@ -2033,6 +2033,91 @@ def test_llm_controller_builds_semantic_operator_prompt_and_metadata() -> None:
     assert "case_reports" not in metadata
 
 
+def test_llm_controller_semantic_ranked_pick_uses_model_ranking() -> None:
+    from llm.openai_compatible.client import OpenAICompatibleRankAdvice, RankedOperatorCandidate
+
+    class _RankClient:
+        def __init__(self) -> None:
+            self.last_kwargs: dict[str, object] | None = None
+
+        def request_operator_rank_advice(self, **kwargs):
+            self.last_kwargs = dict(kwargs)
+            return OpenAICompatibleRankAdvice(
+                ranked_operators=(
+                    RankedOperatorCandidate(
+                        operator_id="sink_shift",
+                        semantic_task="sink_alignment",
+                        score=0.82,
+                        risk=0.22,
+                        confidence=0.74,
+                        rationale="align sink",
+                    ),
+                    RankedOperatorCandidate(
+                        operator_id="component_jitter_1",
+                        semantic_task="local_polish",
+                        score=0.71,
+                        risk=0.18,
+                        confidence=0.61,
+                        rationale="bounded local move",
+                    ),
+                ),
+                phase="post_feasible_expand",
+                rationale="rank sink alignment first",
+                provider="openai-compatible",
+                model="fake-model",
+                capability_profile="chat_compatible_json",
+                performance_profile="balanced",
+                raw_payload={"ranked_operators": [{"operator_id": "sink_shift"}]},
+            )
+
+    client = _RankClient()
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model_env_var": "LLM_MODEL",
+            "api_key_env_var": "LLM_API_KEY",
+            "base_url_env_var": "LLM_BASE_URL",
+            "max_output_tokens": 512,
+            "selection_strategy": "semantic_ranked_pick",
+            "semantic_ranked_pick": {"rolling_window": 16},
+        },
+        client=client,
+    )
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=42,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "decision_index": 3,
+            "search_phase": "post_feasible_expand",
+            "progress_state": {"phase": "post_feasible_stagnation", "post_feasible_mode": "expand"},
+            "prompt_panels": {"run_panel": {}, "operator_panel": {"rows": []}},
+            "recent_decisions": [],
+        },
+    )
+
+    decision = controller.select_decision(
+        state,
+        ("sink_shift", "component_jitter_1"),
+        np.random.default_rng(1),
+    )
+
+    assert decision.selected_operator_id == "sink_shift"
+    assert decision.metadata["selection_strategy"] == "semantic_ranked_pick"
+    assert decision.metadata["selected_rank"] == 1
+    assert decision.metadata["llm_ranked_operators"][0]["operator_id"] == "sink_shift"
+    assert decision.metadata["ranker_override_reason"] == ""
+    assert "sampler_probabilities" not in decision.metadata
+    assert client.last_kwargs is not None
+    assert "ranked_operators" in str(client.last_kwargs["system_prompt"])
+    assert "operator_priors" not in str(client.last_kwargs["system_prompt"])
+
+
 def test_llm_controller_semantic_prior_sampler_records_probabilities() -> None:
     from llm.openai_compatible.client import (
         OpenAICompatiblePriorAdvice,
