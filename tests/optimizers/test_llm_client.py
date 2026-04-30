@@ -938,6 +938,8 @@ def test_chat_compatible_json_client_parses_operator_rank_advice() -> None:
     system_message = str(chat_api.last_kwargs["messages"][0]["content"])
     assert "ranked_operators" in system_message
     assert "operator_priors" not in system_message
+    assert "0.0 and 1.0" in system_message
+    assert "Do not use 0-10" in system_message
 
 
 def test_operator_rank_advice_rejects_unknown_operator_id() -> None:
@@ -974,3 +976,117 @@ def test_operator_rank_advice_requires_explicit_risk_and_confidence() -> None:
             user_prompt="{}",
             candidate_operator_ids=("sink_shift", "component_jitter_1"),
         )
+
+
+def test_operator_rank_advice_rejects_out_of_unit_rank_numbers() -> None:
+    chat_api = _FakeChatCompletionsAPI(
+        '{"ranked_operators":[{"operator_id":"sink_shift","semantic_task":"sink_alignment",'
+        '"score":9.2,"risk":0.1,"confidence":0.6,"rationale":"bad score scale"}]}'
+    )
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+    attempt_trace: list[dict[str, object]] = []
+
+    with pytest.raises(ValueError, match="score.*0.0.*1.0"):
+        client.request_operator_rank_advice(
+            system_prompt="return ranked operators",
+            user_prompt="{}",
+            candidate_operator_ids=("sink_shift", "component_jitter_1"),
+            attempt_trace=attempt_trace,
+        )
+    assert attempt_trace[0]["valid"] is False
+    assert "bad score scale" in str(attempt_trace[0]["raw_text"])
+
+
+def test_operator_rank_advice_rejects_string_risk_and_confidence() -> None:
+    chat_api = _FakeChatCompletionsAPI(
+        '{"ranked_operators":[{"operator_id":"sink_shift","semantic_task":"sink_alignment",'
+        '"score":0.82,"risk":"medium","confidence":"high","rationale":"bad numeric fields"}]}'
+    )
+    client = OpenAICompatibleClient(
+        _build_config(capability_profile="chat_compatible_json"),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+
+    with pytest.raises(ValueError, match="risk.*number"):
+        client.request_operator_rank_advice(
+            system_prompt="return ranked operators",
+            user_prompt="{}",
+            candidate_operator_ids=("sink_shift", "component_jitter_1"),
+        )
+
+
+def test_operator_rank_advice_preserves_pre_response_value_errors() -> None:
+    client = OpenAICompatibleClient(_build_config(capability_profile="unsupported_rank_profile"))
+    attempt_trace: list[dict[str, object]] = []
+
+    with pytest.raises(ValueError, match="Unsupported capability profile"):
+        client.request_operator_rank_advice(
+            system_prompt="return ranked operators",
+            user_prompt="{}",
+            candidate_operator_ids=("sink_shift", "component_jitter_1"),
+            attempt_trace=attempt_trace,
+        )
+
+    assert attempt_trace == [
+        {
+            "attempt_index": 1,
+            "valid": False,
+            "error": "Unsupported capability profile 'unsupported_rank_profile'.",
+        }
+    ]
+
+
+def test_operator_rank_advice_retries_transient_timeout() -> None:
+    class _TimeoutThenRankAPI:
+        def __init__(self) -> None:
+            self.call_count = 0
+
+        def create(self, **kwargs):
+            del kwargs
+            self.call_count += 1
+            if self.call_count == 1:
+                raise TimeoutError("The read operation timed out")
+            message = type(
+                "FakeMessage",
+                (),
+                {
+                    "content": (
+                        '{"ranked_operators":[{"operator_id":"sink_shift",'
+                        '"semantic_task":"sink_alignment","score":0.82,'
+                        '"risk":0.22,"confidence":0.74,"rationale":"align"}]}'
+                    )
+                },
+            )()
+            choice = type("FakeChoice", (), {"message": message})()
+            return type("FakeChatResult", (), {"choices": [choice]})()
+
+    chat_api = _TimeoutThenRankAPI()
+    client = OpenAICompatibleClient(
+        OpenAICompatibleConfig.from_dict(
+            {
+                "provider": "openai",
+                "model": "gpt-5.4",
+                "capability_profile": "chat_compatible_json",
+                "performance_profile": "balanced",
+                "api_key_env_var": "TEST_OPENAI_API_KEY",
+                "max_output_tokens": 256,
+                "retry": {"max_attempts": 2},
+            }
+        ),
+        sdk_client=_FakeSDK(chat_api=chat_api),
+    )
+    attempt_trace: list[dict[str, object]] = []
+
+    advice = client.request_operator_rank_advice(
+        system_prompt="return ranked operators",
+        user_prompt="{}",
+        candidate_operator_ids=("sink_shift", "component_jitter_1"),
+        attempt_trace=attempt_trace,
+    )
+
+    assert advice.ranked_operators[0].operator_id == "sink_shift"
+    assert chat_api.call_count == 2
+    assert [row["valid"] for row in attempt_trace] == [False, True]

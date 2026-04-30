@@ -225,6 +225,32 @@ def test_compare_runs_writes_summary_first_visual_bundle(tmp_path: Path) -> None
     assert not (run_b / "comparison").exists()
 
 
+def test_compare_runs_disambiguates_same_mode_strategy_variants(tmp_path: Path) -> None:
+    import csv
+
+    from optimizers.compare_runs import compare_runs
+
+    run_a = tmp_path / "0430_1140__llm_gpt_20x10_adaptive_sink_gate"
+    run_b = tmp_path / "0430_2104__llm"
+    _seed_run(run_a, "llm")
+    _seed_run(run_b, "llm")
+    for run_root in (run_a, run_b):
+        (run_root / "run.yaml").write_text(
+            "mode: llm\nalgorithm:\n  backbone: nsga2\n  label: NSGA-II\n",
+            encoding="utf-8",
+        )
+
+    output = tmp_path / "comparisons" / "0430_2104__llm_variants"
+    compare_runs(runs=[run_a, run_b], output=output)
+
+    mode_rows = list(csv.DictReader((output / "tables" / "mode_metrics.csv").open()))
+    pairwise_rows = list(csv.DictReader((output / "tables" / "pairwise_deltas.csv").open()))
+    labels = {row["series_label"] for row in mode_rows}
+    assert "llm:0430_1140__llm_gpt_20x10_adaptive_sink_gate" in labels
+    assert "llm:0430_2104__llm" in labels
+    assert pairwise_rows[0]["left_label"] != pairwise_rows[0]["right_label"]
+
+
 def test_compare_runs_writes_pde_budget_accounting_outputs(tmp_path: Path) -> None:
     import csv
 

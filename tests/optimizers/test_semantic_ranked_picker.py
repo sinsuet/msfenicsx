@@ -232,3 +232,22 @@ def test_ranked_picker_releases_caps_when_every_candidate_is_suppressed() -> Non
     assert result.selected_rank == 1
     assert result.override_reason == "all_candidates_suppressed_release"
     assert set(result.suppressed_operator_ids) == {"sink_shift", "component_jitter_1"}
+
+
+def test_ranked_picker_rejects_invalid_rank_numeric_values() -> None:
+    with pytest.raises(ValueError, match="score.*0.0.*1.0"):
+        pick_operator_from_semantic_ranking(
+            candidate_operator_ids=("sink_shift", "component_jitter_1"),
+            ranked_operators=(
+                RankedOperatorInput(
+                    "sink_shift",
+                    "sink_alignment",
+                    score=9.2,
+                    risk=0.2,
+                    confidence=0.7,
+                    rationale="bad score scale",
+                ),
+            ),
+            state=_state(),
+            config=SemanticRankedPickConfig(),
+        )

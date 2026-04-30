@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -245,6 +246,7 @@ class OpenAICompatibleClient:
         last_error: Exception | None = None
         current_system_prompt = system_prompt
         for attempt_index in range(self.config.max_attempts):
+            raw_text = ""
             try:
                 raw_text = self._request_raw_text(
                     system_prompt=current_system_prompt,
@@ -275,13 +277,14 @@ class OpenAICompatibleClient:
                 return advice
             except ValueError as exc:
                 if attempt_trace is not None:
-                    attempt_trace.append(
-                        {
-                            "attempt_index": int(attempt_index + 1),
-                            "valid": False,
-                            "error": str(exc),
-                        }
-                    )
+                    attempt_row = {
+                        "attempt_index": int(attempt_index + 1),
+                        "valid": False,
+                        "error": str(exc),
+                    }
+                    if raw_text:
+                        attempt_row["raw_text"] = raw_text
+                    attempt_trace.append(attempt_row)
                 last_error = exc
                 current_system_prompt = self._build_retry_rank_system_prompt(
                     system_prompt,
@@ -298,6 +301,8 @@ class OpenAICompatibleClient:
                         }
                     )
                 last_error = exc
+                if _is_retryable_transport_error(exc) and attempt_index + 1 < self.config.max_attempts:
+                    continue
                 raise
         assert last_error is not None
         raise last_error
@@ -479,9 +484,13 @@ class OpenAICompatibleClient:
                 RankedOperatorCandidate(
                     operator_id=operator_id,
                     semantic_task=str(row.get("semantic_task", "")).strip(),
-                    score=_clamp_unit(row.get("score")),
-                    risk=_clamp_unit(row.get("risk")),
-                    confidence=_clamp_unit(row.get("confidence")),
+                    score=_require_unit_number(row.get("score"), field_name="score", operator_id=operator_id),
+                    risk=_require_unit_number(row.get("risk"), field_name="risk", operator_id=operator_id),
+                    confidence=_require_unit_number(
+                        row.get("confidence"),
+                        field_name="confidence",
+                        operator_id=operator_id,
+                    ),
                     rationale=str(row.get("rationale", "")),
                 )
             )
@@ -683,7 +692,9 @@ class OpenAICompatibleClient:
                 "Each ranked_operators item must include operator_id, semantic_task, score, risk, confidence, rationale. "
                 f"The operator_id value must exactly equal one of {list(candidate_operator_ids)}. "
                 "Rank operators in descending preference order. "
-                "Use explicit risk and confidence values; do not omit them. "
+                "score, risk, and confidence must be JSON numbers between 0.0 and 1.0. "
+                "Do not use 0-10 scales or words such as low, medium, high. "
+                "Use explicit numeric risk and confidence values; do not omit them. "
                 "If rationale is present, keep each rationale concise."
             )
         if response_schema_name == "operator_prior_advice":
@@ -759,7 +770,9 @@ class OpenAICompatibleClient:
             f"{error_message}\n"
             "Return JSON only. Required key: ranked_operators. "
             "Each ranked_operators item must include operator_id, semantic_task, score, risk, confidence, rationale. "
-            f"operator_id must exactly equal one of {list(operator_ids)}."
+            f"operator_id must exactly equal one of {list(operator_ids)}. "
+            "score, risk, and confidence must be JSON numbers between 0.0 and 1.0. "
+            "Do not use 0-10 scales or words such as low, medium, high."
         )
 
     @staticmethod
@@ -854,3 +867,22 @@ def _clamp_unit(value: Any) -> float:
     if numeric > 1.0:
         return 1.0
     return float(numeric)
+
+
+def _require_unit_number(value: Any, *, field_name: str, operator_id: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"ranked_operators entry for {operator_id!r} field {field_name!r} must be a JSON number "
+            f"between 0.0 and 1.0; got {value!r}."
+        )
+    numeric = float(value)
+    if not math.isfinite(numeric) or numeric < 0.0 or numeric > 1.0:
+        raise ValueError(
+            f"ranked_operators entry for {operator_id!r} field {field_name!r} must be between "
+            f"0.0 and 1.0; got {value!r}."
+        )
+    return numeric
+
+
+def _is_retryable_transport_error(exc: Exception) -> bool:
+    return isinstance(exc, (TimeoutError, httpx.TimeoutException))

@@ -34,13 +34,13 @@ def build_llm_decision_summaries(mode_root: str | Path) -> dict[str, str]:
         timeline_lookup = dict(bundle_progress.get("timeline_lookup", {}))
         request_trace_path = resolve_seed_trace_path(seed_root, "llm_request_trace.jsonl")
         response_trace_path = resolve_seed_trace_path(seed_root, "llm_response_trace.jsonl")
-        request_rows_by_decision_id = _accepted_trace_lookup_by_decision_id(
+        request_rows_by_decision_id = _trace_lookup_by_decision_id(
             materialize_request_trace_rows(
                 seed_root,
                 load_jsonl_rows(request_trace_path) if request_trace_path.exists() else [],
             )
         )
-        response_rows_by_decision_id = _accepted_trace_lookup_by_decision_id(
+        response_rows_by_decision_id = _trace_lookup_by_decision_id(
             materialize_response_trace_rows(
                 seed_root,
                 load_jsonl_rows(response_trace_path) if response_trace_path.exists() else [],
@@ -320,6 +320,15 @@ def _accepted_trace_lookup_by_decision_id(rows: list[dict[str, Any]]) -> dict[st
         if not _accepted_evaluation_indices(row):
             continue
         lookup[decision_id] = row
+    return lookup
+
+
+def _trace_lookup_by_decision_id(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    lookup: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        decision_id = _normalized_decision_id(row.get("decision_id"))
+        if decision_id is not None:
+            lookup[decision_id] = row
     return lookup
 
 

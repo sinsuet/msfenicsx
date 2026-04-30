@@ -43,6 +43,16 @@ def write_optimization_artifacts(
     )
     _write_jsonl_payload(resolved_output_root / "traces" / "evaluation_events.jsonl", evaluation_rows)
     _write_jsonl_payload(resolved_output_root / "traces" / "generation_summary.jsonl", generation_rows)
+    if mode_id == "llm":
+        _refresh_live_llm_trace_sidecar(
+            resolved_output_root / "traces" / "llm_request_trace.jsonl",
+            getattr(run, "llm_request_trace", None),
+        )
+        _refresh_live_llm_trace_sidecar(
+            resolved_output_root / "traces" / "llm_response_trace.jsonl",
+            getattr(run, "llm_response_trace", None),
+            strip_keys=("system_prompt", "user_prompt", "response_text", "raw_payload"),
+        )
     snapshots = {
         "optimization_result": "optimization_result.json",
         "pareto_front": "pareto_front.json",
@@ -207,6 +217,27 @@ def _write_manifest(path: Path, payload: dict[str, object]) -> None:
 def _write_jsonl_payload(path: Path, rows: list[Any]) -> None:
     serialized_rows = [json.dumps(row.to_dict() if hasattr(row, "to_dict") else row) for row in rows]
     path.write_text("\n".join(serialized_rows) + "\n", encoding="utf-8")
+
+
+def _refresh_live_llm_trace_sidecar(
+    path: Path,
+    rows: Any,
+    *,
+    strip_keys: Sequence[str] = (),
+) -> None:
+    if not path.exists() or rows is None:
+        return
+    payloads: list[dict[str, Any]] = []
+    for row in rows:
+        payload = row.to_dict() if hasattr(row, "to_dict") else dict(row)
+        if not str(payload.get("decision_id", "")).strip():
+            continue
+        for key in strip_keys:
+            payload.pop(str(key), None)
+        payloads.append(payload)
+    if not payloads:
+        return
+    _write_jsonl_payload(path, payloads)
 
 
 def _history_by_evaluation_index(history: Any) -> dict[int, dict[str, Any]]:

@@ -10,6 +10,7 @@ from typing import Any
 
 from optimizers.operator_pool.route_families import route_family_counts, route_family_entropy
 from optimizers.operator_pool.semantic_tasks import semantic_task_counts, semantic_task_entropy
+from optimizers.llm_ranker_diagnostics import build_ranker_trace_diagnostics
 from optimizers.run_telemetry import load_jsonl_rows
 from optimizers.traces.llm_trace_io import (
     iter_mode_seed_roots,
@@ -163,6 +164,7 @@ def build_llm_decision_summary(
     expand_route_counts = route_family_counts(normalized_controller_rows, phase="post_feasible_expand")
     all_semantic_task_counts = semantic_task_counts(normalized_controller_rows)
     expand_semantic_counts = semantic_task_counts(normalized_controller_rows, phase="post_feasible_expand")
+    ranker_diagnostics = build_ranker_trace_diagnostics(response_rows)
     semantic_task_by_phase: dict[str, dict[str, int]] = {}
     for row in normalized_controller_rows:
         phase = str(row.get("policy_phase") or row.get("phase", "")).strip()
@@ -188,6 +190,7 @@ def build_llm_decision_summary(
         "expand_semantic_task_counts": expand_semantic_counts,
         "expand_semantic_task_entropy": semantic_task_entropy(expand_semantic_counts),
         "semantic_task_by_phase": {phase: dict(counts) for phase, counts in semantic_task_by_phase.items()},
+        "ranker_diagnostics": ranker_diagnostics,
     }
 
 

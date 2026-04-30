@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import shutil
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from itertools import combinations
@@ -66,6 +66,7 @@ def build_comparison_bundle(
     tables_root.mkdir(parents=True, exist_ok=True)
 
     payloads = [_collect_run_payload(run_root) for run_root in resolved_runs]
+    _disambiguate_duplicate_series_labels(payloads)
     payloads.sort(key=lambda item: _series_sort_key(str(item["series_label"]), mode=str(item["mode"])))
 
     hypervolume_series = {
@@ -324,6 +325,26 @@ def _collect_run_payload(run_root: Path) -> dict[str, Any]:
         "timeline_rollup": timeline_rollup,
         "representative_panel": representative_panel,
     }
+
+
+def _disambiguate_duplicate_series_labels(payloads: Sequence[dict[str, Any]]) -> None:
+    label_counts = Counter(str(payload.get("series_label", "")).strip() for payload in payloads)
+    for payload in payloads:
+        label = str(payload.get("series_label", "")).strip()
+        if label_counts[label] <= 1:
+            continue
+        run_slug = Path(payload["run_root"]).name
+        disambiguated = f"{label}:{run_slug}" if label else run_slug
+        payload["series_label"] = disambiguated
+        summary_row = payload.get("summary_row")
+        if isinstance(summary_row, dict):
+            summary_row["series_label"] = disambiguated
+        timeline_rollup = payload.get("timeline_rollup")
+        if isinstance(timeline_rollup, dict):
+            timeline_rollup["series_label"] = disambiguated
+        representative_panel = payload.get("representative_panel")
+        if isinstance(representative_panel, dict):
+            representative_panel["series_label"] = disambiguated
 
 
 def _build_aggregate_suite_bundle(

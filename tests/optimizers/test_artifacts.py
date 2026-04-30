@@ -175,6 +175,89 @@ def test_write_optimization_artifacts_preserves_live_llm_trace_sidecars(tmp_path
     assert not (output_root / "llm_metrics.json").exists()
 
 
+def test_write_optimization_artifacts_refreshes_llm_trace_statuses_from_memory(tmp_path: Path) -> None:
+    output_root = tmp_path / "llm_run_refreshed"
+    traces_root = output_root / "traces"
+    traces_root.mkdir(parents=True, exist_ok=True)
+    stale_request_row = {
+        "decision_id": "g001-e0002-d00",
+        "prompt_ref": "prompts/request.md",
+        "accepted_for_evaluation": False,
+        "accepted_evaluation_indices": [],
+        "accepted_evaluation_index": None,
+    }
+    stale_response_row = {
+        "decision_id": "g001-e0002-d00",
+        "response_ref": "prompts/response.md",
+        "accepted_for_evaluation": False,
+        "accepted_evaluation_indices": [],
+        "accepted_evaluation_index": None,
+    }
+    (traces_root / "controller_trace.jsonl").write_text(
+        json.dumps(
+            {
+                "decision_id": "g001-e0002-d00",
+                "phase": "prefeasible_progress",
+                "operator_selected": "local_refine",
+                "operator_pool_snapshot": ["native_sbx_pm", "local_refine"],
+                "input_state_digest": "abc123",
+                "prompt_ref": "prompts/request.md",
+                "rationale": "use local refinement",
+                "fallback_used": False,
+                "latency_ms": 120.0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (traces_root / "llm_request_trace.jsonl").write_text(json.dumps(stale_request_row) + "\n", encoding="utf-8")
+    (traces_root / "llm_response_trace.jsonl").write_text(json.dumps(stale_response_row) + "\n", encoding="utf-8")
+    run = _fake_union_run()
+    run.llm_request_trace = [
+        {
+            **stale_request_row,
+            "accepted_for_evaluation": True,
+            "accepted_evaluation_indices": [2],
+            "accepted_evaluation_index": 2,
+            "rejection_reason": "",
+        }
+    ]
+    run.llm_response_trace = [
+        {
+            **stale_response_row,
+            "selected_operator_id": "local_refine",
+            "accepted_for_evaluation": True,
+            "accepted_evaluation_indices": [2],
+            "accepted_evaluation_index": 2,
+            "rejection_reason": "",
+            "raw_payload": {"selected_operator_id": "local_refine"},
+        }
+    ]
+
+    write_optimization_artifacts(
+        output_root,
+        run,
+        mode_id="llm",
+        seed=11,
+        objective_definitions=[
+            {"objective_id": "minimize_peak_temperature", "metric": "summary.temperature_max", "sense": "minimize"},
+            {
+                "objective_id": "minimize_temperature_gradient_rms",
+                "metric": "summary.temperature_gradient_rms",
+                "sense": "minimize",
+            },
+        ],
+    )
+
+    request_row = json.loads((traces_root / "llm_request_trace.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    response_row = json.loads((traces_root / "llm_response_trace.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert request_row["accepted_for_evaluation"] is True
+    assert request_row["accepted_evaluation_indices"] == [2]
+    assert response_row["accepted_for_evaluation"] is True
+    assert response_row["accepted_evaluation_index"] == 2
+    assert "raw_payload" not in response_row
+
+
 def test_write_optimization_artifacts_requires_live_llm_sidecars_on_disk(tmp_path: Path) -> None:
     output_root = tmp_path / "llm_run_missing_sidecars"
     run = _fake_union_run()

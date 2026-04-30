@@ -1920,7 +1920,63 @@ def test_optimizer_cli_analyze_controller_trace_accepts_optional_operator_and_re
     summary = json.loads(output_path.read_text(encoding="utf-8"))
     assert summary["llm_trace"]["request_count"] == 2
     assert summary["llm_trace"]["response_count"] == 2
-    assert summary["llm_trace"]["expand_budget_status_counts"]["throttled"] == 1
+
+
+def test_analyze_controller_trace_reports_semantic_ranker_diagnostics(tmp_path: Path) -> None:
+    diagnostics = __import__("optimizers.operator_pool.diagnostics", fromlist=["analyze_controller_trace"])
+    controller_trace_path = tmp_path / "controller_trace.jsonl"
+    response_trace_path = tmp_path / "llm_response_trace.jsonl"
+    controller_trace_path.write_text(
+        json.dumps(
+            {
+                "decision_id": "g001-e0003-d00",
+                "phase": "post_feasible_expand",
+                "operator_selected": "sink_shift",
+                "operator_pool_snapshot": ["sink_shift", "component_jitter_1"],
+                "input_state_digest": "a" * 40,
+                "prompt_ref": "prompts/request.md",
+                "rationale": "",
+                "fallback_used": False,
+                "latency_ms": 100.0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    response_trace_path.write_text(
+        json.dumps(
+            {
+                "decision_id": "g001-e0003-d00",
+                "selection_strategy": "semantic_ranked_pick",
+                "selected_rank": 2,
+                "ranker_override_reason": "rank_1_suppressed",
+                "ranker_cap_reasons": {"sink_shift": "generation_operator_cap"},
+                "attempt_trace": [
+                    {
+                        "valid": True,
+                        "raw_text": (
+                            '{"ranked_operators":[{"operator_id":"sink_shift",'
+                            '"semantic_task":"sink_alignment","score":8.0,'
+                            '"risk":"medium","confidence":"high","rationale":"bad"}]}'
+                        ),
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = diagnostics.analyze_controller_trace(
+        controller_trace_path,
+        llm_response_trace_path=response_trace_path,
+    )
+
+    ranker = summary["llm_trace"]["ranker_diagnostics"]
+    assert ranker["selected_rank_counts"] == {"2": 1}
+    assert ranker["override_reason_counts"] == {"rank_1_suppressed": 1}
+    assert ranker["cap_reason_counts"] == {"generation_operator_cap": 1}
+    assert ranker["contract_invalid_field_count"] == 3
 
 
 def test_analyze_controller_trace_reports_expand_family_outcomes_and_budget_throttling(tmp_path: Path) -> None:

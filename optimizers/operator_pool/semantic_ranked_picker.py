@@ -134,9 +134,13 @@ def _complete_ranking(
                 "operator_id": operator_id,
                 "semantic_task": str(ranked.semantic_task),
                 "canonical_semantic_task": semantic_task_for_operator(operator_id),
-                "score": _clamp_unit(ranked.score),
-                "risk": _clamp_unit(ranked.risk),
-                "confidence": _clamp_unit(ranked.confidence),
+                "score": _require_unit_number(ranked.score, field_name="score", operator_id=operator_id),
+                "risk": _require_unit_number(ranked.risk, field_name="risk", operator_id=operator_id),
+                "confidence": _require_unit_number(
+                    ranked.confidence,
+                    field_name="confidence",
+                    operator_id=operator_id,
+                ),
                 "rationale": str(ranked.rationale),
                 "rank_source": "llm",
             }
@@ -295,3 +299,18 @@ def _clamp_unit(value: Any) -> float:
     if numeric > 1.0:
         return 1.0
     return float(numeric)
+
+
+def _require_unit_number(value: Any, *, field_name: str, operator_id: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"ranked operator {operator_id!r} field {field_name!r} must be a number between "
+            f"0.0 and 1.0; got {value!r}."
+        )
+    numeric = float(value)
+    if not math.isfinite(numeric) or numeric < 0.0 or numeric > 1.0:
+        raise ValueError(
+            f"ranked operator {operator_id!r} field {field_name!r} must be between 0.0 and 1.0; "
+            f"got {value!r}."
+        )
+    return numeric

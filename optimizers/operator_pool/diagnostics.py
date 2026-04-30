@@ -13,6 +13,7 @@ from optimizers.operator_pool.domain_state import dominant_violation_family, tot
 from optimizers.operator_pool.operators import get_operator_behavior_profile
 from optimizers.operator_pool.route_families import operator_route_family, route_family_entropy
 from optimizers.operator_pool.trace import ControllerTraceRow
+from optimizers.llm_ranker_diagnostics import build_ranker_trace_diagnostics
 from optimizers.run_telemetry import load_jsonl_rows
 from optimizers.traces.llm_trace_io import materialize_request_trace_rows, materialize_response_trace_rows
 
@@ -766,6 +767,7 @@ def _summarize_llm_traces(
         "fallback_count": sum(
             1 for row in response_rows if isinstance(row, Mapping) and bool(row.get("fallback_used", False))
         ),
+        "ranker_diagnostics": build_ranker_trace_diagnostics(response_rows),
         "expand_request_count": int(expand_request_count),
         "expand_budget_status_counts": dict(expand_budget_status_counts),
         "expand_budget_throttled_operator_counts": dict(expand_budget_throttled_operator_counts),
