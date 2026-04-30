@@ -10,7 +10,7 @@ from optimizers.operator_pool.reflection import summarize_operator_history
 from optimizers.operator_pool.state import ControllerState
 from optimizers.operator_pool.state_builder import build_controller_state, _build_prompt_semantic_task_panel
 from optimizers.operator_pool.trace import ControllerTraceRow, OperatorTraceRow
-from optimizers.operator_pool.domain_state import build_prompt_regime_panel
+from optimizers.operator_pool.domain_state import build_prompt_regime_panel, build_run_state
 
 
 _S1_VARIABLE_IDS = tuple(
@@ -793,6 +793,44 @@ def test_build_controller_state_reports_peak_gradient_budget_and_congestion() ->
     assert domain_regime["dominant_constraint_family"] == "thermal_limit"
     assert domain_regime["sink_budget_utilization"] == pytest.approx(0.44 / 0.48)
     assert state.metadata["search_phase"] == "feasible_refine"
+
+
+def test_build_run_state_feasible_rate_uses_pde_attempt_denominator() -> None:
+    history = [
+        _penalty_record(
+            1,
+            _vector(sink_start=0.1, sink_end=0.9),
+            radiator_span_violation=0.2,
+        ),
+        _record(
+            2,
+            _vector(sink_start=0.2, sink_end=0.6),
+            feasible=True,
+            peak_temperature=343.0,
+            temperature_gradient_rms=9.0,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            3,
+            _vector(sink_start=0.22, sink_end=0.64),
+            feasible=False,
+            peak_temperature=352.0,
+            temperature_gradient_rms=11.0,
+            c01_temperature_violation=1.1,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    run_state = build_run_state(
+        generation_index=1,
+        evaluation_index=4,
+        history=history,
+        decision_index=0,
+        total_evaluation_budget=10,
+    )
+
+    assert run_state["feasible_rate"] == pytest.approx(0.5)
 
 
 def test_build_controller_state_emits_phase_aware_prompt_panels() -> None:

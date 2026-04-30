@@ -42,6 +42,10 @@ def _optimizer_progress_history(history: Sequence[Mapping[str, Any]]) -> list[Ma
     return [row for row in history if _counts_toward_optimizer_progress(row)]
 
 
+def _pde_attempt_history(history: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    return [row for row in _optimizer_progress_history(history) if not bool(row.get("solver_skipped", False))]
+
+
 def build_history_lookup(
     history: Sequence[Mapping[str, Any]],
     design_variable_ids: Sequence[str] | None,
@@ -570,7 +574,9 @@ def build_run_state(
     sink_budget_limit: float | None = None,
 ) -> dict[str, Any]:
     progress_history = _optimizer_progress_history(history)
+    pde_history = _pde_attempt_history(history)
     feasible_evaluations = [row for row in progress_history if bool(row.get("feasible", False))]
+    pde_feasible_evaluations = [row for row in pde_history if bool(row.get("feasible", False))]
     evaluations_used = max(0, int(evaluation_index) - 1)
     run_state = {
         "generation_index": int(generation_index),
@@ -582,7 +588,7 @@ def build_run_state(
             else max(0, int(total_evaluation_budget) - evaluations_used)
         ),
         "feasible_rate": (
-            0.0 if not progress_history else len(feasible_evaluations) / float(len(progress_history))
+            0.0 if not pde_history else len(pde_feasible_evaluations) / float(len(pde_history))
         ),
         "first_feasible_eval": (
             None
@@ -815,7 +821,6 @@ def build_progress_state(
         preserve_dwell_active = (
             preserve_dwell_signal > 0
             and recover_pressure_level != "high"
-            and not expand_pressure_active
         )
         if preserve_dwell_active:
             post_feasible_mode = "preserve"
