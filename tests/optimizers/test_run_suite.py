@@ -126,6 +126,22 @@ def test_run_benchmark_suite_rejects_multiple_benchmark_seeds_for_s1_typical(tmp
         )
 
 
+def test_run_benchmark_suite_rejects_output_root_inside_existing_optimizer_run(tmp_path: Path) -> None:
+    raw_spec_path = _write_small_raw_spec(tmp_path)
+    existing_run = tmp_path / "scenario_runs" / "s5_aggressive15" / "0430_2104__llm"
+    (existing_run / "traces").mkdir(parents=True)
+    (existing_run / "optimization_result.json").write_text("{}\n", encoding="utf-8")
+    (existing_run / "traces" / "evaluation_events.jsonl").write_text("", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="existing optimizer run"):
+        run_benchmark_suite(
+            optimization_spec_paths=[raw_spec_path],
+            benchmark_seeds=[11],
+            scenario_runs_root=existing_run,
+            modes=["raw"],
+        )
+
+
 def test_run_benchmark_suite_single_mode_does_not_write_suite_comparison_outputs(tmp_path: Path, monkeypatch) -> None:
     raw_spec_path = _write_small_raw_spec(tmp_path)
 

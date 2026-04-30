@@ -17,7 +17,7 @@ from optimizers.algorithm_identity import algorithm_label
 from optimizers.analytics.decisions import decision_outcomes
 from optimizers.analytics.heatmap import operator_phase_heatmap
 from optimizers.analytics.loaders import iter_jsonl
-from optimizers.analytics.pareto import pareto_front_indices
+from optimizers.analytics.pareto import DEFAULT_REFERENCE_POINT, adaptive_reference_point_2d, pareto_front_indices
 from optimizers.analytics.rollups import rollup_per_generation
 from optimizers.codec import apply_decision_vector
 from optimizers.io import generate_benchmark_case, load_optimization_spec
@@ -40,7 +40,7 @@ from visualization.figures.progress import render_objective_progress
 from visualization.figures.trace_series import render_metric_trace
 from visualization.figures.temperature_field import render_temperature_field
 
-REFERENCE_POINT = (400.0, 20.0)
+REFERENCE_POINT = DEFAULT_REFERENCE_POINT
 MODE_NAMES = ("raw", "union", "llm")
 LAYOUT_COMPONENT_SHIFT_THRESHOLD = 0.02
 
@@ -94,7 +94,8 @@ def render_run_assets(run_root: str | Path, *, hires: bool = False) -> None:
     tables.mkdir(parents=True, exist_ok=True)
 
     events = normalize_evaluation_rows(list(iter_jsonl(resolve_seed_trace_path(run_root, "evaluation_events.jsonl"))))
-    summaries = rollup_per_generation(events, reference_point=REFERENCE_POINT)
+    reference_point = _hypervolume_reference_point(events)
+    summaries = rollup_per_generation(events, reference_point=reference_point)
     _write_hypervolume_csv(analytics / "hypervolume.csv", summaries)
     if summaries:
         render_hypervolume_progress(
@@ -166,7 +167,7 @@ def render_run_assets(run_root: str | Path, *, hires: bool = False) -> None:
             llm_response_rows,
             operator_rows,
             evaluation_rows=events,
-            reference_point=REFERENCE_POINT,
+            reference_point=reference_point,
         )
         _write_dict_rows_csv(analytics / "decision_outcomes.csv", outcomes)
 
@@ -226,6 +227,15 @@ def _extract_feasible_front(events: Sequence[Mapping[str, Any]]) -> list[tuple[f
         return []
     front_indices = pareto_front_indices(feasible_points)
     return [feasible_points[index] for index in front_indices]
+
+
+def _hypervolume_reference_point(events: Sequence[Mapping[str, Any]]) -> tuple[float, float]:
+    points = [
+        (float(row["objectives"]["temperature_max"]), float(row["objectives"]["temperature_gradient_rms"]))
+        for row in events
+        if row.get("status") == "ok" and row.get("objectives")
+    ]
+    return adaptive_reference_point_2d(points, default_reference_point=REFERENCE_POINT)
 
 
 def normalize_evaluation_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:

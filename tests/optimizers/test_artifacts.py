@@ -175,6 +175,45 @@ def test_write_optimization_artifacts_preserves_live_llm_trace_sidecars(tmp_path
     assert not (output_root / "llm_metrics.json").exists()
 
 
+def test_write_optimization_artifacts_links_evaluation_events_to_operator_decisions(tmp_path: Path) -> None:
+    output_root = tmp_path / "union_run"
+
+    write_optimization_artifacts(
+        output_root,
+        _fake_union_run(),
+        mode_id="union",
+        seed=11,
+        objective_definitions=[
+            {"objective_id": "minimize_peak_temperature", "metric": "summary.temperature_max", "sense": "minimize"},
+            {
+                "objective_id": "minimize_temperature_gradient_rms",
+                "metric": "summary.temperature_gradient_rms",
+                "sense": "minimize",
+            },
+        ],
+    )
+
+    rows = [
+        json.loads(line)
+        for line in (output_root / "traces" / "evaluation_events.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert rows == [
+        {
+            "decision_id": "g001-e0002-d00",
+            "generation": 0,
+            "eval_index": 0,
+            "individual_id": "g000-i00",
+            "objectives": {"temperature_max": 300.0, "temperature_gradient_rms": 8.5},
+            "constraints": {"radiator_span_budget": 0.0},
+            "status": "ok",
+            "solver_skipped": False,
+            "timing": {},
+            "cheap_constraint_issue_count": 0,
+            "cheap_constraint_issue_examples": [],
+        }
+    ]
+
+
 def test_write_optimization_artifacts_refreshes_llm_trace_statuses_from_memory(tmp_path: Path) -> None:
     output_root = tmp_path / "llm_run_refreshed"
     traces_root = output_root / "traces"

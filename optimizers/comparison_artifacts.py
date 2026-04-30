@@ -17,7 +17,7 @@ import yaml
 
 from optimizers.algorithm_identity import algorithm_label
 from optimizers.analytics.loaders import iter_jsonl
-from optimizers.analytics.pareto import pareto_front_indices
+from optimizers.analytics.pareto import adaptive_reference_point_2d, pareto_front_indices
 from optimizers.analytics.rollups import rollup_per_generation
 from optimizers.render_assets import (
     REFERENCE_POINT,
@@ -66,6 +66,7 @@ def build_comparison_bundle(
     tables_root.mkdir(parents=True, exist_ok=True)
 
     payloads = [_collect_run_payload(run_root) for run_root in resolved_runs]
+    reference_point = _apply_shared_hypervolume_reference(payloads)
     _disambiguate_duplicate_series_labels(payloads)
     payloads.sort(key=lambda item: _series_sort_key(str(item["series_label"]), mode=str(item["mode"])))
 
@@ -173,6 +174,7 @@ def build_comparison_bundle(
         "mode_ids": [str(payload["mode"]) for payload in payloads],
         "series_labels": [str(payload["series_label"]) for payload in payloads],
         "run_roots": [str(payload["run_root"]) for payload in payloads],
+        "hypervolume_reference_point": list(reference_point),
         "created_at": datetime.now().isoformat(),
     }
     _write_json(output / "manifest.json", manifest)
@@ -205,7 +207,7 @@ def build_suite_comparisons(suite_root: str | Path, *, hires: bool = False) -> d
     benchmark_seeds = sorted(eligible_seed_runs)
     if len(benchmark_seeds) == 1:
         seed = benchmark_seeds[0]
-        build_comparison_bundle(
+        bundle = build_comparison_bundle(
             runs=_ordered_runs(eligible_seed_runs[seed]),
             output=comparisons_root,
             comparison_kind="single_seed",
@@ -220,6 +222,7 @@ def build_suite_comparisons(suite_root: str | Path, *, hires: bool = False) -> d
             "comparison_kind": "single_seed",
             "by_seed_paths": {f"seed-{seed}": "."},
             "aggregate_path": None,
+            "hypervolume_reference_point": bundle["manifest"].get("hypervolume_reference_point"),
             "created_at": datetime.now().isoformat(),
         }
         _write_json(comparisons_root / "manifest.json", manifest)
@@ -239,10 +242,12 @@ def build_suite_comparisons(suite_root: str | Path, *, hires: bool = False) -> d
         )
         by_seed_paths[f"seed-{seed}"] = str(seed_output.relative_to(comparisons_root).as_posix())
         aggregate_payloads.extend(_collect_run_payload(run_root) for run_root in _ordered_runs(eligible_seed_runs[seed]))
+    aggregate_reference_point = _apply_shared_hypervolume_reference(aggregate_payloads)
 
     _build_aggregate_suite_bundle(
         payloads=aggregate_payloads,
         output=comparisons_root / "aggregate",
+        hypervolume_reference_point=aggregate_reference_point,
         hires=hires,
     )
     manifest = {
@@ -271,11 +276,6 @@ def resolve_single_run_root(path: Path) -> Path:
 def _collect_run_payload(run_root: Path) -> dict[str, Any]:
     events = normalize_evaluation_rows(list(iter_jsonl(run_root / "traces" / "evaluation_events.jsonl")))
     front = _extract_final_front(events)
-    hypervolume_rows = rollup_per_generation(events, reference_point=REFERENCE_POINT)
-    hypervolume_series = [
-        (int(row["generation"]), float(row["hypervolume"]))
-        for row in hypervolume_rows
-    ]
     progress_rows = _progress_rows(run_root)
     mode = _mode_of(run_root)
     benchmark_seed = _benchmark_seed_of(run_root)
@@ -294,7 +294,7 @@ def _collect_run_payload(run_root: Path) -> dict[str, Any]:
         "solver_skipped_evaluations": _final_progress_int(progress_rows, "solver_skipped_evaluations_so_far"),
         "t_max_min": min((point[0] for point in front), default=None),
         "grad_rms_min": min((point[1] for point in front), default=None),
-        "final_hypervolume": hypervolume_rows[-1]["hypervolume"] if hypervolume_rows else None,
+        "final_hypervolume": None,
         "first_feasible_pde_eval": _first_feasible_pde_eval(progress_rows),
         "feasible_rate": _final_progress_metric(progress_rows, "feasible_rate_so_far"),
         "best_temperature_max": _final_progress_metric(progress_rows, "best_temperature_max_so_far"),
@@ -309,22 +309,82 @@ def _collect_run_payload(run_root: Path) -> dict[str, Any]:
         "series_label": summary_row["series_label"],
         "benchmark_seed": benchmark_seed,
         "progress_point_count": len(progress_rows),
-        "hypervolume_point_count": len(hypervolume_rows),
+        "hypervolume_point_count": 0,
         "first_feasible_pde_eval": summary_row["first_feasible_pde_eval"],
-        "final_hypervolume": summary_row["final_hypervolume"],
+        "final_hypervolume": None,
     }
-    return {
+    payload = {
         "run_root": run_root,
+        "events": events,
         "mode": mode,
         "series_label": summary_row["series_label"],
         "front": front,
-        "hypervolume_rows": hypervolume_rows,
-        "hypervolume_series": hypervolume_series,
+        "hypervolume_rows": [],
+        "hypervolume_series": [],
         "progress_rows": progress_rows,
         "summary_row": summary_row,
         "timeline_rollup": timeline_rollup,
         "representative_panel": representative_panel,
     }
+    _refresh_hypervolume_payload(
+        payload,
+        reference_point=adaptive_reference_point_2d(
+            _all_objective_points(events),
+            default_reference_point=REFERENCE_POINT,
+        ),
+    )
+    return payload
+
+
+def _apply_shared_hypervolume_reference(payloads: Sequence[Mapping[str, Any]]) -> tuple[float, float]:
+    reference_point = _shared_hypervolume_reference_point(payloads)
+    for payload in payloads:
+        _refresh_hypervolume_payload(payload, reference_point=reference_point)
+    return reference_point
+
+
+def _shared_hypervolume_reference_point(payloads: Sequence[Mapping[str, Any]]) -> tuple[float, float]:
+    points: list[tuple[float, float]] = []
+    for payload in payloads:
+        points.extend(_all_objective_points(payload.get("events", [])))
+    return adaptive_reference_point_2d(points, default_reference_point=REFERENCE_POINT)
+
+
+def _all_objective_points(events: Sequence[Mapping[str, Any]]) -> list[tuple[float, float]]:
+    points: list[tuple[float, float]] = []
+    for row in events:
+        if not isinstance(row, Mapping) or row.get("status") != "ok" or not row.get("objectives"):
+            continue
+        objectives = dict(row["objectives"])
+        if "temperature_max" not in objectives or "temperature_gradient_rms" not in objectives:
+            continue
+        points.append((float(objectives["temperature_max"]), float(objectives["temperature_gradient_rms"])))
+    return points
+
+
+def _refresh_hypervolume_payload(
+    payload: Mapping[str, Any],
+    *,
+    reference_point: tuple[float, float],
+) -> None:
+    if not isinstance(payload, dict):
+        return
+    events = list(payload.get("events", []))
+    hypervolume_rows = rollup_per_generation(events, reference_point=reference_point)
+    hypervolume_series = [
+        (int(row["generation"]), float(row["hypervolume"]))
+        for row in hypervolume_rows
+    ]
+    payload["hypervolume_rows"] = hypervolume_rows
+    payload["hypervolume_series"] = hypervolume_series
+    final_hypervolume = hypervolume_rows[-1]["hypervolume"] if hypervolume_rows else None
+    summary_row = payload.get("summary_row")
+    if isinstance(summary_row, dict):
+        summary_row["final_hypervolume"] = final_hypervolume
+    timeline_rollup = payload.get("timeline_rollup")
+    if isinstance(timeline_rollup, dict):
+        timeline_rollup["hypervolume_point_count"] = len(hypervolume_rows)
+        timeline_rollup["final_hypervolume"] = final_hypervolume
 
 
 def _disambiguate_duplicate_series_labels(payloads: Sequence[dict[str, Any]]) -> None:
@@ -351,6 +411,7 @@ def _build_aggregate_suite_bundle(
     *,
     payloads: Sequence[Mapping[str, Any]],
     output: Path,
+    hypervolume_reference_point: tuple[float, float],
     hires: bool,
 ) -> None:
     analytics_root = output / "analytics"
@@ -420,6 +481,7 @@ def _build_aggregate_suite_bundle(
             "comparison_kind": "aggregate",
             "mode_ids": sorted(grouped_by_mode, key=_mode_sort_key),
             "benchmark_seeds": benchmark_seeds,
+            "hypervolume_reference_point": list(hypervolume_reference_point),
             "created_at": datetime.now().isoformat(),
         },
     )

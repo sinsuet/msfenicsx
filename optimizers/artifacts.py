@@ -16,7 +16,7 @@ from evaluation.io import save_report
 from optimizers.io import save_optimization_result
 from optimizers.problem import CandidateArtifacts
 from optimizers.run_telemetry import build_evaluation_events, build_generation_summary_rows
-from optimizers.traces.correlation import format_decision_id
+from optimizers.traces.correlation import format_decision_id, parse_decision_id
 
 
 def write_optimization_artifacts(
@@ -31,9 +31,19 @@ def write_optimization_artifacts(
     _initialize_seed_bundle_root(resolved_output_root)
     save_optimization_result(run.result, resolved_output_root / "optimization_result.json")
     save_optimization_result({"pareto_front": run.result.pareto_front}, resolved_output_root / "pareto_front.json")
+    operator_trace_rows: list[dict[str, Any]] = []
+    decision_ids_by_evaluation_index: dict[int, str] = {}
+    if hasattr(run, "operator_trace"):
+        history_by_eval_index = _history_by_evaluation_index(getattr(run.result, "history", []))
+        operator_trace_rows = _coerce_operator_trace_rows(
+            getattr(run, "operator_trace"),
+            history_by_eval_index=history_by_eval_index,
+        )
+        decision_ids_by_evaluation_index = _decision_ids_by_evaluation_index(getattr(run, "operator_trace"))
     evaluation_rows = build_evaluation_events(
         run.result.history,
         objective_definitions=objective_definitions,
+        decision_ids_by_evaluation_index=decision_ids_by_evaluation_index,
     )
     generation_rows = build_generation_summary_rows(
         run_id=str(run.result.run_meta["run_id"]),
@@ -64,11 +74,6 @@ def write_optimization_artifacts(
         if controller_trace_jsonl_path.exists():
             snapshots["controller_trace"] = "traces/controller_trace.jsonl"
     if hasattr(run, "operator_trace"):
-        history_by_eval_index = _history_by_evaluation_index(getattr(run.result, "history", []))
-        operator_trace_rows = _coerce_operator_trace_rows(
-            getattr(run, "operator_trace"),
-            history_by_eval_index=history_by_eval_index,
-        )
         operator_trace_jsonl_path = resolved_output_root / "traces" / "operator_trace.jsonl"
         if operator_trace_rows:
             _write_jsonl_payload(
@@ -306,6 +311,58 @@ def _coerce_operator_trace_rows(
             )
         rows.append(row)
     return rows
+
+
+def _decision_ids_by_evaluation_index(operator_trace: Any) -> dict[int, str]:
+    rows: dict[int, str] = {}
+    for entry in operator_trace or ():
+        payload = entry.to_dict() if hasattr(entry, "to_dict") else dict(entry)
+        metadata = dict(payload.get("metadata", {}) or {})
+        direct_decision_id = _normalized_trace_identifier(payload.get("decision_id")) or _normalized_trace_identifier(
+            metadata.get("decision_id")
+        )
+        evaluation_index = _trace_evaluation_index(payload, metadata, direct_decision_id)
+        if evaluation_index is None:
+            continue
+        generation = int(payload.get("generation_index", payload.get("generation", 0)))
+        decision_id = direct_decision_id or _resolve_operator_decision_id(
+            payload,
+            metadata,
+            generation=generation,
+            evaluation_index=int(evaluation_index),
+        )
+        if decision_id is None:
+            continue
+        rows[int(evaluation_index)] = decision_id
+    return rows
+
+
+def _trace_evaluation_index(
+    payload: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+    decision_id: str | None,
+) -> int | None:
+    for key in ("evaluation_index", "accepted_evaluation_index", "provisional_evaluation_index"):
+        value = payload.get(key)
+        if value is not None:
+            return int(value)
+    accepted_indices = payload.get("accepted_evaluation_indices")
+    if isinstance(accepted_indices, Sequence) and not isinstance(accepted_indices, (str, bytes)) and accepted_indices:
+        return int(accepted_indices[0])
+    for key in ("evaluation_index", "accepted_evaluation_index", "decision_evaluation_index"):
+        value = metadata.get(key)
+        if value is not None:
+            return int(value)
+    accepted_indices = metadata.get("accepted_evaluation_indices")
+    if isinstance(accepted_indices, Sequence) and not isinstance(accepted_indices, (str, bytes)) and accepted_indices:
+        return int(accepted_indices[0])
+    if decision_id is None:
+        return None
+    try:
+        _generation, evaluation_index, _decision_index = parse_decision_id(decision_id)
+    except ValueError:
+        return None
+    return int(evaluation_index)
 
 
 def _has_trace_evaluation_index(payload: Mapping[str, Any]) -> bool:

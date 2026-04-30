@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+DEFAULT_REFERENCE_POINT = (400.0, 20.0)
+
 
 def pareto_front_indices(objectives: Sequence[tuple[float, float]]) -> list[int]:
     """Return indices of non-dominated points under minimization."""
@@ -40,3 +42,25 @@ def hypervolume_2d(
             hv += width * height
         prev_x = x
     return hv
+
+
+def adaptive_reference_point_2d(
+    points: Sequence[tuple[float, float]],
+    *,
+    default_reference_point: tuple[float, float] = DEFAULT_REFERENCE_POINT,
+    margin_fraction: float = 0.05,
+    minimum_margin: float = 1.0,
+) -> tuple[float, float]:
+    """Return a reference point that dominates all observed minimization points."""
+    if not points:
+        return default_reference_point
+    xs = [float(point[0]) for point in points]
+    ys = [float(point[1]) for point in points]
+    x_range = max(xs) - min(xs)
+    y_range = max(ys) - min(ys)
+    x_margin = max(float(minimum_margin), float(x_range * margin_fraction))
+    y_margin = max(float(minimum_margin), float(y_range * margin_fraction))
+    return (
+        max(float(default_reference_point[0]), max(xs) + x_margin),
+        max(float(default_reference_point[1]), max(ys) + y_margin),
+    )

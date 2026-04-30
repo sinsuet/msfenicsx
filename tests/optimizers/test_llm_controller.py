@@ -4425,6 +4425,84 @@ def test_llm_request_trace_records_prompt_size_fields(tmp_path: Path) -> None:
     assert request_row["prompt_size"]["total_chars"] == len("system text") + len("user text")
 
 
+def test_llm_request_trace_and_prompt_store_resolve_model_env_var(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from llm.openai_compatible.client import OpenAICompatibleRankAdvice, RankedOperatorCandidate
+
+    class _RankClient:
+        def request_operator_rank_advice(self, **kwargs):
+            return OpenAICompatibleRankAdvice(
+                ranked_operators=(
+                    RankedOperatorCandidate(
+                        operator_id="component_jitter_1",
+                        semantic_task="local_polish",
+                        score=0.9,
+                        risk=0.1,
+                        confidence=0.8,
+                        rationale="bounded local polish",
+                    ),
+                ),
+                phase="post_feasible_preserve",
+                rationale="rank local polish first",
+                provider="openai-compatible",
+                model="gpt-5.4",
+                capability_profile="chat_compatible_json",
+                performance_profile="balanced",
+                raw_payload={"ranked_operators": [{"operator_id": "component_jitter_1"}]},
+            )
+
+    monkeypatch.setenv("LLM_MODEL", "gpt-5.4")
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model_env_var": "LLM_MODEL",
+            "api_key_env_var": "LLM_API_KEY",
+            "base_url_env_var": "LLM_BASE_URL",
+            "max_output_tokens": 512,
+            "selection_strategy": "semantic_ranked_pick",
+        },
+        client=_RankClient(),
+    )
+    controller.configure_trace_outputs(
+        controller_trace_path=tmp_path / "controller_trace.jsonl",
+        llm_request_trace_path=tmp_path / "llm_request_trace.jsonl",
+        llm_response_trace_path=tmp_path / "llm_response_trace.jsonl",
+        prompt_store=PromptStore(tmp_path / "prompts"),
+    )
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=2,
+        evaluation_index=42,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "decision_index": 3,
+            "search_phase": "post_feasible_preserve",
+            "progress_state": {"phase": "post_feasible_preserve", "post_feasible_mode": "preserve"},
+            "prompt_panels": {"run_panel": {}, "operator_panel": {"rows": []}},
+            "recent_decisions": [],
+        },
+    )
+
+    controller.select_decision(state, ("component_jitter_1",), np.random.default_rng(1))
+
+    request_row = json.loads((tmp_path / "llm_request_trace.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert request_row["model"] == "gpt-5.4"
+    assert controller.request_trace[0]["model"] == "gpt-5.4"
+    prompt_frontmatters = [
+        path.read_text(encoding="utf-8").split("---", 2)[1]
+        for path in (tmp_path / "prompts").glob("*.md")
+    ]
+    assert prompt_frontmatters
+    assert all("model: gpt-5.4" in frontmatter for frontmatter in prompt_frontmatters)
+    assert all("model: None" not in frontmatter for frontmatter in prompt_frontmatters)
+
+
 def test_post_feasible_mild_regression_stagnation_promotes_expand_with_exposure_priority() -> None:
     from optimizers.operator_pool.policy_kernel import build_policy_snapshot
 

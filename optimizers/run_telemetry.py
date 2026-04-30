@@ -12,6 +12,7 @@ def build_evaluation_events(
     history: list[dict],
     *,
     objective_definitions: Sequence[Mapping[str, Any]] | None = None,
+    decision_ids_by_evaluation_index: Mapping[int, str] | None = None,
 ) -> list[dict]:
     """§ 4.1 evaluation_events rows — one per optimizer evaluation.
 
@@ -35,8 +36,12 @@ def build_evaluation_events(
             intra_generation_index = 0
             previous_generation = generation
         individual_id = record.get("individual_id") or f"g{generation:03d}-i{intra_generation_index:02d}"
+        source_evaluation_index = int(record.get("evaluation_index", eval_index))
+        decision_id = record.get("decision_id")
+        if decision_id is None and decision_ids_by_evaluation_index:
+            decision_id = decision_ids_by_evaluation_index.get(source_evaluation_index)
         row = {
-            "decision_id": record.get("decision_id"),
+            "decision_id": decision_id,
             "generation": generation,
             "eval_index": eval_index,
             "individual_id": str(individual_id),
@@ -130,6 +135,7 @@ def build_progress_timeline(rows: Sequence[Mapping[str, Any]]) -> list[dict[str,
     pde_evaluation_count = 0
     solver_skipped_count = 0
     feasible_count = 0
+    pde_feasible_count = 0
     first_feasible_eval: int | None = None
     first_feasible_pde_eval: int | None = None
     best_temperature_max: float | None = None
@@ -163,6 +169,8 @@ def build_progress_timeline(rows: Sequence[Mapping[str, Any]]) -> list[dict[str,
                 best_total_constraint_violation = min(best_total_constraint_violation, total_constraint_violation)
         if feasible:
             feasible_count += 1
+            if pde_attempted:
+                pde_feasible_count += 1
             feasible_prefix.append(row)
             if first_feasible_eval is None:
                 first_feasible_eval = evaluation_index
@@ -204,7 +212,7 @@ def build_progress_timeline(rows: Sequence[Mapping[str, Any]]) -> list[dict[str,
                 "pde_evaluations_so_far": pde_evaluation_count,
                 "solver_skipped_evaluations_so_far": solver_skipped_count,
                 "feasible_count_so_far": feasible_count,
-                "feasible_rate_so_far": float(feasible_count / float(max(1, optimizer_evaluation_count))),
+                "feasible_rate_so_far": float(pde_feasible_count / float(max(1, pde_evaluation_count))),
                 "first_feasible_eval_so_far": first_feasible_eval,
                 "first_feasible_pde_eval_so_far": first_feasible_pde_eval,
                 "pareto_size_so_far": pareto_size,

@@ -234,7 +234,7 @@ class LLMOperatorController:
         self._prompt_store: PromptStore | None = None
         self.metrics: dict[str, Any] = {
             "provider": self.config.provider,
-            "model": self.config.model,
+            "model": self._trace_model_label(),
             "capability_profile": self.config.capability_profile,
             "performance_profile": self.config.performance_profile,
             "request_count": 0,
@@ -340,6 +340,7 @@ class LLMOperatorController:
             metadata=prompt_metadata,
         )
         decision_id = self._decision_id(state)
+        trace_model = self._trace_model_label()
         input_state_digest = self._input_state_digest(
             state,
             candidate_operator_ids=candidate_operator_ids,
@@ -356,7 +357,7 @@ class LLMOperatorController:
                 else int(state.metadata.get("decision_index"))
             ),
             "provider": self.config.provider,
-            "model": self.config.model,
+            "model": trace_model,
             "capability_profile": self.config.capability_profile,
             "performance_profile": self.config.performance_profile,
             "candidate_operator_ids": list(candidate_operator_ids),
@@ -431,7 +432,7 @@ class LLMOperatorController:
                     else int(state.metadata.get("decision_index"))
                 ),
                 "provider": self.config.provider,
-                "model": self.config.model,
+                "model": self._trace_model_label(),
                 "candidate_operator_ids": list(candidate_operator_ids),
                 "policy_phase": policy_snapshot.phase,
                 "phase_source": "policy_kernel",
@@ -651,7 +652,7 @@ class LLMOperatorController:
                     else int(state.metadata.get("decision_index"))
                 ),
                 "provider": self.config.provider,
-                "model": self.config.model,
+                "model": self._trace_model_label(),
                 "candidate_operator_ids": list(candidate_operator_ids),
                 "selection_strategy": self.selection_strategy,
                 "policy_phase": policy_snapshot.phase,
@@ -887,7 +888,7 @@ class LLMOperatorController:
                     else int(state.metadata.get("decision_index"))
                 ),
                 "provider": self.config.provider,
-                "model": self.config.model,
+                "model": self._trace_model_label(),
                 "candidate_operator_ids": list(candidate_operator_ids),
                 "selection_strategy": self.selection_strategy,
                 "policy_phase": policy_snapshot.phase,
@@ -1092,6 +1093,22 @@ class LLMOperatorController:
     def _request_markdown_body(*, system_prompt: str, user_prompt: str) -> str:
         return f"# System\n\n{system_prompt.strip()}\n\n# User\n\n{user_prompt.strip()}\n"
 
+    def _trace_model_label(self, *surfaces: Mapping[str, Any] | None) -> str:
+        for surface in surfaces:
+            if not isinstance(surface, Mapping):
+                continue
+            value = surface.get("model")
+            if value is not None and str(value).strip() and str(value).strip().lower() not in {"none", "null"}:
+                return str(value).strip()
+        try:
+            return self.config.resolve_model()
+        except RuntimeError:
+            literal_model = "" if self.config.model is None else str(self.config.model).strip()
+            if literal_model:
+                return literal_model
+            env_var = "" if self.config.model_env_var is None else str(self.config.model_env_var).strip()
+            return f"unresolved:{env_var}" if env_var else "unresolved"
+
     @staticmethod
     def _input_state_digest(
         state: ControllerState,
@@ -1193,16 +1210,17 @@ class LLMOperatorController:
         """Emit § 4.4 controller_trace row + § 4.5 request/response rows when trace outputs are configured."""
         if self._controller_trace_path is None or self._prompt_store is None:
             return None, None
+        model_label = self._trace_model_label(response_surface, request_surface)
         prompt_ref = self._prompt_store.store(
             kind="request",
             body=self._request_markdown_body(system_prompt=system_prompt, user_prompt=user_prompt),
-            model=self.config.model,
+            model=model_label,
             decision_id=decision_id,
         )
         response_ref = self._prompt_store.store(
             kind="response",
             body=response_body,
-            model=self.config.model,
+            model=model_label,
             decision_id=decision_id,
         )
         append_jsonl(
@@ -1224,33 +1242,29 @@ class LLMOperatorController:
             "user_chars": len(user_prompt),
             "total_chars": len(system_prompt) + len(user_prompt),
         }
-        append_jsonl(
-            self._llm_request_trace_path,
-            {
-                "decision_id": decision_id,
-                "prompt_ref": prompt_ref,
-                "model": self.config.model,
-                "http_status": http_status,
-                "retries": int(retries),
-                "latency_ms": float(latency_ms),
-                "prompt_size": prompt_size,
-                **({} if request_surface is None else dict(request_surface)),
-            },
-        )
-        append_jsonl(
-            self._llm_response_trace_path,
-            {
-                "decision_id": decision_id,
-                "response_ref": response_ref,
-                "model": self.config.model,
-                "tokens": dict(tokens) if tokens else {},
-                "finish_reason": finish_reason,
-                "http_status": http_status,
-                "retries": int(retries),
-                "latency_ms": float(latency_ms),
-                **({} if response_surface is None else self._trace_surface_without_bodies(response_surface)),
-            },
-        )
+        request_payload = {
+            **({} if request_surface is None else dict(request_surface)),
+            "decision_id": decision_id,
+            "prompt_ref": prompt_ref,
+            "http_status": http_status,
+            "retries": int(retries),
+            "latency_ms": float(latency_ms),
+            "prompt_size": prompt_size,
+        }
+        request_payload["model"] = model_label
+        append_jsonl(self._llm_request_trace_path, request_payload)
+        response_payload = {
+            **({} if response_surface is None else self._trace_surface_without_bodies(response_surface)),
+            "decision_id": decision_id,
+            "response_ref": response_ref,
+            "tokens": dict(tokens) if tokens else {},
+            "finish_reason": finish_reason,
+            "http_status": http_status,
+            "retries": int(retries),
+            "latency_ms": float(latency_ms),
+        }
+        response_payload["model"] = model_label
+        append_jsonl(self._llm_response_trace_path, response_payload)
         return prompt_ref, response_ref
 
     @staticmethod

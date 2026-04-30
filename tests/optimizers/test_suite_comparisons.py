@@ -28,6 +28,8 @@ def test_aggregate_bands_align_on_progress_and_generation_axes(tmp_path: Path) -
 
 
 def test_build_suite_comparisons_single_seed_writes_suite_owned_bundle(tmp_path: Path) -> None:
+    import json
+
     import matplotlib
 
     matplotlib.use("Agg")
@@ -41,6 +43,8 @@ def test_build_suite_comparisons_single_seed_writes_suite_owned_bundle(tmp_path:
 
     assert manifest["comparison_kind"] == "single_seed"
     assert (comparisons_root / "manifest.json").exists()
+    comparison_manifest = json.loads((comparisons_root / "manifest.json").read_text(encoding="utf-8"))
+    assert "hypervolume_reference_point" in comparison_manifest
     assert (comparisons_root / "analytics" / "summary_rows.json").exists()
     assert (comparisons_root / "figures" / "summary_overview.png").exists()
     assert (comparisons_root / "figures" / "final_layout_comparison.png").exists()
@@ -54,6 +58,8 @@ def test_build_suite_comparisons_single_seed_writes_suite_owned_bundle(tmp_path:
 
 
 def test_build_suite_comparisons_multi_seed_writes_by_seed_and_aggregate(tmp_path: Path) -> None:
+    import json
+
     import matplotlib
 
     matplotlib.use("Agg")
@@ -79,3 +85,5 @@ def test_build_suite_comparisons_multi_seed_writes_by_seed_and_aggregate(tmp_pat
     assert (comparisons_root / "aggregate" / "tables" / "pairwise_win_rate.csv").exists()
     assert (comparisons_root / "aggregate" / "analytics" / "aggregate_mode_summary.json").exists()
     assert (comparisons_root / "aggregate" / "analytics" / "pairwise_win_rate.json").exists()
+    aggregate_manifest = json.loads((comparisons_root / "aggregate" / "manifest.json").read_text(encoding="utf-8"))
+    assert "hypervolume_reference_point" in aggregate_manifest

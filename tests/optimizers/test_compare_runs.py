@@ -288,11 +288,71 @@ def test_compare_runs_writes_pde_budget_accounting_outputs(tmp_path: Path) -> No
     assert cutoff_rows["raw"]["common_pde_cutoff"] == "2"
     assert cutoff_rows["raw"]["optimizer_proposals_at_cutoff"] == "3"
     assert cutoff_rows["raw"]["cheap_screen_skipped_at_cutoff"] == "1"
+    assert cutoff_rows["raw"]["feasible_rate_at_cutoff"] == "1.0"
     assert cutoff_rows["raw"]["best_temperature_max_at_cutoff"] == "318.0"
     assert cutoff_rows["llm"]["common_pde_cutoff"] == "2"
     assert cutoff_rows["llm"]["optimizer_proposals_at_cutoff"] == "2"
     assert cutoff_rows["llm"]["cheap_screen_skipped_at_cutoff"] == "0"
     assert cutoff_rows["llm"]["best_temperature_max_at_cutoff"] == "319.0"
+
+
+def test_compare_runs_uses_shared_hypervolume_reference_covering_all_fronts(tmp_path: Path) -> None:
+    import csv
+
+    from optimizers.compare_runs import compare_runs
+
+    run_a = tmp_path / "0430_2356__raw"
+    run_b = tmp_path / "0430_2356__llm"
+    _seed_run(run_a, "raw")
+    _seed_run(run_b, "llm")
+
+    raw_events = [
+        {
+            "decision_id": None,
+            "generation": 0,
+            "eval_index": 0,
+            "individual_id": "raw-g0",
+            "objectives": {
+                "temperature_max": 326.75,
+                "temperature_gradient_rms": 20.81,
+            },
+            "constraints": {"violation": 0.0},
+            "status": "ok",
+            "solver_skipped": False,
+            "timing": {},
+        }
+    ]
+    llm_events = [
+        {
+            "decision_id": "g000-e0000-d00",
+            "generation": 0,
+            "eval_index": 0,
+            "individual_id": "llm-g0",
+            "objectives": {
+                "temperature_max": 321.90,
+                "temperature_gradient_rms": 15.81,
+            },
+            "constraints": {"violation": 0.0},
+            "status": "ok",
+            "solver_skipped": False,
+            "timing": {},
+        }
+    ]
+    (run_a / "traces" / "evaluation_events.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in raw_events) + "\n",
+        encoding="utf-8",
+    )
+    (run_b / "traces" / "evaluation_events.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in llm_events) + "\n",
+        encoding="utf-8",
+    )
+
+    output = tmp_path / "comparisons" / "0430_2356__raw_vs_llm"
+    compare_runs(runs=[run_a, run_b], output=output)
+
+    rows = list(csv.DictReader((output / "tables" / "mode_metrics.csv").open(encoding="utf-8")))
+    raw_row = next(row for row in rows if row["mode"] == "raw")
+    assert float(raw_row["final_hypervolume"]) > 0.0
 
 
 def test_compare_runs_rejects_non_concrete_mode_root_inputs(tmp_path: Path) -> None:

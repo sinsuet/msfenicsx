@@ -44,6 +44,7 @@ def run_benchmark_suite(
 ) -> Path:
     if not optimization_spec_paths:
         raise ValueError("run_benchmark_suite requires at least one optimization spec path.")
+    _reject_output_root_inside_existing_optimizer_run(Path(scenario_runs_root))
 
     loaded_specs = [
         (Path(spec_path), load_optimization_spec(spec_path))
@@ -175,6 +176,23 @@ def _normalize_modes(modes: Sequence[str]) -> list[str]:
     if not ordered:
         raise ValueError("run_benchmark_suite requires at least one supported mode.")
     return ordered
+
+
+def _reject_output_root_inside_existing_optimizer_run(scenario_runs_root: Path) -> None:
+    root = Path(scenario_runs_root).resolve()
+    for candidate in (root, *root.parents):
+        if _looks_like_concrete_optimizer_run(candidate):
+            raise ValueError(
+                "run_benchmark_suite scenario_runs_root points inside an existing optimizer run: "
+                f"{candidate}"
+            )
+
+
+def _looks_like_concrete_optimizer_run(path: Path) -> bool:
+    return (
+        (path / "optimization_result.json").exists()
+        and (path / "traces" / "evaluation_events.jsonl").exists()
+    )
 
 
 def _resolve_template_id(template_path: Path) -> str:

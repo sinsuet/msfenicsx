@@ -218,6 +218,52 @@ def test_build_progress_timeline_tracks_solver_attempts_separately_from_optimize
     assert timeline[-1]["first_feasible_pde_eval_so_far"] == 2
 
 
+def test_build_progress_timeline_feasible_rate_uses_pde_attempt_denominator() -> None:
+    timeline = build_progress_timeline(
+        [
+            {
+                "evaluation_index": 1,
+                "generation": 1,
+                "source": "optimizer",
+                "feasible": False,
+                "solver_skipped": True,
+                "failure_reason": "cheap_constraint_violation",
+                "objective_values": {"minimize_peak_temperature": 1.0e12},
+                "constraint_values": {"cheap_geometry_issue_count": 1.0},
+            },
+            {
+                "evaluation_index": 2,
+                "generation": 1,
+                "source": "optimizer",
+                "feasible": True,
+                "solver_skipped": False,
+                "objective_values": {
+                    "minimize_peak_temperature": 320.0,
+                    "minimize_temperature_gradient_rms": 18.0,
+                },
+                "constraint_values": {"radiator_span_budget": 0.0},
+            },
+            {
+                "evaluation_index": 3,
+                "generation": 1,
+                "source": "optimizer",
+                "feasible": False,
+                "solver_skipped": False,
+                "objective_values": {
+                    "minimize_peak_temperature": 330.0,
+                    "minimize_temperature_gradient_rms": 22.0,
+                },
+                "constraint_values": {"c12_peak_temperature_limit": 2.0},
+            },
+        ]
+    )
+
+    assert timeline[-1]["pde_evaluations_so_far"] == 2
+    assert timeline[-1]["solver_skipped_evaluations_so_far"] == 1
+    assert timeline[-1]["feasible_count_so_far"] == 1
+    assert timeline[-1]["feasible_rate_so_far"] == 0.5
+
+
 def test_build_progress_timeline_carries_current_values_and_status() -> None:
     timeline = build_progress_timeline(
         [
