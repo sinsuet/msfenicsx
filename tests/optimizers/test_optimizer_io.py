@@ -363,14 +363,16 @@ def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
     assert params["temperature"] == 1.0
 
 
-def test_llm_spec_accepts_semantic_prior_sampler_parameters() -> None:
+def test_llm_spec_accepts_semantic_ranked_pick_parameters() -> None:
     spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_llm.yaml")
     assert spec.operator_control is not None
     params = spec.operator_control["controller_parameters"]
 
-    assert params["selection_strategy"] == "semantic_prior_sampler"
-    assert params["semantic_prior_sampler"]["rolling_window"] == 16
-    assert params["semantic_prior_sampler"]["generation_operator_cap_fraction"] == pytest.approx(0.35)
+    assert params["selection_strategy"] == "semantic_ranked_pick"
+    assert params["semantic_ranked_pick"]["max_rank_scan"] == 9
+    assert params["semantic_ranked_pick"]["rolling_window"] == 16
+    assert params["semantic_ranked_pick"]["generation_operator_cap_fraction"] == pytest.approx(0.35)
+    assert "semantic_prior_sampler" not in params
 
 
 def test_llm_validation_accepts_model_env_var_without_literal_model() -> None:

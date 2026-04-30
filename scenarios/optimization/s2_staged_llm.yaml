@@ -161,15 +161,15 @@ operator_control:
     api_key_env_var: LLM_API_KEY
     base_url_env_var: LLM_BASE_URL
     max_output_tokens: 512
-    selection_strategy: semantic_prior_sampler
-    semantic_prior_sampler:
-      uniform_mix: 0.15
-      min_probability_floor: 0.03
+    selection_strategy: semantic_ranked_pick
+    semantic_ranked_pick:
+      max_rank_scan: 9
       generation_operator_cap_fraction: 0.35
       rolling_operator_cap_fraction: 0.40
       rolling_semantic_task_cap_fraction: 0.55
       rolling_window: 16
-      risk_penalty_weight: 0.50
+      near_tie_score_margin: 0.03
+      low_confidence_threshold: 0.35
     temperature: 0.7
     retry:
       max_attempts: 2

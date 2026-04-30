@@ -52,17 +52,18 @@ def test_s5_registry_split_uses_structured_primitives_for_union_and_llm() -> Non
     assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_structured")
     assert llm["operator_control"]["operator_pool"] == union["operator_control"]["operator_pool"]
     params = llm["operator_control"]["controller_parameters"]
-    assert params["selection_strategy"] == "semantic_prior_sampler"
+    assert params["selection_strategy"] == "semantic_ranked_pick"
     assert params["max_output_tokens"] == 512
-    assert params["semantic_prior_sampler"] == {
-        "uniform_mix": 0.15,
-        "min_probability_floor": 0.03,
+    assert params["semantic_ranked_pick"] == {
+        "max_rank_scan": 9,
         "generation_operator_cap_fraction": 0.35,
         "rolling_operator_cap_fraction": 0.40,
         "rolling_semantic_task_cap_fraction": 0.55,
         "rolling_window": 16,
-        "risk_penalty_weight": 0.50,
+        "near_tie_score_margin": 0.03,
+        "low_confidence_threshold": 0.35,
     }
+    assert "semantic_prior_sampler" not in params
     assert llm["evaluation_protocol"] == union["evaluation_protocol"]
 
 
