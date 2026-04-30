@@ -22,12 +22,10 @@
 - Modify: `optimizers/operator_pool/llm_controller.py`
   - Add `selection_strategy == "semantic_ranked_pick"` branch.
   - Add rank prompt, rank-advice request wrapper, rank input/trace helpers, fallback metadata, and response trace metadata.
-- Modify: active LLM specs only:
-  - `scenarios/optimization/s1_typical_llm.yaml`
-  - `scenarios/optimization/s2_staged_llm.yaml`
-  - `scenarios/optimization/s3_scale20_llm.yaml`
-  - `scenarios/optimization/s4_dense25_llm.yaml`
+- Modify: active S5-S7 LLM specs only:
   - `scenarios/optimization/s5_aggressive15_llm.yaml`
+  - `scenarios/optimization/s6_aggressive20_llm.yaml`
+  - `scenarios/optimization/s7_aggressive25_llm.yaml`
 - Modify tests:
   - `tests/optimizers/test_llm_client.py`
   - `tests/optimizers/test_semantic_ranked_picker.py`
@@ -35,6 +33,8 @@
   - `tests/optimizers/test_controller_trace_new_schema.py`
   - `tests/optimizers/test_optimizer_io.py`
   - `tests/optimizers/test_s5_aggressive15_specs.py`
+  - `tests/optimizers/test_s6_aggressive20_specs.py`
+  - `tests/optimizers/test_s7_aggressive25_specs.py`
 
 Do not modify:
 
@@ -1647,13 +1647,13 @@ git commit -m "test: cover semantic ranked pick traces"
 ### Task 5: Switch Active LLM Specs And Contracts
 
 **Files:**
-- Modify: `scenarios/optimization/s1_typical_llm.yaml`
-- Modify: `scenarios/optimization/s2_staged_llm.yaml`
-- Modify: `scenarios/optimization/s3_scale20_llm.yaml`
-- Modify: `scenarios/optimization/s4_dense25_llm.yaml`
 - Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`
+- Modify: `scenarios/optimization/s6_aggressive20_llm.yaml`
+- Modify: `scenarios/optimization/s7_aggressive25_llm.yaml`
 - Modify: `tests/optimizers/test_optimizer_io.py`
 - Modify: `tests/optimizers/test_s5_aggressive15_specs.py`
+- Modify: `tests/optimizers/test_s6_aggressive20_specs.py`
+- Modify: `tests/optimizers/test_s7_aggressive25_specs.py`
 
 - [ ] **Step 1: Write failing optimizer IO contract test**
 
@@ -1672,9 +1672,9 @@ def test_llm_spec_accepts_semantic_ranked_pick_parameters() -> None:
     assert "semantic_prior_sampler" not in params
 ```
 
-- [ ] **Step 2: Update S5 spec test expectation first**
+- [ ] **Step 2: Update S5/S6/S7 spec test expectations first**
 
-In `tests/optimizers/test_s5_aggressive15_specs.py`, replace the semantic prior assertions with:
+In `tests/optimizers/test_s5_aggressive15_specs.py`, `tests/optimizers/test_s6_aggressive20_specs.py`, and `tests/optimizers/test_s7_aggressive25_specs.py`, assert that the active LLM controller parameters match the S5 debugging template:
 
 ```python
 assert params["selection_strategy"] == "semantic_ranked_pick"
@@ -1698,14 +1698,16 @@ Run:
 ```bash
 /home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
   tests/optimizers/test_optimizer_io.py::test_llm_spec_accepts_semantic_ranked_pick_parameters \
-  tests/optimizers/test_s5_aggressive15_specs.py::test_s5_registry_split_uses_structured_primitives_for_union_and_llm
+  tests/optimizers/test_s5_aggressive15_specs.py::test_s5_registry_split_uses_structured_primitives_for_union_and_llm \
+  tests/optimizers/test_s6_aggressive20_specs.py::test_s6_llm_controller_parameters_match_s5_main_debug_template \
+  tests/optimizers/test_s7_aggressive25_specs.py::test_s7_llm_controller_parameters_match_s5_main_debug_template
 ```
 
-Expected: FAIL because active LLM YAMLs still use `semantic_prior_sampler`.
+Expected: FAIL where an active S5-S7 LLM YAML still differs from the S5 `semantic_ranked_pick` template.
 
 - [ ] **Step 4: Update active LLM YAMLs**
 
-In each active LLM YAML listed in this task, replace:
+In each active S5-S7 LLM YAML listed in this task, replace:
 
 ```yaml
 selection_strategy: semantic_prior_sampler
@@ -1740,7 +1742,9 @@ Run:
 ```bash
 /home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
   tests/optimizers/test_optimizer_io.py::test_llm_spec_accepts_semantic_ranked_pick_parameters \
-  tests/optimizers/test_s5_aggressive15_specs.py::test_s5_registry_split_uses_structured_primitives_for_union_and_llm
+  tests/optimizers/test_s5_aggressive15_specs.py::test_s5_registry_split_uses_structured_primitives_for_union_and_llm \
+  tests/optimizers/test_s6_aggressive20_specs.py::test_s6_llm_controller_parameters_match_s5_main_debug_template \
+  tests/optimizers/test_s7_aggressive25_specs.py::test_s7_llm_controller_parameters_match_s5_main_debug_template
 ```
 
 Expected: PASS.
@@ -1751,13 +1755,13 @@ Run:
 
 ```bash
 git add \
-  scenarios/optimization/s1_typical_llm.yaml \
-  scenarios/optimization/s2_staged_llm.yaml \
-  scenarios/optimization/s3_scale20_llm.yaml \
-  scenarios/optimization/s4_dense25_llm.yaml \
   scenarios/optimization/s5_aggressive15_llm.yaml \
+  scenarios/optimization/s6_aggressive20_llm.yaml \
+  scenarios/optimization/s7_aggressive25_llm.yaml \
   tests/optimizers/test_optimizer_io.py \
-  tests/optimizers/test_s5_aggressive15_specs.py
+  tests/optimizers/test_s5_aggressive15_specs.py \
+  tests/optimizers/test_s6_aggressive20_specs.py \
+  tests/optimizers/test_s7_aggressive25_specs.py
 git commit -m "config: switch llm specs to semantic ranked pick"
 ```
 

@@ -224,4 +224,4 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s7_aggressive25_spea2_raw.yaml
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/s7_aggressive25_eval.yaml
-  legality_policy_id: minimal_canonicalization
+  legality_policy_id: projection_plus_local_restore

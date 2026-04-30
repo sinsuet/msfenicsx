@@ -233,13 +233,11 @@ Return JSON only.
 
 ## Active YAML 切换
 
-只修改 active LLM specs：
+只修改 active S5-S7 LLM specs：
 
-- `scenarios/optimization/s1_typical_llm.yaml`
-- `scenarios/optimization/s2_staged_llm.yaml`
-- `scenarios/optimization/s3_scale20_llm.yaml`
-- `scenarios/optimization/s4_dense25_llm.yaml`
 - `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/s6_aggressive20_llm.yaml`
+- `scenarios/optimization/s7_aggressive25_llm.yaml`
 
 示例配置：
 

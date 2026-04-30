@@ -11,6 +11,7 @@ from optimizers.operator_pool.operators import approved_operator_pool
 RAW = Path("scenarios/optimization/s6_aggressive20_raw.yaml")
 UNION = Path("scenarios/optimization/s6_aggressive20_union.yaml")
 LLM = Path("scenarios/optimization/s6_aggressive20_llm.yaml")
+S5_LLM = Path("scenarios/optimization/s5_aggressive15_llm.yaml")
 EVAL = Path("scenarios/evaluation/s6_aggressive20_eval.yaml")
 EXPECTED_VARIABLE_IDS = [item for index in range(1, 21) for item in (f"c{index:02d}_x", f"c{index:02d}_y")] + [
     "sink_start",
@@ -20,6 +21,10 @@ EXPECTED_VARIABLE_IDS = [item for index in range(1, 21) for item in (f"c{index:0
 
 def _variable_ids(spec_path: Path) -> list[str]:
     return [str(item["variable_id"]) for item in load_optimization_spec(spec_path).design_variables]
+
+
+def _controller_parameters(spec_path: Path) -> dict:
+    return load_optimization_spec(spec_path).to_dict()["operator_control"]["controller_parameters"]
 
 
 def test_s6_optimization_specs_load_with_same_42_variables() -> None:
@@ -51,8 +56,11 @@ def test_s6_registry_split_uses_structured_primitives_for_union_and_llm() -> Non
     assert llm["operator_control"]["registry_profile"] == "primitive_structured"
     assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_structured")
     assert llm["operator_control"]["operator_pool"] == union["operator_control"]["operator_pool"]
-    assert llm["operator_control"]["controller_parameters"]["max_output_tokens"] == 128
     assert llm["evaluation_protocol"] == union["evaluation_protocol"]
+
+
+def test_s6_llm_controller_parameters_match_s5_main_debug_template() -> None:
+    assert _controller_parameters(LLM) == _controller_parameters(S5_LLM)
 
 
 def test_s6_profiles_resolve_algorithm_parameters() -> None:

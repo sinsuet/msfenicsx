@@ -1,5 +1,7 @@
 # S1 Typical LLM Controller Recovery Handoff
 
+> Status: historical S1 handoff. The active paper-facing debugging line has moved to the S5-S7 aggressive family, with `s5_aggressive15` as the primary debugging template.
+
 ## 1. Purpose
 
 This document is a Claude-facing handoff for the current `s1_typical` `nsga2_llm` recovery line in `msfenicsx`.
@@ -29,7 +31,7 @@ The active repository guidance is in:
 
 The most important constraints from `AGENTS.md` for this line are:
 
-- the only active paper-facing benchmark is `s1_typical`
+- at the time of this handoff, the only active paper-facing benchmark was `s1_typical`
 - the paper ladder is:
   - `nsga2_raw`
   - `nsga2_union`

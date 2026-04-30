@@ -101,6 +101,8 @@ _POST_FEASIBLE_CLEANUP_EXPOSURE_OPERATORS = frozenset(
 _POST_FEASIBLE_EXPOSURE_WINDOW = 8
 _ADAPTIVE_SINK_GATE_FEASIBLE_RATE_THRESHOLD = 0.50
 _ADAPTIVE_SINK_GATE_FRONTIER_STAGNATION_THRESHOLD = 6
+_POST_FEASIBLE_EXPAND_RECOVER_FEASIBLE_RATE_FLOOR = 0.50
+_POST_FEASIBLE_EXPAND_RECOVER_THERMAL_PERSISTENCE_MIN = 3
 _POST_FEASIBLE_STRUCTURED_TARGET_SHARE = 0.20
 _POST_FEASIBLE_SINK_TARGET_SHARE = 0.15
 _POST_FEASIBLE_CLEANUP_COOLDOWN_SHARE = 0.55
@@ -205,6 +207,8 @@ def detect_search_phase(state: ControllerState) -> str:
             and post_feasible_mode in {"preserve", "recover"}
         ):
             return "post_feasible_preserve"
+        if progress_phase.startswith("post_feasible") and _post_feasible_low_pde_recover_active(state):
+            return "post_feasible_recover"
         if progress_phase.startswith("post_feasible") and _post_feasible_recover_direct_expand_active(state):
             if _expand_saturated(state):
                 return "post_feasible_preserve"
@@ -359,6 +363,37 @@ def _post_feasible_expand_promotion_active(state: ControllerState) -> bool:
     return True
 
 
+def _post_feasible_low_pde_recover_active(state: ControllerState) -> bool:
+    progress_state = state.metadata.get("progress_state")
+    run_state = state.metadata.get("run_state")
+    if not isinstance(progress_state, dict) or not isinstance(run_state, dict):
+        return False
+    if run_state.get("first_feasible_eval") is None:
+        return False
+    feasible_rate_value = run_state.get("feasible_rate")
+    if feasible_rate_value is None:
+        return False
+    feasible_rate = float(feasible_rate_value)
+    if feasible_rate >= _POST_FEASIBLE_EXPAND_RECOVER_FEASIBLE_RATE_FLOOR:
+        return False
+    progress_phase = str(progress_state.get("phase", "")).strip()
+    if not progress_phase.startswith("post_feasible"):
+        return False
+    post_feasible_mode = str(progress_state.get("post_feasible_mode", "")).strip()
+    if post_feasible_mode not in {"expand", "preserve"}:
+        return False
+    recover_pressure = str(progress_state.get("recover_reentry_pressure", "")).strip()
+    if recover_pressure == "high":
+        return True
+    dominant_family = str(progress_state.get("recent_dominant_violation_family", "")).strip()
+    persistence_count = int(progress_state.get("recent_dominant_violation_persistence_count", 0))
+    return (
+        feasible_rate < 0.35
+        and dominant_family in {"thermal_limit", "layout_spacing"}
+        and persistence_count >= _POST_FEASIBLE_EXPAND_RECOVER_THERMAL_PERSISTENCE_MIN
+    )
+
+
 def _resolve_diversity_deficit_level(state: ControllerState) -> str:
     progress_state = state.metadata.get("progress_state")
     if isinstance(progress_state, dict):
@@ -391,6 +426,10 @@ def score_operator_evidence(state: ControllerState, operator_id: str) -> dict[st
     dominant_violation_relief_count = int(summary_row.get("dominant_violation_relief_count", 0))
     near_feasible_improvement_count = int(summary_row.get("near_feasible_improvement_count", 0))
     avg_near_feasible_violation_delta = float(summary_row.get("avg_near_feasible_violation_delta", 0.0))
+    pde_attempt_count = int(summary_row.get("pde_attempt_count", 0))
+    pde_feasible_count = int(summary_row.get("pde_feasible_count", 0))
+    cheap_skip_count = int(summary_row.get("cheap_skip_count", 0))
+    thermal_infeasible_count = int(summary_row.get("thermal_infeasible_count", 0))
     recent_expand_selection_count = int(summary_row.get("recent_expand_selection_count", 0))
     recent_expand_feasible_preservation_count = int(
         summary_row.get("recent_expand_feasible_preservation_count", 0)
@@ -399,6 +438,9 @@ def score_operator_evidence(state: ControllerState, operator_id: str) -> dict[st
     recent_expand_frontier_add_count = int(summary_row.get("recent_expand_frontier_add_count", 0))
     post_feasible_selection_count = int(summary_row.get("post_feasible_selection_count", 0))
     post_feasible_success_count = int(summary_row.get("post_feasible_success_count", 0))
+    post_feasible_pde_attempt_count = int(summary_row.get("post_feasible_pde_attempt_count", 0))
+    post_feasible_pde_feasible_count = int(summary_row.get("post_feasible_pde_feasible_count", 0))
+    post_feasible_cheap_skip_count = int(summary_row.get("post_feasible_cheap_skip_count", 0))
     post_feasible_thermal_infeasible_count = int(summary_row.get("post_feasible_thermal_infeasible_count", 0))
     support_count = max(
         int(summary_row.get("selection_count", 0)),
@@ -443,6 +485,18 @@ def score_operator_evidence(state: ControllerState, operator_id: str) -> dict[st
         "dominant_violation_relief_count": dominant_violation_relief_count,
         "near_feasible_improvement_count": near_feasible_improvement_count,
         "avg_near_feasible_violation_delta": avg_near_feasible_violation_delta,
+        "pde_attempt_count": pde_attempt_count,
+        "pde_feasible_count": pde_feasible_count,
+        "pde_feasible_rate": (
+            None if pde_attempt_count <= 0 else float(pde_feasible_count) / float(pde_attempt_count)
+        ),
+        "cheap_skip_count": cheap_skip_count,
+        "cheap_skip_rate": (
+            None
+            if pde_attempt_count + cheap_skip_count <= 0
+            else float(cheap_skip_count) / float(pde_attempt_count + cheap_skip_count)
+        ),
+        "thermal_infeasible_count": thermal_infeasible_count,
         "recent_expand_selection_count": recent_expand_selection_count,
         "recent_expand_feasible_preservation_count": recent_expand_feasible_preservation_count,
         "recent_expand_feasible_regression_count": recent_expand_feasible_regression_count,
@@ -453,6 +507,20 @@ def score_operator_evidence(state: ControllerState, operator_id: str) -> dict[st
             None
             if post_feasible_selection_count <= 0
             else float(post_feasible_success_count) / float(post_feasible_selection_count)
+        ),
+        "post_feasible_pde_attempt_count": post_feasible_pde_attempt_count,
+        "post_feasible_pde_feasible_count": post_feasible_pde_feasible_count,
+        "post_feasible_pde_feasible_rate": (
+            None
+            if post_feasible_pde_attempt_count <= 0
+            else float(post_feasible_pde_feasible_count) / float(post_feasible_pde_attempt_count)
+        ),
+        "post_feasible_cheap_skip_count": post_feasible_cheap_skip_count,
+        "post_feasible_cheap_skip_rate": (
+            None
+            if post_feasible_pde_attempt_count + post_feasible_cheap_skip_count <= 0
+            else float(post_feasible_cheap_skip_count)
+            / float(post_feasible_pde_attempt_count + post_feasible_cheap_skip_count)
         ),
         "post_feasible_thermal_infeasible_count": post_feasible_thermal_infeasible_count,
         "recent_entry_helpful_regimes": list(summary_row.get("recent_entry_helpful_regimes", [])),
@@ -523,6 +591,8 @@ def build_policy_snapshot(
 
     if _expand_saturation_demotion_active(state, phase):
         reason_codes.append("post_feasible_expand_saturation_demotion")
+    if phase == "post_feasible_recover" and _post_feasible_low_pde_recover_active(state):
+        reason_codes.append("post_feasible_expand_low_pde_feasibility_recover")
     if phase.startswith("post_feasible") and _post_feasible_exposure_priority_active(candidate_annotations):
         reason_codes.append("post_feasible_bounded_exploration_exposure")
     if phase.startswith("post_feasible") and _post_feasible_semantic_debt_active(candidate_annotations):

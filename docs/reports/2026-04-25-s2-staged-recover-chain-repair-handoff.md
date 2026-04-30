@@ -1,5 +1,7 @@
 # S2 Staged Recover-Chain Repair Handoff
 
+> Status: historical S2 handoff. The active paper-facing debugging line has moved to the S5-S7 aggressive family, with `s5_aggressive15` as the primary debugging template.
+
 ## 1. Purpose
 
 This document is the handoff note for continuing the paper-facing `s2_staged`
@@ -19,7 +21,7 @@ All paths below are repository-local absolute paths under
 
 ## 2. Active Scope And Constraints
 
-The active paper-facing S2 route is:
+The historical paper-facing S2 route is:
 
 - `s2_staged`
 
@@ -391,4 +393,3 @@ If continuing in a new conversation, the fastest correct resume path is:
    as the latest verified compare bundle
 4. keep the honesty boundary from Section 12
 5. focus the next repair on `prefeasible_convert` entry efficiency
-

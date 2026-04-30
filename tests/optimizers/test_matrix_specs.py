@@ -45,4 +45,5 @@ def test_s5_s7_raw_backbone_specs_exist_and_match_contract(
     assert payload["algorithm"]["seed"] == 7
     assert payload["algorithm"]["profile_path"] == f"scenarios/optimization/profiles/{scenario_id}_{backbone}_raw.yaml"
     assert payload["evaluation_protocol"]["evaluation_spec_path"] == f"scenarios/evaluation/{scenario_id}_eval.yaml"
+    assert payload["evaluation_protocol"]["legality_policy_id"] == "projection_plus_local_restore"
     assert "operator_control" not in payload

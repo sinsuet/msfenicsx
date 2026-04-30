@@ -84,6 +84,18 @@ _COMPACT_OPERATOR_PANEL_KEYS = (
     "expected_gradient_effect",
     "expected_feasibility_risk",
     "recent_regression_risk",
+    "pde_attempt_count",
+    "pde_feasible_count",
+    "pde_feasible_rate",
+    "cheap_skip_count",
+    "cheap_skip_rate",
+    "thermal_infeasible_count",
+    "post_feasible_pde_attempt_count",
+    "post_feasible_pde_feasible_count",
+    "post_feasible_pde_feasible_rate",
+    "post_feasible_cheap_skip_count",
+    "post_feasible_cheap_skip_rate",
+    "post_feasible_thermal_infeasible_count",
     "role",
     "post_feasible_role",
     "expand_budget_status",
@@ -866,10 +878,14 @@ class LLMOperatorController:
                 candidate_operator_ids=candidate_operator_ids,
                 attempt_trace=attempt_trace,
             )
+            ranker_state = self._state_with_ranker_response_outcomes(
+                state,
+                candidate_operator_ids,
+            )
             ranker_result = pick_operator_from_semantic_ranking(
                 candidate_operator_ids=candidate_operator_ids,
                 ranked_operators=self._ranked_operator_inputs(advice),
-                state=state,
+                state=ranker_state,
                 config=self.semantic_ranked_pick_config,
             )
         except Exception as exc:
@@ -1390,6 +1406,95 @@ class LLMOperatorController:
                 rationale=row.rationale,
             )
             for row in advice.ranked_operators
+        )
+
+    def _state_with_ranker_response_outcomes(
+        self,
+        state: ControllerState,
+        candidate_operator_ids: Sequence[str],
+    ) -> ControllerState:
+        outcomes = self._recent_ranker_response_outcomes(candidate_operator_ids)
+        if not outcomes:
+            return state
+        metadata = dict(state.metadata)
+        existing = metadata.get("ranker_recent_response_outcomes")
+        merged = dict(existing) if isinstance(existing, Mapping) else {}
+        merged.update(outcomes)
+        metadata["ranker_recent_response_outcomes"] = merged
+        return ControllerState(
+            family=state.family,
+            backbone=state.backbone,
+            generation_index=state.generation_index,
+            evaluation_index=state.evaluation_index,
+            parent_count=state.parent_count,
+            vector_size=state.vector_size,
+            metadata=metadata,
+        )
+
+    def _recent_ranker_response_outcomes(
+        self,
+        candidate_operator_ids: Sequence[str],
+    ) -> dict[str, dict[str, int]]:
+        candidate_set = {str(operator_id) for operator_id in candidate_operator_ids}
+        if not candidate_set:
+            return {}
+        window = max(1, int(self.semantic_ranked_pick_config.rolling_window) * 2)
+        selected_rows: list[Mapping[str, Any]] = []
+        for row in reversed(self.response_trace):
+            if len(selected_rows) >= window:
+                break
+            if str(row.get("selection_strategy", self.selection_strategy)) != "semantic_ranked_pick":
+                continue
+            operator_id = str(row.get("selected_operator_id", "")).strip()
+            if operator_id not in candidate_set:
+                continue
+            if not self._ranker_response_status_settled(row):
+                continue
+            selected_rows.append(row)
+        if not selected_rows:
+            return {}
+        outcomes: dict[str, dict[str, int]] = {}
+        for row in reversed(selected_rows):
+            operator_id = str(row.get("selected_operator_id", "")).strip()
+            outcome = outcomes.setdefault(
+                operator_id,
+                {
+                    "selection_count": 0,
+                    "accepted_count": 0,
+                    "rejection_count": 0,
+                    "duplicate_rejection_count": 0,
+                    "repair_collapsed_duplicate_count": 0,
+                },
+            )
+            outcome["selection_count"] += 1
+            accepted = bool(row.get("accepted_for_evaluation", False))
+            if accepted:
+                outcome["accepted_count"] += 1
+                continue
+            outcome["rejection_count"] += 1
+            rejection_reason = str(row.get("rejection_reason", "")).strip()
+            duplicate_rejection = (
+                "duplicate" in rejection_reason
+                or bool(row.get("duplicate_with_population", False))
+                or bool(row.get("duplicate_within_batch", False))
+                or bool(row.get("repair_collapsed_duplicate", False))
+            )
+            if duplicate_rejection:
+                outcome["duplicate_rejection_count"] += 1
+            if bool(row.get("repair_collapsed_duplicate", False)):
+                outcome["repair_collapsed_duplicate_count"] += 1
+        return outcomes
+
+    @staticmethod
+    def _ranker_response_status_settled(row: Mapping[str, Any]) -> bool:
+        if bool(row.get("accepted_for_evaluation", False)):
+            return True
+        if str(row.get("rejection_reason", "")).strip():
+            return True
+        return (
+            bool(row.get("duplicate_with_population", False))
+            or bool(row.get("duplicate_within_batch", False))
+            or bool(row.get("repair_collapsed_duplicate", False))
         )
 
     @staticmethod

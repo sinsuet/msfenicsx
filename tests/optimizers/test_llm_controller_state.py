@@ -427,6 +427,95 @@ def test_build_controller_state_captures_recent_decisions_and_operator_summary()
     assert state.metadata["operator_summary"]["local_refine"]["llm_valid_selection_count"] == 1
 
 
+def test_operator_summary_separates_post_feasible_pde_and_cheap_skip_outcomes() -> None:
+    parent = _vector(sink_start=0.20, sink_end=0.62)
+    thermal_bad_child = _vector(sink_start=0.20, sink_end=0.62, x_shift=0.01)
+    cheap_bad_child = _vector(sink_start=0.20, sink_end=0.62, y_shift=0.01)
+    feasible_child = _vector(sink_start=0.20, sink_end=0.62, x_shift=0.02)
+    controller_trace = [
+        ControllerTraceRow(
+            generation_index=1,
+            evaluation_index=evaluation_index,
+            family="genetic",
+            backbone="nsga2",
+            controller_id="llm",
+            candidate_operator_ids=("vector_sbx_pm", "component_jitter_1"),
+            selected_operator_id="vector_sbx_pm",
+            phase="post_feasible_expand",
+            metadata={"policy_phase": "post_feasible_expand", "fallback_used": False},
+        )
+        for evaluation_index in (2, 3, 4)
+    ]
+    operator_trace = [
+        OperatorTraceRow(
+            generation_index=1,
+            evaluation_index=evaluation_index,
+            operator_id="vector_sbx_pm",
+            parent_count=2,
+            parent_vectors=(tuple(parent.tolist()), tuple(parent.tolist())),
+            proposal_vector=tuple(child.tolist()),
+            metadata={},
+        )
+        for evaluation_index, child in (
+            (2, thermal_bad_child),
+            (3, cheap_bad_child),
+            (4, feasible_child),
+        )
+    ]
+    history = [
+        _record(
+            1,
+            parent,
+            feasible=True,
+            peak_temperature=320.0,
+            temperature_gradient_rms=14.0,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+        _record(
+            2,
+            thermal_bad_child,
+            feasible=False,
+            peak_temperature=340.0,
+            temperature_gradient_rms=18.0,
+            c01_temperature_violation=6.5,
+            panel_spread_violation=0.0,
+        ),
+        _penalty_record(3, cheap_bad_child, failure_reason="cheap_constraint_violation"),
+        _record(
+            4,
+            feasible_child,
+            feasible=True,
+            peak_temperature=319.0,
+            temperature_gradient_rms=13.5,
+            c01_temperature_violation=0.0,
+            panel_spread_violation=0.0,
+        ),
+    ]
+
+    summary = summarize_operator_history(
+        controller_trace,
+        operator_trace,
+        recent_window=8,
+        history=history,
+        design_variable_ids=_S1_VARIABLE_IDS,
+        sink_budget_limit=0.48,
+    )["vector_sbx_pm"]
+
+    assert summary["pde_attempt_count"] == 2
+    assert summary["pde_feasible_count"] == 1
+    assert summary["pde_feasible_rate"] == pytest.approx(0.5)
+    assert summary["cheap_skip_count"] == 1
+    assert summary["cheap_skip_rate"] == pytest.approx(1.0 / 3.0)
+    assert summary["thermal_infeasible_count"] == 1
+    assert summary["post_feasible_pde_attempt_count"] == 2
+    assert summary["post_feasible_pde_feasible_count"] == 1
+    assert summary["post_feasible_pde_feasible_rate"] == pytest.approx(0.5)
+    assert summary["post_feasible_cheap_skip_count"] == 1
+    assert summary["post_feasible_cheap_skip_rate"] == pytest.approx(1.0 / 3.0)
+    assert summary["post_feasible_thermal_infeasible_count"] == 1
+
+
 def test_build_controller_state_exposes_pareto_objective_extremes_in_run_panel() -> None:
     history = [
         _record(

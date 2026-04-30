@@ -19,10 +19,14 @@ def test_repository_has_no_panel_four_component_hot_cold_specs() -> None:
     assert not any(Path("scenarios").rglob("panel_four_component_hot_cold*.yaml"))
 
 
-def test_readme_mentions_only_s1_typical_as_active_mainline() -> None:
-    text = Path("README.md").read_text(encoding="utf-8")
-    assert "s1_typical" in text
-    assert "panel_four_component_hot_cold" not in text
+def test_guidance_documents_s5_s7_as_active_mainline() -> None:
+    for guidance_path in (Path("README.md"), Path("AGENTS.md"), Path("CLAUDE.md")):
+        text = guidance_path.read_text(encoding="utf-8")
+        assert "current active paper-facing mainline is `s5_aggressive15` through `s7_aggressive25`" in text
+        assert "primary debugging template is `s5_aggressive15`" in text
+        assert "`s2_staged` is retained as a historical controller-sensitive companion" in text
+        assert "`s2_staged` is the current controller-sensitive" not in text
+        assert "panel_four_component_hot_cold" not in text
 
 
 def test_raw_backbone_registry_contains_first_batch_algorithms() -> None:

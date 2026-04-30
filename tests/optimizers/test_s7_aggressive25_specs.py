@@ -11,6 +11,7 @@ from optimizers.operator_pool.operators import approved_operator_pool
 S7_RAW = Path("scenarios/optimization/s7_aggressive25_raw.yaml")
 S7_UNION = Path("scenarios/optimization/s7_aggressive25_union.yaml")
 S7_LLM = Path("scenarios/optimization/s7_aggressive25_llm.yaml")
+S5_LLM = Path("scenarios/optimization/s5_aggressive15_llm.yaml")
 S7_EVAL = Path("scenarios/evaluation/s7_aggressive25_eval.yaml")
 EXPECTED_VARIABLE_IDS = [
     variable_id
@@ -21,6 +22,10 @@ EXPECTED_VARIABLE_IDS = [
 
 def _variable_ids(spec_path: Path) -> list[str]:
     return [str(item["variable_id"]) for item in load_optimization_spec(spec_path).design_variables]
+
+
+def _controller_parameters(spec_path: Path) -> dict:
+    return load_optimization_spec(spec_path).to_dict()["operator_control"]["controller_parameters"]
 
 
 def test_s7_optimization_specs_load_with_matched_52_variables() -> None:
@@ -52,6 +57,13 @@ def test_s7_registry_split_uses_structured_pool_for_union_and_llm_only() -> None
     assert llm["operator_control"]["registry_profile"] == "primitive_structured"
     assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_structured")
     assert llm["operator_control"]["operator_pool"] == union["operator_control"]["operator_pool"]
+    assert raw["evaluation_protocol"]["legality_policy_id"] == "projection_plus_local_restore"
+    assert union["evaluation_protocol"]["legality_policy_id"] == "projection_plus_local_restore"
+    assert llm["evaluation_protocol"] == union["evaluation_protocol"]
+
+
+def test_s7_llm_controller_parameters_match_s5_main_debug_template() -> None:
+    assert _controller_parameters(S7_LLM) == _controller_parameters(S5_LLM)
 
 
 def test_s7_profiles_resolve_algorithm_parameters() -> None:

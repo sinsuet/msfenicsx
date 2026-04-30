@@ -1,6 +1,6 @@
 # Primitive Structured Operator Pool Design
 
-> Status: approved design direction; not implemented yet.
+> Status: implemented for the active S5-S7 `union` and `llm` ladder.
 >
 > This spec defines the shared operator-layer prerequisite for the new S5/S6/S7 aggressive benchmarks. It is intentionally separate from the benchmark templates so the operator pool can be implemented once and reused without three parallel conversations editing the same files.
 

@@ -1,6 +1,6 @@
 # S5 Aggressive 15-Component Benchmark Design
 
-> Status: approved design direction; not implemented yet.
+> Status: implemented; current primary debugging template for the active S5-S7 mainline.
 >
 > This benchmark is the first aggressive paper-facing benchmark that will use the shared `primitive_structured` pool. It is intentionally more spacious and more thermally demanding than `s2_staged`, so `raw` weakens, `union` remains meaningful, and `llm` has room to win through better semantic operator choice.
 

@@ -1,8 +1,10 @@
 # S2 Staged Internal Beamer Deck Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> Status: historical S2 presentation plan; active paper-facing debugging has moved to `s5_aggressive15` in the S5-S7 family.
 
-**Goal:** Build one Chinese Beamer deck for the current `s2_staged` internal group meeting, translating the mechanism-first paper narrative into a stable 18–20 minute slide deck with curated local assets.
+**Goal:** Build one Chinese Beamer deck for the historical `s2_staged` internal group meeting, translating the mechanism-first paper narrative into a stable 18–20 minute slide deck with curated local assets.
 
 **Architecture:** Keep the deck separate from the manuscript by adding a dedicated Beamer entry file, five section files organized by argument block, and one Beamer-local asset directory that stores curated copies of the figures the slides depend on. Compile with XeLaTeX into `paper/latex/build/beamer_zh/`, so the manuscript and talk can evolve independently while sharing the same scientific story.
 

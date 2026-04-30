@@ -1,6 +1,8 @@
 # S2 Staged Joint Redesign Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> Status: historical S2 implementation plan; current active paper-facing debugging has moved to `s5_aggressive15` in the S5-S7 family.
 
 **Goal:** Advance `s2_staged` as the paper-facing S2 candidate, with benchmark structure and portable controller redesign that let `llm` beat `raw` and `union` for the right reasons.
 
@@ -342,8 +344,8 @@ native or local finishing, not semantic saturation or recover-only looping.
 - modify `AGENTS.md`
 - update any active docs that reference the paper-facing S2 identity
 
-- [ ] Only after Tasks 1-12 pass, promote `s2_staged` as the active paper-facing
-      S2 candidate
-- [ ] Promote `s2_staged` as the only active paper-facing S2 candidate in
-      active guidance
+- [ ] Historical step: after Tasks 1-12 passed, promote `s2_staged` as the
+      paper-facing S2 candidate for that phase
+- [ ] Historical step: promote `s2_staged` as the only paper-facing S2 candidate
+      in then-active guidance
 - [ ] Remove retired S2 docs and artifact roots from active references

@@ -1,6 +1,8 @@
 # LLM Operator Prompt Compacting and Fallback Diagnostics Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> Status: superseded for active S5-S7 LLM configs by the `semantic_ranked_pick` route. Current S5/S6/S7 LLM specs use `max_output_tokens: 512` and shared S5 controller parameters.
 
 **Goal:** Make the LLM operator-selection prompt smaller and more state-aligned while separating prompt/protocol failures from external concurrency-induced fallback.
 

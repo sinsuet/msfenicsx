@@ -1,8 +1,8 @@
 # S2 Staged Joint Benchmark-Controller Design
 
-> Status: active paper-facing S2 benchmark-controller design.
+> Status: historical S2 design; superseded as the active mainline by the S5-S7 aggressive family.
 >
-> This document defines the current `s2_staged` benchmark and controller line.
+> This document defines the historical `s2_staged` benchmark and controller line.
 
 ## 1. Decision Summary
 
@@ -422,7 +422,7 @@ That does not create the primary failure mode by itself, but it amplifies it:
 
 - for the earlier scenario-first line, repaired-baseline staging was too weak
   and feasibility arrived inside the shared prefix
-- for the current `s2_staged` line, that benchmark-side defect is largely fixed:
+- for that `s2_staged` line, that benchmark-side defect was largely fixed:
   the shared optimizer prefix is now identical and infeasible through the
   pre-controller window
 - remaining benchmark work is calibration margin, not the primary blocker for

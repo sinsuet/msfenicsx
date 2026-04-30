@@ -224,9 +224,20 @@ def _post_feasible_state() -> ControllerState:
 
 def test_prefeasible_prompt_projection_omits_post_feasible_frontier_fields() -> None:
     prompt_projection = _prompt_projection_module()
+    state = _prefeasible_state()
+    state.metadata["prompt_panels"]["operator_panel"]["local_refine"].update(
+        {
+            "pde_attempt_count": 6,
+            "pde_feasible_count": 1,
+            "pde_feasible_rate": 1.0 / 6.0,
+            "cheap_skip_count": 2,
+            "cheap_skip_rate": 0.25,
+            "thermal_infeasible_count": 4,
+        }
+    )
 
     payload = prompt_projection.build_prompt_projection(
-        _prefeasible_state(),
+        state,
         candidate_operator_ids=("native_sbx_pm", "local_refine"),
         original_candidate_operator_ids=("native_sbx_pm", "local_refine", "repair_sink_budget"),
         policy_snapshot=_policy_snapshot("prefeasible_stagnation"),
@@ -235,6 +246,10 @@ def test_prefeasible_prompt_projection_omits_post_feasible_frontier_fields() -> 
 
     assert "prompt_panels" in payload
     assert "frontier_evidence" not in payload["prompt_panels"]["operator_panel"]["local_refine"]
+    assert payload["prompt_panels"]["operator_panel"]["local_refine"]["pde_attempt_count"] == 6
+    assert payload["prompt_panels"]["operator_panel"]["local_refine"]["pde_feasible_rate"] == pytest.approx(1.0 / 6.0)
+    assert payload["prompt_panels"]["operator_panel"]["local_refine"]["cheap_skip_rate"] == pytest.approx(0.25)
+    assert payload["prompt_panels"]["operator_panel"]["local_refine"]["thermal_infeasible_count"] == 4
     assert payload["prompt_panels"]["run_panel"]["peak_temperature"] == pytest.approx(349.4)
     assert payload["prompt_panels"]["regime_panel"]["sink_budget_utilization"] == pytest.approx(0.96)
     assert payload["phase_policy"]["phase"] == "prefeasible_stagnation"
@@ -242,9 +257,20 @@ def test_prefeasible_prompt_projection_omits_post_feasible_frontier_fields() -> 
 
 def test_post_feasible_prompt_projection_keeps_frontier_and_regression_fields() -> None:
     prompt_projection = _prompt_projection_module()
+    state = _post_feasible_state()
+    state.metadata["prompt_panels"]["operator_panel"]["repair_sink_budget"].update(
+        {
+            "post_feasible_pde_attempt_count": 8,
+            "post_feasible_pde_feasible_count": 3,
+            "post_feasible_pde_feasible_rate": 0.375,
+            "post_feasible_cheap_skip_count": 2,
+            "post_feasible_cheap_skip_rate": 0.2,
+            "post_feasible_thermal_infeasible_count": 4,
+        }
+    )
 
     payload = prompt_projection.build_prompt_projection(
-        _post_feasible_state(),
+        state,
         candidate_operator_ids=("native_sbx_pm", "repair_sink_budget"),
         original_candidate_operator_ids=("native_sbx_pm", "local_refine", "repair_sink_budget"),
         policy_snapshot=_policy_snapshot("post_feasible_expand"),
@@ -254,6 +280,10 @@ def test_post_feasible_prompt_projection_keeps_frontier_and_regression_fields() 
     assert payload["prompt_panels"]["run_panel"]["temperature_gradient_rms"] == pytest.approx(8.7)
     assert payload["prompt_panels"]["regime_panel"]["phase"] == "post_feasible_expand"
     assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["frontier_evidence"] == "positive"
+    assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["post_feasible_pde_attempt_count"] == 8
+    assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["post_feasible_pde_feasible_rate"] == pytest.approx(0.375)
+    assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["post_feasible_cheap_skip_rate"] == pytest.approx(0.2)
+    assert payload["prompt_panels"]["operator_panel"]["repair_sink_budget"]["post_feasible_thermal_infeasible_count"] == 4
     assert payload["phase_policy"]["phase"] == "post_feasible_expand"
 
 

@@ -1,6 +1,6 @@
 # S7 Aggressive 25-Component Benchmark Design
 
-> Status: approved design direction; not implemented yet.
+> Status: implemented; active 25-component dense aggressive companion in the S5-S7 mainline.
 >
 > This benchmark is the 25-component aggressive case in the S5/S6/S7 family. It should test whether the shared structured primitive pool and LLM controller remain useful when the layout becomes dense enough that naive full-vector variation and random primitive choice are both stressed.
 

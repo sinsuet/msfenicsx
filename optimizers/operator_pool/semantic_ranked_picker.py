@@ -31,6 +31,12 @@ class SemanticRankedPickConfig:
     rolling_window: int = 16
     near_tie_score_margin: float = 0.03
     low_confidence_threshold: float = 0.35
+    outcome_risk_min_pde_attempts: int = 4
+    outcome_risk_pde_feasible_rate_floor: float = 0.55
+    outcome_risk_thermal_infeasible_rate_ceiling: float = 0.35
+    outcome_risk_cheap_skip_rate_ceiling: float = 0.35
+    duplicate_risk_min_selections: int = 4
+    duplicate_risk_rejection_rate_ceiling: float = 0.35
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "SemanticRankedPickConfig":
@@ -52,6 +58,38 @@ class SemanticRankedPickConfig:
             low_confidence_threshold=_clamp_unit(
                 data.get("low_confidence_threshold", defaults.low_confidence_threshold)
             ),
+            outcome_risk_min_pde_attempts=max(
+                1,
+                int(data.get("outcome_risk_min_pde_attempts", defaults.outcome_risk_min_pde_attempts)),
+            ),
+            outcome_risk_pde_feasible_rate_floor=_clamp_unit(
+                data.get(
+                    "outcome_risk_pde_feasible_rate_floor",
+                    defaults.outcome_risk_pde_feasible_rate_floor,
+                )
+            ),
+            outcome_risk_thermal_infeasible_rate_ceiling=_clamp_unit(
+                data.get(
+                    "outcome_risk_thermal_infeasible_rate_ceiling",
+                    defaults.outcome_risk_thermal_infeasible_rate_ceiling,
+                )
+            ),
+            outcome_risk_cheap_skip_rate_ceiling=_clamp_unit(
+                data.get(
+                    "outcome_risk_cheap_skip_rate_ceiling",
+                    defaults.outcome_risk_cheap_skip_rate_ceiling,
+                )
+            ),
+            duplicate_risk_min_selections=max(
+                1,
+                int(data.get("duplicate_risk_min_selections", defaults.duplicate_risk_min_selections)),
+            ),
+            duplicate_risk_rejection_rate_ceiling=_clamp_unit(
+                data.get(
+                    "duplicate_risk_rejection_rate_ceiling",
+                    defaults.duplicate_risk_rejection_rate_ceiling,
+                )
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -63,6 +101,14 @@ class SemanticRankedPickConfig:
             "rolling_window": int(self.rolling_window),
             "near_tie_score_margin": float(self.near_tie_score_margin),
             "low_confidence_threshold": float(self.low_confidence_threshold),
+            "outcome_risk_min_pde_attempts": int(self.outcome_risk_min_pde_attempts),
+            "outcome_risk_pde_feasible_rate_floor": float(self.outcome_risk_pde_feasible_rate_floor),
+            "outcome_risk_thermal_infeasible_rate_ceiling": float(
+                self.outcome_risk_thermal_infeasible_rate_ceiling
+            ),
+            "outcome_risk_cheap_skip_rate_ceiling": float(self.outcome_risk_cheap_skip_rate_ceiling),
+            "duplicate_risk_min_selections": int(self.duplicate_risk_min_selections),
+            "duplicate_risk_rejection_rate_ceiling": float(self.duplicate_risk_rejection_rate_ceiling),
         }
 
 
@@ -199,9 +245,104 @@ def _suppressed_by_caps(
     suppressed: set[str] = set()
     reasons: dict[str, str] = {}
     _apply_generation_cap(candidates, state, config, suppressed, reasons)
+    _apply_operator_outcome_risk_cap(candidates, state, config, suppressed, reasons)
+    _apply_duplicate_risk_cap(candidates, state, config, suppressed, reasons)
     _apply_rolling_semantic_task_cap(candidates, state, config, suppressed, reasons)
     _apply_rolling_operator_cap(candidates, state, config, suppressed, reasons)
     return suppressed, reasons
+
+
+def _apply_operator_outcome_risk_cap(
+    candidates: tuple[str, ...],
+    state: ControllerState,
+    config: SemanticRankedPickConfig,
+    suppressed: set[str],
+    reasons: dict[str, str],
+) -> None:
+    operator_summary = state.metadata.get("operator_summary")
+    if not isinstance(operator_summary, Mapping):
+        return
+    for operator_id in candidates:
+        summary = operator_summary.get(operator_id)
+        if not isinstance(summary, Mapping):
+            continue
+        if not _operator_has_empirical_outcome_risk(summary, config):
+            continue
+        suppressed.add(operator_id)
+        reasons.setdefault(operator_id, "operator_outcome_risk")
+
+
+def _operator_has_empirical_outcome_risk(
+    summary: Mapping[str, Any],
+    config: SemanticRankedPickConfig,
+) -> bool:
+    pde_attempts, pde_feasible, cheap_skips, thermal_infeasible = _empirical_outcome_counts(summary)
+    if pde_attempts >= int(config.outcome_risk_min_pde_attempts):
+        pde_feasible_rate = float(pde_feasible) / float(max(1, pde_attempts))
+        thermal_rate = float(thermal_infeasible) / float(max(1, pde_attempts))
+        if pde_feasible_rate < float(config.outcome_risk_pde_feasible_rate_floor):
+            return True
+        if thermal_rate > float(config.outcome_risk_thermal_infeasible_rate_ceiling):
+            return True
+    total_screened = pde_attempts + cheap_skips
+    if total_screened >= int(config.outcome_risk_min_pde_attempts):
+        cheap_skip_rate = float(cheap_skips) / float(max(1, total_screened))
+        if cheap_skip_rate > float(config.outcome_risk_cheap_skip_rate_ceiling):
+            return True
+    return False
+
+
+def _empirical_outcome_counts(summary: Mapping[str, Any]) -> tuple[int, int, int, int]:
+    all_stage_counts = (
+        int(summary.get("pde_attempt_count", 0) or 0),
+        int(summary.get("pde_feasible_count", 0) or 0),
+        int(summary.get("cheap_skip_count", 0) or 0),
+        int(summary.get("thermal_infeasible_count", 0) or 0),
+    )
+    if all_stage_counts[0] + all_stage_counts[2] > 0:
+        return all_stage_counts
+    return (
+        int(summary.get("post_feasible_pde_attempt_count", 0) or 0),
+        int(summary.get("post_feasible_pde_feasible_count", 0) or 0),
+        int(summary.get("post_feasible_cheap_skip_count", 0) or 0),
+        int(summary.get("post_feasible_thermal_infeasible_count", 0) or 0),
+    )
+
+
+def _apply_duplicate_risk_cap(
+    candidates: tuple[str, ...],
+    state: ControllerState,
+    config: SemanticRankedPickConfig,
+    suppressed: set[str],
+    reasons: dict[str, str],
+) -> None:
+    response_outcomes = state.metadata.get("ranker_recent_response_outcomes")
+    if not isinstance(response_outcomes, Mapping):
+        return
+    for operator_id in candidates:
+        outcome = response_outcomes.get(operator_id)
+        if not isinstance(outcome, Mapping):
+            continue
+        if not _operator_has_duplicate_risk(outcome, config):
+            continue
+        suppressed.add(operator_id)
+        reasons.setdefault(operator_id, "operator_duplicate_risk")
+
+
+def _operator_has_duplicate_risk(
+    outcome: Mapping[str, Any],
+    config: SemanticRankedPickConfig,
+) -> bool:
+    selection_count = int(outcome.get("selection_count", 0) or 0)
+    if selection_count < int(config.duplicate_risk_min_selections):
+        return False
+    duplicate_rejections = int(outcome.get("duplicate_rejection_count", 0) or 0)
+    repair_collapses = int(outcome.get("repair_collapsed_duplicate_count", 0) or 0)
+    duplicate_count = max(duplicate_rejections, repair_collapses)
+    if duplicate_count <= 0:
+        return False
+    duplicate_rate = float(duplicate_count) / float(max(1, selection_count))
+    return duplicate_rate >= float(config.duplicate_risk_rejection_rate_ceiling)
 
 
 def _apply_generation_cap(

@@ -225,7 +225,7 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s7_aggressive25_union.yaml
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/s7_aggressive25_eval.yaml
-  legality_policy_id: minimal_canonicalization
+  legality_policy_id: projection_plus_local_restore
 operator_control:
   controller: llm
   registry_profile: primitive_structured
@@ -246,14 +246,21 @@ operator_control:
     model_env_var: LLM_MODEL
     api_key_env_var: LLM_API_KEY
     base_url_env_var: LLM_BASE_URL
-    max_output_tokens: 256
-    temperature: 1.0
-    reasoning:
-      effort: medium
+    max_output_tokens: 512
+    selection_strategy: semantic_ranked_pick
+    semantic_ranked_pick:
+      max_rank_scan: 9
+      generation_operator_cap_fraction: 0.35
+      rolling_operator_cap_fraction: 0.40
+      rolling_semantic_task_cap_fraction: 0.55
+      rolling_window: 16
+      near_tie_score_margin: 0.03
+      low_confidence_threshold: 0.35
+    temperature: 0.7
     retry:
       max_attempts: 2
-      timeout_seconds: 45
+      timeout_seconds: 35
     memory:
-      recent_window: 32
+      recent_window: 16
       reflection_interval: 1
     fallback_controller: random_uniform

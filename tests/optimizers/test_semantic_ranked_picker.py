@@ -14,6 +14,8 @@ def _state(
     *,
     recent_decisions: list[dict[str, object]] | None = None,
     generation_operator_counts: dict[str, int] | None = None,
+    operator_summary: dict[str, dict[str, object]] | None = None,
+    ranker_recent_response_outcomes: dict[str, dict[str, object]] | None = None,
     target_offsprings: int = 20,
 ) -> ControllerState:
     operator_counts = {
@@ -35,6 +37,8 @@ def _state(
                 "target_offsprings": target_offsprings,
                 "operator_counts": operator_counts,
             },
+            "operator_summary": operator_summary or {},
+            "ranker_recent_response_outcomes": ranker_recent_response_outcomes or {},
         },
     )
 
@@ -176,6 +180,185 @@ def test_ranked_picker_uses_lower_risk_for_low_confidence_near_tie() -> None:
     assert result.selected_operator_id == "component_jitter_1"
     assert result.selected_rank == 2
     assert result.override_reason == "low_confidence_near_tie_lower_risk"
+
+
+def test_ranked_picker_suppresses_empirically_risky_top_rank() -> None:
+    result = pick_operator_from_semantic_ranking(
+        candidate_operator_ids=("vector_sbx_pm", "component_jitter_1"),
+        ranked_operators=(
+            RankedOperatorInput(
+                "vector_sbx_pm",
+                "baseline_reset",
+                score=0.92,
+                risk=0.12,
+                confidence=0.91,
+                rationale="model thinks baseline reset is safe",
+            ),
+            RankedOperatorInput(
+                "component_jitter_1",
+                "local_polish",
+                score=0.71,
+                risk=0.28,
+                confidence=0.74,
+                rationale="lower score but historically stable",
+            ),
+        ),
+        state=_state(
+            operator_summary={
+                "vector_sbx_pm": {
+                    "post_feasible_pde_attempt_count": 6,
+                    "post_feasible_pde_feasible_count": 1,
+                    "post_feasible_cheap_skip_count": 0,
+                    "post_feasible_thermal_infeasible_count": 4,
+                },
+                "component_jitter_1": {
+                    "post_feasible_pde_attempt_count": 6,
+                    "post_feasible_pde_feasible_count": 5,
+                    "post_feasible_cheap_skip_count": 0,
+                    "post_feasible_thermal_infeasible_count": 1,
+                },
+            },
+        ),
+        config=SemanticRankedPickConfig(),
+    )
+
+    assert result.selected_operator_id == "component_jitter_1"
+    assert result.selected_rank == 2
+    assert result.cap_reasons["vector_sbx_pm"] == "operator_outcome_risk"
+    assert result.override_reason == "rank_1_suppressed"
+
+
+def test_ranked_picker_suppresses_empirically_risky_top_rank_before_post_feasible() -> None:
+    result = pick_operator_from_semantic_ranking(
+        candidate_operator_ids=("sink_resize", "component_jitter_1"),
+        ranked_operators=(
+            RankedOperatorInput(
+                "sink_resize",
+                "sink_budget_shape",
+                score=0.90,
+                risk=0.18,
+                confidence=0.88,
+                rationale="model thinks sink resize converts feasibility",
+            ),
+            RankedOperatorInput(
+                "component_jitter_1",
+                "local_polish",
+                score=0.70,
+                risk=0.30,
+                confidence=0.72,
+                rationale="lower score but less risky empirically",
+            ),
+        ),
+        state=_state(
+            operator_summary={
+                "sink_resize": {
+                    "pde_attempt_count": 6,
+                    "pde_feasible_count": 1,
+                    "cheap_skip_count": 0,
+                    "thermal_infeasible_count": 4,
+                },
+                "component_jitter_1": {
+                    "pde_attempt_count": 6,
+                    "pde_feasible_count": 4,
+                    "cheap_skip_count": 1,
+                    "thermal_infeasible_count": 1,
+                },
+            },
+        ),
+        config=SemanticRankedPickConfig(),
+    )
+
+    assert result.selected_operator_id == "component_jitter_1"
+    assert result.cap_reasons["sink_resize"] == "operator_outcome_risk"
+
+
+def test_ranked_picker_suppresses_duplicate_prone_top_rank() -> None:
+    result = pick_operator_from_semantic_ranking(
+        candidate_operator_ids=("sink_resize", "component_jitter_1"),
+        ranked_operators=(
+            RankedOperatorInput(
+                "sink_resize",
+                "sink_budget_shape",
+                score=0.88,
+                risk=0.25,
+                confidence=0.86,
+                rationale="sink budget task debt",
+            ),
+            RankedOperatorInput(
+                "component_jitter_1",
+                "local_polish",
+                score=0.66,
+                risk=0.22,
+                confidence=0.70,
+                rationale="accepted local move",
+            ),
+        ),
+        state=_state(
+            ranker_recent_response_outcomes={
+                "sink_resize": {
+                    "selection_count": 8,
+                    "accepted_count": 2,
+                    "duplicate_rejection_count": 6,
+                    "repair_collapsed_duplicate_count": 4,
+                },
+                "component_jitter_1": {
+                    "selection_count": 6,
+                    "accepted_count": 6,
+                    "duplicate_rejection_count": 0,
+                    "repair_collapsed_duplicate_count": 0,
+                },
+            },
+        ),
+        config=SemanticRankedPickConfig(),
+    )
+
+    assert result.selected_operator_id == "component_jitter_1"
+    assert result.cap_reasons["sink_resize"] == "operator_duplicate_risk"
+    assert result.override_reason == "rank_1_suppressed"
+
+
+def test_ranked_picker_suppresses_moderate_duplicate_prone_top_rank() -> None:
+    result = pick_operator_from_semantic_ranking(
+        candidate_operator_ids=("sink_resize", "component_jitter_1"),
+        ranked_operators=(
+            RankedOperatorInput(
+                "sink_resize",
+                "sink_budget_shape",
+                score=0.85,
+                risk=0.24,
+                confidence=0.84,
+                rationale="sink task still appears attractive",
+            ),
+            RankedOperatorInput(
+                "component_jitter_1",
+                "local_polish",
+                score=0.68,
+                risk=0.24,
+                confidence=0.74,
+                rationale="accepted alternative",
+            ),
+        ),
+        state=_state(
+            ranker_recent_response_outcomes={
+                "sink_resize": {
+                    "selection_count": 5,
+                    "accepted_count": 3,
+                    "duplicate_rejection_count": 2,
+                    "repair_collapsed_duplicate_count": 0,
+                },
+                "component_jitter_1": {
+                    "selection_count": 4,
+                    "accepted_count": 4,
+                    "duplicate_rejection_count": 0,
+                    "repair_collapsed_duplicate_count": 0,
+                },
+            },
+        ),
+        config=SemanticRankedPickConfig(),
+    )
+
+    assert result.selected_operator_id == "component_jitter_1"
+    assert result.cap_reasons["sink_resize"] == "operator_duplicate_risk"
 
 
 def test_ranked_picker_records_missing_candidates_and_appends_them_to_tail() -> None:

@@ -1,6 +1,6 @@
 # S6 Aggressive 20-Component Benchmark Design
 
-> Status: approved design direction; not implemented yet.
+> Status: implemented; active 20-component aggressive companion in the S5-S7 mainline.
 >
 > This benchmark extends the aggressive family to 20 components. It is denser than S5 and should expose whether the shared primitive pool still gives `llm` a semantic advantage when congestion, thermal load, and spatial interaction all rise together.
 

@@ -1,6 +1,6 @@
 # S1 Typical Desktop-Safe Parallel Benchmark Execution Design
 
-> Status: approved direction for improving `s1_typical` benchmark runtime without changing the paper-facing benchmark definition.
+> Status: historical S1 execution design; current active paper-facing debugging has moved to `s5_aggressive15` in the S5-S7 family.
 >
 > This design adds conservative parallel execution to the active `raw` and `union` optimizer paths so single-run latency and batch throughput improve while desktop responsiveness, benchmark integrity, and controller trace semantics remain stable.
 
@@ -10,7 +10,7 @@ Improve execution efficiency for the active `s1_typical` benchmark while preserv
 
 Required invariants:
 
-- `s1_typical` remains the only active paper-facing benchmark
+- At the time of this design, `s1_typical` remained the only active paper-facing benchmark
 - one operating case only
 - fifteen named components
 - all fifteen optimize `x/y` only

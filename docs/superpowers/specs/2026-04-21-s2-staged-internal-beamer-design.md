@@ -1,7 +1,9 @@
 # S2 Staged Internal Group-Meeting Beamer Deck — Design
 
+> Status: historical S2 presentation design; active paper-facing debugging has moved to `s5_aggressive15` in the S5-S7 family.
+
 - **Date**: 2026-04-21
-- **Scope**: design one Chinese Beamer deck for an 18–20 minute internal group meeting based on the current `paper/latex/main_zh.tex` draft, with about 20 slides, mechanism-first narrative, and representative evidence from the current `s2_staged` assets.
+- **Scope**: design one Chinese Beamer deck for an 18–20 minute internal group meeting based on the historical `paper/latex/main_zh.tex` draft, with about 20 slides, mechanism-first narrative, and representative evidence from the historical `s2_staged` assets.
 - **Applies to**: `paper/latex/`, `paper/latex/build/tikzz/`, `scenario_runs/compare_reports/s2_staged/`, `scenario_runs/s2_staged/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`
 - **Primary source**: [paper/latex/main_zh.tex](../../paper/latex/main_zh.tex), especially [paper/latex/sections/zh/04_method.tex](../../paper/latex/sections/zh/04_method.tex), [paper/latex/sections/zh/06_experiments.tex](../../paper/latex/sections/zh/06_experiments.tex), and [paper/latex/sections/zh/07_analysis_and_discussion.tex](../../paper/latex/sections/zh/07_analysis_and_discussion.tex)
 
@@ -32,7 +34,7 @@ The talk should feel like a guided claim:
 1. we fixed the optimization boundary,
 2. we isolated the controller as the only changing factor,
 3. we organized controller failure into collapse taxonomy and layered recovery,
-4. the current `s2_staged` evidence already shows visible mode differences,
+4. the historical `s2_staged` evidence already showed visible mode differences,
 5. the `llm` advantage is not just endpoint quality, but cross-stage objective focus and budget use.
 
 ### 2.2 Main speaking thesis
@@ -409,7 +411,7 @@ This is a presentation structure, not a paper structure. It should remain stable
 
 **Core content:**
 
-- current evidence still centers on `s2_staged`
+- historical evidence still centered on `s2_staged`
 - current mechanism line is stronger than current large-scale closure
 - next step: multi-seed / broader baseline / recovery intervention validation
 
@@ -536,6 +538,6 @@ If too many figure slides appear without framing, the talk becomes a result show
 
 ### 11.3 Risk: overclaiming current evidence
 
-The current assets are strong, but still concentrated on the present `s2_staged` line.
+The assets were strong, but still concentrated on the then-present `s2_staged` line.
 
 **Mitigation:** use strong wording on visible advantage, but reserve the final slide for the closure boundary and next-step expansion.

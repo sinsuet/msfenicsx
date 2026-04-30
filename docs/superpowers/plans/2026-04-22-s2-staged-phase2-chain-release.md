@@ -1,8 +1,10 @@
 # S2 Staged Phase-2 Chain Release Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> Status: historical S2 controller plan; current active paper-facing debugging has moved to `s5_aggressive15` in the S5-S7 family.
 
-**Goal:** Repair the remaining `s2_staged` controller-chain faults so current positive retrieval matches survive into the visible pool, recover can release under bounded regression, and expand can activate before diversity has already plateaued.
+**Goal:** Repair the remaining `s2_staged` controller-chain faults so historical positive retrieval matches could survive into the visible pool, recover could release under bounded regression, and expand could activate before diversity had already plateaued.
 
 **Architecture:** Keep the shared operator registry unchanged and continue repairing only controller-side contracts. Split long-horizon family credit from current-match visibility floors, separate recover release from recover reentry pressure, and replace single-point expand admission with a diversity-deficit contract. Verify each layer with TDD, then rerun the official `llm` route with the stable `nohup + poll` execution path.
 

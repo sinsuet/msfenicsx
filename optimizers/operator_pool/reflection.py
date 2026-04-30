@@ -258,6 +258,12 @@ def summarize_operator_history(
                     "feasible_regression_count": 0,
                     "pareto_contribution_count": 0,
                     "frontier_novelty_count": 0,
+                    "pde_attempt_count": 0,
+                    "pde_feasible_count": 0,
+                    "pde_feasible_rate": None,
+                    "cheap_skip_count": 0,
+                    "cheap_skip_rate": None,
+                    "thermal_infeasible_count": 0,
                     "avg_total_violation_delta": 0.0,
                     "avg_feasible_objective_delta": 0.0,
                     "post_feasible_avg_objective_delta": 0.0,
@@ -274,6 +280,11 @@ def summarize_operator_history(
                     "recent_expand_frontier_add_count": 0,
                     "post_feasible_selection_count": 0,
                     "post_feasible_success_count": 0,
+                    "post_feasible_pde_attempt_count": 0,
+                    "post_feasible_pde_feasible_count": 0,
+                    "post_feasible_pde_feasible_rate": None,
+                    "post_feasible_cheap_skip_count": 0,
+                    "post_feasible_cheap_skip_rate": None,
                     "post_feasible_thermal_infeasible_count": 0,
                     "penalty_event_count": 0,
                     "credit_by_regime": {},
@@ -425,6 +436,10 @@ def _summarize_operator_outcomes(
                 "frontier_novelty_count": 0,
                 "dominant_violation_relief_count": 0,
                 "near_feasible_improvement_count": 0,
+                "pde_attempt_count": 0,
+                "pde_feasible_count": 0,
+                "cheap_skip_count": 0,
+                "thermal_infeasible_count": 0,
                 "total_violation_deltas": [],
                 "feasible_objective_deltas": [],
                 "post_feasible_violation_deltas": [],
@@ -438,6 +453,9 @@ def _summarize_operator_outcomes(
                 "recent_expand_frontier_add_count": 0,
                 "post_feasible_selection_count": 0,
                 "post_feasible_success_count": 0,
+                "post_feasible_pde_attempt_count": 0,
+                "post_feasible_pde_feasible_count": 0,
+                "post_feasible_cheap_skip_count": 0,
                 "post_feasible_thermal_infeasible_count": 0,
                 "penalty_event_count": 0,
                 "credit_by_regime": {},
@@ -455,6 +473,7 @@ def _summarize_operator_outcomes(
         if not parent_records:
             continue
 
+        solver_skipped = bool(child_record.get("solver_skipped", False))
         parent_total_violation = float(np.mean([total_violation(record) for record in parent_records]))
         child_total_violation = total_violation(child_record)
         violation_delta = float(child_total_violation - parent_total_violation)
@@ -474,6 +493,21 @@ def _summarize_operator_outcomes(
             operator_summary["feasible_preservation_count"] += 1
         if not child_feasible and any(parent_feasible_flags):
             operator_summary["feasible_regression_count"] += 1
+        if solver_skipped:
+            operator_summary["cheap_skip_count"] += 1
+        else:
+            operator_summary["pde_attempt_count"] += 1
+            if child_feasible:
+                operator_summary["pde_feasible_count"] += 1
+            else:
+                child_dominant = dominant_violation(child_record)
+                child_constraint_id = (
+                    str(child_dominant.get("constraint_id", ""))
+                    if isinstance(child_dominant, Mapping)
+                    else ""
+                )
+                if classify_constraint_family(child_constraint_id) == "thermal_limit":
+                    operator_summary["thermal_infeasible_count"] += 1
 
         prior_feasible_records = [
             dict(record)
@@ -502,9 +536,15 @@ def _summarize_operator_outcomes(
         controller_phase = str(controller_phase_by_evaluation_index.get(int(row.evaluation_index), "")).strip()
         if controller_phase.startswith("post_feasible"):
             operator_summary["post_feasible_selection_count"] += 1
+            if solver_skipped:
+                operator_summary["post_feasible_cheap_skip_count"] += 1
+            else:
+                operator_summary["post_feasible_pde_attempt_count"] += 1
             if child_feasible:
                 operator_summary["post_feasible_success_count"] += 1
-            else:
+                if not solver_skipped:
+                    operator_summary["post_feasible_pde_feasible_count"] += 1
+            elif not solver_skipped:
                 child_dominant = dominant_violation(child_record)
                 child_constraint_id = (
                     str(child_dominant.get("constraint_id", ""))
@@ -643,6 +683,21 @@ def _summarize_operator_outcomes(
             "feasible_regression_count": int(summary["feasible_regression_count"]),
             "pareto_contribution_count": int(summary["pareto_contribution_count"]),
             "frontier_novelty_count": int(summary["frontier_novelty_count"]),
+            "pde_attempt_count": int(summary["pde_attempt_count"]),
+            "pde_feasible_count": int(summary["pde_feasible_count"]),
+            "pde_feasible_rate": (
+                None
+                if int(summary["pde_attempt_count"]) <= 0
+                else float(summary["pde_feasible_count"]) / float(summary["pde_attempt_count"])
+            ),
+            "cheap_skip_count": int(summary["cheap_skip_count"]),
+            "cheap_skip_rate": (
+                None
+                if int(summary["pde_attempt_count"]) + int(summary["cheap_skip_count"]) <= 0
+                else float(summary["cheap_skip_count"])
+                / float(int(summary["pde_attempt_count"]) + int(summary["cheap_skip_count"]))
+            ),
+            "thermal_infeasible_count": int(summary["thermal_infeasible_count"]),
             "dominant_violation_relief_count": int(summary["dominant_violation_relief_count"]),
             "near_feasible_improvement_count": int(summary["near_feasible_improvement_count"]),
             "avg_total_violation_delta": (
@@ -685,6 +740,28 @@ def _summarize_operator_outcomes(
                 None
                 if int(summary["post_feasible_selection_count"]) <= 0
                 else float(summary["post_feasible_success_count"]) / float(summary["post_feasible_selection_count"])
+            ),
+            "post_feasible_pde_attempt_count": int(summary["post_feasible_pde_attempt_count"]),
+            "post_feasible_pde_feasible_count": int(summary["post_feasible_pde_feasible_count"]),
+            "post_feasible_pde_feasible_rate": (
+                None
+                if int(summary["post_feasible_pde_attempt_count"]) <= 0
+                else float(summary["post_feasible_pde_feasible_count"])
+                / float(summary["post_feasible_pde_attempt_count"])
+            ),
+            "post_feasible_cheap_skip_count": int(summary["post_feasible_cheap_skip_count"]),
+            "post_feasible_cheap_skip_rate": (
+                None
+                if (
+                    int(summary["post_feasible_pde_attempt_count"])
+                    + int(summary["post_feasible_cheap_skip_count"])
+                )
+                <= 0
+                else float(summary["post_feasible_cheap_skip_count"])
+                / float(
+                    int(summary["post_feasible_pde_attempt_count"])
+                    + int(summary["post_feasible_cheap_skip_count"])
+                )
             ),
             "post_feasible_thermal_infeasible_count": int(summary["post_feasible_thermal_infeasible_count"]),
             "penalty_event_count": int(summary["penalty_event_count"]),

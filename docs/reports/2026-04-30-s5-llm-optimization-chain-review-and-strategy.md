@@ -155,7 +155,7 @@ union 的优势不是“随机很聪明”，而是它在小预算下保持了 o
 
 ## `0429_2007__raw_union_llm` 结果证据
 
-限制说明：以下是 `s5_aggressive15`、benchmark seed 11、algorithm seed 7、20×10 budget 的单 run-root 证据。它足以定位这次链路失败的直接机制，但不能单独替代跨 seed / 跨场景统计结论。后续方案必须用 S1/S2/S3/S4/S5 与多 seed matrix 验证。
+限制说明：以下是 `s5_aggressive15`、benchmark seed 11、algorithm seed 7、20×10 budget 的单 run-root 证据。它足以定位这次链路失败的直接机制，但不能单独替代跨 seed / 跨场景统计结论。后续方案必须用 S5/S6/S7 与多 seed matrix 验证。
 
 ### 终局指标
 
@@ -483,12 +483,12 @@ credit
    - 对比 old LLM direct selector、random uniform、hard-cap random、AOS without LLM、LLM-advised AOS。
 
 2. Smoke live：
-   - S1/S2/S5 各 20×10。
+   - S5/S6/S7 各 20×10，优先从 S5 调试模板开始。
    - 指标必须用 common PDE cutoff。
    - 先要求不劣于 `union` 的 feasible rate 和 operator entropy。
 
 3. Main validation：
-   - S1/S2/S3/S4/S5，至少 3 个 optimizer seeds 或 matrix block。
+   - S5/S6/S7，至少 3 个 optimizer seeds 或 matrix block。
    - 报告：best T、best gradient、HV、feasible rate、operator entropy、route entropy、duplicate/repair collapse rate、LLM cost。
 
 4. Ablation：

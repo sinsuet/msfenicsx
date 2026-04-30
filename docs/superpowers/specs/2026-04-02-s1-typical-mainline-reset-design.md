@@ -1,6 +1,6 @@
 # S1 Typical Mainline Reset Design
 
-> Status: approved direction for the next and only active paper-facing mainline.
+> Status: historical S1 reset design; superseded as active paper-facing mainline by the S5-S7 aggressive family.
 >
 > This spec replaces the current four-component hot/cold mainline completely. No compatibility layer is required. Old scenarios, optimizer specs, experiment outputs, figures, docs, and tests that only serve the previous mainline should be removed once `s1_typical` is implemented and validated.
 
@@ -112,7 +112,7 @@ Decision: select this option.
 
 ## 5. Benchmark Identity
 
-`s1_typical` is the only active paper-facing benchmark after this reset.
+At the time of this reset, `s1_typical` became the only active paper-facing benchmark.
 
 Its defining properties are:
 
@@ -541,4 +541,3 @@ The following decisions are fixed for the `s1_typical` mainline:
 - cheap legality checks must run before expensive PDE solves
 - repair must be upgraded to projection plus local legality restoration
 - union and llm must use a new semantic, portable action registry instead of the old four-component scene logic
-

@@ -26,9 +26,9 @@ Both benchmarks should keep the active platform identity:
 
 The goal is not to replace `s2_staged`. S3 and S4 should extend the benchmark family so we can test whether the optimizer and controller behavior survives higher decision dimension and higher layout occupancy.
 
-## 2. Current S2 Diagnosis
+## 2. Historical S2 Diagnosis
 
-The current `s2_staged` template is a staged feasibility benchmark, not just a 15-component case.
+At the time of this design, the `s2_staged` template was a staged feasibility benchmark, not just a 15-component case.
 
 Its intended mechanism is:
 

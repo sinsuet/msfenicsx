@@ -701,7 +701,7 @@ EOF
 In `README.md`, replace the sentence at the active mainline section that currently says `union` is clean while `llm` is assisted with:
 
 ```markdown
-The active paper-facing mainlines are `s1_typical` and `s2_staged`. `s2_staged` is the current controller-sensitive S2 companion benchmark; it shares the same paper-facing `raw / union / llm` ladder as `s1_typical`. In the paper-facing ladder, `union` and `llm` share the same semantic primitive operator substrate and legality policy; `llm` differs only by its representation-layer controller.
+At the time of this restore plan, the active paper-facing mainlines were `s1_typical` and `s2_staged`. The current active mainline is the S5-S7 aggressive family, with `s5_aggressive15` as the primary debugging template.
 ```
 
 - [ ] **Step 2: Update README legality-policy bullet**

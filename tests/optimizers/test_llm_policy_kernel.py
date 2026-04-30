@@ -448,6 +448,55 @@ def test_policy_snapshot_preserves_post_feasible_candidate_support() -> None:
     assert snapshot.phase.startswith("post_feasible")
 
 
+def test_policy_snapshot_demotes_expand_when_pde_feasible_rate_is_low_and_recover_pressure_high() -> None:
+    policy_kernel = _policy_kernel_module()
+    candidates = (
+        "vector_sbx_pm",
+        "component_jitter_1",
+        "sink_shift",
+        "sink_resize",
+        "component_block_translate_2_4",
+    )
+    state = ControllerState(
+        family="genetic",
+        backbone="nsga2",
+        generation_index=5,
+        evaluation_index=84,
+        parent_count=2,
+        vector_size=32,
+        metadata={
+            "run_state": {
+                "first_feasible_eval": 14,
+                "feasible_rate": 0.32,
+            },
+            "archive_state": {
+                "pareto_size": 1,
+                "recent_feasible_regression_count": 1,
+                "recent_feasible_preservation_count": 0,
+            },
+            "progress_state": {
+                "phase": "post_feasible_stagnation",
+                "first_feasible_found": True,
+                "post_feasible_mode": "expand",
+                "preserve_dwell_remaining": 0,
+                "recent_frontier_stagnation_count": 12,
+                "recover_reentry_pressure": "high",
+                "recent_dominant_violation_family": "thermal_limit",
+                "recent_dominant_violation_persistence_count": 5,
+                "diversity_deficit_level": "high",
+            },
+            "operator_summary": {},
+            "recent_decisions": [],
+        },
+    )
+
+    snapshot = policy_kernel.build_policy_snapshot(state, candidates)
+
+    assert snapshot.phase == "post_feasible_recover"
+    _assert_snapshot_preserves_support(snapshot, candidates)
+    assert "post_feasible_expand_low_pde_feasibility_recover" in snapshot.reason_codes
+
+
 def _objective_balance_state(*, preferred_effect: str) -> ControllerState:
     return ControllerState(
         family="genetic",

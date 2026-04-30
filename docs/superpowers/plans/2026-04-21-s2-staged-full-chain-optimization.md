@@ -1,8 +1,10 @@
 # S2 Staged Full-Chain Optimization Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> Status: historical S2 controller plan; current active paper-facing debugging has moved to `s5_aggressive15` in the S5-S7 family.
 
-**Goal:** Activate the full `s2_staged` controller chain so `llm` can convert earlier in PDE terms, transition from recover into preserve and expand, and improve front diversity without losing its current hypervolume advantage.
+**Goal:** Activate the full `s2_staged` controller chain so `llm` could convert earlier in PDE terms, transition from recover into preserve and expand, and improve front diversity without losing its historical hypervolume advantage.
 
 **Architecture:** The source of truth is `/home/hymn/msfenicsx/docs/superpowers/specs/2026-04-21-s2-staged-full-chain-optimization-design.md`. The work stays controller-side: add convert family floors, preserve dwell and recover hysteresis, stable-local handoff visibility, and delayed expand diversity floors while keeping the shared operator registry fixed across `union` and `llm`.
 

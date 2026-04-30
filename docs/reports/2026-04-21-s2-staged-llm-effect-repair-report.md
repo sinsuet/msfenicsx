@@ -1,5 +1,7 @@
 # S2 Staged LLM Effect Repair Report
 
+> Status: historical S2 report. The active paper-facing debugging line has moved to the S5-S7 aggressive family, with `s5_aggressive15` as the primary debugging template.
+
 ## 1. Purpose
 
 This report is a detailed handoff for continuing the `s2_staged` LLM-effect
@@ -8,7 +10,7 @@ repair line in a new conversation.
 It records:
 
 - the active experiment boundary
-- the problem background behind the current `s2_staged` route
+- the problem background behind the historical `s2_staged` route
 - the main implementation and analysis problems encountered in this cycle
 - the fixes that were completed and merged back into the main workspace
 - the newest evidence from the latest official rerun now stored on `main`
@@ -29,7 +31,7 @@ Continue from:
   - `/home/hymn/msfenicsx`
 - environment:
   - `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
-- active paper-facing S2 route:
+- historical paper-facing S2 route:
   - `s2_staged`
 
 Do not continue from the old inline worktree:

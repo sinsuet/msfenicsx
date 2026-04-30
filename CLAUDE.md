@@ -11,13 +11,18 @@ This file gives Claude Code repository-specific guidance for `msfenicsx`.
 ## Repository Status
 
 - `main` already contains the clean rebuild baseline.
-- The active paper-facing mainlines are `s1_typical`, `s2_staged`, `s3_scale20`, `s4_dense25`, and `s5_aggressive15`.
-- `s2_staged` is the current controller-sensitive S2 companion benchmark. `s3_scale20` and `s4_dense25` are the larger companions in the same paper-facing `raw / union / llm` ladder. `s5_aggressive15` is an aggressive companion using the shared `primitive_structured` operator substrate for `union` and `llm`.
+- The current active paper-facing mainline is `s5_aggressive15` through `s7_aggressive25`.
+- The primary debugging template is `s5_aggressive15`; use it for controller-sensitive smoke work unless a scale or density check explicitly needs S6/S7.
+- `s2_staged` is retained as a historical controller-sensitive companion benchmark, not the active mainline.
+- S5/S6/S7 use the shared `primitive_structured` operator substrate for `union` and `llm` and share the same `raw / union / llm` ladder.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
   - `nsga2_llm`
-- The current controller line uses the shared primitive operator registry for paper-facing `union` and `llm` modes.
+- Additional algorithm-comparison inputs are raw-only unless a later design explicitly promotes them:
+  - `spea2_raw`
+  - `moead_raw`
+- The current controller line uses `semantic_ranked_pick` for paper-facing S5/S6/S7 `llm` specs.
 - The active platform is organized around:
   - `core/`
   - `evaluation/`
@@ -47,7 +52,7 @@ The active derived evaluation flow is:
 
 The active optimizer mainline is:
 
-`paper-facing scenario case -> repair -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
+`paper-facing scenario case -> legality policy -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle + representative solutions`
 
 The implemented paper-facing inputs are:
 
@@ -82,30 +87,57 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s5_aggressive15_raw.yaml`
 - `scenarios/optimization/s5_aggressive15_union.yaml`
 - `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/s5_aggressive15_spea2_raw.yaml`
+- `scenarios/optimization/s5_aggressive15_moead_raw.yaml`
 - `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
 - `scenarios/optimization/profiles/s5_aggressive15_union.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_spea2_raw.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_moead_raw.yaml`
+- `scenarios/templates/s6_aggressive20.yaml`
+- `scenarios/evaluation/s6_aggressive20_eval.yaml`
+- `scenarios/optimization/s6_aggressive20_raw.yaml`
+- `scenarios/optimization/s6_aggressive20_union.yaml`
+- `scenarios/optimization/s6_aggressive20_llm.yaml`
+- `scenarios/optimization/s6_aggressive20_spea2_raw.yaml`
+- `scenarios/optimization/s6_aggressive20_moead_raw.yaml`
+- `scenarios/optimization/profiles/s6_aggressive20_raw.yaml`
+- `scenarios/optimization/profiles/s6_aggressive20_union.yaml`
+- `scenarios/optimization/profiles/s6_aggressive20_spea2_raw.yaml`
+- `scenarios/optimization/profiles/s6_aggressive20_moead_raw.yaml`
+- `scenarios/templates/s7_aggressive25.yaml`
+- `scenarios/evaluation/s7_aggressive25_eval.yaml`
+- `scenarios/optimization/s7_aggressive25_raw.yaml`
+- `scenarios/optimization/s7_aggressive25_union.yaml`
+- `scenarios/optimization/s7_aggressive25_llm.yaml`
+- `scenarios/optimization/s7_aggressive25_spea2_raw.yaml`
+- `scenarios/optimization/s7_aggressive25_moead_raw.yaml`
+- `scenarios/optimization/profiles/s7_aggressive25_raw.yaml`
+- `scenarios/optimization/profiles/s7_aggressive25_union.yaml`
+- `scenarios/optimization/profiles/s7_aggressive25_spea2_raw.yaml`
+- `scenarios/optimization/profiles/s7_aggressive25_moead_raw.yaml`
 
 The fixed benchmark decisions are:
 
 - one operating case
 - fixed named components:
-  - S1/S2/S5: 15 components
-  - S3: 20 components
-  - S4: 25 components
+  - S5: 15 components
+  - S6: 20 components
+  - S7: 25 components
 - all components optimize `x/y` only
 - no optimized rotation
 - scenario-specific decision dimensions:
-  - S1/S2/S5: 32 decision variables
-  - S3: 42 decision variables
-  - S4: 52 decision variables
+  - S5: 32 decision variables
+  - S6: 42 decision variables
+  - S7: 52 decision variables
 - objectives:
   - `summary.temperature_max`
   - `summary.temperature_gradient_rms`
 - hard sink-budget constraint:
   - `case.total_radiator_span <= radiator_span_max`
 - cheap constraints must run before PDE
-- repair must use projection plus local legality restoration
-- paper-facing `union` and `llm` runs both use the shared primitive operator substrate and minimal canonicalization
+- paper-facing S5/S6/S7 `raw`, `union`, `llm`, and raw-only algorithm-comparison specs use `projection_plus_local_restore`
+- paper-facing S5/S6/S7 `union` and `llm` runs both use the shared `primitive_structured` operator substrate
+- paper-facing S5/S6/S7 `llm` specs use `semantic_ranked_pick` with the same controller parameters as the S5 debugging template
 
 ## Architectural Expectations
 
@@ -167,34 +199,34 @@ conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
 
 Validate template:
 ```bash
-conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s1_typical.yaml
+conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s5_aggressive15.yaml
 ```
 
 Generate case:
 ```bash
-conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s1_typical.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s1_typical/seed-11
+conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s5_aggressive15.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s5_aggressive15/seed-11
 ```
 
 Solve case:
 ```bash
-conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/s1_typical/seed-11/s1_typical-seed-0011.yaml --output-root ./scenario_runs
+conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/s5_aggressive15/seed-11/s5_aggressive15-seed-0011.yaml --output-root ./scenario_runs
 ```
 
 Evaluate case:
 ```bash
-conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/s1_typical/s1_typical-seed-0011/case.yaml --solution ./scenario_runs/s1_typical/s1_typical-seed-0011/solution.yaml --spec scenarios/evaluation/s1_typical_eval.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/s1_typical/s1_typical-seed-0011
+conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/case.yaml --solution ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/solution.yaml --spec scenarios/evaluation/s5_aggressive15_eval.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011
 ```
 
 Optimize (raw/union/llm):
 ```bash
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/raw-smoke
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/union-smoke
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --evaluation-workers 2 --output-root ./scenario_runs/s1_typical/llm-smoke
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s5_aggressive15/raw-smoke
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --evaluation-workers 2 --output-root ./scenario_runs/s5_aggressive15/union-smoke
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --evaluation-workers 2 --output-root ./scenario_runs/s5_aggressive15/llm-smoke
 ```
 
 Run benchmark suite:
 ```bash
-conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s1_typical_raw.yaml --optimization-spec scenarios/optimization/s1_typical_union.yaml --optimization-spec scenarios/optimization/s1_typical_llm.yaml --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs
 ```
 
 Run S5-S7 512eval matrix block:
@@ -209,12 +241,12 @@ conda run -n msfenicsx python -m optimizers.cli aggregate-benchmark-matrix --run
 
 Render assets (analytics CSV + figures PNG) from every completed optimizer run:
 ```bash
-conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s1_typical/<run_id> [--hires]
+conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s5_aggressive15/<run_id> [--hires]
 ```
 
 Compare multiple concrete run roots before reporting comparative results:
 ```bash
-conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s1_typical/<run_a> --run ./scenario_runs/s1_typical/<run_b> --output ./scenario_runs/compare_reports/<compare_id>
+conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s5_aggressive15/<run_a> --run ./scenario_runs/s5_aggressive15/<run_b> --output ./scenario_runs/compare_reports/<compare_id>
 ```
 
 Smoke harness (10×5 budget local check across modes):
@@ -224,7 +256,7 @@ bash scripts/smoke_render_assets.sh
 
 Override algorithm budget (works on `optimize-benchmark` and `run-llm`):
 ```bash
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --output-root ./scenario_runs/s1_typical/raw-smoke --population-size 10 --num-generations 5
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --output-root ./scenario_runs/s5_aggressive15/raw-smoke --population-size 10 --num-generations 5
 ```
 
 `--skip-render` is only for temporary debug runs. If it is used, immediately run `render-assets` on the produced run root before analysis or reporting.
@@ -250,7 +282,7 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
   - `minimax_m2_5 -> QWEN_PROXY_* -> MiniMax-M2.5`
   - `deepseek_v4_flash -> DEEPSEEK_PROXY_* -> DeepSeek-V4-Flash`
   - `gemma4 -> GEMMA4_* -> gemma-4` as a placeholder until credentials and the exact model id are configured
-- the active `scenarios/optimization/s1_typical_llm.yaml` resolves runtime provider identity through:
+- the active `scenarios/optimization/s5_aggressive15_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
   - `LLM_BASE_URL`
   - `LLM_MODEL`
@@ -275,8 +307,8 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
 ## Data And Artifact Rules
 
 - Treat `scenario_template`, `thermal_case`, and `thermal_solution` as the active canonical contracts.
-- `s1_typical` is single-case only and must not define `operating_case_profiles`.
-- `s1_typical` is a fixed single-case benchmark; do not use multiple benchmark seeds to simulate multiple problem instances.
+- `s5_aggressive15` is the primary fixed single-case debugging template and must not define `operating_case_profiles`.
+- S5/S6/S7 are fixed single-case benchmarks; do not use multiple benchmark seeds to simulate multiple problem instances.
 - Conservative daytime optimizer reruns should prefer `--evaluation-workers 2` or lower, including future `llm` runs.
 - Keep evaluation criteria in standalone `evaluation_spec` files instead of adding optimizer metadata to `thermal_case`.
 - Keep optimizer search settings and design-variable bounds in standalone `optimization_spec` files.
@@ -364,6 +396,11 @@ Current maintained test areas:
 - `docs/superpowers/plans/2026-03-26-msfenicsx-clean-rebuild-phase1.md`
 - `docs/superpowers/specs/2026-04-02-s1-typical-mainline-reset-design.md`
 - `docs/superpowers/plans/2026-04-02-s1-typical-mainline-reset.md`
+- `docs/superpowers/specs/2026-04-28-s5-aggressive-15-component-benchmark-design.md`
+- `docs/superpowers/specs/2026-04-28-s6-aggressive-20-component-benchmark-design.md`
+- `docs/superpowers/specs/2026-04-28-s7-aggressive-25-component-benchmark-design.md`
+- `docs/superpowers/specs/2026-04-30-llm-semantic-ranker-controller-design.md`
+- `docs/superpowers/plans/2026-04-29-s5-s7-512eval-benchmark-matrix.md`
 - `scenarios/templates/s1_typical.yaml`
 - `scenarios/evaluation/s1_typical_eval.yaml`
 - `scenarios/optimization/s1_typical_raw.yaml`
@@ -371,6 +408,39 @@ Current maintained test areas:
 - `scenarios/optimization/s1_typical_llm.yaml`
 - `scenarios/optimization/profiles/s1_typical_raw.yaml`
 - `scenarios/optimization/profiles/s1_typical_union.yaml`
+- `scenarios/templates/s5_aggressive15.yaml`
+- `scenarios/evaluation/s5_aggressive15_eval.yaml`
+- `scenarios/optimization/s5_aggressive15_raw.yaml`
+- `scenarios/optimization/s5_aggressive15_union.yaml`
+- `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/s5_aggressive15_spea2_raw.yaml`
+- `scenarios/optimization/s5_aggressive15_moead_raw.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_union.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_spea2_raw.yaml`
+- `scenarios/optimization/profiles/s5_aggressive15_moead_raw.yaml`
+- `scenarios/templates/s6_aggressive20.yaml`
+- `scenarios/evaluation/s6_aggressive20_eval.yaml`
+- `scenarios/optimization/s6_aggressive20_raw.yaml`
+- `scenarios/optimization/s6_aggressive20_union.yaml`
+- `scenarios/optimization/s6_aggressive20_llm.yaml`
+- `scenarios/optimization/s6_aggressive20_spea2_raw.yaml`
+- `scenarios/optimization/s6_aggressive20_moead_raw.yaml`
+- `scenarios/optimization/profiles/s6_aggressive20_raw.yaml`
+- `scenarios/optimization/profiles/s6_aggressive20_union.yaml`
+- `scenarios/optimization/profiles/s6_aggressive20_spea2_raw.yaml`
+- `scenarios/optimization/profiles/s6_aggressive20_moead_raw.yaml`
+- `scenarios/templates/s7_aggressive25.yaml`
+- `scenarios/evaluation/s7_aggressive25_eval.yaml`
+- `scenarios/optimization/s7_aggressive25_raw.yaml`
+- `scenarios/optimization/s7_aggressive25_union.yaml`
+- `scenarios/optimization/s7_aggressive25_llm.yaml`
+- `scenarios/optimization/s7_aggressive25_spea2_raw.yaml`
+- `scenarios/optimization/s7_aggressive25_moead_raw.yaml`
+- `scenarios/optimization/profiles/s7_aggressive25_raw.yaml`
+- `scenarios/optimization/profiles/s7_aggressive25_union.yaml`
+- `scenarios/optimization/profiles/s7_aggressive25_spea2_raw.yaml`
+- `scenarios/optimization/profiles/s7_aggressive25_moead_raw.yaml`
 - `optimizers/algorithm_config.py`
 - `optimizers/drivers/raw_driver.py`
 - `optimizers/drivers/union_driver.py`

@@ -1,5 +1,7 @@
 # LLM Semantic Prior Controller 设计
 
+> Status: superseded by `2026-04-30-llm-semantic-ranker-controller-design.md`; keep this document as historical diagnosis for the S5 controller loop.
+
 ## 背景
 
 两份 2026-04-30 分析已经把当前 LLM 算子选择链路和失败机制拆清楚：
@@ -246,13 +248,11 @@ selection_strategy == "semantic_prior_sampler"
 
 ### 5. Spec 配置边界
 
-只更新 active paper-facing LLM specs：
+当时计划只更新 active paper-facing LLM specs；当前 active 主线已收敛到 S5-S7，后续应以 semantic ranker 设计为准：
 
-- `scenarios/optimization/s1_typical_llm.yaml`
-- `scenarios/optimization/s2_staged_llm.yaml`
-- `scenarios/optimization/s3_scale20_llm.yaml`
-- `scenarios/optimization/s4_dense25_llm.yaml`
 - `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/s6_aggressive20_llm.yaml`
+- `scenarios/optimization/s7_aggressive25_llm.yaml`
 
 不修改：
 

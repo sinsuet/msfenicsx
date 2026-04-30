@@ -1,6 +1,8 @@
 # S1 Typical Mainline Reset Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> Status: historical S1 reset plan; current active paper-facing mainline is the S5-S7 aggressive family.
 
 **Goal:** Replace the retired four-component hot/cold paper-facing line with a single active `s1_typical` mainline built around one operating case, `15` movable `x/y`-only components, two objectives (`peak_temperature`, `temperature_gradient_rms`), a hard radiator-span budget, and shared `nsga2_raw` / `nsga2_union` / `nsga2_llm` execution paths.
 
@@ -16,7 +18,7 @@ Spec reference:
 
 Primary implementation guardrails:
 
-- `s1_typical` is the only active paper-facing mainline after this work.
+- At the time of this plan, `s1_typical` was the only active paper-facing mainline after this work.
 - Keep all `15` components optimization-active in `x/y`; do not introduce optimized rotation, geometry, material, or power variables.
 - The official gradient objective is `summary.temperature_gradient_rms = sqrt((1 / |Omega|) * integral_Omega |grad(T_h)|^2 dx)`.
 - Cheap legality checks must run before expensive PDE solves.
@@ -840,4 +842,3 @@ git rm \
   docs/superpowers/plans/2026-04-01-nsga2-three-mode-experiment-logging-visualization.md
 git commit -m "refactor: reset mainline around s1_typical"
 ```
-

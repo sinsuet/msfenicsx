@@ -2118,6 +2118,85 @@ def test_llm_controller_semantic_ranked_pick_uses_model_ranking() -> None:
     assert "operator_priors" not in str(client.last_kwargs["system_prompt"])
 
 
+def test_llm_controller_semantic_ranked_pick_uses_recent_duplicate_feedback() -> None:
+    from llm.openai_compatible.client import OpenAICompatibleRankAdvice, RankedOperatorCandidate
+
+    class _RankClient:
+        def request_operator_rank_advice(self, **kwargs):
+            return OpenAICompatibleRankAdvice(
+                ranked_operators=(
+                    RankedOperatorCandidate(
+                        operator_id="sink_resize",
+                        semantic_task="sink_budget_shape",
+                        score=0.89,
+                        risk=0.24,
+                        confidence=0.88,
+                        rationale="model repeats sink budget shaping",
+                    ),
+                    RankedOperatorCandidate(
+                        operator_id="component_jitter_1",
+                        semantic_task="local_polish",
+                        score=0.67,
+                        risk=0.25,
+                        confidence=0.70,
+                        rationale="accepted local cleanup",
+                    ),
+                ),
+                phase="post_feasible_expand",
+                rationale="rank sink resize first",
+                provider="openai-compatible",
+                model="fake-model",
+                capability_profile="chat_compatible_json",
+                performance_profile="balanced",
+                raw_payload={"ranked_operators": [{"operator_id": "sink_resize"}]},
+            )
+
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model_env_var": "LLM_MODEL",
+            "api_key_env_var": "LLM_API_KEY",
+            "base_url_env_var": "LLM_BASE_URL",
+            "max_output_tokens": 512,
+            "selection_strategy": "semantic_ranked_pick",
+        },
+        client=_RankClient(),
+    )
+    controller.response_trace.extend(
+        {
+            "decision_index": index,
+            "selected_operator_id": "sink_resize",
+            "accepted_for_evaluation": index < 2,
+            "rejection_reason": "" if index < 2 else "repair_collapsed_duplicate",
+            "repair_collapsed_duplicate": index >= 2,
+            "duplicate_with_population": index >= 2,
+            "policy_phase": "post_feasible_expand",
+        }
+        for index in range(8)
+    )
+    state = _state_with_metadata(
+        {
+            "decision_index": 19,
+            "search_phase": "post_feasible_expand",
+            "progress_state": {"phase": "post_feasible_expand", "post_feasible_mode": "expand"},
+            "prompt_panels": {"run_panel": {"feasible_rate": 0.42}, "operator_panel": {"rows": []}},
+            "recent_decisions": [],
+        }
+    )
+
+    decision = controller.select_decision(
+        state,
+        ("sink_resize", "component_jitter_1"),
+        np.random.default_rng(4),
+    )
+
+    assert decision.selected_operator_id == "component_jitter_1"
+    assert decision.metadata["ranker_cap_reasons"]["sink_resize"] == "operator_duplicate_risk"
+    assert decision.metadata["ranker_override_reason"] == "rank_1_suppressed"
+
+
 def test_llm_controller_semantic_prior_sampler_records_probabilities() -> None:
     from llm.openai_compatible.client import (
         OpenAICompatiblePriorAdvice,

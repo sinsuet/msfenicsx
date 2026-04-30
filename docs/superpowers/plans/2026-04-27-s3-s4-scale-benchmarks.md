@@ -1780,7 +1780,7 @@ If no source files changed, record the smoke results in the final implementation
 Modify `README.md` active benchmark text to describe:
 
 ```markdown
-The active paper-facing mainlines are `s1_typical` and `s2_staged`. The scale companion candidates are `s3_scale20` and `s4_dense25`; they preserve the same single-case x/y-only layout contract while intentionally raising component count and layout occupancy.
+At the time of this scale-benchmark plan, the active paper-facing mainlines were `s1_typical` and `s2_staged`, with `s3_scale20` and `s4_dense25` as scale companion candidates. The current active mainline is the S5-S7 aggressive family.
 ```
 
 Add bullets:

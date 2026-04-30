@@ -225,7 +225,7 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s7_aggressive25_union.yaml
 evaluation_protocol:
   evaluation_spec_path: scenarios/evaluation/s7_aggressive25_eval.yaml
-  legality_policy_id: minimal_canonicalization
+  legality_policy_id: projection_plus_local_restore
 operator_control:
   controller: random_uniform
   registry_profile: primitive_structured
