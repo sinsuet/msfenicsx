@@ -19,6 +19,7 @@ from optimizers.analytics.heatmap import operator_phase_heatmap
 from optimizers.analytics.loaders import iter_jsonl
 from optimizers.analytics.pareto import DEFAULT_REFERENCE_POINT, adaptive_reference_point_2d, pareto_front_indices
 from optimizers.analytics.rollups import rollup_per_generation
+from optimizers.analytics.search_trajectory import build_search_trajectory
 from optimizers.codec import apply_decision_vector
 from optimizers.io import generate_benchmark_case, load_optimization_spec
 from optimizers.llm_decision_summary import build_llm_decision_summaries
@@ -37,6 +38,10 @@ from visualization.figures.layout_evolution import render_layout_evolution, rend
 from visualization.figures.operator_heatmap import render_operator_heatmap
 from visualization.figures.pareto import render_pareto_front
 from visualization.figures.progress import render_objective_progress
+from visualization.figures.search_trajectory_network import (
+    render_search_trajectory_network,
+    render_search_trajectory_nodes_by_vector,
+)
 from visualization.figures.trace_series import render_metric_trace
 from visualization.figures.temperature_field import render_temperature_field
 
@@ -129,6 +134,22 @@ def render_run_assets(run_root: str | Path, *, hires: bool = False) -> None:
     if optimization_result:
         progress_rows = build_progress_timeline(list(optimization_result.get("history", [])))
         _write_progress_timeline_csv(analytics / "progress_timeline.csv", progress_rows)
+        search_trajectory = build_search_trajectory(list(optimization_result.get("history", [])))
+        _write_dict_rows_csv(analytics / "search_trajectory_nodes.csv", search_trajectory.nodes)
+        _write_dict_rows_csv(analytics / "search_trajectory_edges.csv", search_trajectory.edges)
+        _write_dict_rows_csv(analytics / "search_trajectory_metrics.csv", search_trajectory.metrics)
+        if search_trajectory.nodes:
+            render_search_trajectory_network(
+                nodes=search_trajectory.nodes,
+                edges=search_trajectory.edges,
+                output=figures / "search_trajectory_network.png",
+                hires=hires,
+            )
+            render_search_trajectory_nodes_by_vector(
+                metrics=search_trajectory.metrics,
+                output=figures / "search_trajectory_nodes_by_vector.png",
+                hires=hires,
+            )
         if progress_rows:
             render_objective_progress(
                 series={_mode_label(run_root): progress_rows},
@@ -1033,6 +1054,8 @@ def _cleanup_render_outputs(run_root: Path) -> None:
         "hypervolume_progress__*",
         "operator_phase_heatmap.*",
         "operator_phase_heatmap__*",
+        "search_trajectory_network.*",
+        "search_trajectory_nodes_by_vector.*",
         "objective_progress.*",
         "temperature_trace.*",
         "gradient_trace.*",
@@ -1058,6 +1081,9 @@ def _cleanup_render_outputs(run_root: Path) -> None:
         run_root / "analytics" / "decision_outcomes.csv",
         run_root / "analytics" / "progress_timeline.csv",
         run_root / "analytics" / "pareto_front.csv",
+        run_root / "analytics" / "search_trajectory_nodes.csv",
+        run_root / "analytics" / "search_trajectory_edges.csv",
+        run_root / "analytics" / "search_trajectory_metrics.csv",
         run_root / "tables" / "summary_statistics.csv",
         run_root / "tables" / "summary_statistics.tex",
         run_root / "tables" / "representative_points.csv",

@@ -326,10 +326,17 @@ def test_render_assets_produces_full_mainline_outputs(tmp_path: Path) -> None:
         "analytics/decision_outcomes.csv",
         "analytics/progress_timeline.csv",
         "analytics/pareto_front.csv",
+        "analytics/search_trajectory_nodes.csv",
+        "analytics/search_trajectory_edges.csv",
+        "analytics/search_trajectory_metrics.csv",
         "figures/pareto_front.png",
         "figures/pdf/pareto_front.pdf",
         "figures/hypervolume_progress.png",
         "figures/pdf/hypervolume_progress.pdf",
+        "figures/search_trajectory_network.png",
+        "figures/pdf/search_trajectory_network.pdf",
+        "figures/search_trajectory_nodes_by_vector.png",
+        "figures/pdf/search_trajectory_nodes_by_vector.pdf",
         "figures/operator_phase_heatmap.png",
         "figures/objective_progress.png",
         "figures/temperature_trace.png",
@@ -372,6 +379,33 @@ def test_render_assets_produces_full_mainline_outputs(tmp_path: Path) -> None:
         for line in (run_root / "summaries" / "llm_decision_log.jsonl").read_text(encoding="utf-8").splitlines()
     ]
     assert {row["decision_id"] for row in decision_rows} == {"g001-e0000-d00", "g002-e0001-d00"}
+
+
+def test_render_assets_cleans_stale_search_trajectory_outputs(tmp_path: Path) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+
+    from optimizers.render_assets import render_run_assets
+
+    run_root = tmp_path / "0416_2030__llm"
+    _seed_run_bundle(run_root)
+    stale_files = [
+        run_root / "analytics" / "search_trajectory_nodes.csv",
+        run_root / "analytics" / "search_trajectory_edges.csv",
+        run_root / "analytics" / "search_trajectory_metrics.csv",
+        run_root / "figures" / "search_trajectory_network.png",
+        run_root / "figures" / "search_trajectory_nodes_by_vector.png",
+    ]
+    for path in stale_files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("stale", encoding="utf-8")
+
+    render_run_assets(run_root, hires=False)
+
+    for path in stale_files:
+        assert path.exists()
+        assert path.read_bytes() != b"stale"
 
 
 def test_build_layout_frames_prefers_best_so_far_spatial_milestones(monkeypatch, tmp_path: Path) -> None:
