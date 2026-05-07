@@ -19,6 +19,16 @@ class ResourceCap:
 
 
 @dataclass(frozen=True, slots=True)
+class ScenarioBudget:
+    population_size: int
+    num_generations: int
+
+    @property
+    def nominal_budget(self) -> int:
+        return int(self.population_size) * int(self.num_generations)
+
+
+@dataclass(frozen=True, slots=True)
 class MatrixLeaf:
     matrix_id: str
     block_id: str
@@ -46,20 +56,26 @@ class MatrixConfig:
     scenarios: tuple[str, ...]
     replicate_seeds: tuple[int, ...]
     algorithm_seed_offset: int
-    population_size: int
-    num_generations: int
+    scenario_budgets: dict[str, ScenarioBudget]
     llm_profiles: tuple[str, ...]
     resource_caps: dict[str, ResourceCap]
+
+    def budget_for(self, scenario_id: str) -> ScenarioBudget:
+        try:
+            return self.scenario_budgets[scenario_id]
+        except KeyError as exc:
+            raise ValueError(f"Missing matrix budget for scenario_id: {scenario_id}") from exc
 
     def expand_leaves(self) -> list[MatrixLeaf]:
         leaves: list[MatrixLeaf] = []
         for scenario_id in self.scenarios:
+            budget = self.budget_for(scenario_id)
             for backbone, family in (("nsga2", "genetic"), ("spea2", "genetic"), ("moead", "decomposition")):
                 for replicate_seed in self.replicate_seeds:
                     leaves.append(
                         MatrixLeaf(
                             matrix_id=self.matrix_id,
-                            block_id="M1_raw_backbone_512eval",
+                            block_id="M1_raw_backbone_budgeted",
                             scenario_id=scenario_id,
                             method_id=f"{backbone}_raw",
                             algorithm_family=family,
@@ -69,8 +85,8 @@ class MatrixConfig:
                             replicate_seed=replicate_seed,
                             benchmark_seed=replicate_seed,
                             algorithm_seed=replicate_seed + self.algorithm_seed_offset,
-                            population_size=self.population_size,
-                            num_generations=self.num_generations,
+                            population_size=budget.population_size,
+                            num_generations=budget.num_generations,
                             base_spec_path=Path(
                                 f"scenarios/optimization/{scenario_id}_raw.yaml"
                                 if backbone == "nsga2"
@@ -82,7 +98,7 @@ class MatrixConfig:
                 leaves.append(
                     MatrixLeaf(
                         matrix_id=self.matrix_id,
-                        block_id="M2_nsga2_union_512eval",
+                        block_id="M2_nsga2_union_budgeted",
                         scenario_id=scenario_id,
                         method_id="nsga2_union",
                         algorithm_family="genetic",
@@ -92,14 +108,14 @@ class MatrixConfig:
                         replicate_seed=replicate_seed,
                         benchmark_seed=replicate_seed,
                         algorithm_seed=replicate_seed + self.algorithm_seed_offset,
-                        population_size=self.population_size,
-                        num_generations=self.num_generations,
+                        population_size=budget.population_size,
+                        num_generations=budget.num_generations,
                         base_spec_path=Path(f"scenarios/optimization/{scenario_id}_union.yaml"),
                     )
                 )
             for profile_index, llm_profile in enumerate(self.llm_profiles):
                 block_letter = chr(ord("a") + profile_index)
-                block_id = f"M3{block_letter}_llm_{llm_profile}_512eval"
+                block_id = f"M3{block_letter}_llm_{llm_profile}_budgeted"
                 for replicate_seed in self.replicate_seeds:
                     leaves.append(
                         MatrixLeaf(
@@ -114,8 +130,8 @@ class MatrixConfig:
                             replicate_seed=replicate_seed,
                             benchmark_seed=replicate_seed,
                             algorithm_seed=replicate_seed + self.algorithm_seed_offset,
-                            population_size=self.population_size,
-                            num_generations=self.num_generations,
+                            population_size=budget.population_size,
+                            num_generations=budget.num_generations,
                             base_spec_path=Path(f"scenarios/optimization/{scenario_id}_llm.yaml"),
                         )
                     )

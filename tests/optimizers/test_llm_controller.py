@@ -2118,7 +2118,7 @@ def test_llm_controller_semantic_ranked_pick_uses_model_ranking() -> None:
     assert "operator_priors" not in str(client.last_kwargs["system_prompt"])
 
 
-def test_llm_controller_semantic_ranked_pick_uses_recent_duplicate_feedback() -> None:
+def test_llm_controller_semantic_ranked_pick_records_recent_duplicate_feedback_without_suppressing_top_rank() -> None:
     from llm.openai_compatible.client import OpenAICompatibleRankAdvice, RankedOperatorCandidate
 
     class _RankClient:
@@ -2192,9 +2192,10 @@ def test_llm_controller_semantic_ranked_pick_uses_recent_duplicate_feedback() ->
         np.random.default_rng(4),
     )
 
-    assert decision.selected_operator_id == "component_jitter_1"
-    assert decision.metadata["ranker_cap_reasons"]["sink_resize"] == "operator_duplicate_risk"
-    assert decision.metadata["ranker_override_reason"] == "rank_1_suppressed"
+    assert decision.selected_operator_id == "sink_resize"
+    assert decision.metadata["selected_rank"] == 1
+    assert "sink_resize" not in decision.metadata["ranker_cap_reasons"]
+    assert decision.metadata["ranker_override_reason"] == ""
 
 
 def test_llm_controller_semantic_prior_sampler_records_probabilities() -> None:

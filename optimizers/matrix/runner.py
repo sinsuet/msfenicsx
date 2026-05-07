@@ -21,7 +21,7 @@ def run_matrix_block(
 ) -> Path:
     root = Path(matrix_root)
     index_path = root / "run_index.csv"
-    if block_id == "M4_rerun_failed_512eval":
+    if block_id == "M4_rerun_failed_budgeted":
         rows = failed_retry_rows(read_run_index(index_path))
         leaves = _leaves_for_retry_rows(matrix, rows)
     else:
@@ -39,7 +39,7 @@ def run_matrix_block(
         leaves_by_key=leaves_by_key,
         max_workers=_concurrent_runs_for_block(matrix, block_id),
     )
-    if block_id == "M4_rerun_failed_512eval" and index_path.exists():
+    if block_id == "M4_rerun_failed_budgeted" and index_path.exists():
         all_rows = read_run_index(index_path) + completed_rows
     else:
         all_rows = completed_rows
@@ -96,9 +96,9 @@ def _evaluation_workers_for_leaf(matrix: MatrixConfig, leaf: MatrixLeaf) -> int:
 
 
 def _concurrent_runs_for_block(matrix: MatrixConfig, block_id: str) -> int:
-    if block_id == "M1_raw_backbone_512eval":
+    if block_id == "M1_raw_backbone_budgeted":
         return matrix.resource_caps["raw"].concurrent_runs
-    if block_id == "M2_nsga2_union_512eval":
+    if block_id == "M2_nsga2_union_budgeted":
         return matrix.resource_caps["union"].concurrent_runs
     if "gemma4" in block_id:
         return matrix.resource_caps["gemma4"].concurrent_runs
@@ -118,16 +118,16 @@ def _leaf_key(leaf: MatrixLeaf) -> tuple[str, str, str, str]:
 
 def _row_key(row: dict[str, str]) -> tuple[str, str, str, str]:
     block_id = row["block_id"]
-    if block_id == "M4_rerun_failed_512eval":
+    if block_id == "M4_rerun_failed_budgeted":
         block_id = _source_block_for_method(row["method_id"])
     return (block_id, row["scenario_id"], row["method_id"], row["replicate_seed"])
 
 
 def _source_block_for_method(method_id: str) -> str:
     if method_id.endswith("_raw"):
-        return "M1_raw_backbone_512eval"
+        return "M1_raw_backbone_budgeted"
     if method_id == "nsga2_union":
-        return "M2_nsga2_union_512eval"
+        return "M2_nsga2_union_budgeted"
     if method_id.startswith("nsga2_llm_"):
         profile = method_id.removeprefix("nsga2_llm_")
         letters = {
@@ -137,6 +137,7 @@ def _source_block_for_method(method_id: str) -> str:
             "minimax_m2_5": "d",
             "deepseek_v4_flash": "e",
             "gemma4": "f",
+            "mimo_v2_5": "g",
         }
-        return f"M3{letters[profile]}_llm_{profile}_512eval"
+        return f"M3{letters[profile]}_llm_{profile}_budgeted"
     raise ValueError(f"Unknown method_id: {method_id}")

@@ -129,6 +129,12 @@ The fixed benchmark decisions are:
   - S5: 32 decision variables
   - S6: 42 decision variables
   - S7: 52 decision variables
+- formal paper-facing expensive PDE evaluation budgets:
+  - S5: `population_size=40`, `num_generations=32`, nominal budget `1280`
+  - S6: `population_size=56`, `num_generations=36`, nominal budget `2016`
+  - S7: `population_size=64`, `num_generations=40`, nominal budget `2560`
+- these budgets are intentionally budget-limited for expensive PDE-constrained optimization, not cheap benchmark convergence budgets
+- within each scenario, keep the same formal budget across `raw`, `union`, `llm`, and raw-only algorithm-comparison runs
 - objectives:
   - `summary.temperature_max`
   - `summary.temperature_gradient_rms`
@@ -229,14 +235,14 @@ Run benchmark suite:
 conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs
 ```
 
-Run S5-S7 512eval matrix block:
+Run S5-S7 formal budgeted matrix block:
 ```bash
-conda run -n msfenicsx python -m optimizers.cli run-benchmark-matrix --matrix-root ./scenario_runs/matrix_512eval_s5_s7 --block-id M1_raw_backbone_512eval
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-matrix --matrix-root ./scenario_runs/matrix_budgeted_s5_s7 --block-id M1_raw_backbone_budgeted
 ```
 
-Aggregate S5-S7 512eval matrix:
+Aggregate S5-S7 formal budgeted matrix:
 ```bash
-conda run -n msfenicsx python -m optimizers.cli aggregate-benchmark-matrix --run-index ./scenario_runs/matrix_512eval_s5_s7/run_index.csv --output-root ./scenario_runs/matrix_512eval_s5_s7/aggregate
+conda run -n msfenicsx python -m optimizers.cli aggregate-benchmark-matrix --run-index ./scenario_runs/matrix_budgeted_s5_s7/run_index.csv --output-root ./scenario_runs/matrix_budgeted_s5_s7/aggregate
 ```
 
 Render assets (analytics CSV + figures PNG) from every completed optimizer run:
@@ -272,7 +278,7 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
 
 - `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to `gpt-5.4`
 - `run-benchmark-suite` uses the same `default` profile for LLM mode unless `--llm-profile <profile>` is provided
-- switch models explicitly with profile names such as `run-llm qwen3_6_plus ...`, `run-llm gpt ...`, `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, or `run-llm deepseek_v4_flash ...`
+- switch models explicitly with profile names such as `run-llm qwen3_6_plus ...`, `run-llm gpt ...`, `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, `run-llm deepseek_v4_flash ...`, or `run-llm mimo_v2_5 ...`
 - provider profile declarations live in `llm/openai_compatible/profiles.yaml`
 - bundled model registry maps:
   - `default -> GPT_PROXY_* -> gpt-5.4`
@@ -282,6 +288,7 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
   - `minimax_m2_5 -> QWEN_PROXY_* -> MiniMax-M2.5`
   - `deepseek_v4_flash -> DEEPSEEK_PROXY_* -> DeepSeek-V4-Flash`
   - `gemma4 -> GEMMA4_* -> gemma-4` as a placeholder until credentials and the exact model id are configured
+  - `mimo_v2_5 -> MIMO_* -> mimo-v2.5` with `extra_body.chat_template_kwargs.enable_thinking=false` and `max_output_tokens=1024`
 - the active `scenarios/optimization/s5_aggressive15_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
   - `LLM_BASE_URL`
@@ -291,6 +298,12 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
   - `GPT_PROXY_BASE_URL`
   - `QWEN_PROXY_API_KEY`
   - `QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1`
+  - `DEEPSEEK_PROXY_API_KEY`
+  - `DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1`
+  - `GEMMA4_API_KEY`
+  - `GEMMA4_BASE_URL`
+  - `MIMO_API_KEY`
+  - `MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1`
 
 ## Engineering Guardrails
 

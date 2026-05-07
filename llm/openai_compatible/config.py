@@ -28,6 +28,7 @@ class OpenAICompatibleConfig:
     model_env_var: str | None = None
     base_url_env_var: str | None = None
     extra_body_env_var: str | None = "LLM_EXTRA_BODY"
+    max_output_tokens_env_var: str | None = "LLM_MAX_OUTPUT_TOKENS"
     fallback_controller: str = "random_uniform"
 
     @classmethod
@@ -53,6 +54,13 @@ class OpenAICompatibleConfig:
                 else None
                 if payload.get("extra_body_env_var") is None
                 else str(payload["extra_body_env_var"])
+            ),
+            max_output_tokens_env_var=(
+                "LLM_MAX_OUTPUT_TOKENS"
+                if "max_output_tokens_env_var" not in payload
+                else None
+                if payload.get("max_output_tokens_env_var") is None
+                else str(payload["max_output_tokens_env_var"])
             ),
             fallback_controller=str(payload.get("fallback_controller", "random_uniform")),
         )
@@ -134,6 +142,31 @@ class OpenAICompatibleConfig:
                 raise ValueError(f"Environment variable '{self.extra_body_env_var}' must contain a JSON object.")
             merged.update(parsed)
         return merged
+
+    def resolve_max_output_tokens(
+        self,
+        environ: Mapping[str, str] | None = None,
+        *,
+        dotenv_path: str | Path | None = None,
+    ) -> int:
+        raw_max_output_tokens = resolve_optional_env_value(
+            self.max_output_tokens_env_var,
+            os.environ if environ is None else environ,
+            dotenv_path=dotenv_path,
+        )
+        if raw_max_output_tokens:
+            try:
+                resolved = int(raw_max_output_tokens)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Environment variable '{self.max_output_tokens_env_var}' must contain a positive integer."
+                ) from exc
+            if resolved <= 0:
+                raise ValueError(
+                    f"Environment variable '{self.max_output_tokens_env_var}' must contain a positive integer."
+                )
+            return resolved
+        return int(self.max_output_tokens)
 
     @property
     def timeout_seconds(self) -> float | None:

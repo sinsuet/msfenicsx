@@ -195,6 +195,23 @@ def test_bundled_gemma4_placeholder_uses_model_named_env_pair(
     }
 
 
+def test_bundled_mimo_v2_5_profile_uses_mimo_env_pair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MIMO_API_KEY", "bundled-mimo-key")
+    monkeypatch.setenv("MIMO_BASE_URL", "https://token-plan-cn.xiaomimimo.example/v1")
+
+    overlay = load_provider_profile_overlay("mimo_v2_5")
+
+    assert overlay == {
+        "LLM_API_KEY": "bundled-mimo-key",
+        "LLM_BASE_URL": "https://token-plan-cn.xiaomimimo.example/v1",
+        "LLM_MODEL": "mimo-v2.5",
+        "LLM_EXTRA_BODY": '{"chat_template_kwargs":{"enable_thinking":false}}',
+        "LLM_MAX_OUTPUT_TOKENS": "1024",
+    }
+
+
 @pytest.mark.parametrize("profile_id", ["claude", "qwen"])
 def test_bundled_profiles_reject_legacy_provider_style_profile_ids(profile_id: str) -> None:
     with pytest.raises(ValueError, match="Unknown LLM profile"):
@@ -227,3 +244,10 @@ def test_bundled_profile_registry_keeps_gpt_as_default_and_qwen_explicit() -> No
     }
     assert registry["profiles"]["gpt"] == registry["profiles"]["default"]
     assert registry["profiles"]["qwen3_6_plus"]["source_api_key_env_var"] == "QWEN_PROXY_API_KEY"
+    assert registry["profiles"]["mimo_v2_5"] == {
+        "source_api_key_env_var": "MIMO_API_KEY",
+        "source_base_url_env_var": "MIMO_BASE_URL",
+        "model": "mimo-v2.5",
+        "extra_body": {"chat_template_kwargs": {"enable_thinking": False}},
+        "max_output_tokens": 1024,
+    }

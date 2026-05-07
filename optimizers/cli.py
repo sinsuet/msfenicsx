@@ -16,7 +16,7 @@ from optimizers.artifacts import write_optimization_artifacts
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
 from optimizers.matrix.aggregate import aggregate_matrix
-from optimizers.matrix.config import build_s5_s7_512eval_matrix
+from optimizers.matrix.config import build_s5_s7_budgeted_matrix
 from optimizers.matrix.runner import run_matrix_block
 from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
 from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
@@ -300,7 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "run-benchmark-matrix":
         run_matrix_block(
-            build_s5_s7_512eval_matrix(),
+            build_s5_s7_budgeted_matrix(),
             matrix_root=Path(args.matrix_root),
             block_id=args.block_id,
             max_leaves=args.max_leaves,

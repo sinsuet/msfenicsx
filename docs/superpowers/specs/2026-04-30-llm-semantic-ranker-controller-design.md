@@ -23,11 +23,11 @@
 
 因此当前根因不是“LLM 不会读 semantic_task_panel”，而是 prior-to-action 机制把 LLM 的判断变成了轻微偏置的 random。研究问题被误改成“弱 LLM 概率偏置是否优于 union random”，这与目标不一致。
 
-## 对 `union` 的判断
+## 对 `union` 的论文口径
 
-`union` 看起来强，不是因为它有额外信息，而是因为它在 shared primitive operator substrate 上保持了广覆盖。S5 的 primitive operator pool 本身已经包含有效的结构化算子，随机 controller 在 20 x 10 小预算下天然获得了较好的探索宽度。
+`union` 在论文主线中作为 `nsga2_llm` 的 semantic-controller ablation baseline。它保留与 LLM 路线相同的 shared primitive operator substrate、NSGA-II backbone、repair path、cheap screening、PDE evaluation budget 和场景编码，但 operator choice 由固定随机策略完成。
 
-这不应被视为 baseline 做错或过强。论文边界要求 `union` 与 `llm` 使用同一候选支持集；如果削弱 `union`，比较会失去可信度。正确方向是提高 LLM action fidelity：让 LLM 的语义判断直接决定排序，并只用可解释的 deterministic constraints 防止重复垄断，而不是用高熵采样把判断平均掉。
+这个口径把 `union` 定义为去除 semantic task reasoning、LLM ranking、memory/reflection 和 policy guidance 后的控制层消融。后续比较应强调：`llm` 的收益来自在同一候选支持集上引入语义排序和阶段化控制，而不是来自不同的 representation、repair、cheap screening 或 PDE budget。
 
 ## 目标
 
@@ -48,9 +48,9 @@ selection_strategy: semantic_ranked_pick
 ## 非目标
 
 - 不修改 `raw` 路线。
-- 不修改 `union` 路线。
-- 不修改 `*_raw.yaml`、`*_union.yaml`。
-- 不修改 `optimizers/drivers/raw_driver.py`、`optimizers/drivers/union_driver.py`、`optimizers/operator_pool/random_controller.py`。
+- 保持 `union` 作为 fixed stochastic semantic-controller ablation 路线。
+- `*_raw.yaml` 和非 S5 的 `*_union.yaml` 不属于本设计的 LLM route 切换范围。
+- 不修改 `optimizers/drivers/raw_driver.py` 和 `optimizers/drivers/union_driver.py`。
 - 不修改 primitive operator registry 和 operator definitions。
 - 不重构现有 semantic task taxonomy。
 - 不重构 `semantic_task_panel`、adaptive sink gate、summary 逻辑。
@@ -269,7 +269,7 @@ semantic_ranked_pick:
 ## 验收标准
 
 - active LLM specs 使用 `semantic_ranked_pick`。
-- `raw` 和 `union` specs、drivers、random controller 没有 diff。
+- active LLM route 切换不改变 raw driver、union driver 或 PDE/evaluation budget；`union` 继续作为 fixed stochastic semantic-controller ablation。
 - 新 client parser 能解析 rank advice，拒绝 unknown operator，拒绝缺失 `risk` 或 `confidence` 的 ranked item。
 - picker 在无 caps 时选择 rank 1。
 - picker 在 rank 1 被 generation 或 rolling cap 禁止时选择下一个可用 rank，并记录 selected rank 和 cap reason。
@@ -282,6 +282,6 @@ semantic_ranked_pick:
 
 新路线不会承诺一定超过 `union`。它承诺恢复清晰实验问题：
 
-> 在相同 primitive operator support、相同 evaluation budget、相同 legality policy 下，LLM 对热布局状态的语义排序是否比 random uniform operator selection 更有效？
+> 在相同 primitive operator support、相同 evaluation budget、相同 legality policy 下，LLM 对热布局状态的语义排序是否比 fixed stochastic operator selection 更有效？
 
 如果新路线仍输给 `union`，结论会更有解释力：不是 sampler 稀释造成的假阴性，而是 LLM 排序本身、prompt evidence、operator taxonomy 或 small-budget exploration tradeoff 需要进一步研究。

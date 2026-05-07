@@ -39,7 +39,8 @@ def build_controller(controller_id: str, controller_parameters: dict[str, Any] |
     if controller_id == "random_uniform":
         from optimizers.operator_pool.random_controller import RandomUniformController
 
-        return RandomUniformController()
+        parameters = {} if controller_parameters is None else dict(controller_parameters)
+        return RandomUniformController(operator_weights=parameters.get("operator_weights"))
     if controller_id == "llm":
         from optimizers.operator_pool.llm_controller import LLMOperatorController
 

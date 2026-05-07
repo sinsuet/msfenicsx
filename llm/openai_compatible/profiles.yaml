@@ -37,3 +37,11 @@ profiles:
     source_base_url_env_var: GEMMA4_BASE_URL
     model: gemma-4
     status: placeholder
+  mimo_v2_5:
+    source_api_key_env_var: MIMO_API_KEY
+    source_base_url_env_var: MIMO_BASE_URL
+    model: mimo-v2.5
+    extra_body:
+      chat_template_kwargs:
+        enable_thinking: false
+    max_output_tokens: 1024

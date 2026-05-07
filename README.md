@@ -9,7 +9,7 @@
 
 ## Active Mainline
 
-The current active paper-facing mainline is `s5_aggressive15` through `s7_aggressive25`. The primary debugging template is `s5_aggressive15`; use it for controller-sensitive smoke runs unless a scale or density check explicitly needs S6/S7. `s2_staged` is retained as a historical controller-sensitive companion, not the active mainline. S5/S6/S7 share the same aggressive `raw / union / llm` ladder: `union` and `llm` use the same `primitive_structured` operator substrate and legality policy, while `llm` differs through its representation-layer controller only.
+The current active paper-facing mainline is `s5_aggressive15` through `s7_aggressive25`. The primary debugging template is `s5_aggressive15`; use it for controller-sensitive smoke runs unless a scale or density check explicitly needs S6/S7. `s2_staged` is retained as a historical controller-sensitive companion, not the active mainline. S5/S6/S7 share the same aggressive `raw / union / llm` ladder. `nsga2_union` is the fixed stochastic operator-selection baseline for semantic-controller ablation: it uses the same `primitive_structured` operator substrate, NSGA-II backbone, legality policy, repair path, cheap screening, and PDE evaluation budget as `nsga2_llm`, but chooses operators through a fixed stochastic policy. `nsga2_llm` adds the representation-layer semantic controller, ranked selection, memory/reflection, and policy guidance on the same candidate support.
 
 - one operating case
 - fixed named components per benchmark
@@ -21,6 +21,11 @@ The current active paper-facing mainline is `s5_aggressive15` through `s7_aggres
   - S5: 32 variables, `c01_x/c01_y ... c15_x/c15_y + sink_start/sink_end`
   - S6: 42 variables, `c01_x/c01_y ... c20_x/c20_y + sink_start/sink_end`
   - S7: 52 variables, `c01_x/c01_y ... c25_x/c25_y + sink_start/sink_end`
+- formal paper-facing expensive PDE evaluation budgets:
+  - S5: `40 × 32 = 1280` nominal evaluations
+  - S6: `56 × 36 = 2016` nominal evaluations
+  - S7: `64 × 40 = 2560` nominal evaluations
+- formal budgets are matched within each scenario across `raw`, `union`, `llm`, and raw-only algorithm comparisons
 - two objectives:
   - `summary.temperature_max`
   - `summary.temperature_gradient_rms`
@@ -36,9 +41,9 @@ The current active paper-facing mainline is `s5_aggressive15` through `s7_aggres
 - paper-facing S5/S6/S7 `raw`, `union`, `llm`, and raw-only algorithm-comparison specs use `projection_plus_local_restore`
 - paper-facing S5/S6/S7 `llm` specs use `semantic_ranked_pick` with the same controller parameters as the S5 debugging template
 - active optimizer modes:
-  - `nsga2_raw`
-  - `nsga2_union`
-  - `nsga2_llm`
+  - `nsga2_raw`: native-backbone baseline
+  - `nsga2_union`: fixed stochastic operator-selection semantic-controller ablation
+  - `nsga2_llm`: LLM semantic-controller route over the same operator support
 - additional raw-only algorithm comparison specs:
   - `spea2_raw`
   - `moead_raw`
@@ -382,6 +387,9 @@ DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1
 
 GEMMA4_API_KEY=...
 GEMMA4_BASE_URL=...
+
+MIMO_API_KEY=...
+MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
 ```
 
 The bundled model registry maps:
@@ -393,6 +401,7 @@ The bundled model registry maps:
 - `minimax_m2_5 -> QWEN_PROXY_* -> MiniMax-M2.5`
 - `deepseek_v4_flash -> DEEPSEEK_PROXY_* -> DeepSeek-V4-Flash`
 - `gemma4 -> GEMMA4_* -> gemma-4` as a placeholder until credentials and the exact model id are configured
+- `mimo_v2_5 -> MIMO_* -> mimo-v2.5` with `extra_body.chat_template_kwargs.enable_thinking=false` and `max_output_tokens=1024`
 
 Recommended LLM benchmark invocation:
 
@@ -443,6 +452,14 @@ This uses the bundled `default` profile, which points to `gpt-5.4`. To switch mo
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s5_aggressive15/llm-deepseek-v4-flash-smoke
+```
+
+```bash
+/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+  mimo_v2_5 \
+  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s5_aggressive15/llm-mimo-v25-smoke
 ```
 
 Direct `optimize-benchmark` execution for `s5_aggressive15_llm.yaml` still works. If `LLM_API_KEY`, `LLM_BASE_URL`, or `LLM_MODEL` are missing, it loads the bundled `default` profile (`gpt-5.4`) for the current process. `run-benchmark-suite` uses the same default profile for LLM mode unless `--llm-profile <profile>` is provided.

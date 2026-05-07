@@ -64,6 +64,19 @@ def load_provider_profile_overlay(
                 f"LLM profiles registry field 'profile {resolved_profile_id}.extra_body' must be a mapping."
             )
         overlay["LLM_EXTRA_BODY"] = json.dumps(dict(extra_body), sort_keys=True, separators=(",", ":"))
+    max_output_tokens = raw_profile.get("max_output_tokens")
+    if max_output_tokens is not None:
+        try:
+            resolved_max_output_tokens = int(max_output_tokens)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"LLM profiles registry field 'profile {resolved_profile_id}.max_output_tokens' must be a positive integer."
+            ) from exc
+        if resolved_max_output_tokens <= 0:
+            raise ValueError(
+                f"LLM profiles registry field 'profile {resolved_profile_id}.max_output_tokens' must be a positive integer."
+            )
+        overlay["LLM_MAX_OUTPUT_TOKENS"] = str(resolved_max_output_tokens)
     return overlay
 
 

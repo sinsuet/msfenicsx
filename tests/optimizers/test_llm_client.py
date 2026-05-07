@@ -343,6 +343,41 @@ def test_chat_compatible_json_http_request_omits_reasoning_when_unset(
     assert "reasoning" not in http_client.last_json
 
 
+def test_chat_compatible_json_http_request_uses_max_output_tokens_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MAX_OUTPUT_TOKENS", "2048")
+    http_client = _FakeHTTPClient(
+        _json_http_response(
+            {"selected_operator_id": "global_explore", "phase": "explore", "rationale": "widen search"}
+        )
+    )
+    client = OpenAICompatibleClient(
+        OpenAICompatibleConfig.from_dict(
+            {
+                "provider": "openai-compatible",
+                "model": "gpt-5.4",
+                "capability_profile": "chat_compatible_json",
+                "performance_profile": "balanced",
+                "api_key_env_var": "TEST_OPENAI_API_KEY",
+                "base_url": "https://rust.cat/v1",
+                "max_output_tokens": 96,
+            }
+        ),
+        http_client=http_client,
+    )
+
+    client.request_operator_decision(
+        system_prompt="system prompt",
+        user_prompt="user prompt",
+        candidate_operator_ids=("native_sbx_pm", "global_explore"),
+    )
+
+    assert http_client.last_json is not None
+    assert http_client.last_json["max_tokens"] == 2048
+
+
 def test_config_rejects_non_mapping_extra_body_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_EXTRA_BODY", '["enable_thinking", false]')
     config = OpenAICompatibleConfig.from_dict(
@@ -863,6 +898,8 @@ def test_matrix_llm_profiles_include_gpt_5_4_alias(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_PROXY_BASE_URL", "https://deepseek.example/v1")
     monkeypatch.setenv("GEMMA4_API_KEY", "gemma-key")
     monkeypatch.setenv("GEMMA4_BASE_URL", "http://127.0.0.1:8000/v1")
+    monkeypatch.setenv("MIMO_API_KEY", "mimo-key")
+    monkeypatch.setenv("MIMO_BASE_URL", "https://token-plan-cn.xiaomimimo.example/v1")
 
     expected_models = {
         "gpt_5_4": "gpt-5.4",
@@ -871,6 +908,7 @@ def test_matrix_llm_profiles_include_gpt_5_4_alias(monkeypatch):
         "minimax_m2_5": "MiniMax-M2.5",
         "deepseek_v4_flash": "DeepSeek-V4-Flash",
         "gemma4": "gemma-4",
+        "mimo_v2_5": "mimo-v2.5",
     }
 
     for profile_id, model in expected_models.items():

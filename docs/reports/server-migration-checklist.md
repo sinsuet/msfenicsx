@@ -8,7 +8,7 @@
 - 在仓库内使用 repo-local Git config，避免依赖服务器全局 `~/.gitconfig`。
 - 服务器上单独创建同名 conda 环境 `msfenicsx`。
 - 服务器上手工创建 `.env`，不要通过 Git、公共目录或聊天记录传递密钥。
-- 正式矩阵运行前先跑 focused tests 和 `M0_pilot_512eval`。
+- 正式矩阵运行前先跑 focused tests 和 `M0_pilot_budgeted`。
 - 不把 `scenario_runs/`、`.env`、cache 和临时输出纳入 Git。
 
 ## 1. Clone 代码
@@ -138,6 +138,8 @@ DEEPSEEK_PROXY_API_KEY=...
 DEEPSEEK_PROXY_BASE_URL=...
 GEMMA4_API_KEY=...
 GEMMA4_BASE_URL=...
+MIMO_API_KEY=...
+MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
 ```
 
 确认 `.env` 不会被 Git 跟踪：
@@ -183,29 +185,31 @@ pytest -v \
 
 ## 7. M0 pilot
 
-正式 S5-S7 512eval 矩阵前，先跑 `M0_pilot_512eval`。pilot 应检查：
+正式 S5-S7 budgeted 矩阵前，先跑 `M0_pilot_budgeted`。正式预算为 S5 `40×32=1280`、S6 `56×36=2016`、S7 `64×40=2560` nominal evaluations。pilot 应检查：
 
 - spec snapshots 是否正确写入 `replicate_seed`、`benchmark_source.seed` 和 `algorithm.seed`。
 - profile resolution 是否正确，特别是 `gpt_5_4`、`default` 和 `gpt`。
 - trace output、rendering 和 aggregation 是否完整。
 - CPU utilization、memory、disk IO wait、wall time、timeout rate、PDE failures、LLM retry/fallback counts 和 render failures。
 - Gemma4 本地服务 latency、timeout、fallback、显存/内存压力是否稳定。
+- MiMo 远程 OpenAI-compatible endpoint latency、retry/fallback、credit burn 和非高峰期额度消耗是否稳定。
 
 ## 8. 正式矩阵运行顺序
 
 建议按 block 分批运行：
 
 ```text
-M1_raw_backbone_512eval
-M2_nsga2_union_512eval
-M3a_llm_gpt_5_4_512eval
-M3b_llm_qwen3_6_plus_512eval
-M3c_llm_glm_5_512eval
-M3d_llm_minimax_m2_5_512eval
-M3e_llm_deepseek_v4_flash_512eval
-M3f_llm_gemma4_512eval
-M4_rerun_failed_512eval
-M5_aggregate_visualize_512eval
+M1_raw_backbone_budgeted
+M2_nsga2_union_budgeted
+M3a_llm_gpt_5_4_budgeted
+M3b_llm_qwen3_6_plus_budgeted
+M3c_llm_glm_5_budgeted
+M3d_llm_minimax_m2_5_budgeted
+M3e_llm_deepseek_v4_flash_budgeted
+M3f_llm_gemma4_budgeted
+M3g_llm_mimo_v2_5_budgeted
+M4_rerun_failed_budgeted
+M5_aggregate_visualize_budgeted
 ```
 
 不要同时运行多个高 worker blocks，除非确认全局 worker budget 仍在服务器安全范围内。

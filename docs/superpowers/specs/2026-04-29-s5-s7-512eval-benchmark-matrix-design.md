@@ -1,24 +1,26 @@
-# S5-S7 512-Evaluation Benchmark 矩阵设计
+# S5-S7 Formal Budgeted Benchmark 矩阵设计
 
 ## 目标
 
 本设计定义在 800 核服务器上验证论文主线 S5-S7 aggressive thermal-layout 场景的大规模 benchmark 矩阵。该 benchmark 拆分回答三个问题：
 
 1. 与 SPEA2、MOEA/D 相比，NSGA-II 是否是合理的 raw backbone。
-2. 在匹配 evaluation budget 下，NSGA-II 主线是否从 raw 到 union 到 LLM-guided control 逐步提升。
-3. LLM controller 在六个 provider profile 上是否稳定。
+2. 在匹配 evaluation budget 下，LLM semantic-controller route 是否相对 raw backbone 和 fixed stochastic union ablation 取得提升。
+3. LLM controller 在七个 provider profile 上是否稳定。
 
 本设计同时规定矩阵拆分、seed 语义、资源调度、失败处理，以及 matrix-level 可视化和统计报告口径。
 
-## 固定预算和 Seed
+## 正式预算和 Seed
 
-每个正式 optimization run 使用同一个 nominal budget：
+正式矩阵使用 scenario-scaled expensive PDE evaluation budget。该口径承认 PDE-constrained thermal-layout optimization 的单次 evaluation 成本较高，因此采用最低可信、可复现实验预算，而不是 cheap benchmark 中常见的充分收敛预算。
 
 ```text
-population_size = 32
-num_generations = 16
-nominal_budget = 512 evaluations/run
+S5 s5_aggressive15: population_size = 40, num_generations = 32, nominal_budget = 1280
+S6 s6_aggressive20: population_size = 56, num_generations = 36, nominal_budget = 2016
+S7 s7_aggressive25: population_size = 64, num_generations = 40, nominal_budget = 2560
 ```
+
+同一 scenario 内，`raw`、`union`、`llm` 和 raw-only algorithm-comparison runs 必须使用相同 formal budget，以保证方法比较是 matched-budget comparison。
 
 benchmark 使用五个 unified replicate seeds。每个 replicate seed 同时定义一个 concrete thermal case 和一条 optimizer random stream，但 optimizer stream 使用确定性 offset 以避免两个 RNG 入口使用完全相同的整数：
 
@@ -62,7 +64,7 @@ run 数量：
 
 S5/S6/S7 需要在现有 NSGA-II raw spec 旁边新增正式的 SPEA2 和 MOEA/D raw YAML 文件，不只依赖动态 backbone override。
 
-### NSGA-II Union 主线
+### NSGA-II Union 语义控制消融
 
 该 block 将 NSGA-II union 与共享的 NSGA-II raw 结果比较：
 
@@ -71,10 +73,11 @@ S5/S6/S7 需要在现有 NSGA-II raw spec 旁边新增正式的 SPEA2 和 MOEA/D
 ```
 
 NSGA-II raw 直接复用 raw backbone baseline 中的结果，不重复运行。
+这里的 `nsga2_union` 是 `nsga2_llm` 的 semantic-controller ablation baseline：它与 LLM 路线共享 `primitive_structured` operator substrate、NSGA-II backbone、repair path、cheap screening、PDE evaluation budget 和场景编码，但 operator choice 由固定随机策略完成，不使用 semantic task reasoning、LLM ranking、memory/reflection 或 policy guidance。
 
 ### NSGA-II LLM Profile 矩阵
 
-LLM block 使用六个统一下划线命名的 profile IDs：
+LLM block 使用七个统一下划线命名的 profile IDs：
 
 ```text
 gpt_5_4
@@ -83,12 +86,13 @@ glm_5
 minimax_m2_5
 deepseek_v4_flash
 gemma4
+mimo_v2_5
 ```
 
 run 数量：
 
 ```text
-3 scenarios × 6 LLM profiles × 5 replicate seeds = 90 runs
+3 scenarios × 7 LLM profiles × 5 replicate seeds = 105 runs
 ```
 
 共享 NSGA-II raw 后的正式 run 总数：
@@ -98,15 +102,15 @@ NSGA-II raw      15
 SPEA2 raw        15
 MOEA/D raw       15
 NSGA-II union    15
-NSGA-II llm      90
+NSGA-II llm     105
 -------------------
-total           150 runs
+total           165 runs
 ```
 
 总 nominal evaluations：
 
 ```text
-150 × 512 = 76,800 evaluations
+55 × (1280 + 2016 + 2560) = 322,080 evaluations
 ```
 
 ## 矩阵拆分
@@ -114,17 +118,18 @@ total           150 runs
 完整矩阵必须拆成更小、可控、可恢复的 blocks：
 
 ```text
-M0_pilot_512eval                  不进入正式论文统计
-M1_raw_backbone_512eval           45 runs
-M2_nsga2_union_512eval            15 runs
-M3a_llm_gpt_5_4_512eval           15 runs
-M3b_llm_qwen3_6_plus_512eval      15 runs
-M3c_llm_glm_5_512eval             15 runs
-M3d_llm_minimax_m2_5_512eval      15 runs
-M3e_llm_deepseek_v4_flash_512eval 15 runs
-M3f_llm_gemma4_512eval            15 runs
-M4_rerun_failed_512eval           dynamic
-M5_aggregate_visualize_512eval    不运行 optimizer
+M0_pilot_budgeted                  不进入正式论文统计
+M1_raw_backbone_budgeted           45 runs
+M2_nsga2_union_budgeted            15 runs
+M3a_llm_gpt_5_4_budgeted           15 runs
+M3b_llm_qwen3_6_plus_budgeted      15 runs
+M3c_llm_glm_5_budgeted             15 runs
+M3d_llm_minimax_m2_5_budgeted      15 runs
+M3e_llm_deepseek_v4_flash_budgeted 15 runs
+M3f_llm_gemma4_budgeted            15 runs
+M3g_llm_mimo_v2_5_budgeted         15 runs
+M4_rerun_failed_budgeted           dynamic
+M5_aggregate_visualize_budgeted    不运行 optimizer
 ```
 
 M0 只用于验证和压力测试。它验证 spec snapshots、profile resolution、trace output、rendering、aggregation 和服务器资源表现。M0 结果不纳入正式论文统计。
@@ -211,7 +216,7 @@ gemma4:
   may scale to 20 after pilot validation
 ```
 
-raw cap 对 800 核服务器来说是高利用率且中等偏激进的设置。union cap 较均衡。external LLM cap 对 CPU 保守，但对 provider rate limit 可能仍偏激进。Gemma4 必须单独处理，因为本地 inference service 可能成为瓶颈，而不是 CPU。Gemma4 应从 4-8 concurrent runs 起步，只有在 latency、timeout rate、fallback count 和内存/GPU 压力稳定时才扩展到 20。
+raw cap 对 800 核服务器来说是高利用率且中等偏激进的设置。union cap 较均衡。external LLM cap 对 CPU 保守，但对 provider rate limit 可能仍偏激进。`mimo_v2_5` 走 external LLM cap，并在 pilot 中单独观察 latency、retry/fallback 和 credit burn。Gemma4 必须单独处理，因为本地 inference service 可能成为瓶颈，而不是 CPU。Gemma4 应从 4-8 concurrent runs 起步，只有在 latency、timeout rate、fallback count 和内存/GPU 压力稳定时才扩展到 20。
 
 scheduler 必须执行全局 worker budget 控制。除非估算 worker 总数仍低于选定服务器预算，否则不能同时运行多个高 worker blocks。
 
@@ -273,10 +278,10 @@ feasible_rate
 推荐比较：
 
 - Raw backbone：NSGA-II raw vs SPEA2 raw vs MOEA/D raw。
-- NSGA-II ladder：NSGA-II raw vs NSGA-II union vs NSGA-II LLM。
-- LLM profiles：六模型 leaderboard，以 final hypervolume 作为 primary rank，best feasible temperature 作为 secondary rank，feasible/failure rates 作为鲁棒性限定指标。
+- NSGA-II ladder：NSGA-II raw vs fixed stochastic NSGA-II union ablation vs NSGA-II LLM semantic controller。
+- LLM profiles：七模型 leaderboard，以 final hypervolume 作为 primary rank，best feasible temperature 作为 secondary rank，feasible/failure rates 作为鲁棒性限定指标。
 
-MOEA/D 可能因为 reference-direction 行为导致实际 population/evaluation 数量偏离 nominal 32×16 budget。这是允许的，但必须记录 `actual_evaluations`，并在分析中标记 budget deviation。
+MOEA/D 可能因为 reference-direction 行为导致实际 population/evaluation 数量偏离 scenario nominal budget。这是允许的，但必须记录 `actual_evaluations`，并在分析中标记 budget deviation。
 
 ## Matrix-Level 可视化
 

@@ -544,7 +544,7 @@ class OpenAICompatibleClient:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "max_output_tokens": self.config.max_output_tokens,
+            "max_output_tokens": self.config.resolve_max_output_tokens(self._environ),
             "text": {
                 "format": {
                     "type": "json_schema",
@@ -608,7 +608,7 @@ class OpenAICompatibleClient:
                 {"role": "user", "content": user_prompt},
             ],
             "response_format": {"type": "json_object"},
-            "max_tokens": self.config.max_output_tokens,
+            "max_tokens": self.config.resolve_max_output_tokens(self._environ),
         }
         if self.config.temperature is not None:
             request_payload["temperature"] = self.config.temperature
@@ -648,7 +648,7 @@ class OpenAICompatibleClient:
                 {"role": "user", "content": user_prompt},
             ],
             "response_format": {"type": "json_object"},
-            "max_tokens": self.config.max_output_tokens,
+            "max_tokens": self.config.resolve_max_output_tokens(self._environ),
         }
         if self.config.temperature is not None:
             request_payload["temperature"] = self.config.temperature

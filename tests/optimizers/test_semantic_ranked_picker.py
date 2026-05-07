@@ -182,7 +182,7 @@ def test_ranked_picker_uses_lower_risk_for_low_confidence_near_tie() -> None:
     assert result.override_reason == "low_confidence_near_tie_lower_risk"
 
 
-def test_ranked_picker_suppresses_empirically_risky_top_rank() -> None:
+def test_ranked_picker_keeps_high_confidence_top_rank_despite_empirical_outcome_risk() -> None:
     result = pick_operator_from_semantic_ranking(
         candidate_operator_ids=("vector_sbx_pm", "component_jitter_1"),
         ranked_operators=(
@@ -222,13 +222,14 @@ def test_ranked_picker_suppresses_empirically_risky_top_rank() -> None:
         config=SemanticRankedPickConfig(),
     )
 
-    assert result.selected_operator_id == "component_jitter_1"
-    assert result.selected_rank == 2
-    assert result.cap_reasons["vector_sbx_pm"] == "operator_outcome_risk"
-    assert result.override_reason == "rank_1_suppressed"
+    assert result.selected_operator_id == "vector_sbx_pm"
+    assert result.selected_rank == 1
+    assert "vector_sbx_pm" not in result.suppressed_operator_ids
+    assert "vector_sbx_pm" not in result.cap_reasons
+    assert result.override_reason == ""
 
 
-def test_ranked_picker_suppresses_empirically_risky_top_rank_before_post_feasible() -> None:
+def test_ranked_picker_keeps_high_confidence_top_rank_despite_prefeasible_outcome_risk() -> None:
     result = pick_operator_from_semantic_ranking(
         candidate_operator_ids=("sink_resize", "component_jitter_1"),
         ranked_operators=(
@@ -268,11 +269,14 @@ def test_ranked_picker_suppresses_empirically_risky_top_rank_before_post_feasibl
         config=SemanticRankedPickConfig(),
     )
 
-    assert result.selected_operator_id == "component_jitter_1"
-    assert result.cap_reasons["sink_resize"] == "operator_outcome_risk"
+    assert result.selected_operator_id == "sink_resize"
+    assert result.selected_rank == 1
+    assert "sink_resize" not in result.suppressed_operator_ids
+    assert "sink_resize" not in result.cap_reasons
+    assert result.override_reason == ""
 
 
-def test_ranked_picker_suppresses_duplicate_prone_top_rank() -> None:
+def test_ranked_picker_keeps_duplicate_prone_top_rank_for_hv_first_search() -> None:
     result = pick_operator_from_semantic_ranking(
         candidate_operator_ids=("sink_resize", "component_jitter_1"),
         ranked_operators=(
@@ -312,12 +316,14 @@ def test_ranked_picker_suppresses_duplicate_prone_top_rank() -> None:
         config=SemanticRankedPickConfig(),
     )
 
-    assert result.selected_operator_id == "component_jitter_1"
-    assert result.cap_reasons["sink_resize"] == "operator_duplicate_risk"
-    assert result.override_reason == "rank_1_suppressed"
+    assert result.selected_operator_id == "sink_resize"
+    assert result.selected_rank == 1
+    assert "sink_resize" not in result.suppressed_operator_ids
+    assert "sink_resize" not in result.cap_reasons
+    assert result.override_reason == ""
 
 
-def test_ranked_picker_suppresses_moderate_duplicate_prone_top_rank() -> None:
+def test_ranked_picker_keeps_moderate_duplicate_prone_top_rank_for_hv_first_search() -> None:
     result = pick_operator_from_semantic_ranking(
         candidate_operator_ids=("sink_resize", "component_jitter_1"),
         ranked_operators=(
@@ -357,8 +363,11 @@ def test_ranked_picker_suppresses_moderate_duplicate_prone_top_rank() -> None:
         config=SemanticRankedPickConfig(),
     )
 
-    assert result.selected_operator_id == "component_jitter_1"
-    assert result.cap_reasons["sink_resize"] == "operator_duplicate_risk"
+    assert result.selected_operator_id == "sink_resize"
+    assert result.selected_rank == 1
+    assert "sink_resize" not in result.suppressed_operator_ids
+    assert "sink_resize" not in result.cap_reasons
+    assert result.override_reason == ""
 
 
 def test_ranked_picker_records_missing_candidates_and_appends_them_to_tail() -> None:

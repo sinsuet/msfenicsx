@@ -1,6 +1,7 @@
 # LLM Semantic Prior Controller 设计
 
 > Status: superseded by `2026-04-30-llm-semantic-ranker-controller-design.md`; keep this document as historical diagnosis for the S5 controller loop.
+> Current paper-facing wording: `nsga2_union` is the fixed stochastic operator-selection baseline for semantic-controller ablation. It shares the primitive operator substrate, NSGA-II backbone, repair path, cheap screening, PDE budget, and scenario encoding with `nsga2_llm`, while removing semantic task reasoning, LLM ranking, memory/reflection, and policy guidance.
 
 ## 背景
 
@@ -16,7 +17,7 @@
 这个设计保留 `raw` 和 `union` 的主线干净：
 
 - `raw` 不动。
-- `union` 不动，仍是 `random_uniform` over shared primitive operator pool。
+- `union` 作为 fixed stochastic operator-selection semantic-controller ablation，不引入 semantic task reasoning、LLM ranking、memory/reflection 或 policy guidance。
 - 新机制只进入 `operator_control.controller: llm` 的 LLM 路径。
 - 本轮不实现 `llm_direct` 或 `uniform_prior_sampler` 额外 baseline。论文当前比较仍先保持 `raw / union / new_llm`。
 
@@ -197,7 +198,7 @@ semantic_prior_sampler:
   risk_penalty_weight: 0.50
 ```
 
-这些参数只进入 LLM controller，不影响 `union` 的 `random_uniform`。
+这些参数只进入 LLM controller，不影响 `union` 的 fixed stochastic operator-selection baseline。
 
 ### 3. Prompt 改造
 

@@ -14,7 +14,7 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 - The current active paper-facing mainline is `s5_aggressive15` through `s7_aggressive25`.
 - The primary debugging template is `s5_aggressive15`; use it for controller-sensitive smoke work unless a scale or density check explicitly needs S6/S7.
 - `s2_staged` is retained as a historical controller-sensitive companion benchmark, not the active mainline.
-- S5/S6/S7 use the shared `primitive_structured` operator substrate for `union` and `llm` and share the same `raw / union / llm` ladder.
+- S5/S6/S7 use the shared `primitive_structured` operator substrate for `union` and `llm` and share the same `raw / union / llm` ladder; `union` is the fixed stochastic operator-selection baseline for semantic-controller ablation.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
   - `nsga2_union`
@@ -24,7 +24,7 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
   - `moead_raw`
 - The active optimizer ladder uses a matched paper-facing substrate:
   - `raw`: native backbone + `projection_plus_local_restore`
-  - `union`: `primitive_structured` registry + random controller + `projection_plus_local_restore`
+  - `union`: `primitive_structured` registry + fixed stochastic operator-selection controller + `projection_plus_local_restore`
   - `llm`: same `primitive_structured` registry + LLM representation-layer controller + same `projection_plus_local_restore`
 - The active platform is organized around:
   - `core/`
@@ -142,6 +142,12 @@ The fixed benchmark decisions are:
   - S5: 32 decision variables
   - S6: 42 decision variables
   - S7: 52 decision variables
+- formal paper-facing expensive PDE evaluation budgets:
+  - S5: `population_size=40`, `num_generations=32`, nominal budget `1280`
+  - S6: `population_size=56`, `num_generations=36`, nominal budget `2016`
+  - S7: `population_size=64`, `num_generations=40`, nominal budget `2560`
+- these budgets are intentionally budget-limited for expensive PDE-constrained optimization, not cheap benchmark convergence budgets
+- within each scenario, keep the same formal budget across `raw`, `union`, `llm`, and raw-only algorithm-comparison runs
 - objectives:
   - `summary.temperature_max`
   - `summary.temperature_gradient_rms`
@@ -216,8 +222,8 @@ Preferred commands:
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s7_aggressive25_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s7_aggressive25/spea2-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s7_aggressive25_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s7_aggressive25/moead-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs` (auto-writes suite-owned `comparisons/` when 2+ modes participate)
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-matrix --matrix-root ./scenario_runs/matrix_512eval_s5_s7 --block-id M1_raw_backbone_512eval`
-- `conda run -n msfenicsx python -m optimizers.cli aggregate-benchmark-matrix --run-index ./scenario_runs/matrix_512eval_s5_s7/run_index.csv --output-root ./scenario_runs/matrix_512eval_s5_s7/aggregate`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-matrix --matrix-root ./scenario_runs/matrix_budgeted_s5_s7 --block-id M1_raw_backbone_budgeted`
+- `conda run -n msfenicsx python -m optimizers.cli aggregate-benchmark-matrix --run-index ./scenario_runs/matrix_budgeted_s5_s7/run_index.csv --output-root ./scenario_runs/matrix_budgeted_s5_s7/aggregate`
 - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --request-trace ./scenario_runs/s5_aggressive15/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl --output ./scenario_runs/s5_aggressive15/<run_id>/llm/reports/<summary>.json`
 - `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s5_aggressive15/<run_id>/llm/seeds/seed-11/traces/controller_trace.jsonl --output ./scenario_runs/s5_aggressive15/<run_id>/llm/reports/<summary>.json`
 - `conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s5_aggressive15/<run_id> [--hires]` (required follow-up for every optimizer run; accepts a suite root, a mode root, or a concrete single-mode seed run root)
@@ -231,7 +237,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 
 - `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to `gpt-5.4`
 - `run-benchmark-suite` uses the same `default` profile for LLM mode unless `--llm-profile <profile>` is provided
-- switch models explicitly with profile names such as `run-llm qwen3_6_plus ...`, `run-llm gpt ...`, `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, or `run-llm deepseek_v4_flash ...`
+- switch models explicitly with profile names such as `run-llm qwen3_6_plus ...`, `run-llm gpt ...`, `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, `run-llm deepseek_v4_flash ...`, or `run-llm mimo_v2_5 ...`
 - model profile declarations live in `llm/openai_compatible/profiles.yaml`
 - bundled model registry maps:
   - `default -> GPT_PROXY_API_KEY / GPT_PROXY_BASE_URL -> gpt-5.4`
@@ -241,6 +247,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `minimax_m2_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> MiniMax-M2.5`
   - `deepseek_v4_flash -> DEEPSEEK_PROXY_API_KEY / DEEPSEEK_PROXY_BASE_URL -> DeepSeek-V4-Flash`
   - `gemma4 -> GEMMA4_API_KEY / GEMMA4_BASE_URL -> gemma-4` (placeholder until credentials and exact model id are configured)
+  - `mimo_v2_5 -> MIMO_API_KEY / MIMO_BASE_URL -> mimo-v2.5` with `extra_body.chat_template_kwargs.enable_thinking=false` and `max_output_tokens=1024`
 - the active `scenarios/optimization/s5_aggressive15_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
   - `LLM_BASE_URL`
@@ -254,6 +261,8 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1`
   - `GEMMA4_API_KEY`
   - `GEMMA4_BASE_URL`
+  - `MIMO_API_KEY`
+  - `MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1`
 
 ## Engineering Guardrails
 
@@ -345,7 +354,7 @@ Current maintained test areas are:
 - Scientific or performance claims must identify the relevant template, case, solver profile, seed, and runtime path or artifact bundle.
 - For optimization claims, identify whether evidence comes from one representative point or the Pareto set.
 - Keep the decision encoding, evaluation spec, repair/canonicalization path, legality policy, operator pool, and expensive-evaluation budget matched across paper-facing `union` / `llm` comparisons unless a document explicitly defines a different experiment class.
-- Describe `nsga2_union` and `nsga2_llm` as using the same shared primitive operator substrate; `llm` differs only through its representation-layer controller state, reflection, memory, and soft policy guidance over the same candidate support.
+- Describe `nsga2_union` as the semantic-controller ablation baseline: it uses the same shared primitive operator substrate, NSGA-II backbone, repair path, cheap screening, and PDE budget as `nsga2_llm`, but uses a fixed stochastic operator policy without semantic task reasoning, LLM ranking, memory/reflection, or policy guidance. Describe `nsga2_llm` as adding those representation-layer semantic-control mechanisms over the same candidate support.
 - If something is not validated yet, label it as a hypothesis rather than a confirmed result.
 - Keep infeasible cases, failed solves, regressions, and anomalies visible in analysis.
 - Failure reasons and dominant violations are valid evidence and should remain visible in artifacts when relevant.

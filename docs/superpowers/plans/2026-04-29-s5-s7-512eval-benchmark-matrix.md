@@ -4,9 +4,13 @@
 
 **Goal:** 实现 S5-S7 512-evaluation 大规模 benchmark 矩阵所需的规格文件、matrix runner、失败补跑、统计聚合、可视化和代表 run 比较产物；正式矩阵使用 5 个 unified replicate seeds，`algorithm.seed = replicate_seed + 1000`。
 
+**2026-05-07 状态更新:** 原 `512eval` 口径已被正式 paper-facing expensive PDE budget 取代。当前正式矩阵 ID 为 `s5_s7_budgeted`，block suffix 为 `_budgeted`，预算为 S5 `40×32=1280`、S6 `56×36=2016`、S7 `64×40=2560` nominal evaluations。本文档以下内容保留为历史实现计划快照；当前实现状态以代码、`AGENTS.md`、`CLAUDE.md`、`README.md` 和矩阵设计 spec 为准。
+
 **Architecture:** 新增 `optimizers/matrix/` 作为矩阵层，专门负责任务展开、spec snapshot、run index、聚合、figure rendering 和 representative selection；现有 `optimizers.cli optimize-benchmark`、driver、artifact writer、render-assets 和 compare-runs 继续作为 leaf run 执行与产物生成层。场景 YAML 保持手写输入职责，新增 SPEA2/MOEA-D raw specs 只声明配置，不放业务逻辑。
 
 **Tech Stack:** Python 3.12、PyYAML、pandas、numpy、matplotlib/seaborn、pymoo、pytest、现有 `msfenicsx` conda 环境。
+
+**2026-05-01 状态更新:** 矩阵已扩展纳入 Xiaomi MiMo OpenAI-compatible profile `mimo_v2_5`，模型 ID 为 `mimo-v2.5`，凭据环境变量为 `MIMO_API_KEY / MIMO_BASE_URL`，Base URL 为 `https://token-plan-cn.xiaomimimo.com/v1`，并通过 `extra_body.chat_template_kwargs.enable_thinking=false` 关闭推理、通过 `max_output_tokens=1024` 提高 MiMo 专属输出预算。正式 LLM profile block 从 6 个扩展到 7 个，新增 `M3g_llm_mimo_v2_5_512eval`；总 run 数从 150 调整为 165，总 nominal evaluations 从 76,800 调整为 84,480。下方早期实现步骤中的 150-run 片段保留为原计划快照，当前实现状态以代码、`AGENTS.md`、`README.md` 和矩阵设计 spec 为准。
 
 ---
 

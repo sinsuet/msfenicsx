@@ -1412,7 +1412,7 @@ def test_optimizer_cli_run_benchmark_matrix_forwards_block(tmp_path, monkeypatch
             "--matrix-root",
             str(tmp_path),
             "--block-id",
-            "M2_nsga2_union_512eval",
+            "M2_nsga2_union_budgeted",
             "--max-leaves",
             "2",
         ]
@@ -1420,9 +1420,9 @@ def test_optimizer_cli_run_benchmark_matrix_forwards_block(tmp_path, monkeypatch
 
     assert result == 0
     assert captured == {
-        "matrix_id": "s5_s7_512eval",
+        "matrix_id": "s5_s7_budgeted",
         "matrix_root": str(tmp_path),
-        "block_id": "M2_nsga2_union_512eval",
+        "block_id": "M2_nsga2_union_budgeted",
         "max_leaves": 2,
     }
 
