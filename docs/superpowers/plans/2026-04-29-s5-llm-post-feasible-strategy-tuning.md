@@ -88,8 +88,8 @@
 运行：
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_prompt_projection.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_prompt_projection.py
 ```
 
 若失败，按失败用例最小修正；不要跑全仓，除非明确需要。

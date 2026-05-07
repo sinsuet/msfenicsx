@@ -132,7 +132,7 @@ S5 GPT 20×10 run `scenario_runs/s5_aggressive15/0429_2007__raw_union_llm` 证�
 先只跑聚焦测试：
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_prompt_projection.py tests/optimizers/test_llm_controller.py tests/optimizers/test_llm_decision_summary.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_prompt_projection.py tests/optimizers/test_llm_controller.py tests/optimizers/test_llm_decision_summary.py
 ```
 
 如失败，按 root cause 修复，不跳过测试，不扩大到全仓。聚焦通过后再建议用户运行 S5 10×5 smoke 检查 semantic task distribution；未经用户确认不主动消耗 GPT 20×10 预算。

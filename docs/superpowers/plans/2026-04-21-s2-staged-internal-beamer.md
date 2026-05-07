@@ -68,9 +68,9 @@ Run:
 
 ```bash
 mkdir -p \
-  /home/hymn/msfenicsx/paper/latex/sections/beamer_zh \
-  /home/hymn/msfenicsx/paper/latex/figures/beamer_internal \
-  /home/hymn/msfenicsx/paper/latex/build/beamer_zh
+  ./paper/latex/sections/beamer_zh \
+  ./paper/latex/figures/beamer_internal \
+  ./paper/latex/build/beamer_zh
 ```
 
 Expected:
@@ -202,7 +202,7 @@ Create `paper/latex/main_beamer_zh.tex` with this exact content:
 Run:
 
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
+cd "./paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
 ```
 
 Expected:
@@ -214,7 +214,7 @@ Expected:
 Run:
 
 ```bash
-ls -la /home/hymn/msfenicsx/paper/latex/main_beamer_zh.tex /home/hymn/msfenicsx/paper/latex/sections/beamer_zh /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/README.txt
+ls -la ./paper/latex/main_beamer_zh.tex ./paper/latex/sections/beamer_zh ./paper/latex/figures/beamer_internal/README.txt
 ```
 
 Expected:
@@ -249,11 +249,11 @@ Run:
 
 ```bash
 cp \
-  /home/hymn/msfenicsx/paper/latex/build/tikzz/fixed_boundary_modes_a1.pdf \
-  /home/hymn/msfenicsx/paper/latex/build/tikzz/inline_control_loop_a1.pdf \
-  /home/hymn/msfenicsx/paper/latex/build/tikzz/taxonomy_recovery_map_a1.pdf \
-  /home/hymn/msfenicsx/paper/latex/build/tikzz/evidence_asset_map_a1.pdf \
-  /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/
+  ./paper/latex/build/tikzz/fixed_boundary_modes_a1.pdf \
+  ./paper/latex/build/tikzz/inline_control_loop_a1.pdf \
+  ./paper/latex/build/tikzz/taxonomy_recovery_map_a1.pdf \
+  ./paper/latex/build/tikzz/evidence_asset_map_a1.pdf \
+  ./paper/latex/figures/beamer_internal/
 ```
 
 Expected:
@@ -265,12 +265,12 @@ Run:
 
 ```bash
 cp \
-  /home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/summary_overview.png \
-  /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/summary_overview.png
+  ./scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/summary_overview.png \
+  ./paper/latex/figures/beamer_internal/summary_overview.png
 
 cp \
-  /home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/progress_dashboard.png \
-  /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/progress_dashboard.png
+  ./scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/progress_dashboard.png \
+  ./paper/latex/figures/beamer_internal/progress_dashboard.png
 ```
 
 Expected:
@@ -282,17 +282,17 @@ Expected:
 Run:
 
 ```bash
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11/figures/layout_final.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/layout_raw.png
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11/figures/layout_final.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/layout_union.png
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0421_0207__llm/figures/layout_final.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/layout_llm.png
+cp ./scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11/figures/layout_final.png ./paper/latex/figures/beamer_internal/layout_raw.png
+cp ./scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11/figures/layout_final.png ./paper/latex/figures/beamer_internal/layout_union.png
+cp ./scenario_runs/s2_staged/0421_0207__llm/figures/layout_final.png ./paper/latex/figures/beamer_internal/layout_llm.png
 
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11/figures/temperature_field_knee-candidate.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/temp_raw.png
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11/figures/temperature_field_knee-candidate.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/temp_union.png
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0421_0207__llm/figures/temperature_field_min-peak-temperature.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/temp_llm.png
+cp ./scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11/figures/temperature_field_knee-candidate.png ./paper/latex/figures/beamer_internal/temp_raw.png
+cp ./scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11/figures/temperature_field_knee-candidate.png ./paper/latex/figures/beamer_internal/temp_union.png
+cp ./scenario_runs/s2_staged/0421_0207__llm/figures/temperature_field_min-peak-temperature.png ./paper/latex/figures/beamer_internal/temp_llm.png
 
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11/figures/gradient_field_knee-candidate.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/grad_raw.png
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11/figures/gradient_field_knee-candidate.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/grad_union.png
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0421_0207__llm/figures/gradient_field_min-peak-temperature.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/grad_llm.png
+cp ./scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11/figures/gradient_field_knee-candidate.png ./paper/latex/figures/beamer_internal/grad_raw.png
+cp ./scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11/figures/gradient_field_knee-candidate.png ./paper/latex/figures/beamer_internal/grad_union.png
+cp ./scenario_runs/s2_staged/0421_0207__llm/figures/gradient_field_min-peak-temperature.png ./paper/latex/figures/beamer_internal/grad_llm.png
 ```
 
 Expected:
@@ -305,8 +305,8 @@ Expected:
 Run:
 
 ```bash
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0421_0207__llm/figures/objective_progress.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/objective_progress.png
-cp /home/hymn/msfenicsx/scenario_runs/s2_staged/0421_0207__llm/figures/operator_phase_heatmap.png /home/hymn/msfenicsx/paper/latex/figures/beamer_internal/operator_phase_heatmap.png
+cp ./scenario_runs/s2_staged/0421_0207__llm/figures/objective_progress.png ./paper/latex/figures/beamer_internal/objective_progress.png
+cp ./scenario_runs/s2_staged/0421_0207__llm/figures/operator_phase_heatmap.png ./paper/latex/figures/beamer_internal/operator_phase_heatmap.png
 ```
 
 Expected:
@@ -318,7 +318,7 @@ Expected:
 Run:
 
 ```bash
-ls -1 /home/hymn/msfenicsx/paper/latex/figures/beamer_internal
+ls -1 ./paper/latex/figures/beamer_internal
 ```
 
 Expected output contains exactly these figure filenames:
@@ -349,7 +349,7 @@ operator_phase_heatmap.png
 Run:
 
 ```bash
-ls -la /home/hymn/msfenicsx/paper/latex/figures/beamer_internal
+ls -la ./paper/latex/figures/beamer_internal
 ```
 
 Expected:
@@ -534,7 +534,7 @@ Overwrite `paper/latex/sections/beamer_zh/02_method_and_mechanism.tex` with this
 Run:
 
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
+cd "./paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
 ```
 
 Expected:
@@ -547,9 +547,9 @@ Run:
 
 ```bash
 ls -la \
-  /home/hymn/msfenicsx/paper/latex/sections/beamer_zh/00_title_and_questions.tex \
-  /home/hymn/msfenicsx/paper/latex/sections/beamer_zh/01_boundary_and_problem.tex \
-  /home/hymn/msfenicsx/paper/latex/sections/beamer_zh/02_method_and_mechanism.tex
+  ./paper/latex/sections/beamer_zh/00_title_and_questions.tex \
+  ./paper/latex/sections/beamer_zh/01_boundary_and_problem.tex \
+  ./paper/latex/sections/beamer_zh/02_method_and_mechanism.tex
 ```
 
 Expected:
@@ -677,7 +677,7 @@ Overwrite `paper/latex/sections/beamer_zh/03_evidence_and_results.tex` with this
 Run:
 
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
+cd "./paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
 ```
 
 Expected:
@@ -689,7 +689,7 @@ Expected:
 Run:
 
 ```bash
-ls -la /home/hymn/msfenicsx/paper/latex/sections/beamer_zh/03_evidence_and_results.tex
+ls -la ./paper/latex/sections/beamer_zh/03_evidence_and_results.tex
 ```
 
 Expected:
@@ -762,7 +762,7 @@ Overwrite `paper/latex/sections/beamer_zh/04_conclusion_and_next.tex` with this 
 Run:
 
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
+cd "./paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
 ```
 
 Expected:
@@ -775,7 +775,7 @@ Expected:
 Run:
 
 ```bash
-ls -la /home/hymn/msfenicsx/paper/latex/sections/beamer_zh/04_conclusion_and_next.tex
+ls -la ./paper/latex/sections/beamer_zh/04_conclusion_and_next.tex
 ```
 
 Expected:
@@ -794,7 +794,7 @@ Expected:
 Run:
 
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && python /home/hymn/msfenicsx/scripts/pdf_to_images.py build/beamer_zh/main_beamer_zh.pdf build/beamer_zh/review/slide --dpi 150
+cd "./paper/latex" && python ./scripts/pdf_to_images.py build/beamer_zh/main_beamer_zh.pdf build/beamer_zh/review/slide --dpi 150
 ```
 
 Expected:
@@ -832,7 +832,7 @@ Do not rewrite the narrative at this step. Only fix presentation readability.
 Run:
 
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
+cd "./paper/latex" && xelatex -interaction=nonstopmode -halt-on-error -output-directory build/beamer_zh main_beamer_zh.tex
 ```
 
 Expected:
@@ -844,7 +844,7 @@ Expected:
 Run:
 
 ```bash
-ls -la /home/hymn/msfenicsx/paper/latex/build/beamer_zh/main_beamer_zh.pdf
+ls -la ./paper/latex/build/beamer_zh/main_beamer_zh.pdf
 ```
 
 Expected:
@@ -856,8 +856,8 @@ Run:
 
 ```bash
 ls -la \
-  /home/hymn/msfenicsx/paper/latex/main_beamer_zh.tex \
-  /home/hymn/msfenicsx/paper/latex/build/beamer_zh/main_beamer_zh.pdf
+  ./paper/latex/main_beamer_zh.tex \
+  ./paper/latex/build/beamer_zh/main_beamer_zh.pdf
 ```
 
 Expected:

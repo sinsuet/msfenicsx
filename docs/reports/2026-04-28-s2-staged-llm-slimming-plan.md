@@ -47,9 +47,9 @@
 先跑聚焦测试：
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller_state.py
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_policy_kernel.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller_state.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_policy_kernel.py
 ```
 
 如 runtime profile 行为被触及，再补 `tests/optimizers/test_llm_profiles.py`。实验只在测试通过后从 S2 LLM 5×2 或 10×5 smoke 开始，输出到 `scenario_runs/s2_staged/`，并报告 scenario、template、spec、seed、预算、run path、prompt 大小、fallback 次数、平均响应时间和总 wall time。

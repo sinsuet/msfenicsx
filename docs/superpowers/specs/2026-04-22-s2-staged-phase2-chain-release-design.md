@@ -30,11 +30,11 @@ The phase-2 repair target is narrower and more structural:
 
 The current checked evidence is the newest official rerun at:
 
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0421_1434__llm`
+- `./scenario_runs/s2_staged/0421_1434__llm`
 
 and the newest external comparison bundle at:
 
-- `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0421_1456__raw_union_old_vs_llm_expand_fix`
+- `./scenario_runs/compare_reports/s2_staged/0421_1456__raw_union_old_vs_llm_expand_fix`
 
 The honest status from those artifacts is:
 

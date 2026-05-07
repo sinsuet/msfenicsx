@@ -261,56 +261,56 @@ Interpretation:
 Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main validate-scenario-template \
+conda run -n msfenicsx python -m core.cli.main validate-scenario-template \
   --template scenarios/templates/s5_aggressive15.yaml
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main generate-case \
+conda run -n msfenicsx python -m core.cli.main generate-case \
   --template scenarios/templates/s5_aggressive15.yaml \
   --seed 11 \
   --output-root ./scenario_runs/generated_cases/s5_aggressive15/seed-11
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main solve-case \
+conda run -n msfenicsx python -m core.cli.main solve-case \
   --case ./scenario_runs/generated_cases/s5_aggressive15/seed-11/s5_aggressive15-seed-0011.yaml \
   --output-root ./scenario_runs
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m evaluation.cli evaluate-case \
+conda run -n msfenicsx python -m evaluation.cli evaluate-case \
   --case ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/case.yaml \
   --solution ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/solution.yaml \
   --spec scenarios/evaluation/s5_aggressive15_eval.yaml \
   --output ./evaluation_report.yaml \
   --bundle-root ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s5_aggressive15/raw-smoke
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s5_aggressive15/union-smoke
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s5_aggressive15/llm-smoke
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_spea2_raw.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s5_aggressive15/spea2-raw-smoke
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_moead_raw.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s5_aggressive15/moead-raw-smoke
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+conda run -n msfenicsx python -m optimizers.cli run-llm \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s5_aggressive15/llm-default-smoke
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
   --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
@@ -322,21 +322,32 @@ Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
   --evaluation-workers 2 \
   --scenario-runs-root ./scenario_runs
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli replay-llm-trace \
+# Parallel suite: S5 raw+union, 5 seeds, formal budget
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+  --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
+  --mode raw --mode union \
+  --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --benchmark-seed 29 --benchmark-seed 31 \
+  --population-size 40 --num-generations 32 \
+  --parallel --max-concurrent-leaves 13 \
+  --leaf-evaluation-workers 1 \
+  --scenario-runs-root ./scenario_runs
+
+conda run -n msfenicsx python -m optimizers.cli replay-llm-trace \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --request-trace ./scenario_runs/s5_aggressive15/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl \
   --output ./scenario_runs/s5_aggressive15/<run_id>/llm/reports/<summary>.json
 
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace \
+conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace \
   --controller-trace ./scenario_runs/s5_aggressive15/<run_id>/llm/seeds/seed-11/traces/controller_trace.jsonl \
   --output ./scenario_runs/s5_aggressive15/<run_id>/llm/reports/controller_trace_summary.json
 
 # Render analytics/tables/figures from an existing suite root, mode root, or concrete single-mode run root
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli render-assets \
+conda run -n msfenicsx python -m optimizers.cli render-assets \
   --run ./scenario_runs/s5_aggressive15/<run_id> [--hires]
 
 # Compare two or more concrete single-mode run roots into an external structured bundle
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli compare-runs \
+conda run -n msfenicsx python -m optimizers.cli compare-runs \
   --run ./scenario_runs/s5_aggressive15/<run_a> \
   --run ./scenario_runs/s5_aggressive15/<run_b> \
   --output ./scenario_runs/compare_reports/<compare_id>
@@ -358,7 +369,7 @@ The optimizer CLI uses a desktop-safe default worker budget when `--evaluation-w
 ## Environment
 
 - canonical execution context: WSL2 Ubuntu
-- preferred environment: `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
+- preferred environment: `conda run -n msfenicsx ...`
 - repository text files should use UTF-8 without BOM
 - default networking is direct; do not enable `HTTP(S)_PROXY` / `ALL_PROXY` globally for normal repository work
 - only add proxy settings inline for explicit outbound tasks such as network search, web lookup, or access to blocked external resources like GitHub / Google / `raw.githubusercontent.com`
@@ -373,7 +384,7 @@ The `nsga2_llm` route uses the OpenAI-compatible client in `llm/openai_compatibl
   - `LLM_BASE_URL`
   - `LLM_MODEL`
 
-Edit the repository-root `.env` at `/home/hymn/msfenicsx/.env` to declare each runtime route once:
+Edit the repository-root `.env` at `./.env` to declare each runtime route once:
 
 ```env
 GPT_PROXY_API_KEY=...
@@ -406,7 +417,7 @@ The bundled model registry maps:
 Recommended LLM benchmark invocation:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+conda run -n msfenicsx python -m optimizers.cli run-llm \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s5_aggressive15/llm-default-smoke
@@ -415,7 +426,7 @@ Recommended LLM benchmark invocation:
 This uses the bundled `default` profile, which points to `gpt-5.4`. To switch models explicitly:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+conda run -n msfenicsx python -m optimizers.cli run-llm \
   gpt \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
@@ -423,7 +434,7 @@ This uses the bundled `default` profile, which points to `gpt-5.4`. To switch mo
 ```
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+conda run -n msfenicsx python -m optimizers.cli run-llm \
   qwen3_6_plus \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
@@ -431,7 +442,7 @@ This uses the bundled `default` profile, which points to `gpt-5.4`. To switch mo
 ```
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+conda run -n msfenicsx python -m optimizers.cli run-llm \
   glm_5 \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
@@ -439,7 +450,7 @@ This uses the bundled `default` profile, which points to `gpt-5.4`. To switch mo
 ```
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+conda run -n msfenicsx python -m optimizers.cli run-llm \
   minimax_m2_5 \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
@@ -447,7 +458,7 @@ This uses the bundled `default` profile, which points to `gpt-5.4`. To switch mo
 ```
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+conda run -n msfenicsx python -m optimizers.cli run-llm \
   deepseek_v4_flash \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
@@ -455,7 +466,7 @@ This uses the bundled `default` profile, which points to `gpt-5.4`. To switch mo
 ```
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm \
+conda run -n msfenicsx python -m optimizers.cli run-llm \
   mimo_v2_5 \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
@@ -467,7 +478,7 @@ Direct `optimize-benchmark` execution for `s5_aggressive15_llm.yaml` still works
 If needed:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m pip install "openai>=1.70"
+conda run -n msfenicsx python -m pip install "openai>=1.70"
 ```
 
 ## Verification

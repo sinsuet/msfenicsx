@@ -173,11 +173,11 @@ The fixed benchmark decisions are:
 ## Environment And Execution
 
 - Canonical execution context is WSL2 Ubuntu.
-- Even if the workspace is opened through `\\wsl$\\Ubuntu\\home\\hymn\\msfenicsx`, agents should treat the repo as Linux-first and use `/home/hymn/msfenicsx`.
+- Treat the repo as Linux-first; all paths in docs and scripts use relative form from the repo root.
 - When worktrees are needed for this repository, create them under the repo-root `.worktrees/` directory. Do not use `.claude/worktrees/`; keep the location shared with Claude and Codex for a single convention.
 - Use the `msfenicsx` conda environment for Python, CLI, and tests.
 - Prefer:
-  - `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
+  - `conda run -n msfenicsx ...`
 - Repository text artifacts should use UTF-8 without BOM.
 - Treat terminal-side mojibake from the host bridge as environment noise unless the saved file itself is corrupted.
 
@@ -221,7 +221,8 @@ Preferred commands:
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s6_aggressive20_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s6_aggressive20/moead-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s7_aggressive25_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s7_aggressive25/spea2-raw-smoke`
 - `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s7_aggressive25_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s7_aggressive25/moead-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs` (auto-writes suite-owned `comparisons/` when 2+ modes participate)
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec ... --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs` (serial; auto-writes suite-owned `comparisons/` when 2+ modes participate)
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --mode raw --mode union --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --benchmark-seed 29 --benchmark-seed 31 --population-size 40 --num-generations 32 --parallel --max-concurrent-leaves 13 --leaf-evaluation-workers 1 --scenario-runs-root ./scenario_runs` (parallel; 展开 leaves 并行执行，产出 `run_index.csv`; 多服务器跑时 `--max-concurrent-leaves` 不超过 `cpu_count / 2`)
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark-matrix --matrix-root ./scenario_runs/matrix_budgeted_s5_s7 --block-id M1_raw_backbone_budgeted`
 - `conda run -n msfenicsx python -m optimizers.cli aggregate-benchmark-matrix --run-index ./scenario_runs/matrix_budgeted_s5_s7/run_index.csv --output-root ./scenario_runs/matrix_budgeted_s5_s7/aggregate`
 - `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --request-trace ./scenario_runs/s5_aggressive15/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl --output ./scenario_runs/s5_aggressive15/<run_id>/llm/reports/<summary>.json`
@@ -252,7 +253,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `LLM_API_KEY`
   - `LLM_BASE_URL`
   - `LLM_MODEL`
-- repository-root `/home/hymn/msfenicsx/.env` should keep the raw provider credentials:
+- repository-root `.env` should keep the raw provider credentials:
   - `GPT_PROXY_API_KEY`
   - `GPT_PROXY_BASE_URL`
   - `QWEN_PROXY_API_KEY`

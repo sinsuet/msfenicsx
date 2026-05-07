@@ -160,7 +160,7 @@ def test_post_feasible_expand_keeps_sink_budget_stabilizer_before_feasible_rate_
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_policy_kernel.py::test_post_feasible_expand_keeps_sink_budget_stabilizer_before_feasible_rate_gate
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_policy_kernel.py::test_post_feasible_expand_keeps_sink_budget_stabilizer_before_feasible_rate_gate
 ```
 
 Expected before implementation: FAIL because current code marks `sink_resize` as `saturated_no_frontier` / `avoid_saturated_repeat` even at feasible rate 0.42.
@@ -219,7 +219,7 @@ def _post_feasible_sink_budget_shape_deprioritized(state: ControllerState, phase
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_policy_kernel.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_policy_kernel.py
 ```
 
 Expected: all tests in `test_llm_policy_kernel.py` pass.
@@ -313,7 +313,7 @@ def test_post_feasible_expand_semantic_panel_prioritizes_exploitation_after_sink
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_keeps_sink_stabilizer_before_gate tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_prioritizes_exploitation_after_sink_gate
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_keeps_sink_stabilizer_before_gate tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_prioritizes_exploitation_after_sink_gate
 ```
 
 Expected before implementation: the early case fails because current code always demotes sink after removing sink-budget pressure.
@@ -386,7 +386,7 @@ regime_panel["recent_frontier_stagnation_count"] = int(progress_state.get("recen
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_keeps_sink_stabilizer_before_gate tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_prioritizes_exploitation_after_sink_gate
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_keeps_sink_stabilizer_before_gate tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_prioritizes_exploitation_after_sink_gate
 ```
 
 Expected: both tests pass.
@@ -405,7 +405,7 @@ Expected: both tests pass.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller_state.py::test_build_controller_state_emits_semantic_task_panel tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_keeps_sink_stabilizer_before_gate tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_prioritizes_exploitation_after_sink_gate
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller_state.py::test_build_controller_state_emits_semantic_task_panel tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_keeps_sink_stabilizer_before_gate tests/optimizers/test_llm_controller_state.py::test_post_feasible_expand_semantic_panel_prioritizes_exploitation_after_sink_gate
 ```
 
 Expected: policy kernel file passes; selected controller-state tests pass. Do not run the known failing full `test_llm_controller_state.py` unless specifically fixing `test_build_progress_state_keeps_preserve_dwell_live_across_one_regression`.
@@ -425,7 +425,7 @@ Expected: no output, exit code 0.
 Run:
 
 ```bash
-RUN_ROOT="scenario_runs/s5_aggressive15/$(date +%m%d_%H%M)__llm_gpt_20x10_adaptive_sink_gate"; /home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm default --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --output-root "$RUN_ROOT" --evaluation-workers 2 --population-size 20 --num-generations 10
+RUN_ROOT="scenario_runs/s5_aggressive15/$(date +%m%d_%H%M)__llm_gpt_20x10_adaptive_sink_gate"; conda run -n msfenicsx python -m optimizers.cli run-llm default --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --output-root "$RUN_ROOT" --evaluation-workers 2 --population-size 20 --num-generations 10
 ```
 
 Expected: command exits 0 and writes rendered run bundle under the printed `RUN_ROOT`.

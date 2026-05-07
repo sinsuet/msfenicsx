@@ -91,7 +91,7 @@ def test_operator_rank_advice_schema_requires_ranked_operators() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py::test_operator_rank_advice_schema_requires_ranked_operators
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py::test_operator_rank_advice_schema_requires_ranked_operators
 ```
 
 Expected: FAIL with `ImportError` or `AttributeError` for `build_operator_rank_advice_schema`.
@@ -177,7 +177,7 @@ def test_operator_rank_advice_requires_explicit_risk_and_confidence() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_llm_client.py::test_chat_compatible_json_client_parses_operator_rank_advice \
   tests/optimizers/test_llm_client.py::test_operator_rank_advice_rejects_unknown_operator_id \
   tests/optimizers/test_llm_client.py::test_operator_rank_advice_requires_explicit_risk_and_confidence
@@ -433,7 +433,7 @@ if response_schema_name == "operator_rank_advice":
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py
 ```
 
 Expected: PASS.
@@ -617,7 +617,7 @@ def test_ranked_picker_releases_caps_when_every_candidate_is_suppressed() -> Non
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_semantic_ranked_picker.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_semantic_ranked_picker.py
 ```
 
 Expected: FAIL because `optimizers.operator_pool.semantic_ranked_picker` does not exist.
@@ -937,7 +937,7 @@ def _clamp_unit(value: Any) -> float:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_semantic_ranked_picker.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_semantic_ranked_picker.py
 ```
 
 Expected: PASS.
@@ -1054,7 +1054,7 @@ def test_llm_controller_semantic_ranked_pick_uses_model_ranking() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_ranked_pick_uses_model_ranking
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_ranked_pick_uses_model_ranking
 ```
 
 Expected: FAIL because `OpenAICompatibleRankAdvice` or `semantic_ranked_pick` controller branch is not wired yet.
@@ -1478,7 +1478,7 @@ rng=rng,
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_ranked_pick_uses_model_ranking
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_ranked_pick_uses_model_ranking
 ```
 
 Expected: PASS.
@@ -1488,7 +1488,7 @@ Expected: PASS.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_prior_sampler_records_probabilities
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_prior_sampler_records_probabilities
 ```
 
 Expected: PASS, confirming legacy prior sampler remains intact.
@@ -1601,7 +1601,7 @@ def test_llm_semantic_ranked_pick_trace_surfaces_ranker_metadata(tmp_path: Path)
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_controller_trace_new_schema.py::test_llm_semantic_ranked_pick_trace_surfaces_ranker_metadata
+conda run -n msfenicsx pytest -q tests/optimizers/test_controller_trace_new_schema.py::test_llm_semantic_ranked_pick_trace_surfaces_ranker_metadata
 ```
 
 Expected: FAIL until the response trace contains all ranker fields.
@@ -1628,7 +1628,7 @@ Also ensure `_trace_surface_without_bodies(...)` does not remove these fields.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_controller_trace_new_schema.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_controller_trace_new_schema.py
 ```
 
 Expected: PASS.
@@ -1696,7 +1696,7 @@ assert "semantic_prior_sampler" not in params
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_optimizer_io.py::test_llm_spec_accepts_semantic_ranked_pick_parameters \
   tests/optimizers/test_s5_aggressive15_specs.py::test_s5_registry_split_uses_structured_primitives_for_union_and_llm \
   tests/optimizers/test_s6_aggressive20_specs.py::test_s6_llm_controller_parameters_match_s5_main_debug_template \
@@ -1740,7 +1740,7 @@ semantic_ranked_pick:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_optimizer_io.py::test_llm_spec_accepts_semantic_ranked_pick_parameters \
   tests/optimizers/test_s5_aggressive15_specs.py::test_s5_registry_split_uses_structured_primitives_for_union_and_llm \
   tests/optimizers/test_s6_aggressive20_specs.py::test_s6_llm_controller_parameters_match_s5_main_debug_template \
@@ -1777,7 +1777,7 @@ git commit -m "config: switch llm specs to semantic ranked pick"
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_llm_client.py \
   tests/optimizers/test_semantic_prior_sampler.py \
   tests/optimizers/test_semantic_ranked_picker.py \
@@ -1792,7 +1792,7 @@ Expected: PASS. This verifies new ranker behavior and confirms legacy prior samp
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_optimizer_io.py \
   tests/optimizers/test_s5_aggressive15_specs.py \
   tests/optimizers/test_s3_s4_specs.py \

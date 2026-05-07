@@ -48,7 +48,7 @@ Do not modify:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py
 ```
 
 Expected before implementation: failing test for `primitive_structured`.
@@ -189,11 +189,11 @@ Do not mark them as assisted or objective-aware.
 Run exactly these focused tests first:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_prompt_projection.py
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller_state.py
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_policy_kernel.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_prompt_projection.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller_state.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_policy_kernel.py
 ```
 
 Do not run the full repository suite unless these focused tests reveal broader contract uncertainty.

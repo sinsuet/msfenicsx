@@ -85,7 +85,7 @@
 
 - [ ] **Step 3: Verify the memo exists and reads cleanly**
 
-Run: `sed -n '1,220p' /home/hymn/msfenicsx/paper/references/2026-04-21-lightweight-calibration.md`
+Run: `sed -n '1,220p' ./paper/references/2026-04-21-lightweight-calibration.md`
 
 Expected:
 - file opens without missing headings
@@ -115,7 +115,7 @@ Expected:
 
 - [ ] **Step 2: Compile the Chinese draft to catch LaTeX breakage immediately**
 
-Run: `cd /home/hymn/msfenicsx/paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build/main_zh main_zh.tex`
+Run: `cd ./paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build/main_zh main_zh.tex`
 
 Expected:
 - build completes without a fatal error
@@ -124,7 +124,7 @@ Expected:
 
 - [ ] **Step 3: Read the rendered introduction source and verify four properties**
 
-Run: `sed -n '1,220p' /home/hymn/msfenicsx/paper/latex/sections/zh/01_introduction.tex`
+Run: `sed -n '1,220p' ./paper/latex/sections/zh/01_introduction.tex`
 
 Expected:
 - paragraph 1 opens with the problem class, not a long satellite-domain tutorial
@@ -155,7 +155,7 @@ Our contributions are fourfold: \textbf{(1)} we reframe inline LLM control in ex
 
 - [ ] **Step 2: Compile the English draft after the rewrite**
 
-Run: `cd /home/hymn/msfenicsx/paper/latex && latexmk -pdf -interaction=nonstopmode -outdir=build/main_en main_en.tex`
+Run: `cd ./paper/latex && latexmk -pdf -interaction=nonstopmode -outdir=build/main_en main_en.tex`
 
 Expected:
 - build completes without a fatal error
@@ -164,7 +164,7 @@ Expected:
 
 - [ ] **Step 3: Check the English introduction against the Chinese source**
 
-Run: `diff -u /home/hymn/msfenicsx/paper/latex/sections/zh/01_introduction.tex /home/hymn/msfenicsx/paper/latex/sections/en/01_introduction.tex | sed -n '1,220p'`
+Run: `diff -u ./paper/latex/sections/zh/01_introduction.tex ./paper/latex/sections/en/01_introduction.tex | sed -n '1,220p'`
 
 Expected:
 - the files differ in language and compression, not in section role
@@ -207,7 +207,7 @@ taxonomy 的作用不是列举现象，而是为恢复设计提供组织原则�
 
 - [ ] **Step 3: Compile the Chinese draft after both section rewrites**
 
-Run: `cd /home/hymn/msfenicsx/paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build/main_zh main_zh.tex`
+Run: `cd ./paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build/main_zh main_zh.tex`
 
 Expected:
 - build completes without a fatal error
@@ -216,7 +216,7 @@ Expected:
 
 - [ ] **Step 4: Read both files and verify the framework logic**
 
-Run: `sed -n '1,260p' /home/hymn/msfenicsx/paper/latex/sections/zh/04_method.tex && printf '\n---\n' && sed -n '1,280p' /home/hymn/msfenicsx/paper/latex/sections/zh/05_collapse_and_recovery.tex`
+Run: `sed -n '1,260p' ./paper/latex/sections/zh/04_method.tex && printf '\n---\n' && sed -n '1,280p' ./paper/latex/sections/zh/05_collapse_and_recovery.tex`
 
 Expected:
 - `04_method.tex` defines the fixed boundary before discussing collapse
@@ -261,7 +261,7 @@ In this formulation, layered recovery is not an anecdotal patch stack. It is a c
 
 - [ ] **Step 3: Compile the English draft after both rewrites**
 
-Run: `cd /home/hymn/msfenicsx/paper/latex && latexmk -pdf -interaction=nonstopmode -outdir=build/main_en main_en.tex`
+Run: `cd ./paper/latex && latexmk -pdf -interaction=nonstopmode -outdir=build/main_en main_en.tex`
 
 Expected:
 - build completes without a fatal error
@@ -327,7 +327,7 @@ Under this problem definition, the LLM is not treated as a design generator. It 
 
 - [ ] **Step 4: Compile both language drafts after the boundary-setting rewrites**
 
-Run: `cd /home/hymn/msfenicsx/paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build/main_zh main_zh.tex && latexmk -pdf -interaction=nonstopmode -outdir=build/main_en main_en.tex`
+Run: `cd ./paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build/main_zh main_zh.tex && latexmk -pdf -interaction=nonstopmode -outdir=build/main_en main_en.tex`
 
 Expected:
 - both builds complete without a fatal error
@@ -433,7 +433,7 @@ This paper reframes inline LLM control in expensive constrained optimization as 
 
 - [ ] **Step 3: Compile both language drafts for the final narrative-consistency pass**
 
-Run: `cd /home/hymn/msfenicsx/paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build/main_zh main_zh.tex && latexmk -pdf -interaction=nonstopmode -outdir=build/main_en main_en.tex`
+Run: `cd ./paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build/main_zh main_zh.tex && latexmk -pdf -interaction=nonstopmode -outdir=build/main_en main_en.tex`
 
 Expected:
 - both builds complete without a fatal error
@@ -465,7 +465,7 @@ Expected:
 
 - [ ] **Step 1: Check for the four forbidden drift patterns**
 
-Run: `grep -RniE 'dominates|state-of-the-art|SOTA|best overall|universally|outperforms all' /home/hymn/msfenicsx/paper/latex/sections || true`
+Run: `grep -RniE 'dominates|state-of-the-art|SOTA|best overall|universally|outperforms all' ./paper/latex/sections || true`
 
 Expected:
 - no headline-performance wording appears unless backed by the current evidence policy
@@ -473,7 +473,7 @@ Expected:
 
 - [ ] **Step 2: Check that the chapter roles are intact**
 
-Run: `sed -n '1,220p' /home/hymn/msfenicsx/paper/latex/sections/zh/01_introduction.tex && printf '\n---\n' && sed -n '1,220p' /home/hymn/msfenicsx/paper/latex/sections/zh/02_related_work.tex && printf '\n---\n' && sed -n '1,260p' /home/hymn/msfenicsx/paper/latex/sections/zh/04_method.tex && printf '\n---\n' && sed -n '1,260p' /home/hymn/msfenicsx/paper/latex/sections/zh/05_collapse_and_recovery.tex`
+Run: `sed -n '1,220p' ./paper/latex/sections/zh/01_introduction.tex && printf '\n---\n' && sed -n '1,220p' ./paper/latex/sections/zh/02_related_work.tex && printf '\n---\n' && sed -n '1,260p' ./paper/latex/sections/zh/04_method.tex && printf '\n---\n' && sed -n '1,260p' ./paper/latex/sections/zh/05_collapse_and_recovery.tex`
 
 Expected:
 - Introduction opens with the problem and collapse
@@ -503,7 +503,7 @@ Next recommended pass:
 
 - [ ] **Step 4: Verify the summary note exists and is readable**
 
-Run: `sed -n '1,220p' /home/hymn/msfenicsx/paper/references/2026-04-21-chapter-pass-summary.md`
+Run: `sed -n '1,220p' ./paper/references/2026-04-21-chapter-pass-summary.md`
 
 Expected:
 - file opens without errors

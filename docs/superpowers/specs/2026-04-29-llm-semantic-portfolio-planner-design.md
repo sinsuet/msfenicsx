@@ -123,7 +123,7 @@ OpenAI-compatible schema 和 chat/retry prompt 允许 optional `selected_semanti
 验证命令：
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_prompt_projection.py tests/optimizers/test_llm_controller.py tests/optimizers/test_llm_decision_summary.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_prompt_projection.py tests/optimizers/test_llm_controller.py tests/optimizers/test_llm_decision_summary.py
 ```
 
 若聚焦测试通过，再跑 S5 10×5 smoke 检查 task-level distribution；最后再跑 S5 20×10 GPT 验证是否超过 raw/union。

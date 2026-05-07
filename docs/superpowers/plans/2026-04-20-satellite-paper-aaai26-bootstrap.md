@@ -41,12 +41,12 @@ Run:
 
 ```bash
 mkdir -p \
-  /home/hymn/msfenicsx/paper/latex/vendor/aaai26 \
-  /home/hymn/msfenicsx/paper/latex/sections/zh \
-  /home/hymn/msfenicsx/paper/latex/sections/en \
-  /home/hymn/msfenicsx/paper/latex/figures \
-  /home/hymn/msfenicsx/paper/latex/tables \
-  /home/hymn/msfenicsx/paper/latex/build
+  ./paper/latex/vendor/aaai26 \
+  ./paper/latex/sections/zh \
+  ./paper/latex/sections/en \
+  ./paper/latex/figures \
+  ./paper/latex/tables \
+  ./paper/latex/build
 ```
 
 Expected:
@@ -64,7 +64,7 @@ Expected:
 Run:
 
 ```bash
-ls -la /home/hymn/msfenicsx/paper/latex && find /home/hymn/msfenicsx/paper/latex -maxdepth 2 -type d | sort
+ls -la ./paper/latex && find ./paper/latex -maxdepth 2 -type d | sort
 ```
 
 Expected:
@@ -294,7 +294,7 @@ English abstract placeholder aligned with the Chinese source draft.
 Run:
 
 ```bash
-find /home/hymn/msfenicsx/paper/latex/sections -maxdepth 2 -type f | sort
+find ./paper/latex/sections -maxdepth 2 -type f | sort
 ```
 
 Expected:
@@ -303,7 +303,7 @@ Expected:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add /home/hymn/msfenicsx/paper/latex/main_zh.tex /home/hymn/msfenicsx/paper/latex/main_en.tex /home/hymn/msfenicsx/paper/latex/sections /home/hymn/msfenicsx/paper/latex/refs.bib
+git add ./paper/latex/main_zh.tex ./paper/latex/main_en.tex ./paper/latex/sections ./paper/latex/refs.bib
 git commit -m "docs: scaffold bilingual paper manuscript"
 ```
 
@@ -376,7 +376,7 @@ We study a canonicalized satellite thermal-control layout benchmark with continu
 Run:
 
 ```bash
-grep -R "satellite\|卫星\|thermal-control\|热控" /home/hymn/msfenicsx/paper/latex/sections/zh /home/hymn/msfenicsx/paper/latex/sections/en
+grep -R "satellite\|卫星\|thermal-control\|热控" ./paper/latex/sections/zh ./paper/latex/sections/en
 ```
 
 Expected:
@@ -386,7 +386,7 @@ Expected:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add /home/hymn/msfenicsx/paper/latex/sections/zh/00_abstract.tex /home/hymn/msfenicsx/paper/latex/sections/zh/01_introduction.tex /home/hymn/msfenicsx/paper/latex/sections/zh/03_problem_formulation.tex /home/hymn/msfenicsx/paper/latex/sections/en/00_abstract.tex /home/hymn/msfenicsx/paper/latex/sections/en/01_introduction.tex /home/hymn/msfenicsx/paper/latex/sections/en/03_problem_formulation.tex
+git add ./paper/latex/sections/zh/00_abstract.tex ./paper/latex/sections/zh/01_introduction.tex ./paper/latex/sections/zh/03_problem_formulation.tex ./paper/latex/sections/en/00_abstract.tex ./paper/latex/sections/en/01_introduction.tex ./paper/latex/sections/en/03_problem_formulation.tex
 git commit -m "docs: add initial bilingual paper draft skeleton"
 ```
 
@@ -426,7 +426,7 @@ The manuscript scaffold is anchored to a single evolving project narrative~\cite
 Run:
 
 ```bash
-cd /home/hymn/msfenicsx/paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build main_zh.tex
+cd ./paper/latex && latexmk -xelatex -interaction=nonstopmode -outdir=build main_zh.tex
 ```
 
 Expected:
@@ -439,7 +439,7 @@ Expected:
 Run:
 
 ```bash
-cd /home/hymn/msfenicsx/paper/latex && latexmk -pdf -interaction=nonstopmode -outdir=build main_en.tex
+cd ./paper/latex && latexmk -pdf -interaction=nonstopmode -outdir=build main_en.tex
 ```
 
 Expected:
@@ -451,7 +451,7 @@ Expected:
 Run:
 
 ```bash
-ls -la /home/hymn/msfenicsx/paper/latex/build && grep -E "(Fatal error|Undefined control sequence|Emergency stop)" /home/hymn/msfenicsx/paper/latex/build/*.log || true
+ls -la ./paper/latex/build && grep -E "(Fatal error|Undefined control sequence|Emergency stop)" ./paper/latex/build/*.log || true
 ```
 
 Expected:
@@ -461,7 +461,7 @@ Expected:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add /home/hymn/msfenicsx/paper/latex
+git add ./paper/latex
 git commit -m "docs: verify bilingual AAAI-26 paper scaffold builds"
 ```
 

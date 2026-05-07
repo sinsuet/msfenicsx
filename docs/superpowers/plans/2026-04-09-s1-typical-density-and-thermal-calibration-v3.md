@@ -98,7 +98,7 @@ def test_s1_typical_template_declares_explicit_background_boundary_cooling() -> 
 
 - [ ] **Step 2: Run the template tests to verify they fail**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/schema/test_s1_typical_template.py -k "source_area_ratio_for_all_families or background_boundary_cooling" -v`
+Run: `conda run -n msfenicsx pytest tests/schema/test_s1_typical_template.py -k "source_area_ratio_for_all_families or background_boundary_cooling" -v`
 
 Expected: FAIL because the current template only gives `source_area_ratio` to a subset of families and does not declare a `physics.background_boundary_cooling` block.
 
@@ -139,7 +139,7 @@ def test_validate_scenario_template_rejects_invalid_background_boundary_emissivi
 
 - [ ] **Step 4: Run the schema-validation tests to verify they fail**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/schema/test_schema_validation.py -k "background_boundary" -v`
+Run: `conda run -n msfenicsx pytest tests/schema/test_schema_validation.py -k "background_boundary" -v`
 
 Expected: FAIL because `ScenarioTemplate` does not currently accept `physics` and the validator does not know the background-cooling block.
 
@@ -203,7 +203,7 @@ Add a `source_area_ratio` entry for every family from `c01` through `c15`.
 
 - [ ] **Step 7: Run the schema tests to verify they pass**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/schema/test_s1_typical_template.py tests/schema/test_schema_validation.py -v`
+Run: `conda run -n msfenicsx pytest tests/schema/test_s1_typical_template.py tests/schema/test_schema_validation.py -v`
 
 Expected: PASS with the new template contract and background-cooling validation accepted.
 
@@ -252,7 +252,7 @@ def test_layout_quality_is_stable_across_seed_sample_for_v3_density() -> None:
 
 - [ ] **Step 2: Run the layout-metric tests to verify they fail**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/generator/test_layout_metrics.py -v`
+Run: `conda run -n msfenicsx pytest tests/generator/test_layout_metrics.py -v`
 
 Expected: FAIL because the current geometry budget and zones still produce `component_area_ratio ~= 0.37`.
 
@@ -272,7 +272,7 @@ def test_place_components_keeps_v3_anchor_families_inside_tighter_zones() -> Non
 
 - [ ] **Step 4: Run the placement test to verify it fails**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/generator/test_layout_engine.py -k "v3_anchor_families" -v`
+Run: `conda run -n msfenicsx pytest tests/generator/test_layout_engine.py -k "v3_anchor_families" -v`
 
 Expected: FAIL because the current zones and refinement weights still allow broader placement.
 
@@ -319,7 +319,7 @@ Keep the score generic. Do not add family-window logic. Do not add runtime optim
 
 - [ ] **Step 7: Run the generator tests to verify they pass**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/generator/test_layout_engine.py tests/generator/test_layout_metrics.py -v`
+Run: `conda run -n msfenicsx pytest tests/generator/test_layout_engine.py tests/generator/test_layout_metrics.py -v`
 
 Expected: PASS with the denser template and stronger compactness refinement.
 
@@ -357,7 +357,7 @@ def test_problem_skips_pde_when_components_violate_clearance(monkeypatch: pytest
 
 - [ ] **Step 2: Run the cheap-constraint test to verify it fails**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_cheap_constraints.py -k "clearance" -v`
+Run: `conda run -n msfenicsx pytest tests/optimizers/test_cheap_constraints.py -k "clearance" -v`
 
 Expected: FAIL because the current geometry issues only report direct overlap.
 
@@ -383,7 +383,7 @@ def test_repair_case_from_vector_restores_required_clearance_gap() -> None:
 
 - [ ] **Step 4: Run the repair test to verify it fails**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_repair.py -k "required_clearance_gap" -v`
+Run: `conda run -n msfenicsx pytest tests/optimizers/test_repair.py -k "required_clearance_gap" -v`
 
 Expected: FAIL because repair only removes overlap and does not restore the required minimum gap.
 
@@ -419,7 +419,7 @@ Make `repair_case_payload_from_vector(...)` build `clearance_by_family` from the
 
 - [ ] **Step 7: Run the optimizer legality tests to verify they pass**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_cheap_constraints.py tests/optimizers/test_repair.py -v`
+Run: `conda run -n msfenicsx pytest tests/optimizers/test_cheap_constraints.py tests/optimizers/test_repair.py -v`
 
 Expected: PASS with clearance-invalid layouts rejected before PDE solve and repaired layouts separated by the required minimum gap.
 
@@ -461,7 +461,7 @@ def test_interpret_case_surfaces_background_boundary_cooling() -> None:
 
 - [ ] **Step 2: Run the interpretation test to verify it fails**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/solver/test_case_to_geometry.py -k "background_boundary_cooling" -v`
+Run: `conda run -n msfenicsx pytest tests/solver/test_case_to_geometry.py -k "background_boundary_cooling" -v`
 
 Expected: FAIL because `interpret_case(...)` does not currently expose background-boundary settings.
 
@@ -481,7 +481,7 @@ def test_generated_s1_typical_case_uses_explicit_localized_sources_and_ambient_b
 
 - [ ] **Step 4: Run the generated-case thermal test to verify it fails**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/solver/test_generated_case.py -k "ambient_background_cooling" -v`
+Run: `conda run -n msfenicsx pytest tests/solver/test_generated_case.py -k "ambient_background_cooling" -v`
 
 Expected: FAIL because not every family currently has an explicit localized source policy and the interpreted case has no background-boundary block.
 
@@ -523,7 +523,7 @@ Tag the background boundary as the outer-boundary complement of the named `line_
 
 - [ ] **Step 7: Run the solver tests to verify they pass**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/solver/test_case_to_geometry.py tests/solver/test_generated_case.py -v`
+Run: `conda run -n msfenicsx pytest tests/solver/test_case_to_geometry.py tests/solver/test_generated_case.py -v`
 
 Expected: PASS with all fifteen sources localized explicitly and ambient background cooling visible in interpreted solver inputs.
 
@@ -568,7 +568,7 @@ def test_evaluate_case_solution_surfaces_ambient_and_heat_source_signals() -> No
 
 - [ ] **Step 2: Run the evaluation test to verify it fails**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/evaluation/test_engine.py -k "ambient_and_heat_source_signals" -v`
+Run: `conda run -n msfenicsx pytest tests/evaluation/test_engine.py -k "ambient_and_heat_source_signals" -v`
 
 Expected: FAIL because the current derived-signal builder only forwards layout metrics and hotspot information.
 
@@ -588,7 +588,7 @@ def test_render_case_page_surfaces_background_cooling_and_heat_source_counts(tmp
 
 - [ ] **Step 4: Run the case-page test to verify it fails**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/visualization/test_case_pages.py -k "background_cooling_and_heat_source_counts" -v`
+Run: `conda run -n msfenicsx pytest tests/visualization/test_case_pages.py -k "background_cooling_and_heat_source_counts" -v`
 
 Expected: FAIL because the current page only shows layout metrics and core solver metrics.
 
@@ -617,7 +617,7 @@ rows.extend(
 
 - [ ] **Step 6: Run the reporting tests to verify they pass**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/evaluation/test_engine.py tests/visualization/test_case_pages.py -v`
+Run: `conda run -n msfenicsx pytest tests/evaluation/test_engine.py tests/visualization/test_case_pages.py -v`
 
 Expected: PASS with ambient settings and heat-source count visible in reports and representative pages.
 
@@ -647,39 +647,39 @@ git commit -m "feat: surface density and ambient thermal diagnostics"
 
 - [ ] **Step 2: Run the full focused pytest set**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/schema/test_s1_typical_template.py tests/schema/test_schema_validation.py tests/generator/test_layout_engine.py tests/generator/test_layout_metrics.py tests/optimizers/test_cheap_constraints.py tests/optimizers/test_repair.py tests/solver/test_case_to_geometry.py tests/solver/test_generated_case.py tests/evaluation/test_engine.py tests/visualization/test_case_pages.py -v`
+Run: `conda run -n msfenicsx pytest tests/schema/test_s1_typical_template.py tests/schema/test_schema_validation.py tests/generator/test_layout_engine.py tests/generator/test_layout_metrics.py tests/optimizers/test_cheap_constraints.py tests/optimizers/test_repair.py tests/solver/test_case_to_geometry.py tests/solver/test_generated_case.py tests/evaluation/test_engine.py tests/visualization/test_case_pages.py -v`
 
 Expected: PASS across all touched subsystems.
 
 - [ ] **Step 3: Validate the template through the CLI**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s1_typical.yaml`
+Run: `conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s1_typical.yaml`
 
 Expected: PASS with no schema validation errors.
 
 - [ ] **Step 4: Run one real generate/solve/evaluate cycle**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s1_typical.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s1_typical/seed-11`
+Run: `conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s1_typical.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s1_typical/seed-11`
 
 Expected: writes `./scenario_runs/generated_cases/s1_typical/seed-11/s1_typical-seed-0011.yaml`
 
 - [ ] **Step 5: Solve the generated case**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/s1_typical/seed-11/s1_typical-seed-0011.yaml --output-root ./scenario_runs`
+Run: `conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/s1_typical/seed-11/s1_typical-seed-0011.yaml --output-root ./scenario_runs`
 
 Expected: PASS with a converged solution and a representative span in the intended `8~15 K` band.
 
 - [ ] **Step 6: Evaluate the solved case**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/s1_typical/s1_typical-seed-0011/case.yaml --solution ./scenario_runs/s1_typical/s1_typical-seed-0011/solution.yaml --spec scenarios/evaluation/s1_typical_eval.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/s1_typical/s1_typical-seed-0011`
+Run: `conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/s1_typical/s1_typical-seed-0011/case.yaml --solution ./scenario_runs/s1_typical/s1_typical-seed-0011/solution.yaml --spec scenarios/evaluation/s1_typical_eval.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/s1_typical/s1_typical-seed-0011`
 
 Expected: PASS with refreshed derived signals including layout density and ambient settings.
 
 - [ ] **Step 7: Run raw and union smoke optimizations**
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --output-root ./scenario_runs/s1_typical/raw-smoke`
+Run: `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_raw.yaml --output-root ./scenario_runs/s1_typical/raw-smoke`
 
-Run: `/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --output-root ./scenario_runs/s1_typical/union-smoke`
+Run: `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_union.yaml --output-root ./scenario_runs/s1_typical/union-smoke`
 
 Expected: PASS with cheap constraints rejecting clearance-invalid candidates before PDE solve and representative pages showing the updated density/ambient information.
 

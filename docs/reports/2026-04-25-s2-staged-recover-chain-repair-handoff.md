@@ -17,7 +17,7 @@ It records:
 - the recommended next repair steps
 
 All paths below are repository-local absolute paths under
-`/home/hymn/msfenicsx`.
+`.`.
 
 ## 2. Active Scope And Constraints
 
@@ -28,11 +28,11 @@ The historical paper-facing S2 route is:
 The current comparison baseline roots are:
 
 - old official suite:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm`
 - old official raw seed root:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11`
 - old official union seed root:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11`
 
 Execution constraints that were explicitly followed:
 
@@ -47,16 +47,16 @@ Execution constraints that were explicitly followed:
 The repair work was not started from scratch. It continued the existing
 controller-side repair line defined in these documents:
 
-- `/home/hymn/msfenicsx/docs/reports/2026-04-21-s2-staged-llm-effect-repair-report.md`
-- `/home/hymn/msfenicsx/docs/superpowers/specs/2026-04-20-s2-staged-joint-design.md`
-- `/home/hymn/msfenicsx/docs/superpowers/plans/2026-04-20-s2-staged-joint-implementation.md`
-- `/home/hymn/msfenicsx/docs/superpowers/specs/2026-04-21-s2-staged-recover-chain-repair-design.md`
-- `/home/hymn/msfenicsx/docs/superpowers/plans/2026-04-21-s2-staged-recover-chain-repair.md`
+- `./docs/reports/2026-04-21-s2-staged-llm-effect-repair-report.md`
+- `./docs/superpowers/specs/2026-04-20-s2-staged-joint-design.md`
+- `./docs/superpowers/plans/2026-04-20-s2-staged-joint-implementation.md`
+- `./docs/superpowers/specs/2026-04-21-s2-staged-recover-chain-repair-design.md`
+- `./docs/superpowers/plans/2026-04-21-s2-staged-recover-chain-repair.md`
 
 The continuation phase also read and used:
 
-- `/home/hymn/msfenicsx/docs/superpowers/specs/2026-04-22-s2-staged-phase2-chain-release-design.md`
-- `/home/hymn/msfenicsx/docs/superpowers/plans/2026-04-22-s2-staged-phase2-chain-release.md`
+- `./docs/superpowers/specs/2026-04-22-s2-staged-phase2-chain-release-design.md`
+- `./docs/superpowers/plans/2026-04-22-s2-staged-phase2-chain-release.md`
 
 The design intent across these documents stayed consistent:
 
@@ -143,7 +143,7 @@ This created a soft contract only:
 - the prompt said "prefer exact positive matches"
 - the actual candidate pool ordering still privileged stable fallbacks
 
-Live evidence from `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_2237__llm`
+Live evidence from `./scenario_runs/s2_staged/0422_2237__llm`
 showed:
 
 - `87` requests with `prefer_exact_match`
@@ -163,18 +163,18 @@ The final minimal fix in this cycle was:
 
 Implementation location:
 
-- `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py`
+- `./optimizers/operator_pool/llm_controller.py`
 
 Key entry points:
 
 - candidate-order application:
-  - `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py:174`
+  - `./optimizers/operator_pool/llm_controller.py:174`
 - exact-positive pool reordering helper:
-  - `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py:1199`
+  - `./optimizers/operator_pool/llm_controller.py:1199`
 
 The matching TDD regression test was added at:
 
-- `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller.py:2745`
+- `./tests/optimizers/test_llm_controller.py:2745`
 
 That test locks the contract:
 
@@ -186,7 +186,7 @@ That test locks the contract:
 The required focused gate was rerun after the code change:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
 tests/generator/test_s2_staged_template.py \
 tests/optimizers/test_s2_staged_baseline.py \
 tests/optimizers/test_s2_staged_controller_audit.py \
@@ -205,29 +205,29 @@ This was the last focused verification run before the newest official rerun.
 
 Important reruns during the later repair line:
 
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_1908__llm`
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_2138__llm`
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_2208__llm`
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_2237__llm`
+- `./scenario_runs/s2_staged/0422_1908__llm`
+- `./scenario_runs/s2_staged/0422_2138__llm`
+- `./scenario_runs/s2_staged/0422_2208__llm`
+- `./scenario_runs/s2_staged/0422_2237__llm`
 - latest official rerun after exact-positive front-loading:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_2311__llm`
+  - `./scenario_runs/s2_staged/0422_2311__llm`
 
 Important compare bundles during this line:
 
-- `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0422_1932__raw_union_old_vs_llm_convert_visibility_restore`
-- `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0422_2201__raw_union_old_vs_llm_exact_positive_priority`
-- `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0422_2233__raw_union_old_vs_llm_budget_guard_protection`
+- `./scenario_runs/compare_reports/s2_staged/0422_1932__raw_union_old_vs_llm_convert_visibility_restore`
+- `./scenario_runs/compare_reports/s2_staged/0422_2201__raw_union_old_vs_llm_exact_positive_priority`
+- `./scenario_runs/compare_reports/s2_staged/0422_2233__raw_union_old_vs_llm_budget_guard_protection`
 - compare for the final latest rerun:
-  - `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload`
+  - `./scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload`
 
 ## 10. Latest Verified State
 
 The current truth should be taken from:
 
 - latest `llm` rerun:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_2311__llm`
+  - `./scenario_runs/s2_staged/0422_2311__llm`
 - latest compare bundle:
-  - `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload`
+  - `./scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload`
 
 Latest verified metrics:
 
@@ -249,10 +249,10 @@ Latest verified metrics:
 
 Source files:
 
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_2311__llm/tables/summary_statistics.csv`
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_2311__llm/analytics/progress_timeline.csv`
-- `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload/tables/summary_table.csv`
-- `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload/tables/pairwise_deltas.csv`
+- `./scenario_runs/s2_staged/0422_2311__llm/tables/summary_statistics.csv`
+- `./scenario_runs/s2_staged/0422_2311__llm/analytics/progress_timeline.csv`
+- `./scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload/tables/summary_table.csv`
+- `./scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload/tables/pairwise_deltas.csv`
 
 ## 11. What Is Fixed Now
 
@@ -371,25 +371,25 @@ main remaining gap has moved upstream into convert.
 Do not revert these user-visible working files without checking intent. They
 carry the current repair line:
 
-- `/home/hymn/msfenicsx/optimizers/operator_pool/domain_state.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/state_builder.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/reflection.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py`
-- `/home/hymn/msfenicsx/optimizers/analytics/staged_audit.py`
-- `/home/hymn/msfenicsx/tests/optimizers/test_llm_policy_kernel.py`
-- `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller.py`
-- `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller_state.py`
-- `/home/hymn/msfenicsx/tests/optimizers/test_s2_staged_controller_audit.py`
+- `./optimizers/operator_pool/domain_state.py`
+- `./optimizers/operator_pool/state_builder.py`
+- `./optimizers/operator_pool/policy_kernel.py`
+- `./optimizers/operator_pool/reflection.py`
+- `./optimizers/operator_pool/llm_controller.py`
+- `./optimizers/analytics/staged_audit.py`
+- `./tests/optimizers/test_llm_policy_kernel.py`
+- `./tests/optimizers/test_llm_controller.py`
+- `./tests/optimizers/test_llm_controller_state.py`
+- `./tests/optimizers/test_s2_staged_controller_audit.py`
 
 ## 16. Minimal Resume Checklist For The Next Conversation
 
 If continuing in a new conversation, the fastest correct resume path is:
 
 1. read this handoff file first
-2. treat `/home/hymn/msfenicsx/scenario_runs/s2_staged/0422_2311__llm` as the
+2. treat `./scenario_runs/s2_staged/0422_2311__llm` as the
    latest verified `llm` evidence
-3. treat `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload`
+3. treat `./scenario_runs/compare_reports/s2_staged/0422_2332__raw_union_old_vs_llm_exact_frontload`
    as the latest verified compare bundle
 4. keep the honesty boundary from Section 12
 5. focus the next repair on `prefeasible_convert` entry efficiency

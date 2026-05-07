@@ -93,7 +93,7 @@
 
 Run:
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && /home/hymn/miniconda3/bin/conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
+cd "./paper/latex" && conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
 ```
 
 Expected: `build-zh/main_zh.pdf` 生成成功；允许继续出现已有的 `refs.bib` / `biber` 警告，但不能出现新的 TeX 语法错误。
@@ -179,7 +179,7 @@ g_k(\mathbf{x}) \le 0, \qquad k = 1,\dots,K.
 
 Run:
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && /home/hymn/miniconda3/bin/conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
+cd "./paper/latex" && conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
 ```
 
 Expected: 新增 `equation` 环境正常；不存在 `Missing $ inserted`、`Undefined control sequence`、`Extra }, or forgotten $` 一类新错误。
@@ -265,7 +265,7 @@ u_t = \pi_m(s_t),
 
 Run:
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && /home/hymn/miniconda3/bin/conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
+cd "./paper/latex" && conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
 ```
 
 Expected: 占位图正常出现；不因 `\fbox`、`\parbox`、数学环境或图题中的英文术语引入新错误。
@@ -332,7 +332,7 @@ saturation-layer recovery
 
 Run:
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && /home/hymn/miniconda3/bin/conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
+cd "./paper/latex" && conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
 ```
 
 Expected: 章节可正常编译；taxonomy 图位不与前后段落发生致命排版问题。
@@ -447,7 +447,7 @@ git commit -m "docs: align zh collapse recovery section"
 
 Run:
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && /home/hymn/miniconda3/bin/conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
+cd "./paper/latex" && conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
 ```
 
 Expected: 所有 compare report 图表路径都能找到；不存在 `File ... not found` 的新错误。
@@ -536,7 +536,7 @@ git commit -m "docs: add zh compare report evidence"
 
 Run:
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && /home/hymn/miniconda3/bin/conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
+cd "./paper/latex" && conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
 ```
 
 Expected: 单运行图全部可解析；双图并排不引发新的语法错误；允许继续存在已有参考文献警告。
@@ -582,7 +582,7 @@ git commit -m "docs: add zh llm mechanism evidence"
 
 Run:
 ```bash
-cd "/home/hymn/msfenicsx/paper/latex" && /home/hymn/miniconda3/bin/conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
+cd "./paper/latex" && conda run -n msfenicsx latexmk -xelatex -interaction=nonstopmode -halt-on-error -outdir=build-zh main_zh.tex
 ```
 
 Expected: `build-zh/main_zh.pdf` 正常生成；不出现新的 LaTeX 致命错误。已有 `refs.bib` 路径/Biber 警告可以保留为已知问题，但要在交付说明中明确它们不是本轮新增。

@@ -4,7 +4,7 @@
 
 **Goal:** Repair the `s2_staged` post-feasible controller chain so `llm` can use coherent recover/preserve/expand semantics, restore visibility for credited route families, and be re-evaluated fairly against `raw` and `union`.
 
-**Architecture:** The source of truth is `/home/hymn/msfenicsx/docs/superpowers/specs/2026-04-21-s2-staged-recover-chain-repair-design.md`. The repair keeps the shared operator registry fixed and changes only the controller-side state contract, credit surfaces, candidate-family restoration, and audit coverage. The implementation is intentionally TDD-first and runs directly on `main` in this repository, not in a separate worktree.
+**Architecture:** The source of truth is `./docs/superpowers/specs/2026-04-21-s2-staged-recover-chain-repair-design.md`. The repair keeps the shared operator registry fixed and changes only the controller-side state contract, credit surfaces, candidate-family restoration, and audit coverage. The implementation is intentionally TDD-first and runs directly on `main` in this repository, not in a separate worktree.
 
 **Tech Stack:** Python 3.11+, pytest, pymoo, JSONL traces, conda env `msfenicsx`.
 
@@ -14,33 +14,33 @@
 
 ### Primary implementation files
 
-- modify `/home/hymn/msfenicsx/optimizers/operator_pool/domain_state.py`
-- modify `/home/hymn/msfenicsx/optimizers/operator_pool/state_builder.py`
-- modify `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py`
-- modify `/home/hymn/msfenicsx/optimizers/operator_pool/reflection.py`
-- modify `/home/hymn/msfenicsx/optimizers/operator_pool/prompt_projection.py`
-- modify `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py`
-- modify `/home/hymn/msfenicsx/optimizers/analytics/staged_audit.py`
+- modify `./optimizers/operator_pool/domain_state.py`
+- modify `./optimizers/operator_pool/state_builder.py`
+- modify `./optimizers/operator_pool/policy_kernel.py`
+- modify `./optimizers/operator_pool/reflection.py`
+- modify `./optimizers/operator_pool/prompt_projection.py`
+- modify `./optimizers/operator_pool/llm_controller.py`
+- modify `./optimizers/analytics/staged_audit.py`
 
 ### Primary focused tests
 
-- modify `/home/hymn/msfenicsx/tests/optimizers/test_llm_policy_kernel.py`
-- modify `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller.py`
-- modify `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller_state.py`
-- modify `/home/hymn/msfenicsx/tests/optimizers/test_s2_staged_controller_audit.py`
+- modify `./tests/optimizers/test_llm_policy_kernel.py`
+- modify `./tests/optimizers/test_llm_controller.py`
+- modify `./tests/optimizers/test_llm_controller_state.py`
+- modify `./tests/optimizers/test_s2_staged_controller_audit.py`
 - keep verification coverage on:
-  - `/home/hymn/msfenicsx/tests/generator/test_s2_staged_template.py`
-  - `/home/hymn/msfenicsx/tests/optimizers/test_s2_staged_baseline.py`
+  - `./tests/generator/test_s2_staged_template.py`
+  - `./tests/optimizers/test_s2_staged_baseline.py`
 
 ### Run and audit targets
 
 - reuse old official suite:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm`
 - rerun new official `llm` mode under the timestamped canonical run root created
   by `optimize-benchmark` inside:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/`
+  - `./scenario_runs/s2_staged/`
 - compare via a new timestamped bundle created inside:
-  - `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/`
+  - `./scenario_runs/compare_reports/s2_staged/`
 
 ---
 
@@ -48,8 +48,8 @@
 
 **Files:**
 
-- Modify: `/home/hymn/msfenicsx/tests/optimizers/test_s2_staged_controller_audit.py`
-- Modify: `/home/hymn/msfenicsx/optimizers/analytics/staged_audit.py`
+- Modify: `./tests/optimizers/test_s2_staged_controller_audit.py`
+- Modify: `./optimizers/analytics/staged_audit.py`
 
 - [ ] **Step 1: Write failing audit tests for the current contract mismatches**
 
@@ -69,7 +69,7 @@ def test_prompt_surface_flags_hidden_positive_route_credit() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_s2_staged_controller_audit.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_s2_staged_controller_audit.py -v
 ```
 
 Expected:
@@ -79,7 +79,7 @@ Expected:
 
 - [ ] **Step 3: Add audit helpers that expose the broken contract directly**
 
-Implement in `/home/hymn/msfenicsx/optimizers/analytics/staged_audit.py`:
+Implement in `./optimizers/analytics/staged_audit.py`:
 
 ```python
 def summarize_prompt_contract_mismatches(
@@ -107,7 +107,7 @@ The helper must report:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_s2_staged_controller_audit.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_s2_staged_controller_audit.py -v
 ```
 
 Expected:
@@ -118,10 +118,10 @@ Expected:
 
 **Files:**
 
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/domain_state.py`
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/state_builder.py`
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/prompt_projection.py`
-- Test: `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller_state.py`
+- Modify: `./optimizers/operator_pool/domain_state.py`
+- Modify: `./optimizers/operator_pool/state_builder.py`
+- Modify: `./optimizers/operator_pool/prompt_projection.py`
+- Test: `./tests/optimizers/test_llm_controller_state.py`
 
 - [ ] **Step 1: Write failing state tests for recover-phase retrieval alignment**
 
@@ -152,7 +152,7 @@ def test_prompt_projection_does_not_silently_disagree_with_retrieval_phase() -> 
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_llm_controller_state.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_llm_controller_state.py -v
 ```
 
 Expected:
@@ -163,17 +163,17 @@ Expected:
 
 Apply these changes:
 
-- in `/home/hymn/msfenicsx/optimizers/operator_pool/domain_state.py`
+- in `./optimizers/operator_pool/domain_state.py`
   - keep `build_prompt_phase()` phase-specific for:
     - `prefeasible_convert`
     - `post_feasible_recover`
     - `post_feasible_preserve`
     - `post_feasible_expand`
-- in `/home/hymn/msfenicsx/optimizers/operator_pool/state_builder.py`
+- in `./optimizers/operator_pool/state_builder.py`
   - build retrieval query from the actual prompt phase
   - if fallback phases are needed, make them explicit via
     `query_regime["phase_fallbacks"]`
-- in `/home/hymn/msfenicsx/optimizers/operator_pool/prompt_projection.py`
+- in `./optimizers/operator_pool/prompt_projection.py`
   - preserve the aligned phase contract rather than rewriting only one panel
 
 - [ ] **Step 4: Re-run the state tests**
@@ -181,7 +181,7 @@ Apply these changes:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_llm_controller_state.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_llm_controller_state.py -v
 ```
 
 Expected:
@@ -192,10 +192,10 @@ Expected:
 
 **Files:**
 
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/domain_state.py`
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py`
-- Test: `/home/hymn/msfenicsx/tests/optimizers/test_llm_policy_kernel.py`
-- Test: `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller_state.py`
+- Modify: `./optimizers/operator_pool/domain_state.py`
+- Modify: `./optimizers/operator_pool/policy_kernel.py`
+- Test: `./tests/optimizers/test_llm_policy_kernel.py`
+- Test: `./tests/optimizers/test_llm_controller_state.py`
 
 - [ ] **Step 1: Write failing tests for recover exit readiness and preserve activation**
 
@@ -215,7 +215,7 @@ def test_detect_search_phase_promotes_to_preserve_after_recover_pressure_cools()
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller_state.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller_state.py -v
 ```
 
 Expected:
@@ -225,7 +225,7 @@ Expected:
 
 - [ ] **Step 3: Implement recent-pressure recover semantics**
 
-Implement in `/home/hymn/msfenicsx/optimizers/operator_pool/domain_state.py`:
+Implement in `./optimizers/operator_pool/domain_state.py`:
 
 ```python
 progress_state["recent_violation_family_switch_count"] = int(recent_switch_count)
@@ -233,7 +233,7 @@ progress_state["recover_pressure_level"] = recover_pressure_level
 progress_state["recover_exit_ready"] = recover_pressure_level == "low"
 ```
 
-Then update `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py` to
+Then update `./optimizers/operator_pool/policy_kernel.py` to
 use:
 
 - `recover_pressure_level`
@@ -248,7 +248,7 @@ instead of:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller_state.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller_state.py -v
 ```
 
 Expected:
@@ -259,11 +259,11 @@ Expected:
 
 **Files:**
 
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/reflection.py`
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/state_builder.py`
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py`
-- Test: `/home/hymn/msfenicsx/tests/optimizers/test_llm_policy_kernel.py`
-- Test: `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller.py`
+- Modify: `./optimizers/operator_pool/reflection.py`
+- Modify: `./optimizers/operator_pool/state_builder.py`
+- Modify: `./optimizers/operator_pool/policy_kernel.py`
+- Test: `./tests/optimizers/test_llm_policy_kernel.py`
+- Test: `./tests/optimizers/test_llm_controller.py`
 
 - [ ] **Step 1: Write failing tests for hidden positive-credit families**
 
@@ -283,7 +283,7 @@ def test_recover_restores_positive_stable_local_family_visibility() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py -v
 ```
 
 Expected:
@@ -295,10 +295,10 @@ Expected:
 
 Implement these pieces:
 
-- in `/home/hymn/msfenicsx/optimizers/operator_pool/reflection.py`
+- in `./optimizers/operator_pool/reflection.py`
   - aggregate `credit_by_route_family`
   - keep positive and negative support by compact regime key
-- in `/home/hymn/msfenicsx/optimizers/operator_pool/state_builder.py`
+- in `./optimizers/operator_pool/state_builder.py`
   - expose a route-family retrieval panel such as:
 
 ```python
@@ -308,7 +308,7 @@ Implement these pieces:
 }
 ```
 
-- in `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py`
+- in `./optimizers/operator_pool/policy_kernel.py`
   - restore at least one operator per positive family during recover/preserve
   - unless explicit stronger-negative suppression is trace-visible
 
@@ -317,7 +317,7 @@ Implement these pieces:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py -v
 ```
 
 Expected:
@@ -328,10 +328,10 @@ Expected:
 
 **Files:**
 
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py`
-- Modify: `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py`
-- Test: `/home/hymn/msfenicsx/tests/optimizers/test_llm_policy_kernel.py`
-- Test: `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller.py`
+- Modify: `./optimizers/operator_pool/policy_kernel.py`
+- Modify: `./optimizers/operator_pool/llm_controller.py`
+- Test: `./tests/optimizers/test_llm_policy_kernel.py`
+- Test: `./tests/optimizers/test_llm_controller.py`
 
 - [ ] **Step 1: Write failing tests for preserve/expand route-family behavior**
 
@@ -351,7 +351,7 @@ def test_expand_prefers_family_diversity_without_hiding_all_nonstable_routes() -
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py -v
 ```
 
 Expected:
@@ -374,7 +374,7 @@ Apply these rules:
   - frontier and diversity bias
   - budget throttles only after visibility invariants hold
 
-Update `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py` so
+Update `./optimizers/operator_pool/llm_controller.py` so
 trace metadata exposes:
 
 - visible route families
@@ -386,7 +386,7 @@ trace metadata exposes:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py -v
+conda run -n msfenicsx pytest tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py -v
 ```
 
 Expected:
@@ -404,7 +404,7 @@ Expected:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
 tests/generator/test_s2_staged_template.py \
 tests/optimizers/test_s2_staged_baseline.py \
 tests/optimizers/test_s2_staged_controller_audit.py \
@@ -432,14 +432,14 @@ Not allowed:
 
 **Files:**
 
-- Output only under `/home/hymn/msfenicsx/scenario_runs/s2_staged/`
+- Output only under `./scenario_runs/s2_staged/`
 
 - [ ] **Step 1: Launch the new official `llm` rerun**
 
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx \
+conda run -n msfenicsx \
 python -m optimizers.cli optimize-benchmark \
 --optimization-spec scenarios/optimization/s2_staged_llm.yaml \
 --evaluation-workers 2 \
@@ -457,7 +457,7 @@ Run:
 
 ```bash
 NEW_LLM_RUN="$(ls -dt scenario_runs/s2_staged/*__llm | head -n1)"
-/home/hymn/miniconda3/bin/conda run -n msfenicsx \
+conda run -n msfenicsx \
 python -m optimizers.cli render-assets \
 --run "$NEW_LLM_RUN"
 ```
@@ -470,7 +470,7 @@ Expected:
 
 **Files:**
 
-- Output only under `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/`
+- Output only under `./scenario_runs/compare_reports/s2_staged/`
 
 - [ ] **Step 1: Create the comparison bundle**
 
@@ -479,7 +479,7 @@ Run:
 ```bash
 NEW_LLM_RUN="$(ls -dt scenario_runs/s2_staged/*__llm | head -n1)"
 COMPARE_OUT="./scenario_runs/compare_reports/s2_staged/$(date +%m%d_%H%M)__raw_union_old_vs_llm_recover_repair"
-/home/hymn/miniconda3/bin/conda run -n msfenicsx \
+conda run -n msfenicsx \
 python -m optimizers.cli compare-runs \
 --run ./scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11 \
 --run ./scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11 \
@@ -499,7 +499,7 @@ Run:
 ```bash
 NEW_LLM_RUN="$(ls -dt scenario_runs/s2_staged/*__llm | head -n1)"
 export NEW_LLM_RUN
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python - <<'PY'
+conda run -n msfenicsx python - <<'PY'
 import json
 import os
 from pathlib import Path

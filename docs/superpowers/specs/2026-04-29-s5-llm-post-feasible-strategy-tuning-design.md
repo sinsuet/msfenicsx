@@ -104,8 +104,8 @@ S5 GPT 20×10 的关键现象：
 运行命令：
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_prompt_projection.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_prompt_projection.py
 ```
 
 若聚焦测试通过，再跑 S5 GPT 10×5 smoke，先检查 operator distribution，不直接以最终最优值作为唯一判断。

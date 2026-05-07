@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from copy import deepcopy
 from datetime import datetime
@@ -41,6 +42,10 @@ def run_benchmark_suite(
     skip_render: bool = False,
     llm_profile: str = "default",
     started_at: datetime | None = None,
+    parallel: bool = False,
+    max_concurrent_leaves: int = 20,
+    leaf_evaluation_workers: int | None = None,
+    continue_on_failure: bool = True,
 ) -> Path:
     if not optimization_spec_paths:
         raise ValueError("run_benchmark_suite requires at least one optimization spec path.")
@@ -98,6 +103,19 @@ def run_benchmark_suite(
             },
         },
     )
+
+    if parallel:
+        return _run_suite_parallel(
+            spec_by_mode=spec_by_mode,
+            selected_modes=selected_modes,
+            effective_seeds=effective_seeds,
+            run_root=run_root,
+            evaluation_workers=leaf_evaluation_workers or evaluation_workers,
+            llm_profile=llm_profile,
+            max_concurrent_leaves=max_concurrent_leaves,
+            continue_on_failure=continue_on_failure,
+            skip_render=skip_render,
+        )
 
     for mode in selected_modes:
         spec_path, optimization_spec = spec_by_mode[mode]
@@ -274,3 +292,76 @@ def _with_benchmark_seed(spec: OptimizationSpec, benchmark_seed: int) -> Optimiz
     payload = deepcopy(spec.to_dict())
     payload["benchmark_source"]["seed"] = int(benchmark_seed)
     return OptimizationSpec.from_dict(payload)
+
+
+def _run_suite_parallel(
+    *,
+    spec_by_mode: dict[str, tuple[Path, OptimizationSpec]],
+    selected_modes: list[str],
+    effective_seeds: list[int],
+    run_root: Path,
+    evaluation_workers: int | None,
+    llm_profile: str,
+    max_concurrent_leaves: int,
+    continue_on_failure: bool,
+    skip_render: bool,
+) -> Path:
+    from optimizers.cli import _llm_env_overlay_for_spec
+    from optimizers.suite_parallel import expand_leaves, run_leaves_parallel, write_run_index_header
+
+    logger = logging.getLogger(__name__)
+
+    mode_roots = {}
+    for mode in selected_modes:
+        spec_path, optimization_spec = spec_by_mode[mode]
+        mode_root = initialize_mode_root(run_root, mode=mode)
+        write_manifest(
+            mode_root / "manifest.json",
+            {
+                "mode_id": mode,
+                "optimization_spec_path": str(spec_path),
+                "benchmark_seeds": list(effective_seeds),
+                "directories": {"summaries": "summaries", "seeds": "seeds"},
+            },
+        )
+        mode_roots[mode] = mode_root
+
+    leaves = expand_leaves(spec_by_mode, selected_modes, effective_seeds)
+    logger.info("Parallel suite: %d leaves across modes %s, seeds %s", len(leaves), selected_modes, effective_seeds)
+
+    llm_env_overlay: dict[str, str] = {}
+    llm_specs = [spec for mode_id, (_, spec) in spec_by_mode.items() if mode_id == "llm"]
+    if llm_specs:
+        llm_env_overlay = _llm_env_overlay_for_spec(llm_specs[0], profile_id=llm_profile)
+
+    run_index_path = run_root / "run_index.csv"
+    write_run_index_header(run_index_path)
+
+    results = run_leaves_parallel(
+        leaves,
+        max_concurrent=max_concurrent_leaves,
+        evaluation_workers=evaluation_workers,
+        llm_env_overlay=llm_env_overlay,
+        mode_roots=mode_roots,
+        run_index_path=run_index_path,
+        continue_on_failure=continue_on_failure,
+    )
+
+    completed = sum(1 for r in results if r.status == "completed")
+    failed = sum(1 for r in results if r.status == "failed")
+    logger.info("Parallel suite finished: %d completed, %d failed", completed, failed)
+
+    if not skip_render:
+        from optimizers.render_assets import render_assets
+
+        for mode in selected_modes:
+            try:
+                render_assets(mode_roots[mode], hires=False)
+            except Exception as exc:
+                logger.error("Render failed for mode %s: %s", mode, exc)
+        try:
+            build_suite_comparisons(run_root)
+        except Exception as exc:
+            logger.error("Suite comparisons failed: %s", exc)
+
+    return run_root

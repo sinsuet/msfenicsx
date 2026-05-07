@@ -132,7 +132,7 @@ def test_s5_s7_raw_backbone_specs_exist_and_match_contract(scenario_id: str, dim
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_specs.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_specs.py
 ```
 
 Expected: FAIL，原因是新增 spec/profile 文件尚不存在。
@@ -219,7 +219,7 @@ s7_aggressive25_moead_raw
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_specs.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_specs.py
 ```
 
 Expected: PASS。
@@ -268,7 +268,7 @@ def test_matrix_llm_profiles_include_gpt_5_4_alias(monkeypatch):
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py::test_matrix_llm_profiles_include_gpt_5_4_alias
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py::test_matrix_llm_profiles_include_gpt_5_4_alias
 ```
 
 Expected: FAIL，原因是 `gpt_5_4` profile 尚不存在。
@@ -291,7 +291,7 @@ Expected: FAIL，原因是 `gpt_5_4` profile 尚不存在。
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py::test_matrix_llm_profiles_include_gpt_5_4_alias
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py::test_matrix_llm_profiles_include_gpt_5_4_alias
 ```
 
 Expected: PASS。
@@ -360,7 +360,7 @@ def test_s5_s7_matrix_resource_caps() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_config.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_config.py
 ```
 
 Expected: FAIL，原因是 `optimizers.matrix` 尚不存在。
@@ -539,7 +539,7 @@ def build_s5_s7_512eval_matrix() -> MatrixConfig:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_config.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_config.py
 ```
 
 Expected: PASS。
@@ -602,7 +602,7 @@ def test_write_leaf_spec_snapshot_keeps_raw_without_operator_control(tmp_path: P
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_spec_snapshots.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_spec_snapshots.py
 ```
 
 Expected: FAIL。
@@ -666,7 +666,7 @@ def _snapshot_spec_id(leaf: MatrixLeaf) -> str:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_spec_snapshots.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_spec_snapshots.py
 ```
 
 Expected: PASS。
@@ -723,7 +723,7 @@ def test_failed_retry_rows_create_attempt_two_only_for_failed_statuses(tmp_path:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_index.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_index.py
 ```
 
 Expected: FAIL。
@@ -876,7 +876,7 @@ def _row_for_leaf(leaf: MatrixLeaf, *, run_root: Path, attempt: int, previous_at
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_index.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_index.py
 ```
 
 Expected: PASS。
@@ -1006,7 +1006,7 @@ def test_optimizer_cli_run_benchmark_matrix_forwards_block(tmp_path, monkeypatch
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_runner.py tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_run_benchmark_matrix_forwards_block
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_runner.py tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_run_benchmark_matrix_forwards_block
 ```
 
 Expected: FAIL。
@@ -1234,7 +1234,7 @@ from optimizers.matrix.runner import run_matrix_block
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_runner.py tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_run_benchmark_matrix_forwards_block
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_runner.py tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_run_benchmark_matrix_forwards_block
 ```
 
 Expected: PASS。
@@ -1314,7 +1314,7 @@ def test_paired_differences_compare_matched_replicate_seeds() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_aggregate.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_aggregate.py
 ```
 
 Expected: FAIL。
@@ -1411,7 +1411,7 @@ def _is_true(value: str) -> bool:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_aggregate.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_aggregate.py
 ```
 
 Expected: PASS。
@@ -1485,7 +1485,7 @@ def test_render_failure_stacked_bar_writes_png_and_pdf(tmp_path: Path) -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_figures.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_figures.py
 ```
 
 Expected: FAIL。
@@ -1573,7 +1573,7 @@ def _save(fig, output_root: Path, stem: str) -> list[Path]:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_figures.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_figures.py
 ```
 
 Expected: PASS。
@@ -1640,7 +1640,7 @@ def test_plan_compare_bundles_pairs_key_methods_within_scenario() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_representatives.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_representatives.py
 ```
 
 Expected: FAIL。
@@ -1728,7 +1728,7 @@ def _scale(value: float, minimum: float, maximum: float) -> float:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_representatives.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_representatives.py
 ```
 
 Expected: PASS。
@@ -1780,7 +1780,7 @@ def test_optimizer_cli_aggregate_benchmark_matrix_forwards_paths(tmp_path, monke
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_aggregate_benchmark_matrix_forwards_paths
+conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_aggregate_benchmark_matrix_forwards_paths
 ```
 
 Expected: FAIL。
@@ -1848,7 +1848,7 @@ from optimizers.matrix.aggregate import aggregate_matrix
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_aggregate_benchmark_matrix_forwards_paths
+conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_aggregate_benchmark_matrix_forwards_paths
 ```
 
 Expected: PASS。
@@ -1906,7 +1906,7 @@ Expected: 输出两个文件中的中文写作规则和 matrix 命令。
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_specs.py tests/optimizers/test_matrix_config.py tests/optimizers/test_matrix_spec_snapshots.py tests/optimizers/test_matrix_index.py tests/optimizers/test_matrix_runner.py tests/optimizers/test_matrix_aggregate.py tests/optimizers/test_matrix_figures.py tests/optimizers/test_matrix_representatives.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_matrix_specs.py tests/optimizers/test_matrix_config.py tests/optimizers/test_matrix_spec_snapshots.py tests/optimizers/test_matrix_index.py tests/optimizers/test_matrix_runner.py tests/optimizers/test_matrix_aggregate.py tests/optimizers/test_matrix_figures.py tests/optimizers/test_matrix_representatives.py
 ```
 
 Expected: PASS。
@@ -1916,7 +1916,7 @@ Expected: PASS。
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_run_benchmark_matrix_forwards_block tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_aggregate_benchmark_matrix_forwards_paths
+conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_run_benchmark_matrix_forwards_block tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_aggregate_benchmark_matrix_forwards_paths
 ```
 
 Expected: PASS。
@@ -1926,7 +1926,7 @@ Expected: PASS。
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py::test_matrix_llm_profiles_include_gpt_5_4_alias
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py::test_matrix_llm_profiles_include_gpt_5_4_alias
 ```
 
 Expected: PASS。

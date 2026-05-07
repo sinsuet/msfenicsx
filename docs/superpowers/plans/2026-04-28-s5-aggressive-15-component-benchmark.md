@@ -65,7 +65,7 @@ Do not modify:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/schema/test_s5_aggressive15_template.py
+conda run -n msfenicsx pytest -v tests/schema/test_s5_aggressive15_template.py
 ```
 
 Expected before template creation: fail because the file does not exist.
@@ -108,7 +108,7 @@ Run the schema test again and fix YAML contract issues before continuing.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/generator/test_s5_aggressive15_template.py
+conda run -n msfenicsx pytest -v tests/generator/test_s5_aggressive15_template.py
 ```
 
 ---
@@ -177,7 +177,7 @@ operator_control:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_s5_aggressive15_specs.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_s5_aggressive15_specs.py
 ```
 
 ---
@@ -187,8 +187,8 @@ Run:
 Run focused commands:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s5_aggressive15.yaml
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s5_aggressive15.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s5_aggressive15/seed-11
+conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s5_aggressive15.yaml
+conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s5_aggressive15.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s5_aggressive15/seed-11
 ```
 
 Then solve and evaluate the generated case using the produced paths.
@@ -202,7 +202,7 @@ If the solver fails, adjust physical/template aggressiveness before touching opt
 After focused tests and solver/evaluation smoke pass, run a small matched smoke:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
   --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \

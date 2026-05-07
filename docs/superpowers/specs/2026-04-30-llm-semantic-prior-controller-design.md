@@ -295,7 +295,7 @@ selection_strategy == "semantic_prior_sampler"
 聚焦测试：
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_llm_client.py \
   tests/optimizers/test_semantic_prior_sampler.py \
   tests/optimizers/test_llm_controller.py \
@@ -306,7 +306,7 @@ selection_strategy == "semantic_prior_sampler"
 基础合同测试：
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_algorithm_ladder_contracts.py \
   tests/optimizers/test_operator_pool_contracts.py
 ```

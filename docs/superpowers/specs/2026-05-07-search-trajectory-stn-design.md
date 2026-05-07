@@ -192,7 +192,7 @@ max_out_degree
 focused verification 命令：
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_search_trajectory.py tests/visualization/test_search_trajectory_figure.py tests/visualization/test_render_assets_fixtures.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_search_trajectory.py tests/visualization/test_search_trajectory_figure.py tests/visualization/test_render_assets_fixtures.py
 ```
 
 ## 风险和解释口径

@@ -104,7 +104,7 @@ If `tests/optimizers/test_operator_pool_contracts.py` already imports `Path` or 
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py::test_s1_typical_union_and_llm_share_search_substrate tests/optimizers/test_operator_pool_contracts.py::test_s2_staged_union_and_llm_share_search_substrate
+conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py::test_s1_typical_union_and_llm_share_search_substrate tests/optimizers/test_operator_pool_contracts.py::test_s2_staged_union_and_llm_share_search_substrate
 ```
 
 Expected: FAIL because current `llm` specs use `registry_profile: primitive_plus_assisted`, include assisted operators, and use `legality_policy_id: projection_plus_local_restore`.
@@ -192,7 +192,7 @@ evaluation_protocol:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py::test_s1_typical_union_and_llm_share_search_substrate tests/optimizers/test_operator_pool_contracts.py::test_s2_staged_union_and_llm_share_search_substrate
+conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py::test_s1_typical_union_and_llm_share_search_substrate tests/optimizers/test_operator_pool_contracts.py::test_s2_staged_union_and_llm_share_search_substrate
 ```
 
 Expected: PASS.
@@ -334,7 +334,7 @@ def _post_feasible_expand_state() -> ControllerState:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_policy_kernel.py::test_policy_snapshot_preserves_cold_start_candidate_support tests/optimizers/test_llm_policy_kernel.py::test_policy_snapshot_preserves_prefeasible_candidate_support tests/optimizers/test_llm_policy_kernel.py::test_policy_snapshot_preserves_post_feasible_candidate_support
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_policy_kernel.py::test_policy_snapshot_preserves_cold_start_candidate_support tests/optimizers/test_llm_policy_kernel.py::test_policy_snapshot_preserves_prefeasible_candidate_support tests/optimizers/test_llm_policy_kernel.py::test_policy_snapshot_preserves_post_feasible_candidate_support
 ```
 
 Expected: At least one FAIL because current `build_policy_snapshot()` can shrink `allowed_operator_ids` and populate `suppressed_operator_ids`.
@@ -430,7 +430,7 @@ These are the soft-advice substrate. They should continue to populate `route_bud
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_policy_kernel.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_policy_kernel.py
 ```
 
 Expected: PASS. If older tests explicitly expect `suppressed_operator_ids` to be non-empty, update those assertions to check `reason_codes` and per-operator annotation fields instead.
@@ -554,7 +554,7 @@ def test_llm_controller_guardrail_prompt_is_soft_advice_not_removal() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py::test_llm_controller_preserves_full_candidate_pool_with_recent_dominance tests/optimizers/test_llm_controller.py::test_llm_controller_guardrail_prompt_is_soft_advice_not_removal
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py::test_llm_controller_preserves_full_candidate_pool_with_recent_dominance tests/optimizers/test_llm_controller.py::test_llm_controller_guardrail_prompt_is_soft_advice_not_removal
 ```
 
 Expected: FAIL because current guardrails can filter candidates and the prompt says an operator was removed.
@@ -665,7 +665,7 @@ If existing trace consumers still read `guardrail_filtered_operator_ids`, leave 
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
 ```
 
 Expected: PASS. If older tests expected guardrail removal, update them to assert soft-advice metadata and full candidate preservation.
@@ -778,7 +778,7 @@ EOF
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py
 ```
 
 Expected: PASS.
@@ -788,7 +788,7 @@ Expected: PASS.
 Because this uses external LLM credentials from the environment, ask the user before running it. If approved, run with a minimal budget and local output root:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --output-root ./scenario_runs/s1_typical/llm-contract-smoke --population-size 6 --num-generations 2 --evaluation-workers 1 --skip-render
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --output-root ./scenario_runs/s1_typical/llm-contract-smoke --population-size 6 --num-generations 2 --evaluation-workers 1 --skip-render
 ```
 
 Expected: command completes or fails for an environmental/provider reason. A provider/network failure is not a contract failure; inspect generated traces only if a run directory is produced.
@@ -798,7 +798,7 @@ Expected: command completes or fails for an environmental/provider reason. A pro
 Use Python rather than shell text parsing so JSONL parsing is strict. Replace `<run_dir>` with the concrete path produced by the smoke command:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python - <<'PY'
+conda run -n msfenicsx python - <<'PY'
 from pathlib import Path
 import json
 
@@ -818,7 +818,7 @@ Expected: output includes `candidate_pool_lengths: [7]` for the current clean pr
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python - <<'PY'
+conda run -n msfenicsx python - <<'PY'
 from pathlib import Path
 import yaml
 

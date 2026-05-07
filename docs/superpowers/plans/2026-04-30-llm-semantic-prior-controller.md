@@ -84,7 +84,7 @@ def test_operator_prior_advice_schema_requires_operator_priors() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py::test_operator_prior_advice_schema_requires_operator_priors
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py::test_operator_prior_advice_schema_requires_operator_priors
 ```
 
 Expected: FAIL with import error for `build_operator_prior_advice_schema`.
@@ -141,7 +141,7 @@ def build_operator_prior_advice_schema(candidate_operator_ids: Sequence[str]) ->
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py::test_operator_prior_advice_schema_requires_operator_priors
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py::test_operator_prior_advice_schema_requires_operator_priors
 ```
 
 Expected: PASS.
@@ -198,7 +198,7 @@ def test_operator_prior_advice_rejects_unknown_operator_id() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_llm_client.py::test_chat_compatible_json_client_parses_operator_prior_advice \
   tests/optimizers/test_llm_client.py::test_operator_prior_advice_rejects_unknown_operator_id
 ```
@@ -496,7 +496,7 @@ def _build_retry_prior_system_prompt(
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_client.py
 ```
 
 Expected: PASS.
@@ -684,7 +684,7 @@ def test_sampler_expands_semantic_task_priors_when_operator_priors_are_empty() -
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_semantic_prior_sampler.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_semantic_prior_sampler.py
 ```
 
 Expected: FAIL because `optimizers.operator_pool.semantic_prior_sampler` does not exist.
@@ -1021,7 +1021,7 @@ def _clamp_unit(value: Any) -> float:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_semantic_prior_sampler.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_semantic_prior_sampler.py
 ```
 
 Expected: PASS. If a probability assertion differs only because of deterministic normalization, update the assertion to the exact value produced by the implemented formula, not to a looser behavioral statement.
@@ -1162,7 +1162,7 @@ def _state_with_metadata(metadata: dict[str, object]) -> ControllerState:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_prior_sampler_records_probabilities
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_prior_sampler_records_probabilities
 ```
 
 Expected: FAIL because `selection_strategy` and prior sampling are not wired into `LLMOperatorController`.
@@ -1605,7 +1605,7 @@ def _select_decision_from_semantic_prior(
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_prior_sampler_records_probabilities
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py::test_llm_controller_semantic_prior_sampler_records_probabilities
 ```
 
 Expected: PASS.
@@ -1615,7 +1615,7 @@ Expected: PASS.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -q tests/optimizers/test_llm_controller.py
 ```
 
 Expected: PASS. Existing direct-selector tests should keep passing because default `selection_strategy` is `direct_operator`.
@@ -1678,7 +1678,7 @@ def test_llm_spec_accepts_semantic_prior_sampler_parameters() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_s5_aggressive15_specs.py \
   tests/optimizers/test_optimizer_io.py::test_llm_spec_accepts_semantic_prior_sampler_parameters
 ```
@@ -1709,7 +1709,7 @@ Keep existing provider/model/retry/memory/fallback fields unchanged. Do not edit
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_s5_aggressive15_specs.py \
   tests/optimizers/test_optimizer_io.py::test_llm_spec_accepts_semantic_prior_sampler_parameters
 ```
@@ -1839,7 +1839,7 @@ from optimizers.traces.prompt_store import PromptStore
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q tests/optimizers/test_controller_trace_new_schema.py::test_llm_semantic_prior_trace_surfaces_sampler_metadata
+conda run -n msfenicsx pytest -q tests/optimizers/test_controller_trace_new_schema.py::test_llm_semantic_prior_trace_surfaces_sampler_metadata
 ```
 
 Expected: PASS after Task 3 implementation.
@@ -1849,7 +1849,7 @@ Expected: PASS after Task 3 implementation.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_llm_client.py \
   tests/optimizers/test_semantic_prior_sampler.py \
   tests/optimizers/test_llm_controller.py \
@@ -1865,7 +1865,7 @@ Expected: PASS.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -q \
+conda run -n msfenicsx pytest -q \
   tests/optimizers/test_algorithm_ladder_contracts.py \
   tests/optimizers/test_operator_pool_contracts.py
 ```
@@ -1906,7 +1906,7 @@ git commit -m "test: cover llm semantic prior trace metadata"
 After all focused tests pass, use a cheap run before spending GPT 20×10 budget:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm gpt \
+conda run -n msfenicsx python -m optimizers.cli run-llm gpt \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
   --population-size 10 \
@@ -1917,7 +1917,7 @@ After all focused tests pass, use a cheap run before spending GPT 20×10 budget:
 Then render:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli render-assets \
+conda run -n msfenicsx python -m optimizers.cli render-assets \
   --run ./scenario_runs/s5_aggressive15/<MMDD_HHMM>__llm_gpt_10x5_semantic_prior
 ```
 

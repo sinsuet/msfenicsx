@@ -2,7 +2,7 @@
 
 ## 1. 这份文档的用途
 
-这是一份给后续对话使用的交接文档，记录当前 worktree（`/home/hymn/msfenicsx/.worktree/fair-comparison-restore`）里围绕 `raw / union / llm` 公平对比恢复所做的工作。
+这是一份给后续对话使用的交接文档，记录当前 worktree（`./.worktree/fair-comparison-restore`）里围绕 `raw / union / llm` 公平对比恢复所做的工作。
 
 你后面如果在另一个对话里继续这条线，可以直接从这里接着看：
 
@@ -14,8 +14,8 @@
 
 相关设计与计划文件：
 
-- `/home/hymn/msfenicsx/docs/superpowers/specs/2026-04-27-fair-raw-union-llm-comparison-restore-design.md`
-- `/home/hymn/msfenicsx/docs/superpowers/plans/2026-04-28-fair-raw-union-llm-comparison-restore.md`
+- `./docs/superpowers/specs/2026-04-27-fair-raw-union-llm-comparison-restore-design.md`
+- `./docs/superpowers/plans/2026-04-28-fair-raw-union-llm-comparison-restore.md`
 
 ## 2. 背景问题
 

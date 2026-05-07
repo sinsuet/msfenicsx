@@ -75,6 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
     suite_parser.add_argument("--num-generations", type=_positive_int, default=None)
     suite_parser.add_argument("--skip-render", action="store_true")
     suite_parser.add_argument("--llm-profile", default="default")
+    suite_parser.add_argument("--parallel", action="store_true")
+    suite_parser.add_argument("--max-concurrent-leaves", type=_positive_int, default=20)
+    suite_parser.add_argument("--leaf-evaluation-workers", type=_positive_int, default=None)
+    suite_parser.add_argument("--continue-on-failure", action="store_true", default=True)
 
     replay_parser = subparsers.add_parser("replay-llm-trace")
     replay_parser.add_argument("--optimization-spec", required=True)
@@ -266,6 +270,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             num_generations=args.num_generations,
             skip_render=args.skip_render,
             llm_profile=args.llm_profile,
+            parallel=args.parallel,
+            max_concurrent_leaves=args.max_concurrent_leaves,
+            leaf_evaluation_workers=args.leaf_evaluation_workers,
+            continue_on_failure=args.continue_on_failure,
         )
         return 0
     if args.command == "replay-llm-trace":

@@ -179,7 +179,7 @@ def test_scale_template_declares_layout_semantics(template_id: str, expected: di
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py -v
+conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py -v
 ```
 
 Expected: FAIL with `FileNotFoundError` for `scenarios/templates/s3_scale20.yaml`.
@@ -394,7 +394,7 @@ Append these load rules after the `c15` load rule:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py::test_scale_template_identity_and_contract tests/schema/test_s3_s4_templates.py::test_scale_template_uses_higher_occupancy tests/schema/test_s3_s4_templates.py::test_scale_template_power_and_sink_budget_shape tests/schema/test_s3_s4_templates.py::test_scale_template_declares_layout_semantics -v
+conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py::test_scale_template_identity_and_contract tests/schema/test_s3_s4_templates.py::test_scale_template_uses_higher_occupancy tests/schema/test_s3_s4_templates.py::test_scale_template_power_and_sink_budget_shape tests/schema/test_s3_s4_templates.py::test_scale_template_declares_layout_semantics -v
 ```
 
 Expected: S3 parameter rows PASS; S4 rows still fail because S4 has not been created.
@@ -404,7 +404,7 @@ Expected: S3 parameter rows PASS; S4 rows still fail because S4 has not been cre
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s3_scale20.yaml
+conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s3_scale20.yaml
 ```
 
 Expected: exit code 0.
@@ -488,7 +488,7 @@ def test_s3_scale20_generation_is_stable_for_seed_sample(seed: int) -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/generator/test_s3_s4_templates.py -v
+conda run -n msfenicsx pytest tests/generator/test_s3_s4_templates.py -v
 ```
 
 Expected: PASS. If S3 generation fails, adjust only S3 generation zones, `max_placement_attempts`, `placement_retries`, or added-module clearances. Keep target raw area ratio within `0.52-0.55`.
@@ -524,7 +524,7 @@ def test_generated_s3_scale20_case_solves_for_seed_11() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/solver/test_s3_s4_generated_cases.py::test_generated_s3_scale20_case_solves_for_seed_11 -v
+conda run -n msfenicsx pytest tests/solver/test_s3_s4_generated_cases.py::test_generated_s3_scale20_case_solves_for_seed_11 -v
 ```
 
 Expected: PASS with a converged solve.
@@ -648,7 +648,7 @@ def test_s3_spec_generates_twenty_component_case() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_s3_s4_specs.py -k s3 -v
+conda run -n msfenicsx pytest tests/optimizers/test_s3_s4_specs.py -k s3 -v
 ```
 
 Expected: FAIL with missing S3 evaluation or optimization spec files.
@@ -678,7 +678,7 @@ git commit -m "test: define S3 optimizer spec contract"
 Run this command. It solves the generated seed-11 case, projects the seed-11 baseline through the intended S3 42D legality bounds, solves the projected case, and writes `scenarios/evaluation/s3_scale20_eval.yaml` with concrete decimal limits.
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python - <<'PY'
+conda run -n msfenicsx python - <<'PY'
 from pathlib import Path
 
 import yaml
@@ -992,7 +992,7 @@ evaluation_protocol:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_s3_s4_specs.py -k s3 -v
+conda run -n msfenicsx pytest tests/optimizers/test_s3_s4_specs.py -k s3 -v
 ```
 
 Expected: PASS.
@@ -1017,7 +1017,7 @@ git commit -m "feat: add S3 scale20 optimizer specs"
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s3_scale20_raw.yaml --evaluation-workers 2 --population-size 20 --num-generations 10 --skip-render --output-root ./scenario_runs/s3_scale20/raw-smoke
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s3_scale20_raw.yaml --evaluation-workers 2 --population-size 20 --num-generations 10 --skip-render --output-root ./scenario_runs/s3_scale20/raw-smoke
 ```
 
 Expected: `scenario_runs/s3_scale20/raw-smoke/optimization_result.json` exists and reports at least one feasible optimizer record.
@@ -1027,7 +1027,7 @@ Expected: `scenario_runs/s3_scale20/raw-smoke/optimization_result.json` exists a
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s3_scale20_union.yaml --evaluation-workers 2 --population-size 20 --num-generations 10 --skip-render --output-root ./scenario_runs/s3_scale20/union-smoke
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s3_scale20_union.yaml --evaluation-workers 2 --population-size 20 --num-generations 10 --skip-render --output-root ./scenario_runs/s3_scale20/union-smoke
 ```
 
 Expected: `scenario_runs/s3_scale20/union-smoke/optimization_result.json` exists. The run must not have every optimizer candidate skipped by cheap geometry failure.
@@ -1256,7 +1256,7 @@ Append these load rules after the `c20` load rule:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py -v
+conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py -v
 ```
 
 Expected: PASS.
@@ -1297,7 +1297,7 @@ def test_s4_dense25_generation_is_stable_for_seed_sample(seed: int) -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/generator/test_s3_s4_templates.py -k s4 -v
+conda run -n msfenicsx pytest tests/generator/test_s3_s4_templates.py -k s4 -v
 ```
 
 Expected: PASS. If S4 generation fails, adjust only S4 zones, attempts, retries, or added-module clearances. Keep raw area ratio in `0.60-0.63`.
@@ -1340,7 +1340,7 @@ def test_generated_s4_dense25_case_solves_for_seed_11() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/solver/test_s3_s4_generated_cases.py::test_generated_s4_dense25_case_solves_for_seed_11 -v
+conda run -n msfenicsx pytest tests/solver/test_s3_s4_generated_cases.py::test_generated_s4_dense25_case_solves_for_seed_11 -v
 ```
 
 Expected: PASS with a converged solve.
@@ -1425,7 +1425,7 @@ def test_s4_spec_generates_twenty_five_component_case() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_s3_s4_specs.py -k s4 -v
+conda run -n msfenicsx pytest tests/optimizers/test_s3_s4_specs.py -k s4 -v
 ```
 
 Expected: FAIL with missing S4 evaluation or optimization spec files.
@@ -1455,7 +1455,7 @@ git commit -m "test: define S4 dense25 solver and optimizer contracts"
 Run this command. It solves the generated seed-11 case, projects the seed-11 baseline through the intended S4 52D legality bounds, solves the projected case, and writes `scenarios/evaluation/s4_dense25_eval.yaml` with concrete decimal limits.
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python - <<'PY'
+conda run -n msfenicsx python - <<'PY'
 from pathlib import Path
 
 import yaml
@@ -1685,7 +1685,7 @@ Append `c21_x/c21_y` through `c25_x/c25_y` before sink variables:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/optimizers/test_s3_s4_specs.py -k s4 -v
+conda run -n msfenicsx pytest tests/optimizers/test_s3_s4_specs.py -k s4 -v
 ```
 
 Expected: PASS.
@@ -1710,7 +1710,7 @@ git commit -m "feat: add S4 dense25 optimizer specs"
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s4_dense25_raw.yaml --evaluation-workers 2 --population-size 20 --num-generations 10 --skip-render --output-root ./scenario_runs/s4_dense25/raw-smoke
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s4_dense25_raw.yaml --evaluation-workers 2 --population-size 20 --num-generations 10 --skip-render --output-root ./scenario_runs/s4_dense25/raw-smoke
 ```
 
 Expected: `scenario_runs/s4_dense25/raw-smoke/optimization_result.json` exists. At least one feasible optimizer record is preferred. If no feasible record appears under 20x10, rerun raw once with `--population-size 32 --num-generations 14 --skip-render`; the official S4 budget is allowed to be larger.
@@ -1720,7 +1720,7 @@ Expected: `scenario_runs/s4_dense25/raw-smoke/optimization_result.json` exists. 
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s4_dense25_union.yaml --evaluation-workers 2 --population-size 20 --num-generations 10 --skip-render --output-root ./scenario_runs/s4_dense25/union-smoke
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s4_dense25_union.yaml --evaluation-workers 2 --population-size 20 --num-generations 10 --skip-render --output-root ./scenario_runs/s4_dense25/union-smoke
 ```
 
 Expected: run completes and does not collapse entirely into solver-skipped geometry failures.
@@ -1812,7 +1812,7 @@ Add S3/S4 template/evaluation/optimization paths to the implemented inputs list.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py tests/generator/test_s3_s4_templates.py tests/optimizers/test_s3_s4_specs.py -v
+conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py tests/generator/test_s3_s4_templates.py tests/optimizers/test_s3_s4_specs.py -v
 ```
 
 Expected: PASS.
@@ -1836,7 +1836,7 @@ git commit -m "docs: document S3 S4 scale benchmarks"
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py tests/generator/test_s3_s4_templates.py tests/optimizers/test_s3_s4_specs.py -v
+conda run -n msfenicsx pytest tests/schema/test_s3_s4_templates.py tests/generator/test_s3_s4_templates.py tests/optimizers/test_s3_s4_specs.py -v
 ```
 
 Expected: PASS.
@@ -1846,7 +1846,7 @@ Expected: PASS.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/solver/test_s3_s4_generated_cases.py -v
+conda run -n msfenicsx pytest tests/solver/test_s3_s4_generated_cases.py -v
 ```
 
 Expected: PASS. If runtime is high, record elapsed time in the final summary.
@@ -1856,9 +1856,9 @@ Expected: PASS. If runtime is high, record elapsed time in the final summary.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s3_scale20.yaml
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s4_dense25.yaml
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python - <<'PY'
+conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s3_scale20.yaml
+conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s4_dense25.yaml
+conda run -n msfenicsx python - <<'PY'
 from optimizers.io import load_optimization_spec
 
 for path in [

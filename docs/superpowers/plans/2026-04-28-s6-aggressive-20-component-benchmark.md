@@ -65,7 +65,7 @@ Do not modify:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/schema/test_s6_aggressive20_template.py
+conda run -n msfenicsx pytest -v tests/schema/test_s6_aggressive20_template.py
 ```
 
 Expected before template creation: fail because the file does not exist.
@@ -109,7 +109,7 @@ Avoid making all added components high-power; preserve semantic variety.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/generator/test_s6_aggressive20_template.py
+conda run -n msfenicsx pytest -v tests/generator/test_s6_aggressive20_template.py
 ```
 
 ---
@@ -156,7 +156,7 @@ Do not over-constrain S6; the target is thermal layout optimization, not a const
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_s6_aggressive20_specs.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_s6_aggressive20_specs.py
 ```
 
 ---
@@ -166,8 +166,8 @@ Run:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s6_aggressive20.yaml
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s6_aggressive20.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s6_aggressive20/seed-11
+conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s6_aggressive20.yaml
+conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s6_aggressive20.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s6_aggressive20/seed-11
 ```
 
 Then solve/evaluate the generated case with the S6 evaluation spec.
@@ -181,7 +181,7 @@ If most problems are geometry-related, reduce density or clearance pressure befo
 After focused validation, run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s6_aggressive20_raw.yaml \
   --optimization-spec scenarios/optimization/s6_aggressive20_union.yaml \
   --optimization-spec scenarios/optimization/s6_aggressive20_llm.yaml \

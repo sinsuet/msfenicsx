@@ -34,10 +34,10 @@ paper-facing difference between `union` and `llm` as a controller-only change.
 The checked evidence for this design comes from:
 
 - new `llm` rerun root:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged`
+  - `./scenario_runs/s2_staged`
 - comparison bundle built from old official `raw/union` plus the new `llm`
   rerun:
-  - `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair`
+  - `./scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair`
 
 The current honest status is:
 
@@ -70,30 +70,30 @@ more specific:
 
 The active design and implementation context remains:
 
-- `/home/hymn/msfenicsx/docs/reports/2026-04-21-s2-staged-llm-effect-repair-report.md`
-- `/home/hymn/msfenicsx/docs/superpowers/specs/2026-04-20-s2-staged-joint-design.md`
-- `/home/hymn/msfenicsx/docs/superpowers/plans/2026-04-20-s2-staged-joint-implementation.md`
-- `/home/hymn/msfenicsx/docs/superpowers/specs/2026-04-21-s2-staged-recover-chain-repair-design.md`
-- `/home/hymn/msfenicsx/docs/superpowers/plans/2026-04-21-s2-staged-recover-chain-repair.md`
+- `./docs/reports/2026-04-21-s2-staged-llm-effect-repair-report.md`
+- `./docs/superpowers/specs/2026-04-20-s2-staged-joint-design.md`
+- `./docs/superpowers/plans/2026-04-20-s2-staged-joint-implementation.md`
+- `./docs/superpowers/specs/2026-04-21-s2-staged-recover-chain-repair-design.md`
+- `./docs/superpowers/plans/2026-04-21-s2-staged-recover-chain-repair.md`
 
 The key runtime evidence is:
 
 - compare summary:
-  - `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/analytics/summary_rows.json`
+  - `./scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/analytics/summary_rows.json`
 - request trace:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/traces/llm_request_trace.jsonl`
+  - `./scenario_runs/s2_staged/traces/llm_request_trace.jsonl`
 - controller trace:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/traces/controller_trace.jsonl`
+  - `./scenario_runs/s2_staged/traces/controller_trace.jsonl`
 
 The most important implementation surfaces remain:
 
-- `/home/hymn/msfenicsx/optimizers/operator_pool/domain_state.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/state_builder.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/reflection.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/prompt_projection.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py`
-- `/home/hymn/msfenicsx/optimizers/analytics/staged_audit.py`
+- `./optimizers/operator_pool/domain_state.py`
+- `./optimizers/operator_pool/state_builder.py`
+- `./optimizers/operator_pool/policy_kernel.py`
+- `./optimizers/operator_pool/reflection.py`
+- `./optimizers/operator_pool/prompt_projection.py`
+- `./optimizers/operator_pool/llm_controller.py`
+- `./optimizers/analytics/staged_audit.py`
 
 ## 4. Root-Cause Diagnosis
 
@@ -396,14 +396,14 @@ The next implementation cycle should treat the following as hard gates:
 2. required focused test gate:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest tests/generator/test_s2_staged_template.py tests/optimizers/test_s2_staged_baseline.py tests/optimizers/test_s2_staged_controller_audit.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py tests/optimizers/test_llm_controller_state.py -v
+conda run -n msfenicsx pytest tests/generator/test_s2_staged_template.py tests/optimizers/test_s2_staged_baseline.py tests/optimizers/test_s2_staged_controller_audit.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py tests/optimizers/test_llm_controller_state.py -v
 ```
 
 3. official `s2_staged` `llm` rerun after the focused gate passes
 4. `render-assets` on the new run
 5. external compare bundle against:
-   - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11`
-   - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11`
+   - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/raw/seeds/seed-11`
+   - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/union/seeds/seed-11`
    - the new `llm` run root
 
 ## 10. Success Criteria

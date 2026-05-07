@@ -161,10 +161,10 @@ The fixed benchmark decisions are:
 ## Environment And Execution
 
 - Canonical execution context is WSL2 Ubuntu.
-- Even if the workspace is opened through `\\wsl$\Ubuntu\home\hymn\msfenicsx`, treat the repo as Linux-first and use `/home/hymn/msfenicsx`.
+- Treat the repo as Linux-first; all paths in docs and scripts use relative form from the repo root.
 - When worktrees are needed for this repository, create them under the repo-root `.worktrees/` directory. Do not use `.claude/worktrees/`; keep the location shared with Codex for a single convention.
 - Use the `msfenicsx` conda environment for Python, CLI, and tests.
-- Prefer: `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
+- Prefer: `conda run -n msfenicsx ...`
 - Repository text artifacts should use UTF-8 without BOM.
 - Treat terminal-side mojibake from the host bridge as environment noise unless the saved file itself is corrupted.
 
@@ -230,10 +230,72 @@ conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimizatio
 conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --evaluation-workers 2 --output-root ./scenario_runs/s5_aggressive15/llm-smoke
 ```
 
-Run benchmark suite:
+Run benchmark suite (serial, single seed):
 ```bash
 conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs
 ```
+
+Run benchmark suite (parallel, multi-seed, formal budget):
+```bash
+# S5 raw+union, 5 seeds, parallel
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+  --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
+  --mode raw --mode union \
+  --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --benchmark-seed 29 --benchmark-seed 31 \
+  --population-size 40 --num-generations 32 \
+  --parallel --max-concurrent-leaves 13 \
+  --leaf-evaluation-workers 1 \
+  --scenario-runs-root ./scenario_runs
+
+# S6 raw+union, 5 seeds, parallel
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+  --optimization-spec scenarios/optimization/s6_aggressive20_raw.yaml \
+  --optimization-spec scenarios/optimization/s6_aggressive20_union.yaml \
+  --mode raw --mode union \
+  --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --benchmark-seed 29 --benchmark-seed 31 \
+  --population-size 56 --num-generations 36 \
+  --parallel --max-concurrent-leaves 13 \
+  --leaf-evaluation-workers 1 \
+  --scenario-runs-root ./scenario_runs
+
+# S7 raw+union, 5 seeds, parallel
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+  --optimization-spec scenarios/optimization/s7_aggressive25_raw.yaml \
+  --optimization-spec scenarios/optimization/s7_aggressive25_union.yaml \
+  --mode raw --mode union \
+  --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --benchmark-seed 29 --benchmark-seed 31 \
+  --population-size 64 --num-generations 40 \
+  --parallel --max-concurrent-leaves 13 \
+  --leaf-evaluation-workers 1 \
+  --scenario-runs-root ./scenario_runs
+
+# S5 LLM (DeepSeek), single seed
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
+  --mode llm --llm-profile deepseek_v4_flash \
+  --benchmark-seed 11 --population-size 40 --num-generations 32 \
+  --leaf-evaluation-workers 1 \
+  --scenario-runs-root ./scenario_runs
+
+# S6 LLM (MIMO), single seed
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+  --optimization-spec scenarios/optimization/s6_aggressive20_llm.yaml \
+  --mode llm --llm-profile mimo_v2_5 \
+  --benchmark-seed 11 --population-size 56 --num-generations 36 \
+  --leaf-evaluation-workers 1 \
+  --scenario-runs-root ./scenario_runs
+
+# S7 LLM (Qwen), single seed
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+  --optimization-spec scenarios/optimization/s7_aggressive25_llm.yaml \
+  --mode llm --llm-profile qwen3_6_plus \
+  --benchmark-seed 11 --population-size 64 --num-generations 40 \
+  --leaf-evaluation-workers 1 \
+  --scenario-runs-root ./scenario_runs
+```
+
+`--parallel` 展开所有 (mode, seed) 为 leaves 用 `ThreadPoolExecutor` 并行执行，产出 `run_index.csv` 追踪每个 leaf 状态。并行模式下建议 `--leaf-evaluation-workers 1`，让并行来自 leaf 数量。多台服务器同时跑时注意 `--max-concurrent-leaves` 不要超过 `cpu_count / 2`。
 
 Run S5-S7 formal budgeted matrix block:
 ```bash
@@ -293,7 +355,7 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
   - `LLM_API_KEY`
   - `LLM_BASE_URL`
   - `LLM_MODEL`
-- repository-root `/home/hymn/msfenicsx/.env` should keep the raw provider credentials:
+- repository-root `.env` should keep the raw provider credentials:
   - `GPT_PROXY_API_KEY`
   - `GPT_PROXY_BASE_URL`
   - `QWEN_PROXY_API_KEY`

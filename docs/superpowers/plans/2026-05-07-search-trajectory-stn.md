@@ -108,7 +108,7 @@ def test_build_search_trajectory_uses_infeasible_low_violation_records_when_gene
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_search_trajectory.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_search_trajectory.py
 ```
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'optimizers.analytics.search_trajectory'`.
@@ -471,7 +471,7 @@ def _empty_overall_metrics(bin_width: float) -> dict[str, Any]:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_search_trajectory.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_search_trajectory.py
 ```
 
 Expected: PASS。
@@ -547,7 +547,7 @@ def test_search_trajectory_figures_write_png_and_pdf(tmp_path: Path) -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/visualization/test_search_trajectory_figure.py
+conda run -n msfenicsx pytest -v tests/visualization/test_search_trajectory_figure.py
 ```
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'visualization.figures.search_trajectory_network'`.
@@ -728,7 +728,7 @@ def _save(fig, output: Path, *, hires: bool) -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/visualization/test_search_trajectory_figure.py
+conda run -n msfenicsx pytest -v tests/visualization/test_search_trajectory_figure.py
 ```
 
 Expected: PASS。
@@ -790,7 +790,7 @@ def test_render_assets_cleans_stale_search_trajectory_outputs(tmp_path: Path) ->
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/visualization/test_render_assets_fixtures.py::test_render_assets_produces_full_mainline_outputs tests/visualization/test_render_assets_fixtures.py::test_render_assets_cleans_stale_search_trajectory_outputs
+conda run -n msfenicsx pytest -v tests/visualization/test_render_assets_fixtures.py::test_render_assets_produces_full_mainline_outputs tests/visualization/test_render_assets_fixtures.py::test_render_assets_cleans_stale_search_trajectory_outputs
 ```
 
 Expected: FAIL，因为 `render-assets` 尚未生成 STN artifacts。
@@ -848,7 +848,7 @@ run_root / "analytics" / "search_trajectory_metrics.csv",
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/visualization/test_render_assets_fixtures.py::test_render_assets_produces_full_mainline_outputs tests/visualization/test_render_assets_fixtures.py::test_render_assets_cleans_stale_search_trajectory_outputs
+conda run -n msfenicsx pytest -v tests/visualization/test_render_assets_fixtures.py::test_render_assets_produces_full_mainline_outputs tests/visualization/test_render_assets_fixtures.py::test_render_assets_cleans_stale_search_trajectory_outputs
 ```
 
 Expected: PASS。
@@ -865,7 +865,7 @@ Expected: PASS。
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_search_trajectory.py tests/visualization/test_search_trajectory_figure.py tests/visualization/test_render_assets_fixtures.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_search_trajectory.py tests/visualization/test_search_trajectory_figure.py tests/visualization/test_render_assets_fixtures.py
 ```
 
 Expected: PASS。

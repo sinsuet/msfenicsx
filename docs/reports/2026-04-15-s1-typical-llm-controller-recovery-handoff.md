@@ -18,8 +18,8 @@ It records:
 
 This handoff is written for continuation inside the same worktree:
 
-- repo root: `/home/hymn/msfenicsx`
-- active worktree: `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery`
+- repo root: `.`
+- active worktree: `./.worktrees/codex-l2-llm-controller-recovery`
 
 ---
 
@@ -146,7 +146,7 @@ These runs are the core baseline references.
 
 Artifact:
 
-- `/home/hymn/msfenicsx/scenario_runs/s1_typical/0413_1715__raw_union/raw/seeds/seed-11/optimization_result.json`
+- `./scenario_runs/s1_typical/0413_1715__raw_union/raw/seeds/seed-11/optimization_result.json`
 
 Metrics:
 
@@ -160,7 +160,7 @@ Metrics:
 
 Artifact:
 
-- `/home/hymn/msfenicsx/scenario_runs/s1_typical/0413_1715__raw_union/union/seeds/seed-11/optimization_result.json`
+- `./scenario_runs/s1_typical/0413_1715__raw_union/union/seeds/seed-11/optimization_result.json`
 
 Metrics:
 
@@ -174,7 +174,7 @@ Metrics:
 
 Artifact:
 
-- `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_0015__llm/optimization_result.json`
+- `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_0015__llm/optimization_result.json`
 
 Metrics:
 
@@ -368,7 +368,7 @@ The following new tests were written, failed first, and then passed after implem
 Fresh passing command:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_llm_controller_state.py \
   tests/optimizers/test_llm_policy_kernel.py \
   tests/optimizers/test_llm_controller.py \
@@ -382,7 +382,7 @@ Observed result:
 Additional diagnostics verification:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_analyze_controller_trace_accepts_optional_operator_and_request_sidecars \
   tests/optimizers/test_optimizer_cli.py::test_analyze_controller_trace_reports_expand_family_outcomes_and_budget_throttling -v
 ```
@@ -399,7 +399,7 @@ Observed result:
 
 Artifact root:
 
-- `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1325__llm_l3_mid_smoke`
+- `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1325__llm_l3_mid_smoke`
 
 Important metrics:
 
@@ -419,7 +419,7 @@ Interpretation:
 
 Artifact root:
 
-- `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1622__llm_l4_mid_smoke_v4`
+- `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1622__llm_l4_mid_smoke_v4`
 
 Important metrics:
 
@@ -439,7 +439,7 @@ Interpretation:
 
 Artifact root:
 
-- `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1758__llm_l5_mid_smoke`
+- `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1758__llm_l5_mid_smoke`
 
 Key metrics:
 
@@ -477,7 +477,7 @@ Interpretation:
 
 Artifact root:
 
-- `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm`
+- `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm`
 
 Important output files:
 
@@ -842,22 +842,22 @@ If continuing implementation, read these in order:
 ### Baselines
 
 - raw full:
-  - `/home/hymn/msfenicsx/scenario_runs/s1_typical/0413_1715__raw_union/raw/seeds/seed-11/optimization_result.json`
+  - `./scenario_runs/s1_typical/0413_1715__raw_union/raw/seeds/seed-11/optimization_result.json`
 - union full:
-  - `/home/hymn/msfenicsx/scenario_runs/s1_typical/0413_1715__raw_union/union/seeds/seed-11/optimization_result.json`
+  - `./scenario_runs/s1_typical/0413_1715__raw_union/union/seeds/seed-11/optimization_result.json`
 - old llm full:
-  - `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_0015__llm/`
+  - `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_0015__llm/`
 
 ### Recovery references
 
 - L3 mid:
-  - `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1325__llm_l3_mid_smoke/`
+  - `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1325__llm_l3_mid_smoke/`
 - L4 v4 mid:
-  - `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1622__llm_l4_mid_smoke_v4/`
+  - `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1622__llm_l4_mid_smoke_v4/`
 - L5 mid:
-  - `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1758__llm_l5_mid_smoke/`
+  - `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1758__llm_l5_mid_smoke/`
 - L5 full:
-  - `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/`
+  - `./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/`
 
 For both L5 runs, the most useful files are:
 
@@ -876,7 +876,7 @@ For both L5 runs, the most useful files are:
 ### Re-run focused tests
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_llm_controller_state.py \
   tests/optimizers/test_llm_policy_kernel.py \
   tests/optimizers/test_llm_controller.py \
@@ -886,7 +886,7 @@ For both L5 runs, the most useful files are:
 ### Re-run diagnostics tests
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_analyze_controller_trace_accepts_optional_operator_and_request_sidecars \
   tests/optimizers/test_optimizer_cli.py::test_analyze_controller_trace_reports_expand_family_outcomes_and_budget_throttling -v
 ```
@@ -894,13 +894,13 @@ For both L5 runs, the most useful files are:
 ### Analyze an existing run
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace \
-  --controller-trace /home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/controller_trace.json \
-  --optimization-result /home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/optimization_result.json \
-  --operator-trace /home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/operator_trace.json \
-  --llm-request-trace /home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/llm_request_trace.jsonl \
-  --llm-response-trace /home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/llm_response_trace.jsonl \
-  --output /home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/controller_trace_summary.json
+conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace \
+  --controller-trace ./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/controller_trace.json \
+  --optimization-result ./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/optimization_result.json \
+  --operator-trace ./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/operator_trace.json \
+  --llm-request-trace ./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/llm_request_trace.jsonl \
+  --llm-response-trace ./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/llm_response_trace.jsonl \
+  --output ./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/0415_1802__llm/controller_trace_summary.json
 ```
 
 ### Mid-budget smoke pattern
@@ -913,19 +913,19 @@ Use a temporary spec with matched setup and reduced:
 Then run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec /tmp/<mid_smoke_spec>.yaml \
   --evaluation-workers 2 \
-  --output-root /home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/<run_id>
+  --output-root ./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/<run_id>
 ```
 
 ### Full LLM run pattern
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
   --evaluation-workers 2 \
-  --output-root /home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/<run_id>
+  --output-root ./.worktrees/codex-l2-llm-controller-recovery/scenario_runs/s1_typical/<run_id>
 ```
 
 ---

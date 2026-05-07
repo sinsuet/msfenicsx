@@ -75,7 +75,7 @@ def test_chat_compatible_json_client_accepts_minimal_operator_payload(
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py
 ```
 
 Expected: FAIL because `build_operator_decision_schema()` still requires `phase` and `rationale`, or because parser assumes those keys are present in downstream prompt text.
@@ -145,7 +145,7 @@ The parser at `llm/openai_compatible/client.py:153-154` already uses `payload.ge
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py
 ```
 
 Expected: PASS.
@@ -279,7 +279,7 @@ def test_post_feasible_projection_omits_false_and_count_only_annotation_noise() 
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_prompt_projection.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_prompt_projection.py
 ```
 
 Expected: FAIL because projection still includes count-heavy annotation fields and `route_cooldown_active: False`.
@@ -397,7 +397,7 @@ Keep the existing pre-feasible branch:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_prompt_projection.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_prompt_projection.py
 ```
 
 Expected: PASS.
@@ -544,7 +544,7 @@ Do not duplicate imports that already exist.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
 ```
 
 Expected: FAIL because the current system prompt includes the full intent menu/candidate intent map and request trace rows do not include `prompt_size`.
@@ -620,7 +620,7 @@ The surrounding request row should look like:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
 ```
 
 Expected: PASS.
@@ -675,7 +675,7 @@ def test_s6_llm_controller_uses_short_but_safe_output_budget() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_s5_aggressive15_specs.py tests/optimizers/test_s6_aggressive20_specs.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_s5_aggressive15_specs.py tests/optimizers/test_s6_aggressive20_specs.py
 ```
 
 Expected: FAIL because S5 and S6 still use `max_output_tokens: 72`.
@@ -713,7 +713,7 @@ Do not change `timeout_seconds` in this task. Keeping 35 seconds preserves the a
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_s5_aggressive15_specs.py tests/optimizers/test_s6_aggressive20_specs.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_s5_aggressive15_specs.py tests/optimizers/test_s6_aggressive20_specs.py
 ```
 
 Expected: PASS.
@@ -881,7 +881,7 @@ def test_llm_user_prompt_budget_for_s5_like_primitive_pool() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_controller.py
 ```
 
 Expected: PASS if the compact projection and shortened system prompt are already implemented. If this fails only because imports are missing, add the exact missing imports at the top of `tests/optimizers/test_llm_controller.py` without changing production code.
@@ -907,7 +907,7 @@ git commit -m "test: guard llm operator prompt budget"
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py tests/optimizers/test_llm_prompt_projection.py tests/optimizers/test_llm_controller.py tests/optimizers/test_s5_aggressive15_specs.py tests/optimizers/test_s6_aggressive20_specs.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_client.py tests/optimizers/test_llm_prompt_projection.py tests/optimizers/test_llm_controller.py tests/optimizers/test_s5_aggressive15_specs.py tests/optimizers/test_s6_aggressive20_specs.py
 ```
 
 Expected: PASS.

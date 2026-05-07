@@ -6,7 +6,7 @@
 
 **Architecture:** Keep proposal generation, repair, cheap constraints, `evaluation_index` allocation, and trace/history submission on the main process. Push only the expensive solve-and-evaluate segment into a bounded worker pool, then commit results back in deterministic `evaluation_index` order. Default to a small desktop-safe worker budget and validate first with low-cost smoke runs before any real single-seed rerun.
 
-**Tech Stack:** Python, pytest, pymoo, multiprocessing/concurrent-futures style worker pool, current `core/`, `evaluation/`, `optimizers/`, `visualization/` stack, `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
+**Tech Stack:** Python, pytest, pymoo, multiprocessing/concurrent-futures style worker pool, current `core/`, `evaluation/`, `optimizers/`, `visualization/` stack, `conda run -n msfenicsx ...`
 
 ---
 
@@ -58,7 +58,7 @@ Add or extend CLI tests to cover:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py
 ```
 
 Expected: the new worker-config assertions fail before implementation.
@@ -81,7 +81,7 @@ Ensure `run_benchmark_suite(...)`, `run_raw_optimization(...)`, and `run_union_o
 Document the conservative default and one explicit example such as:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite ... --evaluation-workers 2
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite ... --evaluation-workers 2
 ```
 
 - [ ] **Step 6: Re-run the focused CLI test**
@@ -89,7 +89,7 @@ Document the conservative default and one explicit example such as:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_optimizer_cli.py
 ```
 
 Expected: the new CLI/config tests pass.
@@ -114,7 +114,7 @@ Create `tests/optimizers/test_parallel_evaluator.py` covering a worker task that
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_parallel_evaluator.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_parallel_evaluator.py
 ```
 
 Expected: fail because the worker helper does not exist yet.
@@ -145,7 +145,7 @@ Do not let the worker write optimizer history directly. It should return data or
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_parallel_evaluator.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_parallel_evaluator.py
 ```
 
 Expected: pass.
@@ -170,7 +170,7 @@ Create tests that prove:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_parallel_problem.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_parallel_problem.py
 ```
 
 Expected: fail before implementation.
@@ -202,7 +202,7 @@ occur on the main thread and in ascending `evaluation_index`.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_parallel_problem.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_parallel_problem.py
 ```
 
 Expected: pass.
@@ -233,7 +233,7 @@ Assert:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_raw_driver_matrix.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_raw_driver_matrix.py
 ```
 
 Expected: fail before the driver is wired up.
@@ -251,7 +251,7 @@ Add a tiny-budget test fixture for development validation rather than changing t
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_raw_driver_matrix.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_raw_driver_matrix.py
 ```
 
 Expected: pass for the low-cost smoke matrix.
@@ -276,7 +276,7 @@ Add a low-cost union test that asserts:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_union_parallel_trace.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_union_parallel_trace.py
 ```
 
 Expected: fail before implementation.
@@ -294,7 +294,7 @@ Update `run_union_optimization(...)` so it uses the same problem-level bounded w
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_union_parallel_trace.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_union_parallel_trace.py
 ```
 
 Expected: pass.
@@ -309,7 +309,7 @@ Expected: pass.
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v \
+conda run -n msfenicsx pytest -v \
   tests/optimizers/test_optimizer_cli.py \
   tests/optimizers/test_parallel_evaluator.py \
   tests/optimizers/test_parallel_problem.py \
@@ -338,7 +338,7 @@ Expected:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
   --optimization-spec scenarios/optimization/s1_typical_union.yaml \
   --mode raw \

@@ -96,11 +96,11 @@
 
 ### Repository Hygiene
 
-- Modify: `/home/hymn/msfenicsx/.gitignore`
+- Modify: `./.gitignore`
   Add ignores for `scenario_runs/`, temporary generated fields, and local rebuild outputs.
-- Modify: `/home/hymn/msfenicsx/README.md`
+- Modify: `./README.md`
   Replace demo-oriented instructions with Phase 1 rebuilt platform guidance.
-- Modify: `/home/hymn/msfenicsx/docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md`
+- Modify: `./docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md`
   Only if implementation planning uncovers a genuine spec contradiction that must be reflected back into the design.
 
 ### Legacy Removal Targets
@@ -124,8 +124,8 @@ Do not delete legacy directories until Tasks 1 through 6 are passing and verifie
 - Create: `optimizers/__init__.py`
 - Create: `llm/__init__.py`
 - Create: `visualization/__init__.py`
-- Modify: `/home/hymn/msfenicsx/.gitignore`
-- Modify: `/home/hymn/msfenicsx/README.md`
+- Modify: `./.gitignore`
+- Modify: `./README.md`
 - Test: `tests/cli/test_cli_smoke.py`
 
 - [ ] **Step 1: Write the failing CLI smoke test**
@@ -142,7 +142,7 @@ def test_build_parser_exposes_generate_and_solve_commands():
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/cli/test_cli_smoke.py -v`
+Run: `cd . && pytest tests/cli/test_cli_smoke.py -v`
 Expected: FAIL with `ModuleNotFoundError` or missing `build_parser`
 
 - [ ] **Step 3: Create the package skeleton and minimal parser**
@@ -178,13 +178,13 @@ and replace README directions so they describe the clean rebuild, not the legacy
 
 - [ ] **Step 6: Run the test to verify the parser smoke test passes**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/cli/test_cli_smoke.py -v`
+Run: `cd . && pytest tests/cli/test_cli_smoke.py -v`
 Expected: PASS
 
 - [ ] **Step 7: Commit the skeleton**
 
 ```bash
-cd /home/hymn/msfenicsx
+cd .
 git add pyproject.toml core evaluation optimizers llm visualization .gitignore README.md tests/cli/test_cli_smoke.py
 git commit -m "chore: establish clean rebuild skeleton"
 ```
@@ -229,7 +229,7 @@ def test_thermal_case_requires_case_meta_and_components():
 
 - [ ] **Step 2: Run schema tests to verify they fail**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/schema/test_schema_models.py tests/schema/test_schema_io.py tests/schema/test_schema_validation.py -v`
+Run: `cd . && pytest tests/schema/test_schema_models.py tests/schema/test_schema_io.py tests/schema/test_schema_validation.py -v`
 Expected: FAIL because schema modules do not exist
 
 - [ ] **Step 3: Implement canonical schema models**
@@ -270,13 +270,13 @@ These files become the seed fixtures for the rest of Phase 1.
 
 - [ ] **Step 7: Run schema tests again**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/schema/test_schema_models.py tests/schema/test_schema_io.py tests/schema/test_schema_validation.py -v`
+Run: `cd . && pytest tests/schema/test_schema_models.py tests/schema/test_schema_io.py tests/schema/test_schema_validation.py -v`
 Expected: PASS
 
 - [ ] **Step 8: Commit the schema layer**
 
 ```bash
-cd /home/hymn/msfenicsx
+cd .
 git add core/schema scenarios/templates/panel_radiation_baseline.yaml scenarios/manual/reference_case.yaml tests/schema
 git commit -m "feat: add canonical schema objects and validation"
 ```
@@ -306,7 +306,7 @@ def test_rectangle_polygon_returns_four_vertices():
 
 - [ ] **Step 2: Run geometry tests to verify they fail**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/geometry/test_primitives.py tests/geometry/test_layout_rules.py -v`
+Run: `cd . && pytest tests/geometry/test_primitives.py tests/geometry/test_layout_rules.py -v`
 Expected: FAIL because geometry modules do not exist
 
 - [ ] **Step 3: Implement primitive constructors and pose transforms**
@@ -336,13 +336,13 @@ Create reusable checks that the generator and solver can both call before proces
 
 - [ ] **Step 6: Run geometry and contract tests**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/geometry/test_primitives.py tests/geometry/test_layout_rules.py -v`
+Run: `cd . && pytest tests/geometry/test_primitives.py tests/geometry/test_layout_rules.py -v`
 Expected: PASS
 
 - [ ] **Step 7: Commit the geometry layer**
 
 ```bash
-cd /home/hymn/msfenicsx
+cd .
 git add core/geometry core/contracts tests/geometry
 git commit -m "feat: add geometry primitives and case contracts"
 ```
@@ -368,14 +368,14 @@ from core.generator.pipeline import generate_case
 
 
 def test_generate_case_is_deterministic_for_fixed_seed():
-    case_a = generate_case("/home/hymn/msfenicsx/scenarios/templates/panel_radiation_baseline.yaml", seed=7)
-    case_b = generate_case("/home/hymn/msfenicsx/scenarios/templates/panel_radiation_baseline.yaml", seed=7)
+    case_a = generate_case("./scenarios/templates/panel_radiation_baseline.yaml", seed=7)
+    case_b = generate_case("./scenarios/templates/panel_radiation_baseline.yaml", seed=7)
     assert case_a.to_dict() == case_b.to_dict()
 ```
 
 - [ ] **Step 2: Run generator tests to verify they fail**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/generator/test_parameter_sampler.py tests/generator/test_layout_engine.py tests/generator/test_pipeline.py -v`
+Run: `cd . && pytest tests/generator/test_parameter_sampler.py tests/generator/test_layout_engine.py tests/generator/test_pipeline.py -v`
 Expected: FAIL because generator modules do not exist
 
 - [ ] **Step 3: Implement template loading and parameter sampling**
@@ -407,13 +407,13 @@ The pipeline should output only validated canonical cases.
 
 - [ ] **Step 7: Run generator tests**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/generator/test_parameter_sampler.py tests/generator/test_layout_engine.py tests/generator/test_pipeline.py -v`
+Run: `cd . && pytest tests/generator/test_parameter_sampler.py tests/generator/test_layout_engine.py tests/generator/test_pipeline.py -v`
 Expected: PASS
 
 - [ ] **Step 8: Commit the generator pipeline**
 
 ```bash
-cd /home/hymn/msfenicsx
+cd .
 git add core/generator tests/generator
 git commit -m "feat: rebuild scenario generator pipeline"
 ```
@@ -439,14 +439,14 @@ from core.solver.nonlinear_solver import solve_case
 
 
 def test_reference_case_solves_and_reports_temperature_bounds():
-    case = load_case("/home/hymn/msfenicsx/scenarios/manual/reference_case.yaml")
+    case = load_case("./scenarios/manual/reference_case.yaml")
     solution = solve_case(case)
     assert solution.summary_metrics["temperature_max"] >= solution.summary_metrics["temperature_min"]
 ```
 
 - [ ] **Step 2: Run solver tests to verify they fail**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/solver/test_reference_case.py tests/solver/test_generated_case.py -v`
+Run: `cd . && pytest tests/solver/test_reference_case.py tests/solver/test_generated_case.py -v`
 Expected: FAIL because solver modules do not exist
 
 - [ ] **Step 3: Implement canonical case-to-geometry interpretation**
@@ -484,18 +484,18 @@ Sample at least:
 
 - [ ] **Step 7: Run solver tests**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/solver/test_reference_case.py tests/solver/test_generated_case.py -v`
+Run: `cd . && pytest tests/solver/test_reference_case.py tests/solver/test_generated_case.py -v`
 Expected: PASS
 
 - [ ] **Step 8: Run a broader focused verification pass**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/schema tests/geometry tests/generator tests/solver -v`
+Run: `cd . && pytest tests/schema tests/geometry tests/generator tests/solver -v`
 Expected: PASS
 
 - [ ] **Step 9: Commit the solver baseline**
 
 ```bash
-cd /home/hymn/msfenicsx
+cd .
 git add core/solver tests/solver
 git commit -m "feat: add official fenicsx radiation solver baseline"
 ```
@@ -524,7 +524,7 @@ def test_write_run_bundle_creates_expected_layout(tmp_path: Path):
 
 - [ ] **Step 2: Run the artifact test to verify it fails**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/io/test_scenario_runs.py -v`
+Run: `cd . && pytest tests/io/test_scenario_runs.py -v`
 Expected: FAIL because `scenario_runs` writer does not exist
 
 - [ ] **Step 3: Implement the run-bundle writer**
@@ -552,13 +552,13 @@ Support:
 
 - [ ] **Step 5: Run the artifact test**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/io/test_scenario_runs.py -v`
+Run: `cd . && pytest tests/io/test_scenario_runs.py -v`
 Expected: PASS
 
 - [ ] **Step 6: Commit the artifact protocol**
 
 ```bash
-cd /home/hymn/msfenicsx
+cd .
 git add core/io tests/io
 git commit -m "feat: add scenario runs artifact protocol"
 ```
@@ -580,7 +580,7 @@ def test_generate_then_solve_cli_smoke(tmp_path, monkeypatch):
     code = main([
         "generate",
         "--template",
-        "/home/hymn/msfenicsx/scenarios/templates/panel_radiation_baseline.yaml",
+        "./scenarios/templates/panel_radiation_baseline.yaml",
         "--seed",
         "3",
         "--output-root",
@@ -591,7 +591,7 @@ def test_generate_then_solve_cli_smoke(tmp_path, monkeypatch):
 
 - [ ] **Step 2: Run CLI tests to verify they fail**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/cli/test_cli_smoke.py tests/cli/test_cli_end_to_end.py -v`
+Run: `cd . && pytest tests/cli/test_cli_smoke.py tests/cli/test_cli_end_to_end.py -v`
 Expected: FAIL because commands are not implemented
 
 - [ ] **Step 3: Implement Phase 1 CLI commands**
@@ -606,18 +606,18 @@ Use the new kernel only; do not call any legacy scripts.
 
 - [ ] **Step 4: Run CLI tests**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/cli/test_cli_smoke.py tests/cli/test_cli_end_to_end.py -v`
+Run: `cd . && pytest tests/cli/test_cli_smoke.py tests/cli/test_cli_end_to_end.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Run the full Phase 1 verification suite**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/schema tests/geometry tests/generator tests/solver tests/io tests/cli -v`
+Run: `cd . && pytest tests/schema tests/geometry tests/generator tests/solver tests/io tests/cli -v`
 Expected: PASS
 
 - [ ] **Step 6: Commit the CLI integration**
 
 ```bash
-cd /home/hymn/msfenicsx
+cd .
 git add core/cli tests/cli
 git commit -m "feat: wire phase1 cli commands"
 ```
@@ -630,12 +630,12 @@ git commit -m "feat: wire phase1 cli commands"
 - Delete: `examples/`
 - Delete: `states/`
 - Delete or replace: legacy tests in `tests/` that target removed demo modules
-- Modify: `/home/hymn/msfenicsx/README.md`
-- Modify: `/home/hymn/msfenicsx/docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md` only if cutover decisions require a documented clarification
+- Modify: `./README.md`
+- Modify: `./docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md` only if cutover decisions require a documented clarification
 
 - [ ] **Step 1: Verify the new baseline before deleting anything**
 
-Run: `cd /home/hymn/msfenicsx && pytest tests/schema tests/geometry tests/generator tests/solver tests/io tests/cli -v`
+Run: `cd . && pytest tests/schema tests/geometry tests/generator tests/solver tests/io tests/cli -v`
 Expected: PASS
 
 - [ ] **Step 2: Identify and remove legacy implementation directories**
@@ -662,13 +662,13 @@ The README must:
 
 - [ ] **Step 5: Run the remaining test suite after deletion**
 
-Run: `cd /home/hymn/msfenicsx && pytest -v`
+Run: `cd . && pytest -v`
 Expected: PASS with only the rebuilt platform tests remaining
 
 - [ ] **Step 6: Commit the cutover**
 
 ```bash
-cd /home/hymn/msfenicsx
+cd .
 git add -A
 git commit -m "refactor: remove legacy demo stack after phase1 cutover"
 ```
@@ -686,6 +686,6 @@ git commit -m "refactor: remove legacy demo stack after phase1 cutover"
 
 This plan was reviewed locally against the approved spec at:
 
-- `/home/hymn/msfenicsx/docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md`
+- `./docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md`
 
 Subagent-based plan review was not performed in-session because delegation was not explicitly requested for this conversation.

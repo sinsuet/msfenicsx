@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-15
 **Branch:** `codex/l2-llm-controller-recovery` (commit `7984ba2` + uncommitted L6 changes)
-**Worktree:** `/home/hymn/msfenicsx/.worktrees/codex-l2-llm-controller-recovery`
+**Worktree:** `./.worktrees/codex-l2-llm-controller-recovery`
 
 ## L6 Feature Summary
 

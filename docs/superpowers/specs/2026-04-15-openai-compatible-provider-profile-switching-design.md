@@ -117,7 +117,7 @@ Decision: select this option.
 Provider switching should happen through a new optimizer CLI subcommand:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm gpt \
+conda run -n msfenicsx python -m optimizers.cli run-llm gpt \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s1_typical/0415_1200__llm-gpt

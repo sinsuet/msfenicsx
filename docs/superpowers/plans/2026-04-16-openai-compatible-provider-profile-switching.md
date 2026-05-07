@@ -143,7 +143,7 @@ def test_llm_validation_accepts_model_env_var_without_literal_model() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_llm_client.py \
   tests/optimizers/test_optimizer_io.py -v
 ```
@@ -249,7 +249,7 @@ def test_load_provider_profile_requires_source_base_url(tmp_path: Path) -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_llm_profiles.py -v
 ```
 
@@ -369,7 +369,7 @@ def test_optimizer_cli_run_llm_rejects_non_llm_specs(tmp_path: Path) -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_optimizer_cli.py -k "run_llm" -v
 ```
 
@@ -439,7 +439,7 @@ def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_optimizer_io.py -k "llm_spec" -v
 ```
 
@@ -519,7 +519,7 @@ QWEN_PROXY_BASE_URL=https://qwen.example/v1
 ```
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-llm gpt \
+conda run -n msfenicsx python -m optimizers.cli run-llm gpt \
   --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s1_typical/<run_id>
@@ -530,7 +530,7 @@ QWEN_PROXY_BASE_URL=https://qwen.example/v1
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_llm_client.py \
   tests/optimizers/test_llm_profiles.py \
   tests/optimizers/test_optimizer_cli.py \
@@ -546,7 +546,7 @@ Expected:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli --help
+conda run -n msfenicsx python -m optimizers.cli --help
 ```
 
 Expected:

@@ -28,16 +28,16 @@ next fix cycle.
 Continue from:
 
 - repo root:
-  - `/home/hymn/msfenicsx`
+  - `.`
 - environment:
-  - `/home/hymn/miniconda3/bin/conda run -n msfenicsx ...`
+  - `conda run -n msfenicsx ...`
 - historical paper-facing S2 route:
   - `s2_staged`
 
 Do not continue from the old inline worktree:
 
 - removed worktree:
-  - `/home/hymn/msfenicsx/.worktrees/s2-staged-inline`
+  - `./.worktrees/s2-staged-inline`
 
 That worktree has already been merged back into the main workspace where needed,
 and its latest official run was copied into the main tree and rerendered there.
@@ -49,13 +49,13 @@ The most important current evidence roots are:
 - current implementation plan:
   - `docs/superpowers/plans/2026-04-20-s2-staged-joint-implementation.md`
 - old official staged run:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_1841__raw_union_llm`
+  - `./scenario_runs/s2_staged/0420_1841__raw_union_llm`
 - old official comparison bundle:
-  - `/home/hymn/msfenicsx/scenario_runs/comparisons/s2_staged_0420_1841__raw_union_llm`
+  - `./scenario_runs/comparisons/s2_staged_0420_1841__raw_union_llm`
 - newest official rerun now on main:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm`
 - newest suite-owned comparison bundle on main:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/comparisons`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/comparisons`
 
 ---
 
@@ -98,7 +98,7 @@ This line still does **not** justify any claim that `llm` has already beaten
 
 The old official `s2_staged` run at:
 
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_1841__raw_union_llm`
+- `./scenario_runs/s2_staged/0420_1841__raw_union_llm`
 
 had the historically important first-feasible numbers:
 
@@ -295,7 +295,7 @@ Merged repair files:
 
 The newest run was copied into:
 
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm`
+- `./scenario_runs/s2_staged/0420_2256__raw_union_llm`
 
 Then rerendered on main with the current asset pipeline, producing the newer
 comparison outputs:
@@ -308,7 +308,7 @@ comparison outputs:
 
 The new per-mode/per-seed timeline summary also exists on main, for example:
 
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/summaries/progress_timeline__seed-11.jsonl`
+- `./scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/summaries/progress_timeline__seed-11.jsonl`
 
 ---
 
@@ -317,7 +317,7 @@ The new per-mode/per-seed timeline summary also exists on main, for example:
 Focused suite rerun on the main workspace:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/generator/test_s2_staged_template.py \
   tests/optimizers/test_s2_staged_baseline.py \
   tests/optimizers/test_s2_staged_controller_audit.py \
@@ -342,26 +342,26 @@ back into the main workspace after the worktree was removed.
 
 Newest official rerun on main:
 
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm`
+- `./scenario_runs/s2_staged/0420_2256__raw_union_llm`
 
 Newest suite-owned comparison bundle on main:
 
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/comparisons`
+- `./scenario_runs/s2_staged/0420_2256__raw_union_llm/comparisons`
 
 Most useful evidence files:
 
 - comparison summary:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/comparisons/analytics/summary_rows.json`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/comparisons/analytics/summary_rows.json`
 - comparison timeline rollups:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/comparisons/analytics/timeline_rollups.json`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/comparisons/analytics/timeline_rollups.json`
 - LLM runtime summary:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/summaries/llm_runtime_summary.json`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/summaries/llm_runtime_summary.json`
 - LLM decision summary:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/summaries/llm_decision_summary.json`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/summaries/llm_decision_summary.json`
 - request trace:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/seeds/seed-11/traces/llm_request_trace.jsonl`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/seeds/seed-11/traces/llm_request_trace.jsonl`
 - response trace:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/seeds/seed-11/traces/llm_response_trace.jsonl`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm/llm/seeds/seed-11/traces/llm_response_trace.jsonl`
 
 ### 7.2 Runtime Stability
 
@@ -781,16 +781,16 @@ paper-facing claim be considered.
 Re-read the core docs first:
 
 ```bash
-sed -n '1,260p' /home/hymn/msfenicsx/AGENTS.md
-sed -n '1,260p' /home/hymn/msfenicsx/docs/reports/2026-04-21-s2-staged-llm-effect-repair-report.md
-sed -n '1,260p' /home/hymn/msfenicsx/docs/superpowers/specs/2026-04-20-s2-staged-joint-design.md
-sed -n '1,260p' /home/hymn/msfenicsx/docs/superpowers/plans/2026-04-20-s2-staged-joint-implementation.md
+sed -n '1,260p' ./AGENTS.md
+sed -n '1,260p' ./docs/reports/2026-04-21-s2-staged-llm-effect-repair-report.md
+sed -n '1,260p' ./docs/superpowers/specs/2026-04-20-s2-staged-joint-design.md
+sed -n '1,260p' ./docs/superpowers/plans/2026-04-20-s2-staged-joint-implementation.md
 ```
 
 Run the focused staged/controller suite:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/generator/test_s2_staged_template.py \
   tests/optimizers/test_s2_staged_baseline.py \
   tests/optimizers/test_s2_staged_controller_audit.py \
@@ -803,12 +803,12 @@ Run the focused staged/controller suite:
 Re-audit the newest official rerun:
 
 ```bash
-/home/hymn/miniconda3/envs/msfenicsx/bin/python - <<'PY'
+python - <<'PY'
 import json
 from pathlib import Path
 from optimizers.analytics.staged_audit import compare_history_prefix_by_mode, summarize_llm_prompt_surface
 
-suite = Path('/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm')
+suite = Path('./scenario_runs/s2_staged/0420_2256__raw_union_llm')
 roots = {mode: suite / mode / 'seeds' / 'seed-11' for mode in ['raw', 'union', 'llm']}
 print(compare_history_prefix_by_mode(roots, prefix_rows=40))
 rows = [json.loads(line) for line in (roots['llm'] / 'traces' / 'llm_request_trace.jsonl').open()]
@@ -820,7 +820,7 @@ After the next controller fix, rerun the official suite with conservative
 parallelism:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s2_staged_raw.yaml \
   --optimization-spec scenarios/optimization/s2_staged_union.yaml \
   --optimization-spec scenarios/optimization/s2_staged_llm.yaml \

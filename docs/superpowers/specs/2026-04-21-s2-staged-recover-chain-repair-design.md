@@ -32,11 +32,11 @@ This design must stay aligned with the current checked evidence.
 
 As of the new `llm` rerun at:
 
-- `/home/hymn/msfenicsx/scenario_runs/s2_staged/0421_0207__llm`
+- `./scenario_runs/s2_staged/0421_0207__llm`
 
 and the external comparison bundle at:
 
-- `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0421_0217__raw_union_old_vs_llm_new`
+- `./scenario_runs/compare_reports/s2_staged/0421_0217__raw_union_old_vs_llm_new`
 
 the honest status is:
 
@@ -69,27 +69,27 @@ also wins the chain-level metrics that still matter:
 This repair is grounded in the following checked evidence:
 
 - active repair handoff:
-  - `/home/hymn/msfenicsx/docs/reports/2026-04-21-s2-staged-llm-effect-repair-report.md`
+  - `./docs/reports/2026-04-21-s2-staged-llm-effect-repair-report.md`
 - active benchmark-controller design:
-  - `/home/hymn/msfenicsx/docs/superpowers/specs/2026-04-20-s2-staged-joint-design.md`
+  - `./docs/superpowers/specs/2026-04-20-s2-staged-joint-design.md`
 - active previous implementation plan:
-  - `/home/hymn/msfenicsx/docs/superpowers/plans/2026-04-20-s2-staged-joint-implementation.md`
+  - `./docs/superpowers/plans/2026-04-20-s2-staged-joint-implementation.md`
 - old official suite:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0420_2256__raw_union_llm`
+  - `./scenario_runs/s2_staged/0420_2256__raw_union_llm`
 - new `llm` rerun:
-  - `/home/hymn/msfenicsx/scenario_runs/s2_staged/0421_0207__llm`
+  - `./scenario_runs/s2_staged/0421_0207__llm`
 - current comparison bundle:
-  - `/home/hymn/msfenicsx/scenario_runs/compare_reports/s2_staged/0421_0217__raw_union_old_vs_llm_new`
+  - `./scenario_runs/compare_reports/s2_staged/0421_0217__raw_union_old_vs_llm_new`
 
 The most relevant implementation files are:
 
-- `/home/hymn/msfenicsx/optimizers/operator_pool/domain_state.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/state_builder.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/reflection.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/prompt_projection.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py`
-- `/home/hymn/msfenicsx/optimizers/analytics/staged_audit.py`
+- `./optimizers/operator_pool/domain_state.py`
+- `./optimizers/operator_pool/policy_kernel.py`
+- `./optimizers/operator_pool/state_builder.py`
+- `./optimizers/operator_pool/reflection.py`
+- `./optimizers/operator_pool/prompt_projection.py`
+- `./optimizers/operator_pool/llm_controller.py`
+- `./optimizers/analytics/staged_audit.py`
 
 ## 4. Root-Cause Diagnosis
 
@@ -507,19 +507,19 @@ This repair does not:
 
 Primary code targets:
 
-- `/home/hymn/msfenicsx/optimizers/operator_pool/domain_state.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/state_builder.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/policy_kernel.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/reflection.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/prompt_projection.py`
-- `/home/hymn/msfenicsx/optimizers/operator_pool/llm_controller.py`
-- `/home/hymn/msfenicsx/optimizers/analytics/staged_audit.py`
+- `./optimizers/operator_pool/domain_state.py`
+- `./optimizers/operator_pool/state_builder.py`
+- `./optimizers/operator_pool/policy_kernel.py`
+- `./optimizers/operator_pool/reflection.py`
+- `./optimizers/operator_pool/prompt_projection.py`
+- `./optimizers/operator_pool/llm_controller.py`
+- `./optimizers/analytics/staged_audit.py`
 
 Primary focused tests:
 
-- `/home/hymn/msfenicsx/tests/generator/test_s2_staged_template.py`
-- `/home/hymn/msfenicsx/tests/optimizers/test_s2_staged_baseline.py`
-- `/home/hymn/msfenicsx/tests/optimizers/test_s2_staged_controller_audit.py`
-- `/home/hymn/msfenicsx/tests/optimizers/test_llm_policy_kernel.py`
-- `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller.py`
-- `/home/hymn/msfenicsx/tests/optimizers/test_llm_controller_state.py`
+- `./tests/generator/test_s2_staged_template.py`
+- `./tests/optimizers/test_s2_staged_baseline.py`
+- `./tests/optimizers/test_s2_staged_controller_audit.py`
+- `./tests/optimizers/test_llm_policy_kernel.py`
+- `./tests/optimizers/test_llm_controller.py`
+- `./tests/optimizers/test_llm_controller_state.py`

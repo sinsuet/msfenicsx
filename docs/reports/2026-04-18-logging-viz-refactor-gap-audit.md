@@ -34,7 +34,7 @@ The deferred items listed in §3 remain deferred.
 
 The missing visualization/logging outputs are **not primarily a merge-loss problem after `3fdc4bb`**.
 
-- The recovered baseline worktree at `/home/hymn/msfenicsx/.claude/worktrees/logging-viz-refactor-recovered` matches the 2026-04-16 refactor merge.
+- The recovered baseline worktree at `./.claude/worktrees/logging-viz-refactor-recovered` matches the 2026-04-16 refactor merge.
 - Reflog and unreachable-commit inspection did **not** reveal a later, more-complete deleted visualization worktree.
 - The only related unreachable commit found after the merge was telemetry-only WIP (`4f0f807`), not a fuller figure/CLI integration branch.
 

@@ -67,7 +67,7 @@ def test_bundled_profiles_reject_legacy_provider_style_profile_ids(profile_id: s
 - [ ] Run the focused tests and verify they fail before production changes:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_llm_profiles.py tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_optimize_benchmark_llm_uses_default_profile_overlay_when_runtime_env_missing tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_run_llm_uses_default_profile_when_omitted tests/optimizers/test_run_suite.py::test_run_benchmark_suite_llm_mode_uses_default_profile_overlay_when_runtime_env_missing
+conda run -n msfenicsx pytest -v tests/optimizers/test_llm_profiles.py tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_optimize_benchmark_llm_uses_default_profile_overlay_when_runtime_env_missing tests/optimizers/test_optimizer_cli.py::test_optimizer_cli_run_llm_uses_default_profile_when_omitted tests/optimizers/test_run_suite.py::test_run_benchmark_suite_llm_mode_uses_default_profile_overlay_when_runtime_env_missing
 ```
 
 Expected: profile tests fail because bundled `default` still points to qwen and `gpt` is unknown.

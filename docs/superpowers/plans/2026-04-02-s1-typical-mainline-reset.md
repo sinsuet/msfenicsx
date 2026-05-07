@@ -178,7 +178,7 @@ def test_s1_typical_eval_has_two_objectives_and_sink_budget_constraint():
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/schema/test_s1_typical_template.py \
   tests/evaluation/test_s1_typical_eval.py -v
 ```
@@ -254,7 +254,7 @@ def test_evaluate_case_solution_supports_summary_temperature_gradient_rms():
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/solver/test_gradient_metrics.py \
   tests/evaluation/test_engine.py \
   tests/evaluation/test_cli.py -v
@@ -342,7 +342,7 @@ def test_scenario_template_accepts_single_case_templates_without_operating_case_
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/schema/test_schema_models.py \
   tests/schema/test_schema_validation.py \
   tests/generator/test_pipeline.py \
@@ -428,7 +428,7 @@ def test_problem_evaluates_single_case_report_and_history():
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_single_case_problem.py \
   tests/optimizers/test_optimizer_cli.py -v
 ```
@@ -501,7 +501,7 @@ def test_problem_skips_pde_when_cheap_constraints_remain_violated(monkeypatch):
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_repair.py \
   tests/optimizers/test_cheap_constraints.py \
   tests/optimizers/test_single_case_problem.py -v
@@ -573,7 +573,7 @@ def test_artifacts_write_single_case_representatives():
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_optimizer_cli.py \
   tests/visualization/test_report_beamer_pack.py -v
 ```
@@ -656,7 +656,7 @@ def test_controller_state_reports_peak_gradient_budget_and_congestion():
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/optimizers/test_operator_pool_contracts.py \
   tests/optimizers/test_llm_controller_state.py \
   tests/optimizers/test_llm_controller.py -v
@@ -729,7 +729,7 @@ def test_readme_mentions_only_s1_typical_as_active_mainline():
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/schema \
   tests/generator \
   tests/solver \
@@ -755,7 +755,7 @@ Do all of the following in one cleanup pass:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest \
+conda run -n msfenicsx pytest \
   tests/schema \
   tests/generator \
   tests/solver \
@@ -766,14 +766,14 @@ Run:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main validate-scenario-template \
+conda run -n msfenicsx python -m core.cli.main validate-scenario-template \
   --template scenarios/templates/s1_typical.yaml
 ```
 
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main generate-case \
+conda run -n msfenicsx python -m core.cli.main generate-case \
   --template scenarios/templates/s1_typical.yaml \
   --seed 11 \
   --output-root ./scenario_runs/generated_cases/s1_typical/seed-11
@@ -782,7 +782,7 @@ Run:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
   --output-root ./scenario_runs/optimizations/s1_typical/raw-smoke
 ```

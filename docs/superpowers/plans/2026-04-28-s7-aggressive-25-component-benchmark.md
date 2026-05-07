@@ -66,7 +66,7 @@ Do not modify:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/schema/test_s7_aggressive25_template.py
+conda run -n msfenicsx pytest -v tests/schema/test_s7_aggressive25_template.py
 ```
 
 Expected before template creation: fail because the file does not exist.
@@ -109,7 +109,7 @@ Do not make every added component high-power. Preserve a mix of hot, medium, and
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/generator/test_s7_aggressive25_template.py
+conda run -n msfenicsx pytest -v tests/generator/test_s7_aggressive25_template.py
 ```
 
 ---
@@ -156,7 +156,7 @@ Avoid a long list of component constraints. The benchmark should still expose op
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx pytest -v tests/optimizers/test_s7_aggressive25_specs.py
+conda run -n msfenicsx pytest -v tests/optimizers/test_s7_aggressive25_specs.py
 ```
 
 ---
@@ -166,8 +166,8 @@ Run:
 Run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s7_aggressive25.yaml
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s7_aggressive25.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s7_aggressive25/seed-11
+conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s7_aggressive25.yaml
+conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s7_aggressive25.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s7_aggressive25/seed-11
 ```
 
 Then solve/evaluate the generated case with S7 evaluation spec.
@@ -181,7 +181,7 @@ If the generator struggles, reduce clearance or footprint pressure before changi
 After focused validation, run:
 
 ```bash
-/home/hymn/miniconda3/bin/conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
+conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s7_aggressive25_raw.yaml \
   --optimization-spec scenarios/optimization/s7_aggressive25_union.yaml \
   --optimization-spec scenarios/optimization/s7_aggressive25_llm.yaml \
