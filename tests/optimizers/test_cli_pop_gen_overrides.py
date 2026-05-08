@@ -10,11 +10,15 @@ def test_build_parser_accepts_pop_gen_overrides() -> None:
     parser = build_parser()
     args = parser.parse_args(
         [
-            "optimize-benchmark",
+            "run-benchmark",
             "--optimization-spec",
             "scenarios/optimization/s1_typical_llm.yaml",
-            "--output-root",
-            "./scenario_runs/smoke",
+            "--mode",
+            "llm",
+            "--benchmark-seed",
+            "11",
+            "--algorithm-seed",
+            "1011",
             "--population-size",
             "10",
             "--num-generations",
