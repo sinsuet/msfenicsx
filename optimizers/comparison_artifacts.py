@@ -19,6 +19,7 @@ from optimizers.algorithm_identity import algorithm_label
 from optimizers.analytics.loaders import iter_jsonl
 from optimizers.analytics.pareto import adaptive_reference_point_2d, pareto_front_indices
 from optimizers.analytics.rollups import rollup_per_generation
+from optimizers.benchmark_runner.igd import empirical_reference_front, igd_2d
 from optimizers.render_assets import (
     REFERENCE_POINT,
     _grid_coordinates,
@@ -67,6 +68,7 @@ def build_comparison_bundle(
 
     payloads = [_collect_run_payload(run_root) for run_root in resolved_runs]
     reference_point = _apply_shared_hypervolume_reference(payloads)
+    _apply_shared_igd_reference(payloads)
     _disambiguate_duplicate_series_labels(payloads)
     payloads.sort(key=lambda item: _series_sort_key(str(item["series_label"]), mode=str(item["mode"])))
 
@@ -341,6 +343,21 @@ def _apply_shared_hypervolume_reference(payloads: Sequence[Mapping[str, Any]]) -
     for payload in payloads:
         _refresh_hypervolume_payload(payload, reference_point=reference_point)
     return reference_point
+
+
+def _apply_shared_igd_reference(payloads: Sequence[Mapping[str, Any]]) -> None:
+    reference = empirical_reference_front(
+        [
+            point
+            for payload in payloads
+            for point in payload.get("front", [])
+        ]
+    )
+    for payload in payloads:
+        summary = payload.get("summary_row")
+        if isinstance(summary, dict):
+            summary["final_igd"] = igd_2d(payload.get("front", []), reference)
+            summary["igd_direction"] = "lower_is_better"
 
 
 def _shared_hypervolume_reference_point(payloads: Sequence[Mapping[str, Any]]) -> tuple[float, float]:
@@ -631,6 +648,8 @@ def _summary_table_rows(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any
             "best_gradient_rms": row.get("best_gradient_rms"),
             "feasible_rate": row.get("feasible_rate"),
             "final_hypervolume": row.get("final_hypervolume"),
+            "final_igd": row.get("final_igd"),
+            "igd_direction": row.get("igd_direction"),
         }
         for row in rows
     ]
