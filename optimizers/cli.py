@@ -4,24 +4,14 @@ from __future__ import annotations
 
 import argparse
 import os
-import time
 from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
-from evaluation.io import load_spec
 from llm.openai_compatible.profile_loader import load_provider_profile_overlay
-from llm.openai_compatible.replay import replay_request_trace_file, save_replay_summary
-from optimizers.artifacts import write_optimization_artifacts
-from optimizers.drivers.raw_driver import run_raw_optimization
-from optimizers.drivers.union_driver import run_union_optimization
-from optimizers.matrix.aggregate import aggregate_matrix
-from optimizers.matrix.config import build_s5_s7_budgeted_matrix
-from optimizers.matrix.runner import run_matrix_block
-from optimizers.io import generate_benchmark_case, load_optimization_spec, resolve_evaluation_spec_path
-from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
-from optimizers.run_manifest import write_run_manifest
-from optimizers.run_suite import resolve_suite_mode_id, run_benchmark_suite
+from optimizers.benchmark_runner.comparisons import plan_campaign_comparisons
+from optimizers.benchmark_runner.specs import build_single_leaf_campaign, load_campaigns_from_batch_spec
+from optimizers.benchmark_runner.supervisor import run_campaign_supervisor
 
 
 def _positive_int(value: str) -> int:
@@ -48,142 +38,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="msfenicsx-optimize")
     subparsers = parser.add_subparsers(dest="command")
 
-    optimize_parser = subparsers.add_parser("optimize-benchmark")
-    optimize_parser.add_argument("--optimization-spec", required=True)
-    optimize_parser.add_argument("--output-root", required=True)
-    optimize_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
-    optimize_parser.add_argument("--population-size", type=_positive_int, default=None)
-    optimize_parser.add_argument("--num-generations", type=_positive_int, default=None)
-    optimize_parser.add_argument("--skip-render", action="store_true")
-
-    run_llm_parser = subparsers.add_parser("run-llm")
-    run_llm_parser.add_argument("profile", nargs="?", default="default")
-    run_llm_parser.add_argument("--optimization-spec", required=True)
-    run_llm_parser.add_argument("--output-root", required=True)
-    run_llm_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
-    run_llm_parser.add_argument("--population-size", type=_positive_int, default=None)
-    run_llm_parser.add_argument("--num-generations", type=_positive_int, default=None)
-    run_llm_parser.add_argument("--skip-render", action="store_true")
-
-    suite_parser = subparsers.add_parser("run-benchmark-suite")
-    suite_parser.add_argument("--optimization-spec", required=True, action="append")
-    suite_parser.add_argument("--mode", action="append", default=[])
-    suite_parser.add_argument("--scenario-runs-root", required=True)
-    suite_parser.add_argument("--benchmark-seed", type=int, action="append", default=[])
-    suite_parser.add_argument("--evaluation-workers", type=_positive_int, default=None)
-    suite_parser.add_argument("--population-size", type=_positive_int, default=None)
-    suite_parser.add_argument("--num-generations", type=_positive_int, default=None)
-    suite_parser.add_argument("--skip-render", action="store_true")
-    suite_parser.add_argument("--llm-profile", default="default")
-    suite_parser.add_argument("--parallel", action="store_true")
-    suite_parser.add_argument("--max-concurrent-leaves", type=_positive_int, default=20)
-    suite_parser.add_argument("--leaf-evaluation-workers", type=_positive_int, default=None)
-    suite_parser.add_argument("--continue-on-failure", action="store_true", default=True)
-
-    replay_parser = subparsers.add_parser("replay-llm-trace")
-    replay_parser.add_argument("--optimization-spec", required=True)
-    replay_parser.add_argument("--request-trace", required=True)
-    replay_parser.add_argument("--output", required=True)
-    replay_parser.add_argument("--limit", type=int, default=None)
-
-    diagnostics_parser = subparsers.add_parser("analyze-controller-trace")
-    diagnostics_parser.add_argument("--controller-trace", required=True)
-    diagnostics_parser.add_argument("--optimization-result", required=False)
-    diagnostics_parser.add_argument("--operator-trace", required=False)
-    diagnostics_parser.add_argument("--llm-request-trace", required=False)
-    diagnostics_parser.add_argument("--llm-response-trace", required=False)
-    diagnostics_parser.add_argument("--output", required=True)
-
-    render_parser = subparsers.add_parser("render-assets")
-    render_parser.add_argument("--run", required=True)
-    render_parser.add_argument("--hires", action="store_true")
-
-    compare_parser = subparsers.add_parser("compare-runs")
-    compare_parser.add_argument("--run", required=True, action="append")
-    compare_parser.add_argument("--output", required=True)
-
-    matrix_parser = subparsers.add_parser("run-benchmark-matrix")
-    matrix_parser.add_argument("--matrix-root", required=True)
-    matrix_parser.add_argument("--block-id", required=True)
-    matrix_parser.add_argument("--max-leaves", type=_positive_int, default=None)
-
-    matrix_aggregate_parser = subparsers.add_parser("aggregate-benchmark-matrix")
-    matrix_aggregate_parser.add_argument("--run-index", required=True)
-    matrix_aggregate_parser.add_argument("--output-root", required=True)
+    run_parser = subparsers.add_parser("run-benchmark")
+    run_parser.add_argument("--batch-spec")
+    run_parser.add_argument("--optimization-spec")
+    run_parser.add_argument("--mode", choices=["raw", "union", "llm"])
+    run_parser.add_argument("--llm-profile")
+    run_parser.add_argument("--benchmark-seed", type=int)
+    run_parser.add_argument("--algorithm-seed", type=int)
+    run_parser.add_argument("--population-size", type=_positive_int)
+    run_parser.add_argument("--num-generations", type=_positive_int)
+    run_parser.add_argument("--evaluation-workers", type=_positive_int, default=16)
+    run_parser.add_argument("--scenario-runs-root", default="./scenario_runs")
+    run_parser.add_argument("--campaign-id")
+    run_parser.add_argument("--compare-with", action="append", default=[])
 
     return parser
-
-
-def _run_optimize_benchmark(
-    optimization_spec_path: str | Path,
-    output_root: str | Path,
-    *,
-    evaluation_workers: int | None,
-    optimization_spec=None,
-    population_size: int | None = None,
-    num_generations: int | None = None,
-    skip_render: bool = False,
-) -> int:
-    optimization_spec = (
-        load_optimization_spec(optimization_spec_path) if optimization_spec is None else optimization_spec
-    )
-    apply_algorithm_overrides(
-        optimization_spec.algorithm,
-        population_size=population_size,
-        num_generations=num_generations,
-    )
-    base_case = generate_benchmark_case(optimization_spec_path, optimization_spec)
-    evaluation_spec_path = resolve_evaluation_spec_path(optimization_spec_path, optimization_spec)
-    evaluation_spec = load_spec(evaluation_spec_path)
-    mode = optimization_spec.algorithm["mode"]
-    wall_start = time.monotonic()
-    with _temporary_env_overlay(_llm_env_overlay_for_spec(optimization_spec)):
-        if mode == "raw":
-            run = run_raw_optimization(
-                base_case,
-                optimization_spec,
-                evaluation_spec,
-                spec_path=optimization_spec_path,
-                evaluation_workers=evaluation_workers,
-            )
-        elif mode == "union":
-            run = run_union_optimization(
-                base_case,
-                optimization_spec,
-                evaluation_spec,
-                spec_path=optimization_spec_path,
-                evaluation_workers=evaluation_workers,
-                trace_output_root=Path(output_root),
-            )
-        else:
-            raise ValueError(f"Unsupported optimizer mode {mode!r}.")
-    wall_seconds = time.monotonic() - wall_start
-    evaluation_payload = evaluation_spec.to_dict() if hasattr(evaluation_spec, "to_dict") else dict(evaluation_spec)
-    write_optimization_artifacts(
-        output_root,
-        run,
-        mode_id=resolve_suite_mode_id(optimization_spec),
-        seed=int(optimization_spec.benchmark_source["seed"]),
-        objective_definitions=list(evaluation_payload["objectives"]),
-    )
-    write_run_manifest(
-        Path(output_root) / "run.yaml",
-        mode=resolve_suite_mode_id(optimization_spec),
-        algorithm_family=str(optimization_spec.algorithm["family"]),
-        algorithm_backbone=str(optimization_spec.algorithm["backbone"]),
-        benchmark_seed=int(optimization_spec.benchmark_source["seed"]),
-        algorithm_seed=int(optimization_spec.algorithm["seed"]),
-        optimization_spec_path=str(optimization_spec_path),
-        evaluation_spec_path=str(evaluation_spec_path),
-        population_size=int(optimization_spec.algorithm["population_size"]),
-        num_generations=int(optimization_spec.algorithm["num_generations"]),
-        wall_seconds=wall_seconds,
-        legality_policy_id=str(optimization_spec.evaluation_protocol["legality_policy_id"]),
-    )
-    if not skip_render:
-        from optimizers.render_assets import render_assets
-        render_assets(Path(output_root), hires=False)
-    return 0
 
 
 def _require_llm_optimization_spec(optimization_spec, *, command_name: str) -> None:
@@ -254,86 +123,39 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command is None:
         parser.print_help()
         return 0
-    if args.command == "optimize-benchmark":
-        return _run_optimize_benchmark(
-            args.optimization_spec,
-            args.output_root,
-            evaluation_workers=args.evaluation_workers,
-            population_size=args.population_size,
-            num_generations=args.num_generations,
-            skip_render=args.skip_render,
-        )
-    if args.command == "run-llm":
-        optimization_spec = load_optimization_spec(args.optimization_spec)
-        _require_llm_optimization_spec(optimization_spec, command_name="run-llm")
-        overlay = load_provider_profile_overlay(args.profile)
-        with _temporary_env_overlay(overlay):
-            return _run_optimize_benchmark(
-                args.optimization_spec,
-                args.output_root,
-                evaluation_workers=args.evaluation_workers,
-                optimization_spec=optimization_spec,
-                population_size=args.population_size,
-                num_generations=args.num_generations,
-                skip_render=args.skip_render,
-            )
-    if args.command == "run-benchmark-suite":
-        run_benchmark_suite(
-            optimization_spec_paths=[Path(path) for path in args.optimization_spec],
-            benchmark_seeds=list(args.benchmark_seed),
-            scenario_runs_root=Path(args.scenario_runs_root),
-            modes=list(args.mode),
-            evaluation_workers=args.evaluation_workers,
-            population_size=args.population_size,
-            num_generations=args.num_generations,
-            skip_render=args.skip_render,
-            llm_profile=args.llm_profile,
-            parallel=args.parallel,
-            max_concurrent_leaves=args.max_concurrent_leaves,
-            leaf_evaluation_workers=args.leaf_evaluation_workers,
-            continue_on_failure=args.continue_on_failure,
-        )
-        return 0
-    if args.command == "replay-llm-trace":
-        optimization_spec = load_optimization_spec(args.optimization_spec)
-        _require_llm_optimization_spec(optimization_spec, command_name="replay-llm-trace")
-        operator_control = optimization_spec.operator_control
-        assert operator_control is not None
-        replay_summary = replay_request_trace_file(
-            Path(args.request_trace),
-            dict(operator_control["controller_parameters"]),
-            limit=args.limit,
-        )
-        save_replay_summary(args.output, replay_summary)
-        return 0
-    if args.command == "analyze-controller-trace":
-        summary = analyze_controller_trace(
-            Path(args.controller_trace),
-            optimization_result_path=None if args.optimization_result is None else Path(args.optimization_result),
-            operator_trace_path=None if args.operator_trace is None else Path(args.operator_trace),
-            llm_request_trace_path=None if args.llm_request_trace is None else Path(args.llm_request_trace),
-            llm_response_trace_path=None if args.llm_response_trace is None else Path(args.llm_response_trace),
-        )
-        save_controller_trace_summary(args.output, summary)
-        return 0
-    if args.command == "render-assets":
-        from optimizers.render_assets import render_assets
-        render_assets(Path(args.run), hires=args.hires)
-        return 0
-    if args.command == "compare-runs":
-        from optimizers.compare_runs import compare_runs
-        compare_runs(runs=[Path(r) for r in args.run], output=Path(args.output))
-        return 0
-    if args.command == "run-benchmark-matrix":
-        run_matrix_block(
-            build_s5_s7_budgeted_matrix(),
-            matrix_root=Path(args.matrix_root),
-            block_id=args.block_id,
-            max_leaves=args.max_leaves,
-        )
-        return 0
-    if args.command == "aggregate-benchmark-matrix":
-        aggregate_matrix(Path(args.run_index), output_root=Path(args.output_root))
+    if args.command == "run-benchmark":
+        if args.batch_spec:
+            campaigns = load_campaigns_from_batch_spec(args.batch_spec)
+        else:
+            required = {
+                "--optimization-spec": args.optimization_spec,
+                "--mode": args.mode,
+                "--benchmark-seed": args.benchmark_seed,
+                "--algorithm-seed": args.algorithm_seed,
+                "--population-size": args.population_size,
+                "--num-generations": args.num_generations,
+            }
+            missing = [name for name, value in required.items() if value is None]
+            if missing:
+                parser.error("run-benchmark single leaf missing: " + ", ".join(missing))
+            campaigns = [
+                build_single_leaf_campaign(
+                    optimization_spec=Path(args.optimization_spec),
+                    mode=args.mode,
+                    llm_profile=args.llm_profile,
+                    benchmark_seed=args.benchmark_seed,
+                    algorithm_seed=args.algorithm_seed,
+                    population_size=args.population_size,
+                    num_generations=args.num_generations,
+                    evaluation_workers=args.evaluation_workers,
+                    scenario_runs_root=Path(args.scenario_runs_root),
+                    campaign_id=args.campaign_id,
+                    compare_with=[Path(path) for path in args.compare_with],
+                )
+            ]
+        for campaign in campaigns:
+            run_root = run_campaign_supervisor(campaign)
+            plan_campaign_comparisons(run_root, compare_with=list(getattr(campaign, "compare_with", ())))
         return 0
     parser.error(f"Unsupported command: {args.command}")
     return 0
