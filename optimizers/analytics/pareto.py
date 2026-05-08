@@ -64,3 +64,18 @@ def adaptive_reference_point_2d(
         max(float(default_reference_point[0]), max(xs) + x_margin),
         max(float(default_reference_point[1]), max(ys) + y_margin),
     )
+
+
+def empirical_reference_front_2d(points: Sequence[tuple[float, float]]) -> list[tuple[float, float]]:
+    from optimizers.benchmark_runner.igd import empirical_reference_front
+
+    return empirical_reference_front(points)
+
+
+def igd_2d(
+    candidate_points: Sequence[tuple[float, float]],
+    reference_points: Sequence[tuple[float, float]],
+) -> float | None:
+    from optimizers.benchmark_runner.igd import igd_2d as _igd_2d
+
+    return _igd_2d(candidate_points, reference_points)
