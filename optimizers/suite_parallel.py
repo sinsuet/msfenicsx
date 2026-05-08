@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import csv
 import logging
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
+from multiprocessing import get_context
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -19,8 +19,6 @@ from optimizers.run_manifest import write_run_manifest
 from optimizers.run_suite import _dispatch_run, _with_benchmark_seed
 
 logger = logging.getLogger(__name__)
-
-_ENV_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -86,9 +84,8 @@ def run_leaf(
 
         if llm_env_overlay:
             import os
-            with _ENV_LOCK:
-                previous = {k: os.environ.get(k) for k in llm_env_overlay}
-                os.environ.update(llm_env_overlay)
+            previous = {k: os.environ.get(k) for k in llm_env_overlay}
+            os.environ.update(llm_env_overlay)
             try:
                 run = _dispatch_run(
                     base_case,
@@ -99,13 +96,11 @@ def run_leaf(
                     trace_output_root=output_root,
                 )
             finally:
-                if llm_env_overlay:
-                    with _ENV_LOCK:
-                        for k, v in previous.items():
-                            if v is None:
-                                os.environ.pop(k, None)
-                            else:
-                                os.environ[k] = v
+                for k, v in previous.items():
+                    if v is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = v
         else:
             run = _dispatch_run(
                 base_case,
@@ -173,7 +168,8 @@ def run_leaves_parallel(
     continue_on_failure: bool = True,
 ) -> list[LeafResult]:
     results: list[LeafResult] = []
-    with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+    ctx = get_context("fork")
+    with ProcessPoolExecutor(max_workers=max_concurrent, mp_context=ctx) as executor:
         futures = {}
         for leaf in leaves:
             future = executor.submit(
