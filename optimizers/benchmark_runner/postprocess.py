@@ -78,3 +78,21 @@ def write_runtime_summary(seed_root: str | Path, summary: Mapping[str, Any]) -> 
         summary=dict(summary),
     )
     return output
+
+
+def write_llm_runtime_summary(seed_root: str | Path, summary: Mapping[str, Any]) -> Path:
+    root = Path(seed_root)
+    output = root / "summaries" / "llm_runtime_summary.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(dict(summary), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    append_summary_event(
+        root / "traces" / "run_events.jsonl",
+        event="llm_runtime_summary",
+        scenario_id=str(summary["scenario_id"]),
+        method_id=str(summary["method_id"]),
+        mode=str(summary["mode"]),
+        llm_profile=str(summary.get("llm_profile") or ""),
+        seed=int(summary.get("seed", 0) or 0),
+        summary=dict(summary),
+    )
+    return output

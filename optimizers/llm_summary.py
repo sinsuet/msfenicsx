@@ -252,6 +252,63 @@ def build_llm_prompt_summary(
         },
     }
 
+
+def build_seed_llm_runtime_summary(
+    seed_root: str | Path,
+    *,
+    scenario_id: str,
+    method_id: str,
+    mode: str,
+    llm_profile: str,
+    run_wall_seconds: float,
+    optimizer_wall_seconds: float,
+) -> dict[str, Any]:
+    root = Path(seed_root)
+    seed = _seed_from_root(root)
+    request_rows = load_jsonl_rows(root / "traces" / "llm_request_trace.jsonl")
+    response_rows = load_jsonl_rows(root / "traces" / "llm_response_trace.jsonl")
+    controller_rows = _load_controller_rows(root)
+    latencies = [
+        float(row["latency_ms"]) / 1000.0
+        for row in response_rows
+        if row.get("latency_ms") is not None
+    ]
+    prompt_total = sum(_usage_int(row, "prompt_tokens") for row in response_rows)
+    completion_total = sum(_usage_int(row, "completion_tokens") for row in response_rows)
+    total_total = sum(_usage_int(row, "total_tokens") for row in response_rows)
+    return {
+        "scenario_id": scenario_id,
+        "method_id": method_id,
+        "mode": mode,
+        "llm_profile": llm_profile,
+        "seed": seed,
+        "provider": _single_or_list(
+            _sorted_unique(list(_values(request_rows, "provider")) + list(_values(response_rows, "provider")))
+        ),
+        "model": _single_or_list(
+            _sorted_unique(list(_values(request_rows, "model")) + list(_values(response_rows, "model")))
+        ),
+        "remote_endpoint_label": _remote_endpoint_label(llm_profile),
+        "run_wall_seconds": float(run_wall_seconds),
+        "optimizer_wall_seconds": float(optimizer_wall_seconds),
+        "llm_request_count": len(request_rows),
+        "llm_response_count": len(response_rows),
+        "llm_retry_count": int(sum(int(row.get("retries", 0)) for row in response_rows)),
+        "llm_fallback_count": int(
+            sum(1 for row in controller_rows if row.get("fallback_used") or dict(row.get("metadata", {})).get("fallback_used"))
+        ),
+        "llm_latency_seconds_total": float(sum(latencies)),
+        "llm_latency_seconds_mean": _mean(latencies),
+        "llm_latency_seconds_median": _percentile(latencies, 50),
+        "llm_latency_seconds_p95": _percentile(latencies, 95),
+        "llm_latency_seconds_max": max(latencies) if latencies else 0.0,
+        "tokens_prompt_total": int(prompt_total),
+        "tokens_completion_total": int(completion_total),
+        "tokens_total": int(total_total),
+        "tokens_total_per_request_mean": float(total_total / max(1, len(response_rows))),
+    }
+
+
 def _values(rows: Sequence[Mapping[str, Any]], key: str) -> list[str]:
     values = []
     for row in rows:
@@ -284,3 +341,54 @@ def _load_controller_rows(seed_root: Path) -> list[dict[str, Any]]:
     if trace_path.exists():
         return [dict(row) for row in load_jsonl_rows(trace_path)]
     return []
+
+
+def _usage_int(row: Mapping[str, Any], key: str) -> int:
+    usage = row.get("usage")
+    if isinstance(usage, Mapping) and usage.get(key) is not None:
+        return int(usage[key])
+    if row.get(key) is not None:
+        return int(row[key])
+    return 0
+
+
+def _seed_from_root(root: Path) -> int:
+    name = root.name
+    if name.startswith("seed-"):
+        return int(name.split("-", 1)[1])
+    return 0
+
+
+def _mean(values: Sequence[float]) -> float:
+    return 0.0 if not values else float(sum(values) / len(values))
+
+
+def _percentile(values: Sequence[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(float(value) for value in values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (len(ordered) - 1) * float(percentile) / 100.0
+    lower_index = int(rank)
+    upper_index = min(lower_index + 1, len(ordered) - 1)
+    fraction = rank - lower_index
+    return float(round(ordered[lower_index] * (1.0 - fraction) + ordered[upper_index] * fraction, 12))
+
+
+def _single_or_list(values: Sequence[str]) -> str | list[str]:
+    return values[0] if len(values) == 1 else list(values)
+
+
+def _remote_endpoint_label(llm_profile: str) -> str:
+    labels = {
+        "default": "GPT_PROXY_BASE_URL",
+        "gpt": "GPT_PROXY_BASE_URL",
+        "qwen3_6_plus": "QWEN_PROXY_BASE_URL",
+        "glm_5": "QWEN_PROXY_BASE_URL",
+        "minimax_m2_5": "QWEN_PROXY_BASE_URL",
+        "deepseek_v4_flash": "DEEPSEEK_PROXY_BASE_URL",
+        "gemma4": "GEMMA4_BASE_URL",
+        "mimo_v2_5": "MIMO_BASE_URL",
+    }
+    return labels.get(str(llm_profile), f"{llm_profile}_profile")
