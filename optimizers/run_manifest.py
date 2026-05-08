@@ -23,12 +23,19 @@ def write_run_manifest(
     num_generations: int,
     wall_seconds: float,
     legality_policy_id: str,
+    method_id: str | None = None,
+    llm_profile: str | None = None,
+    status: str = "completed",
+    postprocess_wall_seconds: float | None = None,
 ) -> None:
     """Write run.yaml with the top-level schema agreed in § 3.1."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "mode": mode,
+        "method_id": method_id or mode,
+        "llm_profile": llm_profile,
+        "status": status,
         "seeds": {"benchmark": int(benchmark_seed), "algorithm": int(algorithm_seed)},
         "specs": {
             "optimization": optimization_spec_path,
@@ -45,6 +52,9 @@ def write_run_manifest(
             "legality": str(legality_policy_id),
             "replay_geometry_source": "evaluated_decision_vector",
         },
-        "timing": {"wall_seconds": float(wall_seconds)},
+        "timing": {
+            "wall_seconds": float(wall_seconds),
+            "postprocess_wall_seconds": None if postprocess_wall_seconds is None else float(postprocess_wall_seconds),
+        },
     }
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")

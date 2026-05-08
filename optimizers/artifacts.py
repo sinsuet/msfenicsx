@@ -186,6 +186,7 @@ def _seed_bundle_directories() -> dict[str, str]:
         "analytics": "analytics",
         "figures": "figures",
         "representatives": "representatives",
+        "summaries": "summaries",
         "tables": "tables",
         "traces": "traces",
     }
