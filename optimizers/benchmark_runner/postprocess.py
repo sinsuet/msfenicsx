@@ -96,3 +96,40 @@ def write_llm_runtime_summary(seed_root: str | Path, summary: Mapping[str, Any])
         summary=dict(summary),
     )
     return output
+
+
+def run_leaf_postprocess(
+    seed_root: str | Path,
+    *,
+    mode: str,
+    llm_profile: str | None,
+    optimization_spec_path: Path,
+) -> None:
+    root = Path(seed_root)
+    from optimizers.render_assets import render_assets
+
+    render_assets(root, hires=False)
+    if mode != "llm":
+        return
+
+    from llm.openai_compatible.replay import replay_request_trace_file, save_replay_summary
+    from optimizers.io import load_optimization_spec
+    from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
+
+    optimization_spec = load_optimization_spec(optimization_spec_path)
+    operator_control = optimization_spec.operator_control or {}
+    controller_parameters = dict(operator_control.get("controller_parameters", {}))
+    replay_summary = replay_request_trace_file(
+        root / "traces" / "llm_request_trace.jsonl",
+        controller_parameters,
+        limit=None,
+    )
+    save_replay_summary(root / "summaries" / "llm_replay_summary.json", replay_summary)
+    controller_summary = analyze_controller_trace(
+        root / "traces" / "controller_trace.jsonl",
+        optimization_result_path=root / "optimization_result.json",
+        operator_trace_path=root / "traces" / "operator_trace.jsonl",
+        llm_request_trace_path=root / "traces" / "llm_request_trace.jsonl",
+        llm_response_trace_path=root / "traces" / "llm_response_trace.jsonl",
+    )
+    save_controller_trace_summary(root / "summaries" / "controller_trace_summary.json", controller_summary)

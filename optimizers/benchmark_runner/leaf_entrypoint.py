@@ -11,7 +11,7 @@ from typing import Any
 from evaluation.io import load_spec
 from llm.openai_compatible.profile_loader import load_provider_profile_overlay
 from optimizers.artifacts import write_optimization_artifacts
-from optimizers.benchmark_runner.postprocess import build_runtime_summary, write_runtime_summary
+from optimizers.benchmark_runner.postprocess import build_runtime_summary, run_leaf_postprocess, write_runtime_summary
 from optimizers.benchmark_runner.run_events import RunEventWriter
 from optimizers.cli import _temporary_env_overlay, apply_algorithm_overrides
 from optimizers.drivers.raw_driver import run_raw_optimization
@@ -104,8 +104,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=args.benchmark_seed,
             objective_definitions=objective_definitions,
         )
+        postprocess_start = time.monotonic()
+        try:
+            run_leaf_postprocess(
+                output_root,
+                mode=args.mode,
+                llm_profile=args.llm_profile,
+                optimization_spec_path=spec_path,
+            )
+        except Exception as exc:
+            event_writer.write(
+                "leaf_failed",
+                scenario_id=scenario_id,
+                method_id=args.method_id,
+                mode=args.mode,
+                llm_profile=args.llm_profile,
+                seed=args.benchmark_seed,
+                message=f"postprocess failed: {exc}",
+                metrics={"postprocess_error": str(exc)},
+            )
+            raise
+        postprocess_wall_seconds = time.monotonic() - postprocess_start
         run_wall_seconds = time.monotonic() - run_start
-        postprocess_wall_seconds = 0.0
         write_run_manifest(
             output_root / "run.yaml",
             mode=args.mode,
