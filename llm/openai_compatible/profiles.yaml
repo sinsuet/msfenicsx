@@ -31,12 +31,16 @@ profiles:
   deepseek_v4_flash:
     source_api_key_env_var: DEEPSEEK_PROXY_API_KEY
     source_base_url_env_var: DEEPSEEK_PROXY_BASE_URL
-    model: DeepSeek-V4-Flash
+    model: deepseek-v4-flash
+    extra_body:
+      thinking:
+        type: disabled
+    max_output_tokens: 1024
   gemma4:
     source_api_key_env_var: GEMMA4_API_KEY
     source_base_url_env_var: GEMMA4_BASE_URL
-    model: gemma-4
-    status: placeholder
+    model: gemma4:31b-it-q8_0
+    max_output_tokens: 2048
   mimo_v2_5:
     source_api_key_env_var: MIMO_API_KEY
     source_base_url_env_var: MIMO_BASE_URL

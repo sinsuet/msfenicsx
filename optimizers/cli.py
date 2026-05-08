@@ -206,10 +206,17 @@ def _temporary_env_overlay(values: dict[str, str]):
                 os.environ[key] = value
 
 
-def _llm_env_overlay_for_spec(optimization_spec, *, profile_id: str = "default") -> dict[str, str]:
+def _llm_env_overlay_for_spec(
+    optimization_spec,
+    *,
+    profile_id: str = "default",
+    prefer_spec_profile: bool = True,
+) -> dict[str, str]:
     operator_control = getattr(optimization_spec, "operator_control", None)
     if operator_control is None or operator_control.get("controller") != "llm":
         return {}
+    if prefer_spec_profile:
+        profile_id = _resolve_llm_provider_profile(optimization_spec, fallback_profile_id=profile_id)
     core_keys = ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
     missing_keys = [
         key
@@ -228,6 +235,17 @@ def _llm_env_overlay_for_spec(optimization_spec, *, profile_id: str = "default")
         if (key in missing_keys or key not in core_keys and not str(os.environ.get(key, "")).strip())
         and str(value).strip()
     }
+
+
+def _resolve_llm_provider_profile(optimization_spec, *, fallback_profile_id: str = "default") -> str:
+    operator_control = getattr(optimization_spec, "operator_control", None)
+    if not isinstance(operator_control, dict):
+        return str(fallback_profile_id)
+    controller_parameters = operator_control.get("controller_parameters")
+    if not isinstance(controller_parameters, dict):
+        return str(fallback_profile_id)
+    provider_profile = str(controller_parameters.get("provider_profile", "")).strip()
+    return provider_profile or str(fallback_profile_id)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

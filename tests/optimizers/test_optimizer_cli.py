@@ -88,7 +88,7 @@ def _write_small_llm_spec(tmp_path: Path) -> Path:
     return _write_small_union_spec(tmp_path, controller="llm")
 
 
-def _write_small_env_backed_llm_spec(tmp_path: Path) -> Path:
+def _write_small_env_backed_llm_spec(tmp_path: Path, *, provider_profile: str | None = None) -> Path:
     spec_path = _write_small_union_spec(tmp_path, controller="llm")
     payload = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
     payload["operator_control"]["controller_parameters"] = {
@@ -100,6 +100,8 @@ def _write_small_env_backed_llm_spec(tmp_path: Path) -> Path:
         "base_url_env_var": "LLM_BASE_URL",
         "max_output_tokens": 256,
     }
+    if provider_profile is not None:
+        payload["operator_control"]["controller_parameters"]["provider_profile"] = provider_profile
     spec_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     return spec_path
 
@@ -1023,6 +1025,70 @@ def test_optimizer_cli_optimize_benchmark_llm_uses_default_profile_overlay_when_
         "LLM_API_KEY": "overlay-key",
         "LLM_BASE_URL": "https://overlay.example/v1",
         "LLM_MODEL": "gpt-5.4",
+    }
+
+
+def test_optimizer_cli_optimize_benchmark_llm_prefers_spec_provider_profile_when_runtime_env_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import optimizers.cli as cli_module
+
+    spec_path = _write_small_env_backed_llm_spec(tmp_path, provider_profile="gemma4")
+    output_root = tmp_path / "optimize_benchmark_llm_gemma4_overlay_run"
+    captured: dict[str, str] = {}
+
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+
+    def _fake_load_provider_profile_overlay(profile, **kwargs):
+        del kwargs
+        captured["profile"] = profile
+        return {
+            "LLM_API_KEY": "gemma-key",
+            "LLM_BASE_URL": "http://10.40.1.22:11434/v1",
+            "LLM_MODEL": "gemma4:31b-it-q8_0",
+            "LLM_MAX_OUTPUT_TOKENS": "2048",
+        }
+
+    monkeypatch.setattr(
+        cli_module,
+        "load_provider_profile_overlay",
+        _fake_load_provider_profile_overlay,
+        raising=False,
+    )
+
+    def _fake_run_union_optimization(*args, **kwargs):
+        del args, kwargs
+        captured["LLM_API_KEY"] = os.environ["LLM_API_KEY"]
+        captured["LLM_BASE_URL"] = os.environ["LLM_BASE_URL"]
+        captured["LLM_MODEL"] = os.environ["LLM_MODEL"]
+        captured["LLM_MAX_OUTPUT_TOKENS"] = os.environ["LLM_MAX_OUTPUT_TOKENS"]
+        return _fake_union_run(include_llm_sidecars=True)
+
+    monkeypatch.setattr(cli_module, "run_union_optimization", _fake_run_union_optimization)
+    monkeypatch.setattr(cli_module, "write_optimization_artifacts", lambda *args, **kwargs: Path(args[0]))
+    monkeypatch.setattr(cli_module, "write_run_manifest", lambda *args, **kwargs: Path(args[0]))
+
+    exit_code = main(
+        [
+            "optimize-benchmark",
+            "--optimization-spec",
+            str(spec_path),
+            "--output-root",
+            str(output_root),
+            "--skip-render",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured == {
+        "profile": "gemma4",
+        "LLM_API_KEY": "gemma-key",
+        "LLM_BASE_URL": "http://10.40.1.22:11434/v1",
+        "LLM_MODEL": "gemma4:31b-it-q8_0",
+        "LLM_MAX_OUTPUT_TOKENS": "2048",
     }
 
 

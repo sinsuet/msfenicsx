@@ -237,8 +237,9 @@ Preferred commands:
 The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 
 - `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to `gpt-5.4`
-- `run-benchmark-suite` uses the same `default` profile for LLM mode unless `--llm-profile <profile>` is provided
-- switch models explicitly with profile names such as `run-llm qwen3_6_plus ...`, `run-llm gpt ...`, `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, `run-llm deepseek_v4_flash ...`, or `run-llm mimo_v2_5 ...`
+- direct `optimize-benchmark` on checked-in `*_llm.yaml` specs auto-loads the spec's `provider_profile` when `LLM_API_KEY`, `LLM_BASE_URL`, or `LLM_MODEL` are missing; active S1-S7 LLM specs use `provider_profile: gemma4`
+- `run-benchmark-suite` uses `default` for LLM mode unless `--llm-profile <profile>` is provided; the explicit suite argument overrides spec defaults
+- switch models explicitly with profile names such as `run-llm qwen3_6_plus ...`, `run-llm gpt ...`, `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, `run-llm deepseek_v4_flash ...`, `run-llm gemma4 ...`, or `run-llm mimo_v2_5 ...`
 - model profile declarations live in `llm/openai_compatible/profiles.yaml`
 - bundled model registry maps:
   - `default -> GPT_PROXY_API_KEY / GPT_PROXY_BASE_URL -> gpt-5.4`
@@ -246,8 +247,8 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `qwen3_6_plus -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> qwen3.6-plus`
   - `glm_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> glm-5`
   - `minimax_m2_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> MiniMax-M2.5`
-  - `deepseek_v4_flash -> DEEPSEEK_PROXY_API_KEY / DEEPSEEK_PROXY_BASE_URL -> DeepSeek-V4-Flash`
-  - `gemma4 -> GEMMA4_API_KEY / GEMMA4_BASE_URL -> gemma-4` (placeholder until credentials and exact model id are configured)
+  - `deepseek_v4_flash -> DEEPSEEK_PROXY_API_KEY / DEEPSEEK_PROXY_BASE_URL -> deepseek-v4-flash` with `extra_body.thinking.type=disabled` and `max_output_tokens=1024`
+  - `gemma4 -> GEMMA4_API_KEY / GEMMA4_BASE_URL -> gemma4:31b-it-q8_0` through the HPC Ollama/OpenAI-compatible endpoint with `max_output_tokens=2048`
   - `mimo_v2_5 -> MIMO_API_KEY / MIMO_BASE_URL -> mimo-v2.5` with `extra_body.chat_template_kwargs.enable_thinking=false` and `max_output_tokens=1024`
 - the active `scenarios/optimization/s5_aggressive15_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
@@ -261,7 +262,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `DEEPSEEK_PROXY_API_KEY`
   - `DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1`
   - `GEMMA4_API_KEY`
-  - `GEMMA4_BASE_URL`
+  - `GEMMA4_BASE_URL=http://10.40.1.22:11434/v1`
   - `MIMO_API_KEY`
   - `MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1`
 

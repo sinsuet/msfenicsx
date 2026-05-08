@@ -197,6 +197,7 @@ operator_control:
     - component_subspace_sbx
   controller_parameters:
     provider: openai-compatible
+    provider_profile: gemma4
     capability_profile: chat_compatible_json
     performance_profile: balanced
     model_env_var: LLM_MODEL

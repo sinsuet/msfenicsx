@@ -176,11 +176,13 @@ def test_bundled_deepseek_v4_flash_profile_uses_model_named_env_pair(
     assert overlay == {
         "LLM_API_KEY": "bundled-deepseek-key",
         "LLM_BASE_URL": "https://llmapi.paratera.example/v1",
-        "LLM_MODEL": "DeepSeek-V4-Flash",
+        "LLM_MODEL": "deepseek-v4-flash",
+        "LLM_EXTRA_BODY": '{"thinking":{"type":"disabled"}}',
+        "LLM_MAX_OUTPUT_TOKENS": "1024",
     }
 
 
-def test_bundled_gemma4_placeholder_uses_model_named_env_pair(
+def test_bundled_gemma4_profile_uses_hpc_ollama_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GEMMA4_API_KEY", "bundled-gemma-key")
@@ -191,7 +193,8 @@ def test_bundled_gemma4_placeholder_uses_model_named_env_pair(
     assert overlay == {
         "LLM_API_KEY": "bundled-gemma-key",
         "LLM_BASE_URL": "https://gemma.example/v1",
-        "LLM_MODEL": "gemma-4",
+        "LLM_MODEL": "gemma4:31b-it-q8_0",
+        "LLM_MAX_OUTPUT_TOKENS": "2048",
     }
 
 

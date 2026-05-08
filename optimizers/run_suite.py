@@ -138,7 +138,9 @@ def run_benchmark_suite(
             evaluation_spec_path_for_seed = resolve_evaluation_spec_path(spec_path, seeded_spec)
             evaluation_spec = load_spec(evaluation_spec_path_for_seed)
             _wall_start = time.monotonic()
-            with _temporary_env_overlay(_llm_env_overlay_for_spec(seeded_spec, profile_id=llm_profile)):
+            with _temporary_env_overlay(
+                _llm_env_overlay_for_spec(seeded_spec, profile_id=llm_profile, prefer_spec_profile=False)
+            ):
                 run = _dispatch_run(
                     base_case,
                     seeded_spec,
@@ -332,7 +334,7 @@ def _run_suite_parallel(
     llm_env_overlay: dict[str, str] = {}
     llm_specs = [spec for mode_id, (_, spec) in spec_by_mode.items() if mode_id == "llm"]
     if llm_specs:
-        llm_env_overlay = _llm_env_overlay_for_spec(llm_specs[0], profile_id=llm_profile)
+        llm_env_overlay = _llm_env_overlay_for_spec(llm_specs[0], profile_id=llm_profile, prefer_spec_profile=False)
 
     run_index_path = run_root / "run_index.csv"
     write_run_index_header(run_index_path)

@@ -396,8 +396,8 @@ QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1
 DEEPSEEK_PROXY_API_KEY=...
 DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1
 
-GEMMA4_API_KEY=...
-GEMMA4_BASE_URL=...
+GEMMA4_API_KEY=dummy
+GEMMA4_BASE_URL=http://10.40.1.22:11434/v1
 
 MIMO_API_KEY=...
 MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
@@ -410,20 +410,20 @@ The bundled model registry maps:
 - `qwen3_6_plus -> QWEN_PROXY_* -> qwen3.6-plus`
 - `glm_5 -> QWEN_PROXY_* -> glm-5`
 - `minimax_m2_5 -> QWEN_PROXY_* -> MiniMax-M2.5`
-- `deepseek_v4_flash -> DEEPSEEK_PROXY_* -> DeepSeek-V4-Flash`
-- `gemma4 -> GEMMA4_* -> gemma-4` as a placeholder until credentials and the exact model id are configured
+- `deepseek_v4_flash -> DEEPSEEK_PROXY_* -> deepseek-v4-flash` with `extra_body.thinking.type=disabled` and `max_output_tokens=1024`
+- `gemma4 -> GEMMA4_* -> gemma4:31b-it-q8_0` through the HPC Ollama/OpenAI-compatible endpoint, with `max_output_tokens=2048`
 - `mimo_v2_5 -> MIMO_* -> mimo-v2.5` with `extra_body.chat_template_kwargs.enable_thinking=false` and `max_output_tokens=1024`
 
-Recommended LLM benchmark invocation:
+Recommended direct LLM benchmark invocation:
 
 ```bash
-conda run -n msfenicsx python -m optimizers.cli run-llm \
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-default-smoke
+  --output-root ./scenario_runs/s5_aggressive15/llm-gemma4-smoke
 ```
 
-This uses the bundled `default` profile, which points to `gpt-5.4`. To switch models explicitly:
+The checked-in `*_llm.yaml` specs declare `provider_profile: gemma4`, so `optimize-benchmark` auto-loads `GEMMA4_API_KEY / GEMMA4_BASE_URL` into `LLM_API_KEY / LLM_BASE_URL / LLM_MODEL` when those runtime variables are missing. To switch models explicitly for one run, use `run-llm <profile>`:
 
 ```bash
 conda run -n msfenicsx python -m optimizers.cli run-llm \
@@ -467,13 +467,21 @@ conda run -n msfenicsx python -m optimizers.cli run-llm \
 
 ```bash
 conda run -n msfenicsx python -m optimizers.cli run-llm \
+  gemma4 \
+  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
+  --evaluation-workers 2 \
+  --output-root ./scenario_runs/s5_aggressive15/llm-gemma4-smoke
+```
+
+```bash
+conda run -n msfenicsx python -m optimizers.cli run-llm \
   mimo_v2_5 \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
   --output-root ./scenario_runs/s5_aggressive15/llm-mimo-v25-smoke
 ```
 
-Direct `optimize-benchmark` execution for `s5_aggressive15_llm.yaml` still works. If `LLM_API_KEY`, `LLM_BASE_URL`, or `LLM_MODEL` are missing, it loads the bundled `default` profile (`gpt-5.4`) for the current process. `run-benchmark-suite` uses the same default profile for LLM mode unless `--llm-profile <profile>` is provided.
+`run-benchmark-suite` keeps explicit suite control: use `--llm-profile <profile>` to choose the LLM route for suite LLM mode; if omitted, it uses `default`.
 
 If needed:
 
