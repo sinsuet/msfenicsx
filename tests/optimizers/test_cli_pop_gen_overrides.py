@@ -12,7 +12,7 @@ def test_build_parser_accepts_pop_gen_overrides() -> None:
         [
             "run-benchmark",
             "--optimization-spec",
-            "scenarios/optimization/s1_typical_llm.yaml",
+            "scenarios/optimization/s5_aggressive15_llm.yaml",
             "--mode",
             "llm",
             "--benchmark-seed",

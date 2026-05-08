@@ -12,7 +12,7 @@ from optimizers.legality import apply_legality_policy_from_vector
 from optimizers.repair import repair_case_from_vector
 
 
-SPEC_PATH = Path("scenarios/optimization/s1_typical_raw.yaml")
+SPEC_PATH = Path("scenarios/optimization/s5_aggressive15_raw.yaml")
 RADIATOR_SPAN_MAX = 0.48
 
 

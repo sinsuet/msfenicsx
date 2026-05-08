@@ -11,8 +11,8 @@ from optimizers.models import OptimizationSpec
 from optimizers.problem import CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID, ThermalOptimizationProblem
 
 
-SPEC_PATH = Path("scenarios/optimization/s1_typical_raw.yaml")
-EVALUATION_SPEC_PATH = Path("scenarios/evaluation/s1_typical_eval.yaml")
+SPEC_PATH = Path("scenarios/optimization/s5_aggressive15_raw.yaml")
+EVALUATION_SPEC_PATH = Path("scenarios/evaluation/s5_aggressive15_eval.yaml")
 
 
 class _ImmediateFuture:
@@ -55,7 +55,7 @@ def _zero_constraint_reports(evaluation_spec: dict) -> list[dict]:
 def _impossible_overlap_spec() -> OptimizationSpec:
     payload = load_optimization_spec(SPEC_PATH).to_dict()
     payload["spec_meta"] = {
-        "spec_id": "s1_typical_parallel_impossible_overlap",
+        "spec_id": "s5_aggressive15_parallel_impossible_overlap",
         "description": "Parallel problem regression fixture with impossible overlap bounds.",
     }
     payload["design_variables"] = [

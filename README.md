@@ -1,504 +1,214 @@
 # msfenicsx
 
-`msfenicsx` is a research platform for:
+**面向卫星热控布局的语义化多目标优化研究平台**
 
-- 2D thermal dataset generation
-- steady conduction with nonlinear radiation-style sink boundaries
-- canonical FEniCSx thermal solves
-- single-case thermal-layout optimization with manifest-backed artifacts
+`msfenicsx` 针对卫星板级组件布局优化问题——散热资源受限、非线性辐射散热边界、昂贵 PDE 评估——提出一种将大语言模型（LLM）作为语义控制器嵌入进化算法的优化范式。LLM 不直接生成设计解，而是在每次 offspring generation 中读取热状态与搜索阶段，对候选热设计动作做语义排序，由确定性框架执行最终选择。
 
-## Active Mainline
+## 问题定义
 
-The current active paper-facing mainline is `s5_aggressive15` through `s7_aggressive25`. The primary debugging template is `s5_aggressive15`; use it for controller-sensitive smoke runs unless a scale or density check explicitly needs S6/S7. `s2_staged` is retained as a historical controller-sensitive companion, not the active mainline. S5/S6/S7 share the same aggressive `raw / union / llm` ladder. `nsga2_union` is the fixed stochastic operator-selection baseline for semantic-controller ablation: it uses the same `primitive_structured` operator substrate, NSGA-II backbone, legality policy, repair path, cheap screening, and PDE evaluation budget as `nsga2_llm`, but chooses operators through a fixed stochastic policy. `nsga2_llm` adds the representation-layer semantic controller, ranked selection, memory/reflection, and policy guidance on the same candidate support.
+卫星热布局不是一般的连续优化问题。它具有典型的航天热控特征：
 
-- one operating case
-- fixed named components per benchmark
-- mixed-shape component families with semantic placement hints
-- all components optimize `x/y` only
-- no optimized rotation
-- one top-edge sink window with movable `start/end`
-- scenario-specific decision dimensions:
-  - S5: 32 variables, `c01_x/c01_y ... c15_x/c15_y + sink_start/sink_end`
-  - S6: 42 variables, `c01_x/c01_y ... c20_x/c20_y + sink_start/sink_end`
-  - S7: 52 variables, `c01_x/c01_y ... c25_x/c25_y + sink_start/sink_end`
-- formal paper-facing expensive PDE evaluation budgets:
-  - S5: `40 × 32 = 1280` nominal evaluations
-  - S6: `56 × 36 = 2016` nominal evaluations
-  - S7: `64 × 40 = 2560` nominal evaluations
-- formal budgets are matched within each scenario across `raw`, `union`, `llm`, and raw-only algorithm comparisons
-- two objectives:
-  - `summary.temperature_max`
-  - `summary.temperature_gradient_rms`
-- hard constraints:
-  - geometry legality
-  - `case.total_radiator_span <= radiator_span_max`
-- generator uses semantic band and edge hints before falling back to generic legal placement
-- S5/S6/S7 form the aggressive 15/20/25-component family; compare modes within the same scenario before drawing cross-scenario conclusions
-- all active components generate waste heat and declare explicit localized `source_area_ratio` values
-- generation and cheap constraints enforce real minimum-clearance legality instead of overlap-only packing
-- solver keeps the official top-edge `line_sink` and adds weak ambient outer-boundary cooling for background heat leakage
-- cheap legality checks run before any expensive PDE solve
-- paper-facing S5/S6/S7 `raw`, `union`, `llm`, and raw-only algorithm-comparison specs use `projection_plus_local_restore`
-- paper-facing S5/S6/S7 `llm` specs use `semantic_ranked_pick` with the same controller parameters as the S5 debugging template
-- active optimizer modes:
-  - `nsga2_raw`: native-backbone baseline
-  - `nsga2_union`: fixed stochastic operator-selection semantic-controller ablation
-  - `nsga2_llm`: LLM semantic-controller route over the same operator support
-- additional raw-only algorithm comparison specs:
-  - `spea2_raw`
-  - `moead_raw`
+- **散热资源不可无限扩展**：散热器窗口有固定跨度预算，组件移动同时改变热点位置、热梯度和散热器耦合关系
+- **强耦合约束**：组件位置、散热器窗口、热源簇、热点偏移、局部拥挤、散热预算之间相互制约
+- **昂贵物理评估**：每步评估需求解 2D 稳态热传导 PDE（FEniCSx 有限元求解），预算严格受限
+- **阶段化设计决策**：尚未可行时优先减少违反；可行后需在保持与扩展之间切换；热点偏离散热窗口时需对准调整
 
-The additional algorithms are intentionally raw-only comparison baselines. Run them with
-`optimize-benchmark` and compare the resulting concrete run roots with `compare-runs`;
-the `run-benchmark-suite` ladder remains reserved for the `nsga2_raw / nsga2_union / nsga2_llm`
-mode comparison.
+传统进化算法（如 NSGA-II）在数值空间做无解释扰动，无法区分"散热器没对准"和"热源簇太拥挤"。
 
-## Active Inputs
+## 核心方法
 
-Implemented (`s1_typical`):
+### 结构化热设计算子基底
 
-- template: `scenarios/templates/s1_typical.yaml`
-- evaluation spec: `scenarios/evaluation/s1_typical_eval.yaml`
-- raw spec: `scenarios/optimization/s1_typical_raw.yaml`
-- union spec: `scenarios/optimization/s1_typical_union.yaml`
-- llm spec: `scenarios/optimization/s1_typical_llm.yaml`
-- SPEA2 raw spec: `scenarios/optimization/s1_typical_spea2_raw.yaml`
-- MOEA/D raw spec: `scenarios/optimization/s1_typical_moead_raw.yaml`
-- raw profile: `scenarios/optimization/profiles/s1_typical_raw.yaml`
-- union profile: `scenarios/optimization/profiles/s1_typical_union.yaml`
-- SPEA2 raw profile: `scenarios/optimization/profiles/s1_typical_spea2_raw.yaml`
-- MOEA/D raw profile: `scenarios/optimization/profiles/s1_typical_moead_raw.yaml`
+将传统 `x/y/sink_start/sink_end` 决策空间提升为一组带热控语义的 primitive actions：
 
-Implemented (`s2_staged`):
+| 算子类别 | 热设计语义 |
+|---------|-----------|
+| `sink_alignment` | 对准散热窗口 |
+| `sink_budget_shape` | 调整散热预算分配 |
+| `semantic_block_move` | 迁移热源簇 |
+| `semantic_subspace_recombine` | 子空间重组 |
+| `local_polish` | 局部拥挤缓解 |
+| `global_layout_expand` | 全局布局扩展 |
+| `baseline_reset` | 可行基线重置 |
 
-- template: `scenarios/templates/s2_staged.yaml`
-- evaluation spec: `scenarios/evaluation/s2_staged_eval.yaml`
-- raw spec: `scenarios/optimization/s2_staged_raw.yaml`
-- union spec: `scenarios/optimization/s2_staged_union.yaml`
-- llm spec: `scenarios/optimization/s2_staged_llm.yaml`
-- SPEA2 raw spec: `scenarios/optimization/s2_staged_spea2_raw.yaml`
-- MOEA/D raw spec: `scenarios/optimization/s2_staged_moead_raw.yaml`
-- raw profile: `scenarios/optimization/profiles/s2_staged_raw.yaml`
-- union profile: `scenarios/optimization/profiles/s2_staged_union.yaml`
-- SPEA2 raw profile: `scenarios/optimization/profiles/s2_staged_spea2_raw.yaml`
-- MOEA/D raw profile: `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
+算法搜索的不再是无解释扰动，而是可解释的热设计动作。
 
-Implemented (`s3_scale20`):
+### LLM 语义排序控制器
 
-- template: `scenarios/templates/s3_scale20.yaml`
-- evaluation spec: `scenarios/evaluation/s3_scale20_eval.yaml`
-- raw spec: `scenarios/optimization/s3_scale20_raw.yaml`
-- union spec: `scenarios/optimization/s3_scale20_union.yaml`
-- llm spec: `scenarios/optimization/s3_scale20_llm.yaml`
-- raw profile: `scenarios/optimization/profiles/s3_scale20_raw.yaml`
-- union profile: `scenarios/optimization/profiles/s3_scale20_union.yaml`
+LLM 的角色是 **semantic policy estimator**，而非优化器本体：
 
-Implemented (`s4_dense25`):
+- **语义压缩**：将高维搜索状态压缩为热控语义任务（sink alignment、block movement、local polish 等）
+- **上下文匹配**：读取当前搜索阶段、可行率、Pareto 停滞、热点-散热器偏移、近期算子历史，将状态与算子角色对齐
+- **风险排序**：对每个候选算子给出 score / risk / confidence，而非仅选最激进动作
 
-- template: `scenarios/templates/s4_dense25.yaml`
-- evaluation spec: `scenarios/evaluation/s4_dense25_eval.yaml`
-- raw spec: `scenarios/optimization/s4_dense25_raw.yaml`
-- union spec: `scenarios/optimization/s4_dense25_union.yaml`
-- llm spec: `scenarios/optimization/s4_dense25_llm.yaml`
-- raw profile: `scenarios/optimization/profiles/s4_dense25_raw.yaml`
-- union profile: `scenarios/optimization/profiles/s4_dense25_union.yaml`
+PDE solver 负责物理真值，NSGA-II 负责种群选择，repair / cheap constraints 负责合法性——LLM 只做软判断。
 
-Implemented (`s5_aggressive15`):
+### 确定性护栏
 
-- template: `scenarios/templates/s5_aggressive15.yaml`
-- evaluation spec: `scenarios/evaluation/s5_aggressive15_eval.yaml`
-- raw spec: `scenarios/optimization/s5_aggressive15_raw.yaml`
-- union spec: `scenarios/optimization/s5_aggressive15_union.yaml`
-- llm spec: `scenarios/optimization/s5_aggressive15_llm.yaml`
-- SPEA2 raw spec: `scenarios/optimization/s5_aggressive15_spea2_raw.yaml`
-- MOEA/D raw spec: `scenarios/optimization/s5_aggressive15_moead_raw.yaml`
-- raw profile: `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
-- union profile: `scenarios/optimization/profiles/s5_aggressive15_union.yaml`
-- SPEA2 raw profile: `scenarios/optimization/profiles/s5_aggressive15_spea2_raw.yaml`
-- MOEA/D raw profile: `scenarios/optimization/profiles/s5_aggressive15_moead_raw.yaml`
+可靠性来自"LLM 只做软判断，硬边界由程序控制"：
 
-Implemented (`s6_aggressive20`):
+- 候选算子为固定白名单，LLM 不能发明非法动作
+- 输出为结构化 JSON ranking，有 schema validation
+- 最终选择经 `semantic_ranked_pick` 确定性选取，含 rolling operator cap、semantic task cap、generation cap
+- fallback 为 `random_uniform`，确保可复现
 
-- template: `scenarios/templates/s6_aggressive20.yaml`
-- evaluation spec: `scenarios/evaluation/s6_aggressive20_eval.yaml`
-- raw spec: `scenarios/optimization/s6_aggressive20_raw.yaml`
-- union spec: `scenarios/optimization/s6_aggressive20_union.yaml`
-- llm spec: `scenarios/optimization/s6_aggressive20_llm.yaml`
-- SPEA2 raw spec: `scenarios/optimization/s6_aggressive20_spea2_raw.yaml`
-- MOEA/D raw spec: `scenarios/optimization/s6_aggressive20_moead_raw.yaml`
-- raw profile: `scenarios/optimization/profiles/s6_aggressive20_raw.yaml`
-- union profile: `scenarios/optimization/profiles/s6_aggressive20_union.yaml`
-- SPEA2 raw profile: `scenarios/optimization/profiles/s6_aggressive20_spea2_raw.yaml`
-- MOEA/D raw profile: `scenarios/optimization/profiles/s6_aggressive20_moead_raw.yaml`
+## 消融实验设计
 
-Implemented (`s7_aggressive25`):
+`raw` → `union` → `llm` 严格消融链，隔离语义控制贡献：
 
-- template: `scenarios/templates/s7_aggressive25.yaml`
-- evaluation spec: `scenarios/evaluation/s7_aggressive25_eval.yaml`
-- raw spec: `scenarios/optimization/s7_aggressive25_raw.yaml`
-- union spec: `scenarios/optimization/s7_aggressive25_union.yaml`
-- llm spec: `scenarios/optimization/s7_aggressive25_llm.yaml`
-- SPEA2 raw spec: `scenarios/optimization/s7_aggressive25_spea2_raw.yaml`
-- MOEA/D raw spec: `scenarios/optimization/s7_aggressive25_moead_raw.yaml`
-- raw profile: `scenarios/optimization/profiles/s7_aggressive25_raw.yaml`
-- union profile: `scenarios/optimization/profiles/s7_aggressive25_union.yaml`
-- SPEA2 raw profile: `scenarios/optimization/profiles/s7_aggressive25_spea2_raw.yaml`
-- MOEA/D raw profile: `scenarios/optimization/profiles/s7_aggressive25_moead_raw.yaml`
+**raw** — 原生 NSGA-II 骨干基线
 
-## Module Boundaries
+直接使用 NSGA-II 内置变异和交叉算子，不引入额外算子池或语义信息。
 
-- `core/`: schema, geometry, generator, solver, artifact I/O, and CLI
-- `evaluation/`: single-case evaluation specs, metrics, reports, and CLI
-- `optimizers/`: decision encoding, repair, cheap constraints, raw/union/llm drivers, run-suite orchestration, analytics/trace subpackages, render-assets/compare-runs, and optimizer CLI
-- `llm/`: OpenAI-compatible controller client boundary
-- `visualization/`: figures subpackage (pareto, temperature_field, gradient_field, hypervolume, layout_evolution, operator_heatmap) and centralized baseline style
-- `scenarios/`: hand-authored scenario, evaluation, and optimization inputs
-- `tests/`: maintained automated verification
-- `docs/`: active specs, plans, and reports
+**union** — 固定随机算子选择
 
-## Active Flows
+引入相同的结构化算子池，但以固定随机策略选择算子。这是 LLM 控制器的消融对照组：相同的算子能力，但没有语义引导。`union` 的意义不是更强 baseline，而是证明"更多动作不必然带来更好搜索"——没有状态判断时，丰富的算子池反而扩大了错误选择空间。
 
-Canonical object flow:
+**llm** — LLM 语义控制器
 
-`scenario_template -> thermal_case -> thermal_solution -> scenario_runs/ bundle`
+在相同的算子池、repair、cheap constraints 和 PDE budget 基础上，替换为语义控制策略。因此改进可归因到 LLM 的 representation-layer semantic control，而非额外算子、额外预算或不同求解器。
 
-Derived evaluation flow:
+## 基准场景
 
-`thermal_case + thermal_solution + evaluation_spec -> evaluation_report`
+三个规模递进的卫星板级基准场景，组件以对抗性策略放置，制造多瓶颈热耦合：
 
-Active optimizer flow:
+| 场景 | 组件数 | 决策变量数 | PDE 评估预算 |
+|------|--------|-----------|-------------|
+| S5   | 15     | 32        | 1280        |
+| S6   | 20     | 42        | 2016        |
+| S7   | 25     | 52        | 2560        |
 
-`paper-facing scenario case -> legality policy -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle`
+每个场景包含异构组件族（核心计算模块、功率器件、I/O 板、传感器、连接器等），带有语义放置提示和最小间距约束。散热器窗口位于顶边，跨度有限，其起止位置作为决策变量。所有组件仅优化 x/y 位置。
 
-## Run Layout
+## 实验结果
 
-Paper-facing optimization and visualization outputs now live under:
+以 S5 场景为例（PDE cutoff = 149）：
 
-```text
-scenario_runs/<scenario_id>/<MMDD_HHMM>__<mode_slug>/
-```
+| 模式 | 峰值温度 T_max | 梯度 RMS | 可行率 |
+|------|---------------|----------|--------|
+| raw  | 326.75        | 20.81    | 0.523  |
+| union | 327.23       | 21.05    | 0.604  |
+| **llm** | **324.23** | **17.87** | **0.678** |
 
-`mode_slug` always follows the stable order `raw`, `union`, `llm`.
+LLM 模式的优势来自两个层面：
 
-Representative physical-field bundles live under:
+- **比 raw 多了热控语义动作**：能够处理 sink alignment、block movement、subspace recombination
+- **比 union 更懂何时使用这些动作**：没有把算子池变成随机扰动噪声
 
-```text
-<mode>/seeds/seed-<n>/representatives/<representative_id>/
-```
+trace 显示 LLM 的算子分布更均衡——不仅使用 sink 操作，也显著使用 `component_block_translate_2_4`、`component_subspace_sbx`、`anchored_component_jitter`，对应"散热边界调整 + 组件簇重构 + 局部抛光"的组合策略。
 
-and include:
+## 快速上手
 
-```text
-case.yaml
-solution.yaml
-evaluation.yaml
-fields/temperature_grid.npz
-fields/gradient_magnitude_grid.npz
-```
+### 环境安装
 
-Standalone solved-case bundles written by `core.cli.main solve-case` live under:
+FEniCSx 求解器栈（dolfinx、basix、ffcx、ufl、PETSc、mpi4py）依赖系统级 MPI 和 C 库，必须通过 conda-forge 安装；其余 Python 依赖通过 pip 安装。两条路径：
 
-```text
-scenario_runs/<scenario_id>/<case_id>/
-```
-
-and, when field exports are present, also render:
-
-```text
-figures/layout.png
-figures/temperature_field.png
-figures/gradient_field.png
-```
-
-Trace artifacts live at the seed run root as canonical JSONL sidecars:
-
-```text
-traces/evaluation_events.jsonl
-traces/generation_summary.jsonl
-traces/controller_trace.jsonl
-traces/operator_trace.jsonl
-traces/llm_request_trace.jsonl
-traces/llm_response_trace.jsonl
-run.yaml                            # per-seed manifest
-```
-
-Operator trace rows follow the §4.3 schema
-(`decision_id, generation, operator_name, parents, offspring, params_digest, wall_ms`).
-
-Central rendered assets (written by `optimizers.cli render-assets`) live
-beside the traces:
-
-- `analytics/*.csv` — hypervolume, Pareto front, progress timeline, operator usage, decision rollups
-- `figures/*.png` — raster figures for quick browsing
-- `figures/pdf/*.pdf` — vector companions kept in a dedicated subdirectory
-- figure outputs include `pareto_front`, `hypervolume_progress`, `objective_progress`, `temperature_trace`, `gradient_trace`, `constraint_violation_progress`, `layout_initial`, `layout_final`, `layout_evolution`, `temperature_field_<repr>`, `gradient_field_<repr>`, and `operator_phase_heatmap`
-- `layout_evolution` is a best-so-far spatial-milestone replay; preserved frame PNGs live under `figures/layout_evolution_frames/step_<NNN>.png`
-- layout figures are publication panels: clean board on the left, compact run metadata on the right, internal component labels, and an explicit sink ribbon
-- field figures keep a mandatory top title, explicit sink rendering, internal white label chips, and aligned colorbar composition
-- `tables/*.csv` / `tables/*.tex` — summary statistics and representative-point tables
-- baseline style centralized in `visualization/style/baseline.py`
-
-`optimize-benchmark`, `run-llm`, and `run-benchmark-suite` runs are not
-complete until `render-assets` has been executed on the final run root.
-`--skip-render` is for temporary debugging only; if used, run
-`render-assets` immediately before analysis or reporting. Budget knobs
-`--population-size` and `--num-generations` apply to all three commands.
-When a suite run includes at least two modes, `run-benchmark-suite` also
-auto-writes a suite-owned `comparisons/` bundle that should be rendered as
-part of the same run workflow:
-
-- single-seed suite: `<run_root>/comparisons/`
-- multi-seed suite: `<run_root>/comparisons/by_seed/seed-<n>/` plus `<run_root>/comparisons/aggregate/`
-
-Interpretation:
-
-- `comparisons/by_seed/seed-<n>/` = same benchmark seed across modes
-- `comparisons/aggregate/` = across-seeds descriptive rollup for those same compared modes
-- per-seed compare bundles should lead with `summary_overview`, `final_layout_comparison`, `temperature_field_comparison`, `gradient_field_comparison`, and `progress_dashboard`
-
-## CLI
-
-Run commands from WSL2 Ubuntu with the `msfenicsx` conda environment:
+**全新安装（推荐）**
 
 ```bash
+git clone <repo-url> && cd msfenicsx
+conda env create -f environment.yml
+conda activate msfenicsx
+```
+
+`environment.yml` 会创建 `msfenicsx` 环境，先装 FEniCSx 全家桶，再 `pip install -e ".[llm,dev]"` 装所有 Python 依赖（含 LLM 客户端和测试工具）。
+
+**已有 FEniCSx 环境**
+
+```bash
+pip install -e ".[llm,dev]"
+```
+
+可选的 extras 分组：
+
+| 安装命令 | 包含内容 |
+|---------|---------|
+| `pip install -e .` | 核心依赖（numpy、scipy、matplotlib、pymoo 等） |
+| `pip install -e ".[llm]"` | 核心 + OpenAI LLM 客户端 |
+| `pip install -e ".[dev]"` | 核心 + pytest 测试工具 |
+| `pip install -e ".[llm,dev]"` | 全部 |
+
+### 最小示例：从模板到求解
+
+```bash
+# 1. 验证场景模板
 conda run -n msfenicsx python -m core.cli.main validate-scenario-template \
   --template scenarios/templates/s5_aggressive15.yaml
 
+# 2. 生成测试用例
 conda run -n msfenicsx python -m core.cli.main generate-case \
   --template scenarios/templates/s5_aggressive15.yaml \
   --seed 11 \
   --output-root ./scenario_runs/generated_cases/s5_aggressive15/seed-11
 
+# 3. 求解用例
 conda run -n msfenicsx python -m core.cli.main solve-case \
   --case ./scenario_runs/generated_cases/s5_aggressive15/seed-11/s5_aggressive15-seed-0011.yaml \
   --output-root ./scenario_runs
 
+# 4. 评估求解结果
 conda run -n msfenicsx python -m evaluation.cli evaluate-case \
   --case ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/case.yaml \
   --solution ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/solution.yaml \
   --spec scenarios/evaluation/s5_aggressive15_eval.yaml \
   --output ./evaluation_report.yaml \
   --bundle-root ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011
+```
 
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
+### 优化运行
+
+```bash
+# 单模式 smoke 测试（小预算）
+conda run -n msfenicsx python -m optimizers.cli run-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/raw-smoke
-
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/union-smoke
-
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-smoke
-
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s5_aggressive15_spea2_raw.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/spea2-raw-smoke
-
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s5_aggressive15_moead_raw.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/moead-raw-smoke
-
-conda run -n msfenicsx python -m optimizers.cli run-llm \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-default-smoke
-
-conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
-  --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
-  --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --mode raw \
-  --mode union \
-  --mode llm \
-  --llm-profile default \
   --benchmark-seed 11 \
+  --algorithm-seed 1011 \
+  --population-size 2 \
+  --num-generations 1 \
   --evaluation-workers 2 \
   --scenario-runs-root ./scenario_runs
 
-# Parallel suite: S5 raw+union, 5 seeds, formal budget
-conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
-  --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
-  --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
-  --mode raw --mode union \
-  --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --benchmark-seed 29 --benchmark-seed 31 \
-  --population-size 40 --num-generations 32 \
-  --parallel --max-concurrent-leaves 13 \
-  --leaf-evaluation-workers 1 \
+# 正式 S5 raw+union 五 seed batch
+conda run -n msfenicsx python -m optimizers.cli run-benchmark \
+  --batch-spec scenarios/batches/s5_raw_union_budgeted.yaml
+
+# 单 seed LLM 调参
+conda run -n msfenicsx python -m optimizers.cli run-benchmark \
+  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
+  --mode llm \
+  --llm-profile gemma4 \
+  --benchmark-seed 11 \
+  --algorithm-seed 1011 \
+  --population-size 5 \
+  --num-generations 2 \
+  --evaluation-workers 2 \
   --scenario-runs-root ./scenario_runs
-
-conda run -n msfenicsx python -m optimizers.cli replay-llm-trace \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --request-trace ./scenario_runs/s5_aggressive15/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl \
-  --output ./scenario_runs/s5_aggressive15/<run_id>/llm/reports/<summary>.json
-
-conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace \
-  --controller-trace ./scenario_runs/s5_aggressive15/<run_id>/llm/seeds/seed-11/traces/controller_trace.jsonl \
-  --output ./scenario_runs/s5_aggressive15/<run_id>/llm/reports/controller_trace_summary.json
-
-# Render analytics/tables/figures from an existing suite root, mode root, or concrete single-mode run root
-conda run -n msfenicsx python -m optimizers.cli render-assets \
-  --run ./scenario_runs/s5_aggressive15/<run_id> [--hires]
-
-# Compare two or more concrete single-mode run roots into an external structured bundle
-conda run -n msfenicsx python -m optimizers.cli compare-runs \
-  --run ./scenario_runs/s5_aggressive15/<run_a> \
-  --run ./scenario_runs/s5_aggressive15/<run_b> \
-  --output ./scenario_runs/compare_reports/<compare_id>
-
-# 10x5 smoke harness (raw/union/llm + render-assets + compare-runs)
-bash scripts/smoke_render_assets.sh
 ```
 
-Budget / render overrides apply to `optimize-benchmark`, `run-llm`, and `run-benchmark-suite`:
+`run-benchmark` 是 optimizer 的唯一公开运行入口，自动执行 leaf 后处理、渲染分析图表、LLM trace 诊断，并在 campaign 内生成 seed-aware comparison。
 
-- `--population-size <int>` — override algorithm.population_size
-- `--num-generations <int>` — override algorithm.num_generations
-- `--skip-render` — temporary debug-only render skip; follow immediately with `render-assets` on the produced run root before analysis or reporting
+## 项目结构
 
-`s5_aggressive15` is the primary fixed single-case debugging template. Repeat experiments by varying `algorithm.seed`, not by passing multiple `benchmark_seed` values.
+| 模块 | 职责 |
+|------|------|
+| `core/` | 模型定义、几何引擎、网格生成、FEniCSx 求解器、产物 I/O、CLI |
+| `evaluation/` | 评估规范、指标计算、评估报告 |
+| `optimizers/` | 决策编码、修复、约束检查、raw/union/llm 驱动、统一 benchmark runner、分析与可视化资产 |
+| `llm/` | OpenAI 兼容的 LLM 控制器客户端 |
+| `visualization/` | 图表生成（Pareto 前沿、温度场、梯度场、超体积、布局演化、算子热力图） |
+| `scenarios/` | 场景模板、评估规范、优化规范 |
+| `tests/` | 自动化测试 |
+| `docs/` | 设计文档、计划、报告 |
 
-The optimizer CLI uses a desktop-safe default worker budget when `--evaluation-workers` is omitted. During interactive daytime work, prefer `--evaluation-workers 2` or lower for `raw`, `union`, and later `llm` reruns.
+## 文档
 
-## Environment
+- `CLAUDE.md` — Claude Code 会话指南（CLI 全集、LLM 配置、工程规范）
+- `AGENTS.md` — Codex 会话指南
+- `docs/superpowers/specs/` — 详细设计文档
+- `docs/superpowers/plans/` — 实施计划
+- `docs/reports/` — 分析报告
 
-- canonical execution context: WSL2 Ubuntu
-- preferred environment: `conda run -n msfenicsx ...`
-- repository text files should use UTF-8 without BOM
-- default networking is direct; do not enable `HTTP(S)_PROXY` / `ALL_PROXY` globally for normal repository work
-- only add proxy settings inline for explicit outbound tasks such as network search, web lookup, or access to blocked external resources like GitHub / Google / `raw.githubusercontent.com`
-- keep the LLM provider base URLs declared in `.env` as-is; they are normal runtime endpoints, not shell proxy settings
+## 许可
 
-The `nsga2_llm` route uses the OpenAI-compatible client in `llm/openai_compatible/` and expects:
-
-- one of the model profiles declared in `llm/openai_compatible/profiles.yaml`
-- provider credentials from process environment or repository-root `.env`
-- the active paper-facing `s5_aggressive15_llm` spec resolves runtime provider identity through:
-  - `LLM_API_KEY`
-  - `LLM_BASE_URL`
-  - `LLM_MODEL`
-
-Edit the repository-root `.env` at `./.env` to declare each runtime route once:
-
-```env
-GPT_PROXY_API_KEY=...
-GPT_PROXY_BASE_URL=...
-
-QWEN_PROXY_API_KEY=...
-QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1
-
-DEEPSEEK_PROXY_API_KEY=...
-DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1
-
-GEMMA4_API_KEY=dummy
-GEMMA4_BASE_URL=http://10.40.1.22:11434/v1
-
-MIMO_API_KEY=...
-MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
-```
-
-The bundled model registry maps:
-
-- `default -> GPT_PROXY_* -> gpt-5.4`
-- `gpt -> GPT_PROXY_* -> gpt-5.4`
-- `qwen3_6_plus -> QWEN_PROXY_* -> qwen3.6-plus`
-- `glm_5 -> QWEN_PROXY_* -> glm-5`
-- `minimax_m2_5 -> QWEN_PROXY_* -> MiniMax-M2.5`
-- `deepseek_v4_flash -> DEEPSEEK_PROXY_* -> deepseek-v4-flash` with `extra_body.thinking.type=disabled` and `max_output_tokens=1024`
-- `gemma4 -> GEMMA4_* -> gemma4:31b-it-q8_0` through the HPC Ollama/OpenAI-compatible endpoint, with `max_output_tokens=2048`
-- `mimo_v2_5 -> MIMO_* -> mimo-v2.5` with `extra_body.chat_template_kwargs.enable_thinking=false` and `max_output_tokens=1024`
-
-Recommended direct LLM benchmark invocation:
-
-```bash
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-gemma4-smoke
-```
-
-The checked-in `*_llm.yaml` specs declare `provider_profile: gemma4`, so `optimize-benchmark` auto-loads `GEMMA4_API_KEY / GEMMA4_BASE_URL` into `LLM_API_KEY / LLM_BASE_URL / LLM_MODEL` when those runtime variables are missing. To switch models explicitly for one run, use `run-llm <profile>`:
-
-```bash
-conda run -n msfenicsx python -m optimizers.cli run-llm \
-  gpt \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-gpt-smoke
-```
-
-```bash
-conda run -n msfenicsx python -m optimizers.cli run-llm \
-  qwen3_6_plus \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-qwen36-smoke
-```
-
-```bash
-conda run -n msfenicsx python -m optimizers.cli run-llm \
-  glm_5 \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-glm5-smoke
-```
-
-```bash
-conda run -n msfenicsx python -m optimizers.cli run-llm \
-  minimax_m2_5 \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-minimax-m25-smoke
-```
-
-```bash
-conda run -n msfenicsx python -m optimizers.cli run-llm \
-  deepseek_v4_flash \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-deepseek-v4-flash-smoke
-```
-
-```bash
-conda run -n msfenicsx python -m optimizers.cli run-llm \
-  gemma4 \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-gemma4-smoke
-```
-
-```bash
-conda run -n msfenicsx python -m optimizers.cli run-llm \
-  mimo_v2_5 \
-  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
-  --evaluation-workers 2 \
-  --output-root ./scenario_runs/s5_aggressive15/llm-mimo-v25-smoke
-```
-
-`run-benchmark-suite` keeps explicit suite control: use `--llm-profile <profile>` to choose the LLM route for suite LLM mode; if omitted, it uses `default`.
-
-If needed:
-
-```bash
-conda run -n msfenicsx python -m pip install "openai>=1.70"
-```
-
-## Verification
-
-Maintained verification areas:
-
-- `tests/schema/`
-- `tests/geometry/`
-- `tests/generator/`
-- `tests/solver/`
-- `tests/io/`
-- `tests/cli/`
-- `tests/evaluation/`
-- `tests/optimizers/`
-- `tests/visualization/`
+本项目为学术研究用途。

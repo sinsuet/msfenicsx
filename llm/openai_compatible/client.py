@@ -692,6 +692,7 @@ class OpenAICompatibleClient:
                 "Each ranked_operators item must include operator_id, semantic_task, score, risk, confidence, rationale. "
                 f"The operator_id value must exactly equal one of {list(candidate_operator_ids)}. "
                 "Rank operators in descending preference order. "
+                "Return only the best 3 ranked_operators; do not include lower-ranked alternatives. "
                 "score, risk, and confidence must be JSON numbers between 0.0 and 1.0. "
                 "Do not use 0-10 scales or words such as low, medium, high. "
                 "Use explicit numeric risk and confidence values; do not omit them. "

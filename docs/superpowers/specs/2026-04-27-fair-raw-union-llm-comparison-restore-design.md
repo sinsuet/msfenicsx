@@ -1,6 +1,6 @@
 # Restore Fair raw / union / llm Comparison Design
 
-> Status: approved design direction for restoring a defensible `raw / union / llm` comparison contract on the `s1_typical` and `s2_staged` paper-facing mainlines. This spec replaces the implicit "B-shape" agreement reached during brainstorming with an explicit written contract, scoped module boundaries, and a two-phase implementation order.
+> Status: approved design direction for restoring a defensible `raw / union / llm` comparison contract on the `s5_aggressive15` and `s5_aggressive15` paper-facing mainlines. This spec replaces the implicit "B-shape" agreement reached during brainstorming with an explicit written contract, scoped module boundaries, and a two-phase implementation order.
 >
 > This spec is intentionally allowed to override parts of the current `README.md` and `AGENTS.md` paper-facing narrative where they diverge from the agreed comparison contract. It does **not** override `core/` schema/contract guarantees, `evaluation/` evaluation-spec semantics, or `optimizers/algorithm_config.py` repository-wide backbone defaults.
 
@@ -27,9 +27,9 @@ The current chain has drifted in two directions at once.
 
 Paper-facing scenario specs assign different substrates to `union` and `llm`:
 
-- `union` uses `registry_profile: primitive_clean` and `legality_policy_id: minimal_canonicalization` ([scenarios/optimization/s1_typical_union.yaml:147](scenarios/optimization/s1_typical_union.yaml#L147), [scenarios/optimization/s1_typical_union.yaml:158](scenarios/optimization/s1_typical_union.yaml#L158))
-- `llm` uses `registry_profile: primitive_plus_assisted` and `legality_policy_id: projection_plus_local_restore` ([scenarios/optimization/s1_typical_llm.yaml:147](scenarios/optimization/s1_typical_llm.yaml#L147), [scenarios/optimization/s1_typical_llm.yaml:182](scenarios/optimization/s1_typical_llm.yaml#L182))
-- the `s2_staged` ladder is identical in shape ([scenarios/optimization/s2_staged_union.yaml:147](scenarios/optimization/s2_staged_union.yaml#L147), [scenarios/optimization/s2_staged_llm.yaml:147](scenarios/optimization/s2_staged_llm.yaml#L147), [scenarios/optimization/s2_staged_llm.yaml:182](scenarios/optimization/s2_staged_llm.yaml#L182))
+- `union` uses `registry_profile: primitive_clean` and `legality_policy_id: minimal_canonicalization` ([scenarios/optimization/s5_aggressive15_union.yaml:147](scenarios/optimization/s5_aggressive15_union.yaml#L147), [scenarios/optimization/s5_aggressive15_union.yaml:158](scenarios/optimization/s5_aggressive15_union.yaml#L158))
+- `llm` uses `registry_profile: primitive_plus_assisted` and `legality_policy_id: projection_plus_local_restore` ([scenarios/optimization/s5_aggressive15_llm.yaml:147](scenarios/optimization/s5_aggressive15_llm.yaml#L147), [scenarios/optimization/s5_aggressive15_llm.yaml:182](scenarios/optimization/s5_aggressive15_llm.yaml#L182))
+- the `s5_aggressive15` ladder is identical in shape ([scenarios/optimization/s5_aggressive15_union.yaml:147](scenarios/optimization/s5_aggressive15_union.yaml#L147), [scenarios/optimization/s5_aggressive15_llm.yaml:147](scenarios/optimization/s5_aggressive15_llm.yaml#L147), [scenarios/optimization/s5_aggressive15_llm.yaml:182](scenarios/optimization/s5_aggressive15_llm.yaml#L182))
 
 In addition, `policy_kernel.build_policy_snapshot` actively narrows the operator support. It produces `allowed_operator_ids` and `suppressed_operator_ids`, and current branches re-write them based on phase, recent concentration, and reset state ([optimizers/operator_pool/policy_kernel.py:451-559](optimizers/operator_pool/policy_kernel.py#L451-L559)). The LLM controller then receives the already-narrowed candidate set, and the system prompt explicitly tells the model that an operator was "removed from the current candidate set" ([optimizers/operator_pool/llm_controller.py:727-797](optimizers/operator_pool/llm_controller.py#L727-L797)). That is a hard support change, not a soft hint.
 
@@ -57,7 +57,7 @@ This is the contract this spec restores. Everything downstream — spec edits, c
 
 ### 3.1 Substrate fields that must be identical across `union` and `llm`
 
-For each paper-facing scenario (`s1_typical`, `s2_staged`):
+For each paper-facing scenario (`s5_aggressive15`, `s5_aggressive15`):
 
 - `decision_variables` and bounds
 - `operator_pool` (concrete operator id list)
@@ -114,8 +114,8 @@ The contract must be enforced at four layers. This section pins the responsibili
 
 The paper-facing `union` and `llm` specs are the primary place where the substrate contract is declared. After restoration:
 
-- `s1_typical_union.yaml` and `s1_typical_llm.yaml` must agree on every §3.1 field
-- `s2_staged_union.yaml` and `s2_staged_llm.yaml` must agree on every §3.1 field
+- `s5_aggressive15_union.yaml` and `s5_aggressive15_llm.yaml` must agree on every §3.1 field
+- `s5_aggressive15_union.yaml` and `s5_aggressive15_llm.yaml` must agree on every §3.1 field
 - `llm` specs may add `controller_parameters` for the representation layer only
 - assisted operators (e.g. `hotspot_pull_toward_sink`, `gradient_band_smooth`, `congestion_relief`, `sink_retarget`, `layout_rebalance`) and the `primitive_plus_assisted` registry profile are removed from paper-facing `llm` specs
 
@@ -181,7 +181,7 @@ Goal: make the contract true and verifiable. Performance regressions on the `llm
 
 Phase 1 scope:
 
-1. Update paper-facing scenario specs (`s1_typical_union/llm`, `s2_staged_union/llm`) so the §3.1 fields match
+1. Update paper-facing scenario specs (`s5_aggressive15_union/llm`, `s5_aggressive15_union/llm`) so the §3.1 fields match
 2. Make `policy_kernel.build_policy_snapshot` annotation-only (per §4.C)
 3. Make `llm_controller` candidate-preserving (per §4.D)
 4. Update `README.md`, `AGENTS.md`, `CLAUDE.md` to match the contract
@@ -222,8 +222,8 @@ Phase 1 succeeds when all of the following hold.
 
 **Spec contract tests** (new or updated):
 
-- `s1_typical_union.yaml` and `s1_typical_llm.yaml` agree on every §3.1 field
-- `s2_staged_union.yaml` and `s2_staged_llm.yaml` agree on every §3.1 field
+- `s5_aggressive15_union.yaml` and `s5_aggressive15_llm.yaml` agree on every §3.1 field
+- `s5_aggressive15_union.yaml` and `s5_aggressive15_llm.yaml` agree on every §3.1 field
 - `llm` specs differ from `union` specs only in `controller`, `controller_parameters`, and LLM-only telemetry settings
 
 **`policy_kernel` contract tests** (under `tests/optimizers/`):
@@ -292,21 +292,21 @@ The following are explicitly out of scope for this spec:
 - the `raw` line's internal mechanics (it remains the native-vector backbone baseline)
 - any optimization-objective change, evaluation-spec change, or PDE-solver change
 - any visualization / artifact-rendering refactor beyond what is required to read trace fields verifying the contract
-- any cross-benchmark generalization beyond `s1_typical` and `s2_staged`
+- any cross-benchmark generalization beyond `s5_aggressive15` and `s5_aggressive15`
 
 ## 9. References
 
 - [README.md](README.md)
 - [AGENTS.md](AGENTS.md)
 - [CLAUDE.md](CLAUDE.md)
-- [scenarios/optimization/s1_typical_union.yaml](scenarios/optimization/s1_typical_union.yaml)
-- [scenarios/optimization/s1_typical_llm.yaml](scenarios/optimization/s1_typical_llm.yaml)
-- [scenarios/optimization/s2_staged_union.yaml](scenarios/optimization/s2_staged_union.yaml)
-- [scenarios/optimization/s2_staged_llm.yaml](scenarios/optimization/s2_staged_llm.yaml)
+- [scenarios/optimization/s5_aggressive15_union.yaml](scenarios/optimization/s5_aggressive15_union.yaml)
+- [scenarios/optimization/s5_aggressive15_llm.yaml](scenarios/optimization/s5_aggressive15_llm.yaml)
+- [scenarios/optimization/s5_aggressive15_union.yaml](scenarios/optimization/s5_aggressive15_union.yaml)
+- [scenarios/optimization/s5_aggressive15_llm.yaml](scenarios/optimization/s5_aggressive15_llm.yaml)
 - [optimizers/operator_pool/primitive_registry.py](optimizers/operator_pool/primitive_registry.py)
 - [optimizers/operator_pool/policy_kernel.py](optimizers/operator_pool/policy_kernel.py)
 - [optimizers/operator_pool/llm_controller.py](optimizers/operator_pool/llm_controller.py)
 - [optimizers/operator_pool/random_controller.py](optimizers/operator_pool/random_controller.py)
 - [optimizers/operator_pool/domain_state.py](optimizers/operator_pool/domain_state.py)
-- [docs/superpowers/specs/2026-04-02-s1-typical-mainline-reset-design.md](docs/superpowers/specs/2026-04-02-s1-typical-mainline-reset-design.md)
+- [docs/superpowers/specs/2026-04-02-s5-aggressive15-mainline-reset-design.md](docs/superpowers/specs/2026-04-02-s5-aggressive15-mainline-reset-design.md)
 - [docs/superpowers/specs/2026-04-25-operator-redesign-design.md](docs/superpowers/specs/2026-04-25-operator-redesign-design.md)

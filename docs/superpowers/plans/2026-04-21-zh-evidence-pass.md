@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 围绕 `scenario_runs/s2_staged/0421_0207__llm` 与 `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair`，把中文主稿中的问题定义、方法、实验三章补成一条完整的当前证据主线，并为 4 张框架图加入 LaTeX 占位。
+**Goal:** 围绕 `scenario_runs/s5_aggressive15/0421_0207__llm` 与 `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair`，把中文主稿中的问题定义、方法、实验三章补成一条完整的当前证据主线，并为 4 张框架图加入 LaTeX 占位。
 
 **Architecture:** 先用问题定义公式把 fixed-boundary 比较对象钉死，再用方法层公式把 inline control 闭环与 layered recovery 的介入位置形式化，最后把 compare report 与单 run 资产按“横向比较证据 + 单运行机制证据”两层结构接入实验章。框架图本轮只放占位，不引入新图片资产；所有新增公式、图位和表位都必须能被正文直接引用。
 
@@ -19,20 +19,20 @@
 - `paper/latex/sections/zh/06_experiments.tex` — 接入 compare report 图表、单 run 机制图，并加入运行资产证据地图占位。
 
 **Read During Implementation:**
-- `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/summary_overview.png`
-- `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/progress_dashboard.png`
-- `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/temperature_field_comparison.png`
-- `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/gradient_field_comparison.png`
-- `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/tables/summary_table.tex`
-- `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/tables/mode_metrics.tex`
-- `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/tables/pairwise_deltas.tex`
-- `scenario_runs/s2_staged/0421_0207__llm/figures/objective_progress.png`
-- `scenario_runs/s2_staged/0421_0207__llm/figures/operator_phase_heatmap.png`
-- `scenario_runs/s2_staged/0421_0207__llm/figures/pareto_front.png`
-- `scenario_runs/s2_staged/0421_0207__llm/figures/layout_initial.png`
-- `scenario_runs/s2_staged/0421_0207__llm/figures/layout_final.png`
-- `scenario_runs/s2_staged/0421_0207__llm/figures/temperature_field_min-peak-temperature.png`
-- `scenario_runs/s2_staged/0421_0207__llm/figures/gradient_field_min-peak-temperature.png`
+- `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/summary_overview.png`
+- `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/progress_dashboard.png`
+- `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/temperature_field_comparison.png`
+- `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/gradient_field_comparison.png`
+- `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/tables/summary_table.tex`
+- `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/tables/mode_metrics.tex`
+- `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/tables/pairwise_deltas.tex`
+- `scenario_runs/s5_aggressive15/0421_0207__llm/figures/objective_progress.png`
+- `scenario_runs/s5_aggressive15/0421_0207__llm/figures/operator_phase_heatmap.png`
+- `scenario_runs/s5_aggressive15/0421_0207__llm/figures/pareto_front.png`
+- `scenario_runs/s5_aggressive15/0421_0207__llm/figures/layout_initial.png`
+- `scenario_runs/s5_aggressive15/0421_0207__llm/figures/layout_final.png`
+- `scenario_runs/s5_aggressive15/0421_0207__llm/figures/temperature_field_min-peak-temperature.png`
+- `scenario_runs/s5_aggressive15/0421_0207__llm/figures/gradient_field_min-peak-temperature.png`
 
 **Verify:**
 - `paper/latex/main_zh.tex` — 用 XeLaTeX 编译整篇中文稿，确认新增公式、图位、表位不会引入新的 LaTeX 语法错误。
@@ -43,9 +43,9 @@
 
 **Files:**
 - Modify: `paper/latex/sections/zh/06_experiments.tex`
-- Read: `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/tables/summary_table.tex`
-- Read: `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/tables/mode_metrics.tex`
-- Read: `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/tables/pairwise_deltas.tex`
+- Read: `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/tables/summary_table.tex`
+- Read: `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/tables/mode_metrics.tex`
+- Read: `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/tables/pairwise_deltas.tex`
 
 - [ ] **Step 1: 读取 compare report 表格与关键图文件名，确定实验章顺序**
 
@@ -348,10 +348,10 @@ git commit -m "docs: align zh collapse recovery section"
 
 **Files:**
 - Modify: `paper/latex/sections/zh/06_experiments.tex`
-- Read: `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/summary_overview.png`
-- Read: `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/progress_dashboard.png`
-- Read: `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/temperature_field_comparison.png`
-- Read: `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/gradient_field_comparison.png`
+- Read: `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/summary_overview.png`
+- Read: `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/progress_dashboard.png`
+- Read: `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/temperature_field_comparison.png`
+- Read: `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/gradient_field_comparison.png`
 
 - [ ] **Step 1: 在实验章开头加入“运行资产证据地图图”占位**
 
@@ -377,14 +377,14 @@ git commit -m "docs: align zh collapse recovery section"
 ```tex
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.95\linewidth]{../../scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/summary_overview.png}
-    \caption{`s2_staged` 当前主比较中的总览结果。该图用于快速展示 raw、union 与 llm recover repair 在代表指标上的整体差异。}
+    \includegraphics[width=0.95\linewidth]{../../scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/summary_overview.png}
+    \caption{`s5_aggressive15` 当前主比较中的总览结果。该图用于快速展示 raw、union 与 llm recover repair 在代表指标上的整体差异。}
     \label{fig:s2-compare-summary}
 \end{figure}
 
 \begin{table}[t]
     \centering
-    \input{../../scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/tables/summary_table.tex}
+    \input{../../scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/tables/summary_table.tex}
     \caption{当前主比较中的汇总表。}
     \label{tab:s2-compare-summary}
 \end{table}
@@ -397,21 +397,21 @@ git commit -m "docs: align zh collapse recovery section"
 ```tex
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.95\linewidth]{../../scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/progress_dashboard.png}
+    \includegraphics[width=0.95\linewidth]{../../scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/progress_dashboard.png}
     \caption{三种模式在当前比较中的过程进展与阶段差异。}
     \label{fig:s2-progress-dashboard}
 \end{figure}
 
 \begin{table}[t]
     \centering
-    \input{../../scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/tables/mode_metrics.tex}
+    \input{../../scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/tables/mode_metrics.tex}
     \caption{三种模式的主要指标对比。}
     \label{tab:s2-mode-metrics}
 \end{table}
 
 \begin{table}[t]
     \centering
-    \input{../../scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/tables/pairwise_deltas.tex}
+    \input{../../scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/tables/pairwise_deltas.tex}
     \caption{模式两两比较的差值摘要。}
     \label{tab:s2-pairwise-deltas}
 \end{table}
@@ -424,14 +424,14 @@ git commit -m "docs: align zh collapse recovery section"
 ```tex
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.95\linewidth]{../../scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/temperature_field_comparison.png}
+    \includegraphics[width=0.95\linewidth]{../../scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/temperature_field_comparison.png}
     \caption{当前主比较中的代表温度场对比。}
     \label{fig:s2-temperature-comparison}
 \end{figure}
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.95\linewidth]{../../scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair/figures/gradient_field_comparison.png}
+    \includegraphics[width=0.95\linewidth]{../../scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair/figures/gradient_field_comparison.png}
     \caption{当前主比较中的代表梯度场对比。}
     \label{fig:s2-gradient-comparison}
 \end{figure}
@@ -463,13 +463,13 @@ git commit -m "docs: add zh compare report evidence"
 
 **Files:**
 - Modify: `paper/latex/sections/zh/06_experiments.tex`
-- Read: `scenario_runs/s2_staged/0421_0207__llm/figures/objective_progress.png`
-- Read: `scenario_runs/s2_staged/0421_0207__llm/figures/operator_phase_heatmap.png`
-- Read: `scenario_runs/s2_staged/0421_0207__llm/figures/pareto_front.png`
-- Read: `scenario_runs/s2_staged/0421_0207__llm/figures/layout_initial.png`
-- Read: `scenario_runs/s2_staged/0421_0207__llm/figures/layout_final.png`
-- Read: `scenario_runs/s2_staged/0421_0207__llm/figures/temperature_field_min-peak-temperature.png`
-- Read: `scenario_runs/s2_staged/0421_0207__llm/figures/gradient_field_min-peak-temperature.png`
+- Read: `scenario_runs/s5_aggressive15/0421_0207__llm/figures/objective_progress.png`
+- Read: `scenario_runs/s5_aggressive15/0421_0207__llm/figures/operator_phase_heatmap.png`
+- Read: `scenario_runs/s5_aggressive15/0421_0207__llm/figures/pareto_front.png`
+- Read: `scenario_runs/s5_aggressive15/0421_0207__llm/figures/layout_initial.png`
+- Read: `scenario_runs/s5_aggressive15/0421_0207__llm/figures/layout_final.png`
+- Read: `scenario_runs/s5_aggressive15/0421_0207__llm/figures/temperature_field_min-peak-temperature.png`
+- Read: `scenario_runs/s5_aggressive15/0421_0207__llm/figures/gradient_field_min-peak-temperature.png`
 
 - [ ] **Step 1: 在 llm 单运行机制小节加入目标进展图与 operator heatmap 图**
 
@@ -478,14 +478,14 @@ git commit -m "docs: add zh compare report evidence"
 ```tex
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.95\linewidth]{../../scenario_runs/s2_staged/0421_0207__llm/figures/objective_progress.png}
+    \includegraphics[width=0.95\linewidth]{../../scenario_runs/s5_aggressive15/0421_0207__llm/figures/objective_progress.png}
     \caption{`0421_0207__llm` 单运行中的目标进展曲线。}
     \label{fig:llm-objective-progress}
 \end{figure}
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.95\linewidth]{../../scenario_runs/s2_staged/0421_0207__llm/figures/operator_phase_heatmap.png}
+    \includegraphics[width=0.95\linewidth]{../../scenario_runs/s5_aggressive15/0421_0207__llm/figures/operator_phase_heatmap.png}
     \caption{`0421_0207__llm` 单运行中的 operator-phase heatmap。该图用于观察阶段切换与动作偏好变化。}
     \label{fig:llm-operator-phase-heatmap}
 \end{figure}
@@ -498,18 +498,18 @@ git commit -m "docs: add zh compare report evidence"
 ```tex
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.48\linewidth]{../../scenario_runs/s2_staged/0421_0207__llm/figures/layout_initial.png}
+    \includegraphics[width=0.48\linewidth]{../../scenario_runs/s5_aggressive15/0421_0207__llm/figures/layout_initial.png}
     \hfill
-    \includegraphics[width=0.48\linewidth]{../../scenario_runs/s2_staged/0421_0207__llm/figures/layout_final.png}
+    \includegraphics[width=0.48\linewidth]{../../scenario_runs/s5_aggressive15/0421_0207__llm/figures/layout_final.png}
     \caption{`0421_0207__llm` 单运行中的初始布局与最终代表布局。}
     \label{fig:llm-layout-evolution-static}
 \end{figure}
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.48\linewidth]{../../scenario_runs/s2_staged/0421_0207__llm/figures/temperature_field_min-peak-temperature.png}
+    \includegraphics[width=0.48\linewidth]{../../scenario_runs/s5_aggressive15/0421_0207__llm/figures/temperature_field_min-peak-temperature.png}
     \hfill
-    \includegraphics[width=0.48\linewidth]{../../scenario_runs/s2_staged/0421_0207__llm/figures/gradient_field_min-peak-temperature.png}
+    \includegraphics[width=0.48\linewidth]{../../scenario_runs/s5_aggressive15/0421_0207__llm/figures/gradient_field_min-peak-temperature.png}
     \caption{`0421_0207__llm` 代表点的温度场与梯度场。}
     \label{fig:llm-representative-fields}
 \end{figure}

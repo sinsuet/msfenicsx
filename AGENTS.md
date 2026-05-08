@@ -13,7 +13,6 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 - `main` already contains the clean rebuild baseline.
 - The current active paper-facing mainline is `s5_aggressive15` through `s7_aggressive25`.
 - The primary debugging template is `s5_aggressive15`; use it for controller-sensitive smoke work unless a scale or density check explicitly needs S6/S7.
-- `s2_staged` is retained as a historical controller-sensitive companion benchmark, not the active mainline.
 - S5/S6/S7 use the shared `primitive_structured` operator substrate for `union` and `llm` and share the same `raw / union / llm` ladder; `union` is the fixed stochastic operator-selection baseline for semantic-controller ablation.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
@@ -59,42 +58,6 @@ The active optimizer mainline is:
 
 The implemented paper-facing inputs are:
 
-- `scenarios/templates/s1_typical.yaml`
-- `scenarios/evaluation/s1_typical_eval.yaml`
-- `scenarios/optimization/s1_typical_raw.yaml`
-- `scenarios/optimization/s1_typical_union.yaml`
-- `scenarios/optimization/s1_typical_llm.yaml`
-- `scenarios/optimization/s1_typical_spea2_raw.yaml`
-- `scenarios/optimization/s1_typical_moead_raw.yaml`
-- `scenarios/optimization/profiles/s1_typical_raw.yaml`
-- `scenarios/optimization/profiles/s1_typical_union.yaml`
-- `scenarios/optimization/profiles/s1_typical_spea2_raw.yaml`
-- `scenarios/optimization/profiles/s1_typical_moead_raw.yaml`
-- `scenarios/templates/s2_staged.yaml`
-- `scenarios/evaluation/s2_staged_eval.yaml`
-- `scenarios/optimization/s2_staged_raw.yaml`
-- `scenarios/optimization/s2_staged_union.yaml`
-- `scenarios/optimization/s2_staged_llm.yaml`
-- `scenarios/optimization/s2_staged_spea2_raw.yaml`
-- `scenarios/optimization/s2_staged_moead_raw.yaml`
-- `scenarios/optimization/profiles/s2_staged_raw.yaml`
-- `scenarios/optimization/profiles/s2_staged_union.yaml`
-- `scenarios/optimization/profiles/s2_staged_spea2_raw.yaml`
-- `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
-- `scenarios/templates/s3_scale20.yaml`
-- `scenarios/evaluation/s3_scale20_eval.yaml`
-- `scenarios/optimization/s3_scale20_raw.yaml`
-- `scenarios/optimization/s3_scale20_union.yaml`
-- `scenarios/optimization/s3_scale20_llm.yaml`
-- `scenarios/optimization/profiles/s3_scale20_raw.yaml`
-- `scenarios/optimization/profiles/s3_scale20_union.yaml`
-- `scenarios/templates/s4_dense25.yaml`
-- `scenarios/evaluation/s4_dense25_eval.yaml`
-- `scenarios/optimization/s4_dense25_raw.yaml`
-- `scenarios/optimization/s4_dense25_union.yaml`
-- `scenarios/optimization/s4_dense25_llm.yaml`
-- `scenarios/optimization/profiles/s4_dense25_raw.yaml`
-- `scenarios/optimization/profiles/s4_dense25_union.yaml`
 - `scenarios/templates/s5_aggressive15.yaml`
 - `scenarios/evaluation/s5_aggressive15_eval.yaml`
 - `scenarios/optimization/s5_aggressive15_raw.yaml`
@@ -181,29 +144,6 @@ The fixed benchmark decisions are:
 - Repository text artifacts should use UTF-8 without BOM.
 - Treat terminal-side mojibake from the host bridge as environment noise unless the saved file itself is corrupted.
 
-### Outbound Network / Proxy
-
-- A local mihomo proxy is already provisioned in this WSL instance and managed as a systemd user service.
-  - Mixed HTTP+SOCKS endpoint: `http://127.0.0.1:7890`
-  - RESTful control: `http://127.0.0.1:9090`
-  - Service name: `mihomo.service` (via `systemctl --user`)
-  - Status check: `systemctl --user is-active mihomo`
-  - Subscription refresh: `~/.local/bin/mihomo-update-sub.sh`
-- Default behavior is direct networking. Do not enable shell proxy environment variables for normal repository work.
-- Only add proxy settings inline for explicit outbound tasks such as network search, web lookup, GitHub / Google / `raw.githubusercontent.com` access, or other clearly blocked external resources.
-- Do not route through the proxy for:
-  - normal local development, tests, solver runs, and artifact rendering
-  - loopback / `127.0.0.1` / `localhost`
-  - domestic mirrors already configured in the environment (Tsinghua, Aliyun, USTC, etc.)
-  - conda/pip/apt operations that already use a domestic mirror
-  - normal LLM provider requests that use the configured base URLs in `.env`
-- When a proxy is needed, prepend it on the specific command instead of enabling it globally, for example:
-  - `curl -x http://127.0.0.1:7890 https://raw.githubusercontent.com/...`
-  - `http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890 git clone https://github.com/...`
-  - `HTTPS_PROXY=http://127.0.0.1:7890 pip install <pkg-from-pypi.org>`
-- Before a proxy-dependent command, quickly verify the service is up (`ss -ltn | grep 7890` or `systemctl --user is-active mihomo`). If the proxy is unreachable, fall back to a direct attempt and flag the degraded state instead of silently retrying.
-- Do not hardcode proxy credentials or endpoints into repository files; the `127.0.0.1:7890` endpoint is a local-only development convenience and must not leak into scenario YAMLs, optimizer specs, solver defaults, or committed agent settings.
-
 Preferred commands:
 
 - `conda run -n msfenicsx pytest -v`
@@ -211,35 +151,23 @@ Preferred commands:
 - `conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s5_aggressive15.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s5_aggressive15/seed-11`
 - `conda run -n msfenicsx python -m core.cli.main solve-case --case ./scenario_runs/generated_cases/s5_aggressive15/seed-11/s5_aggressive15-seed-0011.yaml --output-root ./scenario_runs`
 - `conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/case.yaml --solution ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/solution.yaml --spec scenarios/evaluation/s5_aggressive15_eval.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s5_aggressive15/raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --evaluation-workers 2 --output-root ./scenario_runs/s5_aggressive15/union-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --evaluation-workers 2 --output-root ./scenario_runs/s5_aggressive15/llm-smoke`
-- Raw-only algorithm comparisons should be run as standalone raw roots, then compared with `compare-runs`; do not add `spea2` or `moead` as `union` or `llm` suite modes.
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s5_aggressive15/spea2-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s5_aggressive15/moead-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s6_aggressive20_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s6_aggressive20/spea2-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s6_aggressive20_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s6_aggressive20/moead-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s7_aggressive25_spea2_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s7_aggressive25/spea2-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s7_aggressive25_moead_raw.yaml --evaluation-workers 2 --output-root ./scenario_runs/s7_aggressive25/moead-raw-smoke`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec ... --mode raw --mode union --mode llm --llm-profile default --benchmark-seed 11 --evaluation-workers 2 --scenario-runs-root ./scenario_runs` (serial; auto-writes suite-owned `comparisons/` when 2+ modes participate)
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --mode raw --mode union --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 --benchmark-seed 29 --benchmark-seed 31 --population-size 40 --num-generations 32 --parallel --max-concurrent-leaves 13 --leaf-evaluation-workers 1 --scenario-runs-root ./scenario_runs` (parallel; 展开 leaves 并行执行，产出 `run_index.csv`; 多服务器跑时 `--max-concurrent-leaves` 不超过 `cpu_count / 2`)
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark-matrix --matrix-root ./scenario_runs/matrix_budgeted_s5_s7 --block-id M1_raw_backbone_budgeted`
-- `conda run -n msfenicsx python -m optimizers.cli aggregate-benchmark-matrix --run-index ./scenario_runs/matrix_budgeted_s5_s7/run_index.csv --output-root ./scenario_runs/matrix_budgeted_s5_s7/aggregate`
-- `conda run -n msfenicsx python -m optimizers.cli replay-llm-trace --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --request-trace ./scenario_runs/s5_aggressive15/<run_id>/llm/seeds/seed-11/traces/llm_request_trace.jsonl --output ./scenario_runs/s5_aggressive15/<run_id>/llm/reports/<summary>.json`
-- `conda run -n msfenicsx python -m optimizers.cli analyze-controller-trace --controller-trace ./scenario_runs/s5_aggressive15/<run_id>/llm/seeds/seed-11/traces/controller_trace.jsonl --output ./scenario_runs/s5_aggressive15/<run_id>/llm/reports/<summary>.json`
-- `conda run -n msfenicsx python -m optimizers.cli render-assets --run ./scenario_runs/s5_aggressive15/<run_id> [--hires]` (required follow-up for every optimizer run; accepts a suite root, a mode root, or a concrete single-mode seed run root)
-- `conda run -n msfenicsx python -m optimizers.cli compare-runs --run ./scenario_runs/s5_aggressive15/<run_a> --run ./scenario_runs/s5_aggressive15/<run_b> --output ./scenario_runs/compare_reports/<compare_id>` (required whenever 2+ concrete run roots are being compared; accepts only concrete single-mode run roots and must write outside source runs)
-- `bash scripts/smoke_render_assets.sh` (10×5 local smoke harness covering raw/union/llm + render-assets + compare-runs)
-- Budget overrides (work on `optimize-benchmark`, `run-llm`, and `run-benchmark-suite`): `--population-size`, `--num-generations`
-- `--skip-render` is debug-only; if it is used, immediately run `render-assets` on the produced run root before analysis or reporting.
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 2 --num-generations 1 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --mode union --benchmark-seed 11 --algorithm-seed 1011 --population-size 2 --num-generations 1 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --mode llm --llm-profile gemma4 --benchmark-seed 11 --algorithm-seed 1011 --population-size 5 --num-generations 2 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
+- Raw-only algorithm comparisons should be run as `run-benchmark` raw leaves or batch methods; do not add `spea2` or `moead` as `union` or `llm` modes.
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_spea2_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_moead_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_raw_union_budgeted.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s6_raw_union_budgeted.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_s6_raw_union_budgeted.yaml`
+- `run-benchmark` automatically renders leaf assets, runs LLM replay/controller diagnostics for LLM leaves, and writes available seed-aware comparisons under `comparisons/`.
+- Budget overrides for single-leaf `run-benchmark`: `--population-size`, `--num-generations`
 - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
 The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 
-- `conda run -n msfenicsx python -m optimizers.cli run-llm` defaults to the bundled `default` profile, which points to `gpt-5.4`
-- direct `optimize-benchmark` on checked-in `*_llm.yaml` specs auto-loads the spec's `provider_profile` when `LLM_API_KEY`, `LLM_BASE_URL`, or `LLM_MODEL` are missing; active S1-S7 LLM specs use `provider_profile: gemma4`
-- `run-benchmark-suite` uses `default` for LLM mode unless `--llm-profile <profile>` is provided; the explicit suite argument overrides spec defaults
-- switch models explicitly with profile names such as `run-llm qwen3_6_plus ...`, `run-llm gpt ...`, `run-llm glm_5 ...`, `run-llm minimax_m2_5 ...`, `run-llm deepseek_v4_flash ...`, `run-llm gemma4 ...`, or `run-llm mimo_v2_5 ...`
+- `run-benchmark --mode llm` defaults to the spec's `provider_profile` when `--llm-profile` is omitted; active S5-S7 LLM specs use `provider_profile: gemma4`
+- switch models explicitly with `--llm-profile qwen3_6_plus`, `--llm-profile gpt`, `--llm-profile glm_5`, `--llm-profile minimax_m2_5`, `--llm-profile deepseek_v4_flash`, `--llm-profile gemma4`, or `--llm-profile mimo_v2_5`
 - model profile declarations live in `llm/openai_compatible/profiles.yaml`
 - bundled model registry maps:
   - `default -> GPT_PROXY_API_KEY / GPT_PROXY_BASE_URL -> gpt-5.4`
@@ -289,8 +217,8 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 - Active runtime outputs should go to `scenario_runs/`, not source folders.
 - Single solved-case bundles written by `solve-case` should keep `fields/*.npz` + `summaries/field_view.json` and render `figures/layout.png`, `figures/temperature_field.png`, and `figures/gradient_field.png`.
 - Active optimizer runs should write under `scenario_runs/<scenario_id>/<run_id>/`.
-- Optimizer runs are not complete until `render-assets` has been executed on the final run root. Do not use `--skip-render` for normal benchmark runs; if it is used temporarily, rerun `render-assets` before any analysis or reporting.
-- When 2+ concrete run roots are part of the same comparison, also produce a `compare-runs` bundle under `scenario_runs/compare_reports/<compare_id>/` before final reporting.
+- Optimizer runs are not complete until `run-benchmark` automatic postprocess has written seed assets and the final `run_index.csv` status is `completed`.
+- When 2+ concrete run roots are part of the same campaign or explicit `--compare-with` context, rely on the `run-benchmark` campaign-owned `comparisons/` bundle before final reporting.
 - The canonical paper-facing run layout is:
   - `scenario_runs/<scenario_id>/<MMDD_HHMM>__<mode_slug>/`
 - `mode_slug` must use the stable order:
@@ -302,7 +230,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - multi-seed suite: `<suite_root>/comparisons/by_seed/seed-<n>/` and `<suite_root>/comparisons/aggregate/`
 - `by_seed/seed-<n>/` means same benchmark seed across modes; `aggregate/` is the across-seeds rollup layer for those same modes.
 - `aggregate/` may exist for any multi-seed suite with `N>=2`; keep the wording descriptive unless the bundle has `N>=3` seeds.
-- Standalone `compare-runs` accepts only concrete single-mode run roots and must write an external bundle outside all source run roots.
+- Legacy standalone comparison internals may remain importable for reuse, but active user-facing comparison output should be produced by `run-benchmark` under `comparisons/`.
 - Never revive legacy `comparison/`.
 - Representative solved-case bundles live under:
   - `<mode>/seeds/seed-<n>/representatives/<representative_id>/`
@@ -320,7 +248,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `traces/llm_response_trace.jsonl` (llm only)
   - Operator trace rows follow §4.3 schema: `decision_id, generation, operator_name, parents, offspring, params_digest, wall_ms`
   - Per-seed `run.yaml` manifest captures mode, seeds, spec paths, population/generation size, wall-clock seconds
-- Central rendered assets live beside traces (written by `render-assets`):
+- Central rendered assets live beside traces (written by `run-benchmark` postprocess):
   - `analytics/*.csv`
   - `figures/*.png`
   - `figures/pdf/*.pdf`
@@ -328,7 +256,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `layout_evolution` is a best-so-far spatial-milestone replay; preserved frame PNGs live under `figures/layout_evolution_frames/step-<n>` or `step_<NNN>.png`-style names rather than per-generation `gen_*`
   - layout figures are clean publication panels with internal component labels, explicit sink ribbon, and a compact right-side metadata strip
   - field figures keep mandatory top titles, explicit sink rendering, internal white label chips, and aligned colorbar composition
-- `render-assets` must replay the recorded evaluated geometry from the run contract rather than silently applying full repair to clean baseline traces.
+- Rendering must replay the recorded evaluated geometry from the run contract rather than silently applying full repair to clean baseline traces.
 - Remove temporary scripts, debug files, caches, and one-off intermediate outputs after validation when they are not intended repository state.
 - Do not manually edit generated artifacts to change conclusions.
 
@@ -378,42 +306,6 @@ Current maintained test areas are:
 - `AGENTS.md`
 - `docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md`
 - `docs/superpowers/plans/2026-03-26-msfenicsx-clean-rebuild-phase1.md`
-- `docs/superpowers/specs/2026-04-02-s1-typical-mainline-reset-design.md`
-- `docs/superpowers/plans/2026-04-02-s1-typical-mainline-reset.md`
-- `docs/superpowers/specs/2026-04-27-s3-s4-scale-benchmarks-design.md`
-- `docs/superpowers/plans/2026-04-27-s3-s4-scale-benchmarks.md`
-- `scenarios/templates/s1_typical.yaml`
-- `scenarios/evaluation/s1_typical_eval.yaml`
-- `scenarios/optimization/s1_typical_raw.yaml`
-- `scenarios/optimization/s1_typical_union.yaml`
-- `scenarios/optimization/s1_typical_llm.yaml`
-- `scenarios/optimization/profiles/s1_typical_raw.yaml`
-- `scenarios/optimization/profiles/s1_typical_union.yaml`
-- `scenarios/templates/s2_staged.yaml`
-- `scenarios/evaluation/s2_staged_eval.yaml`
-- `scenarios/optimization/s2_staged_raw.yaml`
-- `scenarios/optimization/s2_staged_union.yaml`
-- `scenarios/optimization/s2_staged_llm.yaml`
-- `scenarios/optimization/s2_staged_spea2_raw.yaml`
-- `scenarios/optimization/s2_staged_moead_raw.yaml`
-- `scenarios/optimization/profiles/s2_staged_raw.yaml`
-- `scenarios/optimization/profiles/s2_staged_union.yaml`
-- `scenarios/optimization/profiles/s2_staged_spea2_raw.yaml`
-- `scenarios/optimization/profiles/s2_staged_moead_raw.yaml`
-- `scenarios/templates/s3_scale20.yaml`
-- `scenarios/evaluation/s3_scale20_eval.yaml`
-- `scenarios/optimization/s3_scale20_raw.yaml`
-- `scenarios/optimization/s3_scale20_union.yaml`
-- `scenarios/optimization/s3_scale20_llm.yaml`
-- `scenarios/optimization/profiles/s3_scale20_raw.yaml`
-- `scenarios/optimization/profiles/s3_scale20_union.yaml`
-- `scenarios/templates/s4_dense25.yaml`
-- `scenarios/evaluation/s4_dense25_eval.yaml`
-- `scenarios/optimization/s4_dense25_raw.yaml`
-- `scenarios/optimization/s4_dense25_union.yaml`
-- `scenarios/optimization/s4_dense25_llm.yaml`
-- `scenarios/optimization/profiles/s4_dense25_raw.yaml`
-- `scenarios/optimization/profiles/s4_dense25_union.yaml`
 - `scenarios/templates/s5_aggressive15.yaml`
 - `scenarios/evaluation/s5_aggressive15_eval.yaml`
 - `scenarios/optimization/s5_aggressive15_raw.yaml`

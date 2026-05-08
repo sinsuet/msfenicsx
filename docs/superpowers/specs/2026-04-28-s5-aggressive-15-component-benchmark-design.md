@@ -2,11 +2,11 @@
 
 > Status: implemented; current primary debugging template for the active S5-S7 mainline.
 >
-> This benchmark is the first aggressive paper-facing benchmark that will use the shared `primitive_structured` pool. It is intentionally more spacious and more thermally demanding than `s2_staged`, so `raw` weakens, `union` remains meaningful, and `llm` has room to win through better semantic operator choice.
+> This benchmark is the first aggressive paper-facing benchmark that will use the shared `primitive_structured` pool. It is intentionally more spacious and more thermally demanding than `s5_aggressive15`, so `raw` weakens, `union` remains meaningful, and `llm` has room to win through better semantic operator choice.
 
 ## 1. Goal
 
-Create a new 15-component benchmark, `s5_aggressive15`, that is harder and more multi-bottleneck than `s2_staged` while remaining a clean single-case thermal layout optimization problem.
+Create a new 15-component benchmark, `s5_aggressive15`, that is harder and more multi-bottleneck than `s5_aggressive15` while remaining a clean single-case thermal layout optimization problem.
 
 The benchmark must:
 

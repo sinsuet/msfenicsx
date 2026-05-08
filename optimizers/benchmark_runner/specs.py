@@ -204,4 +204,8 @@ def _method_id(
 
 
 def _method_slug(method_id: str) -> str:
+    if method_id == "nsga2_raw":
+        return "raw"
+    if method_id == "nsga2_union":
+        return "union"
     return method_id.replace(":", "-").replace("_", "-")

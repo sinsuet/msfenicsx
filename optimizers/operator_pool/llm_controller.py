@@ -1647,6 +1647,7 @@ class LLMOperatorController:
             "objective balance, feasibility risk, recent saturation, and confidence. "
             "The controller will pick the highest ranked operator that is not saturated by deterministic caps. "
             "Each ranked_operators item must include operator_id, semantic_task, score, risk, confidence, rationale. "
+            "Return only the best 3 ranked_operators; do not include lower-ranked alternatives. "
             "Use explicit risk and confidence values; do not leave them implicit. Return JSON only."
         )
         phase_policy_guidance = self._build_phase_policy_guidance(policy_snapshot)
@@ -1705,25 +1706,100 @@ class LLMOperatorController:
 
     @staticmethod
     def _compact_prompt_metadata_for_transport(metadata: Mapping[str, Any]) -> dict[str, Any]:
-        compacted = dict(metadata)
+        compacted = LLMOperatorController._round_prompt_numbers(dict(metadata))
         prompt_panels = compacted.get("prompt_panels")
         if not isinstance(prompt_panels, Mapping):
-            return compacted
+            return LLMOperatorController._drop_empty_prompt_values(compacted)
         compacted_prompt_panels = dict(prompt_panels)
         operator_panel = compacted_prompt_panels.get("operator_panel")
         if isinstance(operator_panel, Mapping):
             compacted_prompt_panels["operator_panel"] = LLMOperatorController._compact_operator_panel_for_transport(
                 operator_panel
             )
+        semantic_task_panel = compacted_prompt_panels.get("semantic_task_panel")
+        if isinstance(semantic_task_panel, Mapping):
+            compacted_semantic_task_panel = dict(semantic_task_panel)
+            compacted_semantic_task_panel.pop("task_rationales", None)
+            compacted_prompt_panels["semantic_task_panel"] = compacted_semantic_task_panel
+        retrieval_panel = compacted_prompt_panels.get("retrieval_panel")
+        if isinstance(retrieval_panel, Mapping):
+            compacted_retrieval_panel = LLMOperatorController._drop_empty_prompt_values(dict(retrieval_panel))
+            if compacted_retrieval_panel:
+                compacted_prompt_panels["retrieval_panel"] = compacted_retrieval_panel
+            else:
+                compacted_prompt_panels.pop("retrieval_panel", None)
+        parent_panel = compacted_prompt_panels.get("parent_panel")
+        if isinstance(parent_panel, Mapping):
+            compacted_parent_panel = LLMOperatorController._drop_empty_prompt_values(dict(parent_panel))
+            if compacted_parent_panel:
+                compacted_prompt_panels["parent_panel"] = compacted_parent_panel
+            else:
+                compacted_prompt_panels.pop("parent_panel", None)
         compacted["prompt_panels"] = compacted_prompt_panels
         compacted.pop("candidate_operator_ids", None)
+        intent_panel = compacted.get("intent_panel")
+        if isinstance(intent_panel, Mapping):
+            compacted["intent_panel"] = list(intent_panel.keys())
+        decision_axes = compacted.get("decision_axes")
+        if isinstance(decision_axes, Mapping):
+            compacted_decision_axes = dict(decision_axes)
+            semantic_task_panel = compacted_prompt_panels.get("semantic_task_panel")
+            if isinstance(semantic_task_panel, Mapping):
+                if (
+                    compacted_decision_axes.get("semantic_task_to_operator_candidates")
+                    == semantic_task_panel.get("task_operator_candidates")
+                ):
+                    compacted_decision_axes.pop("semantic_task_to_operator_candidates", None)
+                if compacted_decision_axes.get("active_semantic_tasks") == semantic_task_panel.get(
+                    "recommended_task_order"
+                ):
+                    compacted_decision_axes.pop("active_semantic_tasks", None)
+            compacted["decision_axes"] = compacted_decision_axes
         phase_policy = compacted.get("phase_policy")
         if isinstance(phase_policy, Mapping):
             compacted_phase_policy = dict(phase_policy)
             if not compacted_phase_policy.get("candidate_annotations"):
                 compacted_phase_policy.pop("candidate_annotations", None)
+            if not compacted_phase_policy.get("reason_codes"):
+                compacted_phase_policy.pop("reason_codes", None)
             compacted["phase_policy"] = compacted_phase_policy
-        return compacted
+        return LLMOperatorController._drop_empty_prompt_values(compacted)
+
+    @staticmethod
+    def _round_prompt_numbers(value: Any) -> Any:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, float):
+            return round(value, 3)
+        if isinstance(value, list):
+            return [LLMOperatorController._round_prompt_numbers(item) for item in value]
+        if isinstance(value, tuple):
+            return [LLMOperatorController._round_prompt_numbers(item) for item in value]
+        if isinstance(value, Mapping):
+            return {
+                key: LLMOperatorController._round_prompt_numbers(item)
+                for key, item in value.items()
+            }
+        return value
+
+    @staticmethod
+    def _drop_empty_prompt_values(value: Any) -> Any:
+        if isinstance(value, Mapping):
+            compacted: dict[str, Any] = {}
+            for key, item in value.items():
+                compacted_item = LLMOperatorController._drop_empty_prompt_values(item)
+                if compacted_item in (None, "", [], {}):
+                    continue
+                compacted[str(key)] = compacted_item
+            return compacted
+        if isinstance(value, list):
+            return [
+                compacted_item
+                for item in value
+                if (compacted_item := LLMOperatorController._drop_empty_prompt_values(item))
+                not in (None, "", [], {})
+            ]
+        return value
 
     @staticmethod
     def _compact_operator_panel_for_transport(operator_panel: Mapping[str, Any]) -> dict[str, Any]:

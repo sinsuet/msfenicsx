@@ -2033,6 +2033,101 @@ def test_llm_controller_builds_semantic_operator_prompt_and_metadata() -> None:
     assert "case_reports" not in metadata
 
 
+def test_llm_controller_transport_prompt_removes_redundant_prompt_payload() -> None:
+    metadata = {
+        "candidate_operator_ids": ["sink_resize", "component_jitter_1"],
+        "intent_panel": {
+            "sink_budget_adjust": "adjust sink span only when sink budget is active.",
+            "component_local_peak_cleanup": "make a bounded local component move around the incumbent basin.",
+        },
+        "decision_axes": {
+            "active_semantic_tasks": ["sink_budget_shape", "local_polish"],
+            "semantic_task_to_operator_candidates": {
+                "sink_budget_shape": ["sink_resize"],
+                "local_polish": ["component_jitter_1"],
+            },
+            "peak_improve_candidates": ["component_jitter_1"],
+            "route_family_candidates": [],
+            "preferred_effect": None,
+            "generation_dominant_operator_share": 0.3333333333333333,
+        },
+        "prompt_panels": {
+            "run_panel": {
+                "peak_temperature": 335.86015659998253,
+                "temperature_gradient_rms": 26.7492908362973,
+                "sink_budget_utilization": 1.0,
+            },
+            "semantic_task_panel": {
+                "recommended_task_order": ["sink_budget_shape", "local_polish"],
+                "task_operator_candidates": {
+                    "sink_budget_shape": ["sink_resize"],
+                    "local_polish": ["component_jitter_1"],
+                },
+                "task_rationales": {
+                    "sink_budget_shape": "sink budget pressure is active; reshape coverage before repeating alignment.",
+                    "local_polish": "make low-risk local component refinements after a useful basin has been found.",
+                },
+            },
+            "retrieval_panel": {
+                "positive_matches": [],
+                "negative_matches": [],
+                "query_regime": {},
+            },
+            "parent_panel": {
+                "closest_to_feasible_parent": None,
+                "strongest_feasible_parent": None,
+            },
+            "operator_panel": {
+                "sink_resize": {
+                    "applicability": "medium",
+                    "expected_peak_effect": "neutral",
+                    "expected_gradient_effect": "neutral",
+                    "expected_feasibility_risk": "medium",
+                    "role": "sink_resize",
+                },
+                "component_jitter_1": {
+                    "applicability": "medium",
+                    "expected_peak_effect": "improve",
+                    "expected_gradient_effect": "neutral",
+                    "expected_feasibility_risk": "medium",
+                    "role": "component_jitter",
+                },
+            },
+        },
+        "phase_policy": {
+            "phase": "prefeasible_stagnation",
+            "reason_codes": [],
+            "reset_active": False,
+            "candidate_annotations": {},
+        },
+    }
+
+    user_payload = json.loads(
+        LLMOperatorController._serialize_user_prompt(
+            _state(),
+            ("sink_resize", "component_jitter_1"),
+            metadata=metadata,
+        )
+    )
+
+    compacted = user_payload["metadata"]
+    axes = compacted["decision_axes"]
+    panels = compacted["prompt_panels"]
+    assert "semantic_task_to_operator_candidates" not in axes
+    assert "active_semantic_tasks" not in axes
+    assert "task_rationales" not in panels["semantic_task_panel"]
+    assert compacted["intent_panel"] == ["sink_budget_adjust", "component_local_peak_cleanup"]
+    assert panels["run_panel"]["peak_temperature"] == pytest.approx(335.86)
+    assert panels["run_panel"]["temperature_gradient_rms"] == pytest.approx(26.749)
+    assert axes["generation_dominant_operator_share"] == pytest.approx(0.333)
+    assert "route_family_candidates" not in axes
+    assert "preferred_effect" not in axes
+    assert "retrieval_panel" not in panels
+    assert "parent_panel" not in panels
+    assert "candidate_annotations" not in compacted["phase_policy"]
+    assert "reason_codes" not in compacted["phase_policy"]
+
+
 def test_llm_controller_semantic_ranked_pick_uses_model_ranking() -> None:
     from llm.openai_compatible.client import OpenAICompatibleRankAdvice, RankedOperatorCandidate
 
@@ -2116,6 +2211,62 @@ def test_llm_controller_semantic_ranked_pick_uses_model_ranking() -> None:
     assert client.last_kwargs is not None
     assert "ranked_operators" in str(client.last_kwargs["system_prompt"])
     assert "operator_priors" not in str(client.last_kwargs["system_prompt"])
+
+
+def test_llm_rank_system_prompt_limits_model_to_top_three_rows() -> None:
+    from llm.openai_compatible.client import OpenAICompatibleRankAdvice, RankedOperatorCandidate
+
+    class _RankClient:
+        def __init__(self) -> None:
+            self.last_kwargs: dict[str, object] | None = None
+
+        def request_operator_rank_advice(self, **kwargs):
+            self.last_kwargs = dict(kwargs)
+            return OpenAICompatibleRankAdvice(
+                ranked_operators=(
+                    RankedOperatorCandidate(
+                        operator_id="sink_shift",
+                        semantic_task="sink_alignment",
+                        score=0.82,
+                        risk=0.22,
+                        confidence=0.74,
+                        rationale="align sink",
+                    ),
+                ),
+                phase="post_feasible_expand",
+                rationale="",
+                provider="openai-compatible",
+                model="fake-model",
+                capability_profile="chat_compatible_json",
+                performance_profile="balanced",
+                raw_payload={"ranked_operators": [{"operator_id": "sink_shift"}]},
+            )
+
+    client = _RankClient()
+    controller = LLMOperatorController(
+        controller_parameters={
+            "provider": "openai-compatible",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "model_env_var": "LLM_MODEL",
+            "api_key_env_var": "LLM_API_KEY",
+            "base_url_env_var": "LLM_BASE_URL",
+            "max_output_tokens": 512,
+            "selection_strategy": "semantic_ranked_pick",
+        },
+        client=client,
+    )
+
+    controller.select_decision(
+        _state_with_metadata({"search_phase": "near_feasible"}),
+        ("sink_shift", "component_jitter_1", "component_swap_2", "component_subspace_sbx"),
+        np.random.default_rng(13),
+    )
+
+    assert client.last_kwargs is not None
+    system_prompt = str(client.last_kwargs["system_prompt"])
+    assert "best 3 ranked_operators" in system_prompt
+    assert "do not include lower-ranked alternatives" in system_prompt
 
 
 def test_llm_controller_semantic_ranked_pick_records_recent_duplicate_feedback_without_suppressing_top_rank() -> None:

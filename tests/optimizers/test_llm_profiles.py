@@ -163,6 +163,8 @@ def test_bundled_coding_plan_profiles_share_qwen_proxy_route(
         assert json.loads(overlay["LLM_EXTRA_BODY"]) == {"enable_thinking": False}
     else:
         assert "LLM_EXTRA_BODY" not in overlay
+    if profile_id == "qwen3_6_plus":
+        assert overlay["LLM_MAX_OUTPUT_TOKENS"] == "1024"
 
 
 def test_bundled_deepseek_v4_flash_profile_uses_model_named_env_pair(

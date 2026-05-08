@@ -113,17 +113,21 @@ def run_leaf_postprocess(
         return
 
     from llm.openai_compatible.replay import replay_request_trace_file, save_replay_summary
+    from llm.openai_compatible.profile_loader import load_provider_profile_overlay
+    from optimizers.cli import _temporary_env_overlay
     from optimizers.io import load_optimization_spec
     from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
 
     optimization_spec = load_optimization_spec(optimization_spec_path)
     operator_control = optimization_spec.operator_control or {}
     controller_parameters = dict(operator_control.get("controller_parameters", {}))
-    replay_summary = replay_request_trace_file(
-        root / "traces" / "llm_request_trace.jsonl",
-        controller_parameters,
-        limit=None,
-    )
+    llm_overlay = load_provider_profile_overlay(llm_profile) if llm_profile else {}
+    with _temporary_env_overlay(llm_overlay):
+        replay_summary = replay_request_trace_file(
+            root / "traces" / "llm_request_trace.jsonl",
+            controller_parameters,
+            limit=None,
+        )
     save_replay_summary(root / "summaries" / "llm_replay_summary.json", replay_summary)
     controller_summary = analyze_controller_trace(
         root / "traces" / "controller_trace.jsonl",

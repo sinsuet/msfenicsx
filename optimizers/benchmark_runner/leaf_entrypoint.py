@@ -104,6 +104,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=args.benchmark_seed,
             objective_definitions=objective_definitions,
         )
+        run_wall_before_postprocess = time.monotonic() - run_start
+        _write_leaf_run_manifest(
+            output_root,
+            args=args,
+            optimization_spec=optimization_spec,
+            evaluation_spec_path=evaluation_spec_path,
+            wall_seconds=run_wall_before_postprocess,
+            status="running",
+            postprocess_wall_seconds=None,
+        )
         postprocess_start = time.monotonic()
         try:
             run_leaf_postprocess(
@@ -126,21 +136,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise
         postprocess_wall_seconds = time.monotonic() - postprocess_start
         run_wall_seconds = time.monotonic() - run_start
-        write_run_manifest(
-            output_root / "run.yaml",
-            mode=args.mode,
-            algorithm_family=str(optimization_spec.algorithm["family"]),
-            algorithm_backbone=str(optimization_spec.algorithm["backbone"]),
-            benchmark_seed=args.benchmark_seed,
-            algorithm_seed=args.algorithm_seed,
-            optimization_spec_path=str(spec_path),
-            evaluation_spec_path=str(evaluation_spec_path),
-            population_size=args.population_size,
-            num_generations=args.num_generations,
+        _write_leaf_run_manifest(
+            output_root,
+            args=args,
+            optimization_spec=optimization_spec,
+            evaluation_spec_path=evaluation_spec_path,
             wall_seconds=run_wall_seconds,
-            legality_policy_id=str(optimization_spec.evaluation_protocol["legality_policy_id"]),
-            method_id=args.method_id,
-            llm_profile=args.llm_profile,
             status="completed",
             postprocess_wall_seconds=postprocess_wall_seconds,
         )
@@ -197,6 +198,36 @@ def _leaf_llm_env_overlay(llm_profile: str | None) -> dict[str, str]:
     if not llm_profile:
         return {}
     return load_provider_profile_overlay(llm_profile)
+
+
+def _write_leaf_run_manifest(
+    output_root: Path,
+    *,
+    args: argparse.Namespace,
+    optimization_spec: Any,
+    evaluation_spec_path: Path,
+    wall_seconds: float,
+    status: str,
+    postprocess_wall_seconds: float | None,
+) -> None:
+    write_run_manifest(
+        output_root / "run.yaml",
+        mode=args.mode,
+        algorithm_family=str(optimization_spec.algorithm["family"]),
+        algorithm_backbone=str(optimization_spec.algorithm["backbone"]),
+        benchmark_seed=args.benchmark_seed,
+        algorithm_seed=args.algorithm_seed,
+        optimization_spec_path=str(args.optimization_spec),
+        evaluation_spec_path=str(evaluation_spec_path),
+        population_size=args.population_size,
+        num_generations=args.num_generations,
+        wall_seconds=wall_seconds,
+        legality_policy_id=str(optimization_spec.evaluation_protocol["legality_policy_id"]),
+        method_id=args.method_id,
+        llm_profile=args.llm_profile,
+        status=status,
+        postprocess_wall_seconds=postprocess_wall_seconds,
+    )
 
 
 def _scenario_id_from_case_meta(case: Any) -> str:

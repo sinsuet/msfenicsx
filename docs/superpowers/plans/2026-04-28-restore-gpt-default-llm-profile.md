@@ -105,10 +105,10 @@ Expected: profile tests fail because bundled `default` still points to qwen and 
 @pytest.mark.parametrize(
     "spec_path",
     [
-        Path("scenarios/optimization/s1_typical_llm.yaml"),
-        Path("scenarios/optimization/s2_staged_llm.yaml"),
-        Path("scenarios/optimization/s3_scale20_llm.yaml"),
-        Path("scenarios/optimization/s4_dense25_llm.yaml"),
+        Path("scenarios/optimization/s5_aggressive15_llm.yaml"),
+        Path("scenarios/optimization/s5_aggressive15_llm.yaml"),
+        Path("scenarios/optimization/s5_aggressive15_llm.yaml"),
+        Path("scenarios/optimization/s5_aggressive15_llm.yaml"),
     ],
 )
 def test_paper_facing_llm_specs_use_unified_runtime_provider_env(spec_path: Path) -> None:
@@ -156,10 +156,10 @@ GPT_PROXY_BASE_URL=https://rust.cat/v1
 - `optimizers/run_suite.py`
 - `llm/openai_compatible/profile_loader.py`
 - `llm/openai_compatible/config.py`
-- `scenarios/optimization/s1_typical_llm.yaml`
-- `scenarios/optimization/s2_staged_llm.yaml`
-- `scenarios/optimization/s3_scale20_llm.yaml`
-- `scenarios/optimization/s4_dense25_llm.yaml`
+- `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/s5_aggressive15_llm.yaml`
 
 - [ ] Verify `run-llm` still overlays the selected profile into `LLM_*` before `_run_optimize_benchmark`.
 - [ ] Verify direct `optimize-benchmark` and suite LLM mode auto-fill missing `LLM_*` from `default` only when env is missing.

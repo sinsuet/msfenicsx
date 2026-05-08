@@ -7,8 +7,8 @@ from evaluation.io import load_spec
 from optimizers.io import generate_benchmark_case, load_optimization_spec
 
 
-SPEC_PATH = Path("scenarios/optimization/s1_typical_raw.yaml")
-EVALUATION_SPEC_PATH = Path("scenarios/evaluation/s1_typical_eval.yaml")
+SPEC_PATH = Path("scenarios/optimization/s5_aggressive15_raw.yaml")
+EVALUATION_SPEC_PATH = Path("scenarios/evaluation/s5_aggressive15_eval.yaml")
 
 
 def _candidate_payload_and_spec() -> tuple[dict, dict]:

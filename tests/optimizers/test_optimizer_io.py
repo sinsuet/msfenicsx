@@ -14,11 +14,11 @@ def _spec_payload() -> dict:
     return {
         "schema_version": "1.0",
         "spec_meta": {
-            "spec_id": "s1_typical_nsga2_raw_fixture",
-            "description": "Single-case s1_typical raw fixture.",
+            "spec_id": "s5_aggressive15_nsga2_raw_fixture",
+            "description": "Single-case s5_aggressive15 raw fixture.",
         },
         "benchmark_source": {
-            "template_path": "scenarios/templates/s1_typical.yaml",
+            "template_path": "scenarios/templates/s5_aggressive15.yaml",
             "seed": 11,
         },
         "design_variables": [
@@ -56,7 +56,7 @@ def _spec_payload() -> dict:
             "seed": 7,
         },
         "evaluation_protocol": {
-            "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
+            "evaluation_spec_path": "scenarios/evaluation/s5_aggressive15_eval.yaml",
             "legality_policy_id": "minimal_canonicalization",
         },
     }
@@ -78,10 +78,10 @@ def _result_payload() -> dict:
     return {
         "schema_version": "1.0",
         "run_meta": {
-            "run_id": "s1_typical_nsga2_raw_seed11",
-            "base_case_id": "s1_typical-seed-0011",
-            "optimization_spec_id": "s1_typical_nsga2_raw_fixture",
-            "evaluation_spec_id": "s1_typical_eval",
+            "run_id": "s5_aggressive15_nsga2_raw_seed11",
+            "base_case_id": "s5_aggressive15-seed-0011",
+            "optimization_spec_id": "s5_aggressive15_nsga2_raw_fixture",
+            "evaluation_spec_id": "s5_aggressive15_eval",
         },
         "baseline_candidates": [
             {
@@ -103,7 +103,7 @@ def _result_payload() -> dict:
                     "c01_peak_temperature_limit": 1.2,
                 },
                 "evaluation_report": {
-                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "evaluation_meta": {"case_id": "s5_aggressive15-seed-0011"},
                     "metric_values": {"summary.temperature_max": 320.0},
                     "feasible": False,
                 },
@@ -129,7 +129,7 @@ def _result_payload() -> dict:
                     "c01_peak_temperature_limit": 0.0,
                 },
                 "evaluation_report": {
-                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "evaluation_meta": {"case_id": "s5_aggressive15-seed-0011"},
                     "metric_values": {"summary.temperature_max": 302.0},
                     "feasible": True,
                 },
@@ -155,7 +155,7 @@ def _result_payload() -> dict:
                     "c01_peak_temperature_limit": 0.0,
                 },
                 "evaluation_report": {
-                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "evaluation_meta": {"case_id": "s5_aggressive15-seed-0011"},
                     "metric_values": {"summary.temperature_max": 302.0},
                     "feasible": True,
                 },
@@ -187,7 +187,7 @@ def _result_payload() -> dict:
                     "c01_peak_temperature_limit": 1.2,
                 },
                 "evaluation_report": {
-                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "evaluation_meta": {"case_id": "s5_aggressive15-seed-0011"},
                     "metric_values": {"summary.temperature_max": 320.0},
                     "feasible": False,
                 },
@@ -211,17 +211,17 @@ def _result_payload() -> dict:
                     "c01_peak_temperature_limit": 0.0,
                 },
                 "evaluation_report": {
-                    "evaluation_meta": {"case_id": "s1_typical-seed-0011"},
+                    "evaluation_meta": {"case_id": "s5_aggressive15-seed-0011"},
                     "metric_values": {"summary.temperature_max": 302.0},
                     "feasible": True,
                 },
             },
         ],
         "provenance": {
-            "benchmark_source": {"template_path": "scenarios/templates/s1_typical.yaml", "seed": 11},
-            "source_case_id": "s1_typical-seed-0011",
-            "source_optimization_spec_id": "s1_typical_nsga2_raw_fixture",
-            "source_evaluation_spec_id": "s1_typical_eval",
+            "benchmark_source": {"template_path": "scenarios/templates/s5_aggressive15.yaml", "seed": 11},
+            "source_case_id": "s5_aggressive15-seed-0011",
+            "source_optimization_spec_id": "s5_aggressive15_nsga2_raw_fixture",
+            "source_evaluation_spec_id": "s5_aggressive15_eval",
         },
     }
 
@@ -261,9 +261,9 @@ def test_result_validation_rejects_legacy_decision_vector_alias_mismatch() -> No
         OptimizationResult.from_dict(payload)
 
 
-def test_active_raw_spec_resolves_s1_typical_profile_parameters() -> None:
-    spec = load_optimization_spec("scenarios/optimization/s1_typical_raw.yaml")
-    algorithm = resolve_algorithm_config("scenarios/optimization/s1_typical_raw.yaml", spec)
+def test_active_raw_spec_resolves_s5_aggressive15_profile_parameters() -> None:
+    spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_raw.yaml")
+    algorithm = resolve_algorithm_config("scenarios/optimization/s5_aggressive15_raw.yaml", spec)
 
     assert {key: spec.algorithm[key] for key in ("family", "backbone", "mode")} == {
         "family": "genetic",
@@ -276,7 +276,7 @@ def test_active_raw_spec_resolves_s1_typical_profile_parameters() -> None:
 
 
 def test_union_spec_requires_operator_control_block() -> None:
-    with open("scenarios/optimization/s1_typical_union.yaml", "r", encoding="utf-8") as handle:
+    with open("scenarios/optimization/s5_aggressive15_union.yaml", "r", encoding="utf-8") as handle:
         payload = yaml.safe_load(handle)
 
     payload.pop("operator_control")
@@ -286,7 +286,7 @@ def test_union_spec_requires_operator_control_block() -> None:
 
 
 def test_union_spec_uses_exact_primitive_operator_pool() -> None:
-    spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
+    spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_union.yaml")
 
     assert {key: spec.algorithm[key] for key in ("family", "backbone", "mode")} == {
         "family": "genetic",
@@ -300,7 +300,7 @@ def test_union_spec_uses_exact_primitive_operator_pool() -> None:
 
 
 def test_union_spec_rejects_modified_semantic_operator_pool() -> None:
-    payload = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml").to_dict()
+    payload = load_optimization_spec("scenarios/optimization/s5_aggressive15_union.yaml").to_dict()
     payload["operator_control"]["operator_pool"] = [
         operator_id
         for operator_id in payload["operator_control"]["operator_pool"]
@@ -312,8 +312,8 @@ def test_union_spec_rejects_modified_semantic_operator_pool() -> None:
 
 
 def test_llm_spec_shares_benchmark_source_and_operator_pool_with_union() -> None:
-    union_spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
-    llm_spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
+    union_spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_union.yaml")
+    llm_spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_llm.yaml")
 
     assert union_spec.benchmark_source == llm_spec.benchmark_source
     assert union_spec.operator_control is not None
@@ -328,8 +328,8 @@ def test_llm_spec_shares_benchmark_source_and_operator_pool_with_union() -> None
 
 
 def test_llm_spec_keeps_benchmark_and_budget_settings_against_union() -> None:
-    union_spec = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml")
-    llm_spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
+    union_spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_union.yaml")
+    llm_spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_llm.yaml")
 
     assert union_spec.benchmark_source == llm_spec.benchmark_source
     assert union_spec.algorithm["profile_path"] == llm_spec.algorithm["profile_path"]
@@ -347,7 +347,7 @@ def test_llm_spec_keeps_benchmark_and_budget_settings_against_union() -> None:
     assert params["retry"]["timeout_seconds"] > 0
 
 def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
-    spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
+    spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_llm.yaml")
 
     assert spec.operator_control is not None
     params = spec.operator_control["controller_parameters"]
@@ -407,7 +407,7 @@ def test_resolve_algorithm_config_merges_global_defaults_profile_and_inline_over
             {
                 "schema_version": "1.0",
                 "profile_meta": {
-                    "profile_id": "s1_typical_nsga2_raw_profile_override",
+                    "profile_id": "s5_aggressive15_nsga2_raw_profile_override",
                     "description": "Test profile for algorithm parameter resolution.",
                 },
                 "family": "genetic",

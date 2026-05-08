@@ -2185,8 +2185,8 @@ def test_write_run_manifest_round_trips(tmp_path: Path) -> None:
         mode="llm",
         benchmark_seed=11,
         algorithm_seed=7,
-        optimization_spec_path="scenarios/optimization/s1_typical_llm.yaml",
-        evaluation_spec_path="scenarios/evaluation/s1_typical_eval.yaml",
+        optimization_spec_path="scenarios/optimization/s5_aggressive15_llm.yaml",
+        evaluation_spec_path="scenarios/evaluation/s5_aggressive15_eval.yaml",
         population_size=10,
         num_generations=5,
         wall_seconds=42.0,
@@ -2472,7 +2472,7 @@ def test_build_parser_accepts_pop_gen_overrides() -> None:
         [
             "optimize-benchmark",
             "--optimization-spec",
-            "scenarios/optimization/s1_typical_llm.yaml",
+            "scenarios/optimization/s5_aggressive15_llm.yaml",
             "--output-root",
             "./scenario_runs/smoke",
             "--population-size",
@@ -2660,7 +2660,7 @@ from optimizers.analytics.rollups import rollup_per_generation
 from visualization.figures.hypervolume import render_hypervolume_progress
 from visualization.figures.operator_heatmap import render_operator_heatmap
 
-REFERENCE_POINT = (400.0, 20.0)   # § 5 reference point for s1_typical
+REFERENCE_POINT = (400.0, 20.0)   # § 5 reference point for s5_aggressive15
 
 
 def render_run_assets(run_root: Path, *, hires: bool = False) -> None:
@@ -2939,13 +2939,13 @@ Engineer verifies `run.output_root` is the right attribute on the returned `Opti
 
 ```bash
 conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
-  --output-root ./scenario_runs/s1_typical/smoke-raw \
+  --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
+  --output-root ./scenario_runs/s5_aggressive15/smoke-raw \
   --population-size 10 --num-generations 5 \
   --evaluation-workers 2
 ```
 
-Expected: exits 0, and `./scenario_runs/s1_typical/smoke-raw/<timestamp>__raw/figures/` contains at least `hypervolume_progress.png`.
+Expected: exits 0, and `./scenario_runs/s5_aggressive15/smoke-raw/<timestamp>__raw/figures/` contains at least `hypervolume_progress.png`.
 
 - [ ] **Step 4: Commit**
 
@@ -3053,7 +3053,7 @@ tests they served. Drivers now emit only new-schema JSONL traces."
 # Smoke test: run raw/union/llm at 10×5 and verify outputs.
 set -euo pipefail
 
-SCENARIO_ROOT="./scenario_runs/s1_typical/smoke"
+SCENARIO_ROOT="./scenario_runs/s5_aggressive15/smoke"
 MODES=("raw" "union" "llm")
 
 rm -rf "$SCENARIO_ROOT"
@@ -3061,7 +3061,7 @@ rm -rf "$SCENARIO_ROOT"
 for mode in "${MODES[@]}"; do
     echo "=== smoke: $mode ==="
     conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-        --optimization-spec "scenarios/optimization/s1_typical_${mode}.yaml" \
+        --optimization-spec "scenarios/optimization/s5_aggressive15_${mode}.yaml" \
         --output-root "${SCENARIO_ROOT}-${mode}" \
         --population-size 10 --num-generations 5 \
         --evaluation-workers 2
@@ -3137,7 +3137,7 @@ No commit needed if steps 1-2 are clean.
 
 At the end of implementation, verify the spec's § 11 success criteria:
 
-- [ ] All three modes produce identical top-level layout under `scenario_runs/s1_typical/<MMDD_HHMM>__<mode>/`.
+- [ ] All three modes produce identical top-level layout under `scenario_runs/s5_aggressive15/<MMDD_HHMM>__<mode>/`.
 - [ ] Representative figure paths are at most 3 levels deep (`representatives/<id>/fields/<file>.npz`).
 - [ ] No empty `logs/` directories anywhere in a fresh run bundle.
 - [ ] `test_heatfield_orientation.py` passes: high-value input pixel → top of rendered colorbar.

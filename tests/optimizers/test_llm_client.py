@@ -4,6 +4,7 @@ import pytest
 
 from llm.openai_compatible.client import OpenAICompatibleClient
 from llm.openai_compatible.config import OpenAICompatibleConfig
+from llm.openai_compatible.replay import replay_request_trace_file
 from llm.openai_compatible.schemas import build_operator_decision_schema
 
 
@@ -887,6 +888,31 @@ def test_config_resolves_api_key_from_main_repo_dotenv_when_running_in_worktree(
     assert config.resolve_api_key({}) == "repo-dotenv-key"
 
 
+def test_replay_request_trace_meta_accepts_model_env_var_without_literal_model(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_trace = tmp_path / "llm_request_trace.jsonl"
+    request_trace.write_text("", encoding="utf-8")
+    monkeypatch.setenv("LLM_MODEL", "qwen3.6-plus")
+    monkeypatch.setenv("TEST_OPENAI_API_KEY", "test-key")
+
+    summary = replay_request_trace_file(
+        request_trace,
+        {
+            "provider": "openai-compatible",
+            "model_env_var": "LLM_MODEL",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "api_key_env_var": "TEST_OPENAI_API_KEY",
+            "max_output_tokens": 128,
+        },
+        client=OpenAICompatibleClient(_build_config(capability_profile="chat_compatible_json")),
+    )
+
+    assert summary["replay_meta"]["model"] == "qwen3.6-plus"
+
+
 def test_matrix_llm_profiles_include_gpt_5_4_alias(monkeypatch):
     from llm.openai_compatible.profile_loader import load_provider_profile_overlay
 
@@ -906,8 +932,8 @@ def test_matrix_llm_profiles_include_gpt_5_4_alias(monkeypatch):
         "qwen3_6_plus": "qwen3.6-plus",
         "glm_5": "glm-5",
         "minimax_m2_5": "MiniMax-M2.5",
-        "deepseek_v4_flash": "DeepSeek-V4-Flash",
-        "gemma4": "gemma-4",
+        "deepseek_v4_flash": "deepseek-v4-flash",
+        "gemma4": "gemma4:31b-it-q8_0",
         "mimo_v2_5": "mimo-v2.5",
     }
 
@@ -978,6 +1004,8 @@ def test_chat_compatible_json_client_parses_operator_rank_advice() -> None:
     assert "operator_priors" not in system_message
     assert "0.0 and 1.0" in system_message
     assert "Do not use 0-10" in system_message
+    assert "best 3 ranked_operators" in system_message
+    assert "do not include lower-ranked alternatives" in system_message
 
 
 def test_operator_rank_advice_rejects_unknown_operator_id() -> None:

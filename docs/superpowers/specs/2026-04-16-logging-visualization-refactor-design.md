@@ -3,7 +3,7 @@
 - **Date**: 2026-04-16
 - **Scope**: single unified design covering run layout, trace schema, analytics, visualization style, figure factory, CLI, testing, and environment prep.
 - **Applies to**: `optimizers/` drivers (raw/union/llm), `optimizers/operator_pool/` controller, `optimizers/artifacts.py`, `optimizers/run_telemetry.py`, `visualization/`, `optimizers/cli.py`.
-- **Does not apply to**: `scenarios/templates/s1_typical.yaml` (the active benchmark template is NOT modified by this spec; multi-seed template changes are deferred to a follow-up spec — see § 3.4, Option B).
+- **Does not apply to**: `scenarios/templates/s5_aggressive15.yaml` (the active benchmark template is NOT modified by this spec; multi-seed template changes are deferred to a follow-up spec — see § 3.4, Option B).
 
 ## 1. Motivation
 
@@ -18,9 +18,9 @@ The refactor treats raw / union / llm uniformly — they share the same analytic
 
 ## 2. Non-Goals
 
-- Modifying `scenarios/templates/s1_typical.yaml` itself (design variables, bounds, operating case). Multi-seed problem generation is deferred to a separate spec.
+- Modifying `scenarios/templates/s5_aggressive15.yaml` itself (design variables, bounds, operating case). Multi-seed problem generation is deferred to a separate spec.
 - Extending the algorithm layer (no new operators, no NSGA-II variants).
-- Dual-writing old + new schema for backward compatibility. Old runs under `scenario_runs/s1_typical/<timestamp>__<mode>/` are one-shot; not migrated.
+- Dual-writing old + new schema for backward compatibility. Old runs under `scenario_runs/s5_aggressive15/<timestamp>__<mode>/` are one-shot; not migrated.
 - Writing the paper itself. This spec ships assets (figures, tables, animations); prose is authored manually.
 
 ## 3. Run Directory Layout
@@ -28,7 +28,7 @@ The refactor treats raw / union / llm uniformly — they share the same analytic
 ### 3.1 Single-seed (current default, N=1)
 
 ```
-scenario_runs/s1_typical/<MMDD_HHMM>__<mode>/
+scenario_runs/s5_aggressive15/<MMDD_HHMM>__<mode>/
 ├── run.yaml                    # canonical run manifest (spec paths, seeds, timing)
 ├── results.yaml                # Pareto set + per-individual metadata
 ├── traces/                     # JSONL only; see § 4
@@ -95,7 +95,7 @@ Changes from current layout:
 When `--benchmark-seed` is passed multiple times (or algorithm seed varies), the layout wraps per-seed dirs:
 
 ```
-scenario_runs/s1_typical/<MMDD_HHMM>__<mode>/
+scenario_runs/s5_aggressive15/<MMDD_HHMM>__<mode>/
 ├── seeds/
 │   ├── seed-7/
 │   │   ├── run.yaml, results.yaml, traces/, analytics/, figures/, representatives/
@@ -147,7 +147,7 @@ Neither path revives legacy `comparison/`, and neither path writes comparison ar
 
 ### 3.4 Multi-seed template changes — DEFERRED (Option B chosen)
 
-The active `scenarios/templates/s1_typical.yaml` generates a fixed single case. Multi-seed design for paper-grade MOEA statistics (30+ seeds, Mann-Whitney, attainment surface) requires disentangling:
+The active `scenarios/templates/s5_aggressive15.yaml` generates a fixed single case. Multi-seed design for paper-grade MOEA statistics (30+ seeds, Mann-Whitney, attainment surface) requires disentangling:
 
 - **benchmark_seed** — controls problem instance generation (component layout, boundary profile).
 - **algorithm_seed** — controls NSGA-II search RNG (initial population, mutation draws).
@@ -367,7 +367,7 @@ This keeps the figure mode-agnostic across `raw`, `union`, and `llm`, while avoi
 
 ```
 python -m optimizers.cli render-assets \
-  --run scenario_runs/s1_typical/0416_2030__llm \
+  --run scenario_runs/s5_aggressive15/0416_2030__llm \
   [--hires]
 ```
 
@@ -377,9 +377,9 @@ Idempotent: reads `traces/`, writes `analytics/`, `figures/`, `tables/`. Can be 
 
 ```
 python -m optimizers.cli compare-runs \
-  --run scenario_runs/s1_typical/0416_2030__raw \
-  --run scenario_runs/s1_typical/0416_2033__union \
-  --run scenario_runs/s1_typical/0416_2041__llm \
+  --run scenario_runs/s5_aggressive15/0416_2030__raw \
+  --run scenario_runs/s5_aggressive15/0416_2033__union \
+  --run scenario_runs/s5_aggressive15/0416_2041__llm \
   --output scenario_runs/compare_reports/0416_2100__raw_vs_union_vs_llm
 ```
 
@@ -416,9 +416,9 @@ Explicitly NOT added (previously proposed, dropped as over-granular): separate `
 
 ```bash
 python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --population-size 10 --num-generations 5 \
-  --output-root ./scenario_runs/s1_typical/smoke-llm
+  --output-root ./scenario_runs/s5_aggressive15/smoke-llm
 ```
 
 Scale: 10 + 10×5 = 60 PDE solves (~10× faster than current 32×16 = 544). Add `scripts/smoke_render_assets.sh` that runs all three modes at 10×5 + `render-assets` + non-zero exit on missing outputs.
@@ -446,7 +446,7 @@ No `pytest -v` over the whole repo unless a change bleeds into shared modules. I
 4. Delete legacy paths: `visualization/case_pages.py`, `figure_axes.py`, `figure_theme.py`, old `artifacts.py` writer.
 5. Run kept tests + one 10×5 smoke per mode. Commit.
 
-Old runs under `scenario_runs/s1_typical/<timestamp>__<mode>/` are not migrated; archive or delete at user discretion.
+Old runs under `scenario_runs/s5_aggressive15/<timestamp>__<mode>/` are not migrated; archive or delete at user discretion.
 
 ## 10. Environment Prep
 
@@ -495,7 +495,7 @@ conda run -n msfenicsx python -c "import matplotlib.font_manager as fm; fm._load
 
 ## 11. Success Criteria
 
-- All three modes (raw/union/llm) produce identical top-level layout under `scenario_runs/s1_typical/<MMDD_HHMM>__<mode>/`.
+- All three modes (raw/union/llm) produce identical top-level layout under `scenario_runs/s5_aggressive15/<MMDD_HHMM>__<mode>/`.
 - Representative figure paths are at most 3 levels deep.
 - No empty `logs/` directories.
 - Colorbar regression test passes: high-value input pixel → top of rendered colorbar.

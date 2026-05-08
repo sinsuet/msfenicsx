@@ -8,7 +8,7 @@ from optimizers.io import generate_benchmark_case, load_optimization_spec
 from optimizers.problem import CHEAP_GEOMETRY_ISSUE_CONSTRAINT_ID, ThermalOptimizationProblem
 
 
-SPEC_PATH = Path("scenarios/optimization/s1_typical_raw.yaml")
+SPEC_PATH = Path("scenarios/optimization/s5_aggressive15_raw.yaml")
 
 
 def test_generate_benchmark_case_returns_single_case() -> None:
@@ -16,12 +16,12 @@ def test_generate_benchmark_case_returns_single_case() -> None:
 
     case = generate_benchmark_case(SPEC_PATH, optimization_spec)
 
-    assert case.case_meta["scenario_id"] == "s1_typical"
+    assert case.case_meta["scenario_id"] == "s5_aggressive15"
 
 
 def test_problem_evaluates_single_case_report_and_history() -> None:
     optimization_spec = load_optimization_spec(SPEC_PATH)
-    evaluation_spec = load_spec("scenarios/evaluation/s1_typical_eval.yaml")
+    evaluation_spec = load_spec("scenarios/evaluation/s5_aggressive15_eval.yaml")
     base_case = generate_benchmark_case(SPEC_PATH, optimization_spec)
     problem = ThermalOptimizationProblem(base_case, optimization_spec, evaluation_spec)
     vector = extract_decision_vector(base_case, optimization_spec)

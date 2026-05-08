@@ -1,4 +1,4 @@
-"""Derived per-mode summaries for the new s1_typical run tree."""
+"""Derived per-mode summaries for the run tree."""
 
 from __future__ import annotations
 

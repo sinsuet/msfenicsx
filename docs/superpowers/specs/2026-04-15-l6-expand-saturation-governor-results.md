@@ -34,7 +34,7 @@ The expand saturation governor detects when the `post_feasible_expand` phase has
 
 ## Smoke Run 1: 12x6 (73 evaluations)
 
-**Run path:** `scenario_runs/s1_typical/l6-mid-smoke/`
+**Run path:** `scenario_runs/s5_aggressive15/l6-mid-smoke/`
 **Config:** `population_size=12, num_generations=6, evaluation_workers=2`
 
 ### LLM Transport
@@ -67,7 +67,7 @@ Pareto front progressed every generation. Maximum gap between Pareto additions w
 
 ## Smoke Run 2: 20x10 (201 evaluations)
 
-**Run path:** `scenario_runs/s1_typical/l6-mid-20x10/`
+**Run path:** `scenario_runs/s5_aggressive15/l6-mid-20x10/`
 **Config:** `population_size=20, num_generations=10, evaluation_workers=2`
 
 ### LLM Transport

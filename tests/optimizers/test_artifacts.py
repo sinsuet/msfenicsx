@@ -34,7 +34,7 @@ def _fake_union_run() -> SimpleNamespace:
                 "minimize_temperature_gradient_rms": 12.0,
             },
             "constraint_values": {"radiator_span_budget": 0.05},
-            "evaluation_report": {"evaluation_meta": {"case_id": "s1_typical-case-001"}, "feasible": False},
+            "evaluation_report": {"evaluation_meta": {"case_id": "s5_aggressive15-case-001"}, "feasible": False},
         },
         {
             "evaluation_index": 2,
@@ -46,16 +46,16 @@ def _fake_union_run() -> SimpleNamespace:
                 "minimize_temperature_gradient_rms": 8.5,
             },
             "constraint_values": {"radiator_span_budget": 0.0},
-            "evaluation_report": {"evaluation_meta": {"case_id": "s1_typical-case-001"}, "feasible": True},
+            "evaluation_report": {"evaluation_meta": {"case_id": "s5_aggressive15-case-001"}, "feasible": True},
         },
     ]
     result_payload = {
         "schema_version": "1.0",
         "run_meta": {
             "run_id": "s1-typical-union-run",
-            "base_case_id": "s1_typical-case-001",
+            "base_case_id": "s5_aggressive15-case-001",
             "optimization_spec_id": "s1-typical-nsga2-union",
-            "evaluation_spec_id": "s1_typical_eval",
+            "evaluation_spec_id": "s5_aggressive15_eval",
             "benchmark_seed": 11,
             "algorithm_seed": 7,
         },
@@ -71,9 +71,9 @@ def _fake_union_run() -> SimpleNamespace:
         "history": history,
         "provenance": {
             "benchmark_source": {"seed": 11},
-            "source_case_id": "s1_typical-case-001",
+            "source_case_id": "s5_aggressive15-case-001",
             "source_optimization_spec_id": "s1-typical-nsga2-union",
-            "source_evaluation_spec_id": "s1_typical_eval",
+            "source_evaluation_spec_id": "s5_aggressive15_eval",
         },
     }
     return SimpleNamespace(

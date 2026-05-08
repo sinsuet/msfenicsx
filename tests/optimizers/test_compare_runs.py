@@ -42,7 +42,7 @@ def _seed_run(run_root: Path, label: str, *, skipped_history_indices: set[int] |
         json.dumps(
             {
                 "schema_version": "1.0",
-                "case_meta": {"case_id": f"{label}-case", "scenario_id": "s1_typical"},
+                "case_meta": {"case_id": f"{label}-case", "scenario_id": "s5_aggressive15"},
                 "panel_domain": {"width": 1.0, "height": 0.8},
                 "boundary_features": [
                     {"feature_id": "sink-top", "kind": "line_sink", "edge": "top", "start": 0.2, "end": 0.58}

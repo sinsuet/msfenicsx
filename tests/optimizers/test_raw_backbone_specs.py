@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from optimizers.io import load_optimization_spec
 
@@ -34,6 +35,7 @@ def test_s5_s7_raw_backbone_specs_exist_and_match_contract(
 
     spec = load_optimization_spec(spec_path)
     payload = spec.to_dict()
+    profile_payload = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
 
     assert payload["spec_meta"]["spec_id"] == f"{scenario_id}_{backbone}_raw"
     assert payload["benchmark_source"]["template_path"] == f"scenarios/templates/{scenario_id}.yaml"
@@ -47,3 +49,4 @@ def test_s5_s7_raw_backbone_specs_exist_and_match_contract(
     assert payload["evaluation_protocol"]["evaluation_spec_path"] == f"scenarios/evaluation/{scenario_id}_eval.yaml"
     assert payload["evaluation_protocol"]["legality_policy_id"] == "projection_plus_local_restore"
     assert "operator_control" not in payload
+    assert profile_payload["profile_meta"]["profile_id"] == f"{scenario_id}_{backbone}_raw_profile"

@@ -1553,9 +1553,9 @@ Run:
 
 ```bash
 conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
-  --optimization-spec scenarios/optimization/s2_staged_raw.yaml \
-  --optimization-spec scenarios/optimization/s2_staged_union.yaml \
-  --optimization-spec scenarios/optimization/s2_staged_llm.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --mode raw \
   --mode union \
   --mode llm \
@@ -1568,7 +1568,7 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
 ```
 
 Expected:
-- suite root exists under `scenario_runs/s2_staged/<run_id>/`
+- suite root exists under `scenario_runs/s5_aggressive15/<run_id>/`
 - each mode has `seeds/seed-11` and `seeds/seed-17`
 - `comparisons/by_seed/seed-11/` and `comparisons/by_seed/seed-17/` exist
 - `comparisons/aggregate/` exists
@@ -1580,9 +1580,9 @@ Expected:
 Run:
 
 ```bash
-find scenario_runs/s2_staged -maxdepth 4 -path '*comparisons*' | sort | sed -n '1,80p'
-find scenario_runs/s2_staged -maxdepth 5 -path '*figures*temperature_trace.png' | sort | sed -n '1,20p'
-find scenario_runs/s2_staged -maxdepth 5 -path '*figures*layout_final.png' | sort | sed -n '1,20p'
+find scenario_runs/s5_aggressive15 -maxdepth 4 -path '*comparisons*' | sort | sed -n '1,80p'
+find scenario_runs/s5_aggressive15 -maxdepth 5 -path '*figures*temperature_trace.png' | sort | sed -n '1,20p'
+find scenario_runs/s5_aggressive15 -maxdepth 5 -path '*figures*layout_final.png' | sort | sed -n '1,20p'
 ```
 
 Expected:

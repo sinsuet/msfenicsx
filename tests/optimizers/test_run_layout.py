@@ -15,12 +15,12 @@ def test_build_run_id_orders_modes_stably() -> None:
 def test_initialize_run_root_creates_shared_and_mode_directories(tmp_path: Path) -> None:
     run_root = initialize_run_root(
         tmp_path / "scenario_runs",
-        scenario_template_id="s1_typical",
+        scenario_template_id="s5_aggressive15",
         run_id="0402_1530__raw_union",
         modes=["raw", "union"],
     )
 
-    assert run_root == tmp_path / "scenario_runs" / "s1_typical" / "0402_1530__raw_union"
+    assert run_root == tmp_path / "scenario_runs" / "s5_aggressive15" / "0402_1530__raw_union"
     assert (run_root / "shared").is_dir()
     assert (run_root / "raw").is_dir()
     assert (run_root / "union").is_dir()

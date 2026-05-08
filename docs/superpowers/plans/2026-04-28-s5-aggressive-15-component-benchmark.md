@@ -74,7 +74,7 @@ Expected before template creation: fail because the file does not exist.
 
 ## Task 2: Create The S5 Template
 
-- [ ] Start from `scenarios/templates/s2_staged.yaml` as the closest single-case 15-component reference.
+- [ ] Start from `scenarios/templates/s5_aggressive15.yaml` as the closest single-case 15-component reference.
 - [ ] Save as `scenarios/templates/s5_aggressive15.yaml`.
 - [ ] Change template id and description to S5.
 - [ ] Set placement region to approximately:

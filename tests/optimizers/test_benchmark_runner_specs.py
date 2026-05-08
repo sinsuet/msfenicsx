@@ -39,6 +39,25 @@ def test_single_leaf_llm_campaign_derives_method_and_paths(tmp_path: Path) -> No
     assert campaign.compare_with == (tmp_path / "scenario_runs/s5_aggressive15/0508_2300__raw_union",)
 
 
+def test_single_leaf_raw_campaign_uses_stable_mode_directory_slug(tmp_path: Path) -> None:
+    campaign = build_single_leaf_campaign(
+        optimization_spec=Path("scenarios/optimization/s5_aggressive15_raw.yaml"),
+        mode="raw",
+        llm_profile=None,
+        benchmark_seed=11,
+        algorithm_seed=1011,
+        population_size=40,
+        num_generations=32,
+        evaluation_workers=16,
+        scenario_runs_root=tmp_path / "scenario_runs",
+        campaign_id=None,
+    )
+
+    leaf = campaign.leaves[0]
+    assert leaf.method_id == "nsga2_raw"
+    assert leaf.method_slug == "raw"
+
+
 def test_batch_spec_expands_methods_by_replicate_seeds(tmp_path: Path) -> None:
     batch_path = tmp_path / "s5_raw_union.yaml"
     batch_path.write_text(

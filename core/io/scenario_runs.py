@@ -81,7 +81,57 @@ def write_field_export_artifacts(bundle_root: str | Path, field_exports: dict[st
     field_view_path = resolved_bundle_root / "summaries" / "field_view.json"
     field_view_path.write_text(json.dumps(field_exports["field_view"], indent=2) + "\n", encoding="utf-8")
     exported_fields["field_view"] = Path("summaries").joinpath("field_view.json").as_posix()
+    _write_field_figures(resolved_bundle_root, field_exports)
     return exported_fields
+
+
+def _write_field_figures(bundle_root: Path, field_exports: dict[str, Any]) -> None:
+    field_view = field_exports.get("field_view") or {}
+    panel_domain = dict(field_view.get("panel_domain", {}))
+    arrays = field_exports.get("arrays") or {}
+    temperature = arrays.get("temperature")
+    gradient = arrays.get("gradient_magnitude")
+    if not panel_domain or temperature is None or gradient is None:
+        return
+
+    temperature_grid = np.asarray(temperature, dtype=np.float64)
+    gradient_grid = np.asarray(gradient, dtype=np.float64)
+    xs = np.linspace(0.0, float(panel_domain["width"]), temperature_grid.shape[1], dtype=np.float64)
+    ys = np.linspace(0.0, float(panel_domain["height"]), temperature_grid.shape[0], dtype=np.float64)
+    layout = dict(field_view.get("layout", {}))
+    figures_root = bundle_root / "figures"
+    figures_root.mkdir(parents=True, exist_ok=True)
+
+    from visualization.figures.gradient_field import render_gradient_field
+    from visualization.figures.layout_evolution import render_layout_snapshot
+    from visualization.figures.temperature_field import render_temperature_field
+
+    render_layout_snapshot(
+        frame={
+            "generation": 0,
+            "title": "Layout",
+            "panel_width": float(panel_domain["width"]),
+            "panel_height": float(panel_domain["height"]),
+            "components": list(layout.get("components", [])),
+            "line_sinks": list(layout.get("line_sinks", [])),
+        },
+        output=figures_root / "layout.png",
+    )
+    render_temperature_field(
+        grid=temperature_grid,
+        xs=xs,
+        ys=ys,
+        layout=layout,
+        hotspot=(field_view.get("temperature") or {}).get("hotspot"),
+        output=figures_root / "temperature_field.png",
+    )
+    render_gradient_field(
+        grid=gradient_grid,
+        xs=xs,
+        ys=ys,
+        layout=layout,
+        output=figures_root / "gradient_field.png",
+    )
 
 
 def _coerce_payload(value: Any) -> Any:

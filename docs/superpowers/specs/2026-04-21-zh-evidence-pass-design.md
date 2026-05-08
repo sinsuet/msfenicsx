@@ -2,7 +2,7 @@
 
 ## 1. 目标与边界
 
-本轮工作的目标不是把整篇论文一次性补满，而是围绕当前最可信、最完整的一条证据主线，对中文主稿做一次“证据化补全 pass”。主线以 `scenario_runs/s2_staged/0421_0207__llm` 与 `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair` 为核心运行资产，前者承担 llm 单运行内部的机制证据，后者承担 raw / union / llm recover repair 的横向比较证据。
+本轮工作的目标不是把整篇论文一次性补满，而是围绕当前最可信、最完整的一条证据主线，对中文主稿做一次“证据化补全 pass”。主线以 `scenario_runs/s5_aggressive15/0421_0207__llm` 与 `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair` 为核心运行资产，前者承担 llm 单运行内部的机制证据，后者承担 raw / union / llm recover repair 的横向比较证据。
 
 本轮只优先落地中文主稿，英文不做同等深度的正文扩写，只保留后续同步空间。公式补到“问题定义 + 方法层”深度，即补全问题定义中的设计变量、目标、约束、固定边界，以及方法中的状态摘要、控制决策、统一闭环与 layered recovery 介入位置，但不把所有实验指标都做成完整数学体系。图表部分以已有运行产物为主，完整接入 compare report 中的图表和单 run 中关键的机制图；对于尚未生成的框架图，本轮先明确清单与 LaTeX 占位，等用户在其他对话生成后再插入正式图片。
 
@@ -52,13 +52,13 @@
 
 ### 5.1 横向比较证据
 
-比较主线以 `scenario_runs/compare_reports/s2_staged/0421_0420__raw_union_old_vs_llm_recover_repair` 为中心。该目录下已有 `summary_overview.png`、`progress_dashboard.png`、`temperature_field_comparison.png`、`gradient_field_comparison.png`，以及 `tables/mode_metrics.tex`、`tables/pairwise_deltas.tex`、`tables/summary_table.tex`。这些资产应优先接入 `06_experiments`，并作为当前版本最直接的跨模式对比证据。
+比较主线以 `scenario_runs/compare_reports/s5_aggressive15/0421_0420__raw_union_old_vs_llm_recover_repair` 为中心。该目录下已有 `summary_overview.png`、`progress_dashboard.png`、`temperature_field_comparison.png`、`gradient_field_comparison.png`，以及 `tables/mode_metrics.tex`、`tables/pairwise_deltas.tex`、`tables/summary_table.tex`。这些资产应优先接入 `06_experiments`，并作为当前版本最直接的跨模式对比证据。
 
 其中，总览类图表用于建立三种模式在当前比较中的整体差异，progress dashboard 用于展示阶段变化与过程差异，temperature/gradient field comparison 用于展示代表解在物理场上的可见差异，表格则用于给出可引用的数值摘要。实验文字必须明确这些图表服务于“当前可支持的证据层”，避免写成最终 comparative closure。
 
 ### 5.2 单运行机制证据
 
-机制主线以 `scenario_runs/s2_staged/0421_0207__llm` 为中心。该目录已有 `analytics/progress_timeline.csv`、`analytics/hypervolume.csv`、`analytics/operator_phase_heatmap.csv`、`figures/objective_progress.png`、`figures/hypervolume_progress.png`、`figures/operator_phase_heatmap.png`、`figures/pareto_front.png`、`figures/layout_initial.png`、`figures/layout_final.png`、`figures/temperature_field_*.png`、`figures/gradient_field_*.png`，以及 `traces/` 与 `prompts/`。
+机制主线以 `scenario_runs/s5_aggressive15/0421_0207__llm` 为中心。该目录已有 `analytics/progress_timeline.csv`、`analytics/hypervolume.csv`、`analytics/operator_phase_heatmap.csv`、`figures/objective_progress.png`、`figures/hypervolume_progress.png`、`figures/operator_phase_heatmap.png`、`figures/pareto_front.png`、`figures/layout_initial.png`、`figures/layout_final.png`、`figures/temperature_field_*.png`、`figures/gradient_field_*.png`，以及 `traces/` 与 `prompts/`。
 
 这些资产不承担横向对比任务，而用于解释 llm 控制过程内部发生了什么。也就是说，它们服务于 collapse/recovery 的机制叙事：阶段切换、动作偏好、布局演化、代表点物理场差异，以及必要时引用 trace 说明控制决策并非不可审计。实验章需要明确区分“跨模式比较证据”和“单运行机制证据”，避免二者混写。
 

@@ -7,14 +7,14 @@ from optimizers.io import load_optimization_spec
 
 
 def _case():
-    return generate_case("scenarios/templates/s1_typical.yaml", seed=11)
+    return generate_case("scenarios/templates/s5_aggressive15.yaml", seed=11)
 
 
 def _spec():
-    return load_optimization_spec("scenarios/optimization/s1_typical_raw.yaml")
+    return load_optimization_spec("scenarios/optimization/s5_aggressive15_raw.yaml")
 
 
-def test_extract_and_apply_decision_vector_round_trip_for_s1_typical_layout_variables() -> None:
+def test_extract_and_apply_decision_vector_round_trip_for_s5_aggressive15_layout_variables() -> None:
     case = _case()
     spec = _spec()
 

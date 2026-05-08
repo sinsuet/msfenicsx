@@ -37,7 +37,7 @@ Add to `build_progress_state` return value:
 
 **Logic:** Iterate feasible records in `ordered_history`, track per-objective best value and last improvement eval. Stagnation threshold: `_OBJECTIVE_STAGNATION_THRESHOLD = 6` consecutive feasible evaluations without improvement.
 
-**Objective keys:** Hard-coded `summary.temperature_max` and `summary.temperature_gradient_rms` (matching s1_typical objective spec). Use existing `_metric_from_record` for extraction.
+**Objective keys:** Hard-coded `summary.temperature_max` and `summary.temperature_gradient_rms` (matching s5_aggressive15 objective spec). Use existing `_metric_from_record` for extraction.
 
 **Propagation:** `build_progress_state` → `state_metadata["progress_state"]` → consumed by `build_prompt_regime_panel`.
 
@@ -125,4 +125,4 @@ Symmetrically for `gradient_improve`: boost smooth_high_gradient_band, spread_ho
 
 1. All tests pass: `conda run -n msfenicsx pytest tests/optimizers/ -v`
 2. Full suite: `conda run -n msfenicsx pytest -v`
-3. Smoke run: 20x10 with `s1_typical_llm.yaml`, verify T_max < 306K
+3. Smoke run: 20x10 with `s5_aggressive15_llm.yaml`, verify T_max < 306K

@@ -1,5 +1,7 @@
 schema_version: '1.0'
-profile_id: s5_aggressive15_moead_raw
+profile_meta:
+  profile_id: s5_aggressive15_moead_raw_profile
+  description: Active S5 aggressive 15-component tuning for MOEA/D raw algorithm-comparison baseline.
 family: decomposition
 backbone: moead
 mode: raw

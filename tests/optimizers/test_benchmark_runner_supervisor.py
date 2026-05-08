@@ -13,7 +13,7 @@ def _leaf() -> BenchmarkLeaf:
     return BenchmarkLeaf(
         scenario_id="s5_aggressive15",
         method_id="nsga2_raw",
-        method_slug="nsga2-raw",
+        method_slug="raw",
         mode="raw",
         optimization_spec=Path("scenarios/optimization/s5_aggressive15_raw.yaml"),
         benchmark_seed=11,

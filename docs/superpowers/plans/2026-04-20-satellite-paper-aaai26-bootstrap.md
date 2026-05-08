@@ -346,7 +346,7 @@ git commit -m "docs: scaffold bilingual paper manuscript"
 
 本文考虑一个规范化的卫星面板热控布局任务：多个发热部组件在有限平面区域内布局，散热带或散热边界可在预算约束下调整。优化目标包括最小化峰值温度与最小化温度梯度 RMS，约束包括散热资源预算、关键部组件温限、热分布约束以及几何合法性与可实施性约束。
 
-在本文平台中，`s1_typical` 与 `s2_staged` 分别承担主 benchmark 与过程级分析 benchmark 的角色。它们不是完整工业卫星全系统复刻，而是保留关键工程张力的规范化卫星热控布局 benchmark。
+在本文平台中，`s5_aggressive15` 与 `s5_aggressive15` 分别承担主 benchmark 与过程级分析 benchmark 的角色。它们不是完整工业卫星全系统复刻，而是保留关键工程张力的规范化卫星热控布局 benchmark。
 ```
 
 - [ ] **Step 4: Write aligned English placeholders that reflect the same claims, but can remain lighter**

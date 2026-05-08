@@ -19,7 +19,7 @@ def create_run_root(
 ) -> Path:
     root = initialize_run_root(
         tmp_path / "scenario_runs",
-        scenario_template_id="s1_typical",
+        scenario_template_id="s5_aggressive15",
         run_id=run_id,
         modes=modes,
     )
@@ -86,7 +86,7 @@ def create_mixed_run_root(
     _write_json(
         run_root / "manifest.json",
         {
-            "scenario_template_id": "s1_typical",
+            "scenario_template_id": "s5_aggressive15",
             "run_id": f"0401_1430__{mode_slug}",
             "mode_ids": list(modes),
             "benchmark_seeds": list(seeds),
@@ -170,8 +170,8 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
             "run_meta": {
                 "run_id": f"{mode}-seed-{seed}-run",
                 "optimization_spec_id": f"{mode}-spec",
-                "evaluation_spec_id": "s1_typical_eval",
-                "base_case_id": f"s1_typical-case-{seed:03d}",
+                "evaluation_spec_id": "s5_aggressive15_eval",
+                "base_case_id": f"s5_aggressive15-case-{seed:03d}",
             },
             "baseline_candidates": [history[0]],
             "pareto_front": [history[2], history[3]],
@@ -194,9 +194,9 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
             "history": history,
             "provenance": {
                 "benchmark_source": {"seed": seed},
-                "source_case_id": f"s1_typical-case-{seed:03d}",
+                "source_case_id": f"s5_aggressive15-case-{seed:03d}",
                 "source_optimization_spec_id": f"{mode}-spec",
-                "source_evaluation_spec_id": "s1_typical_eval",
+                "source_evaluation_spec_id": "s5_aggressive15_eval",
             },
         },
     )
@@ -251,7 +251,7 @@ def _create_mode_seed_bundle(seed_root: Path, *, mode: str, seed: int) -> None:
     ):
         _create_representative_bundle(
             seed_root / "representatives" / representative_id,
-            case_id=f"s1_typical-case-{seed:03d}",
+            case_id=f"s5_aggressive15-case-{seed:03d}",
             peak_value=peak_value,
             gradient_value=gradient_value,
         )
@@ -475,7 +475,7 @@ def _create_representative_bundle(
         bundle_root / "case.yaml",
         {
             "schema_version": "1.0",
-            "case_meta": {"case_id": case_id, "scenario_id": "s1_typical"},
+            "case_meta": {"case_id": case_id, "scenario_id": "s5_aggressive15"},
             "panel_domain": {"width": 1.0, "height": 0.8},
             "boundary_features": [
                 {

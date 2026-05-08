@@ -107,6 +107,7 @@ def replay_request_trace_file(
     client: OpenAICompatibleClient | None = None,
     limit: int | None = None,
 ) -> dict[str, Any]:
+    config = OpenAICompatibleConfig.from_dict(controller_parameters)
     replay_summary = replay_request_trace_rows(
         load_request_trace(request_trace_path),
         controller_parameters,
@@ -116,7 +117,7 @@ def replay_request_trace_file(
     replay_summary["replay_meta"] = {
         "request_trace_path": str(request_trace_path),
         "provider": str(controller_parameters["provider"]),
-        "model": str(controller_parameters["model"]),
+        "model": config.resolve_model(),
         "capability_profile": str(controller_parameters["capability_profile"]),
         "performance_profile": str(controller_parameters["performance_profile"]),
     }

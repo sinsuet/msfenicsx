@@ -1,4 +1,4 @@
-"""Helpers for the single-case-first s1_typical run layout."""
+"""Helpers for the single-case-first run layout."""
 
 from __future__ import annotations
 

@@ -16,7 +16,7 @@ def _spec_payload(*, family: str = "genetic", backbone: str = "nsga2", mode: str
             "description": "Matrix contract validation fixture.",
         },
         "benchmark_source": {
-            "template_path": "scenarios/templates/s1_typical.yaml",
+            "template_path": "scenarios/templates/s5_aggressive15.yaml",
             "seed": 11,
         },
         "design_variables": [
@@ -36,7 +36,7 @@ def _spec_payload(*, family: str = "genetic", backbone: str = "nsga2", mode: str
             "seed": 7,
         },
         "evaluation_protocol": {
-            "evaluation_spec_path": "scenarios/evaluation/s1_typical_eval.yaml",
+            "evaluation_spec_path": "scenarios/evaluation/s5_aggressive15_eval.yaml",
             "legality_policy_id": "minimal_canonicalization",
         },
     }

@@ -17,7 +17,7 @@ Spec reference:
 Primary implementation guardrails:
 
 - Keep `scenarios/` paper-facing and provider-agnostic.
-- Do not duplicate `s1_typical_llm.yaml` per provider.
+- Do not duplicate `s5_aggressive15_llm.yaml` per provider.
 - Preserve backward compatibility for legacy specs that still use literal `model`.
 - Make all missing-profile and missing-credential failures explicit and local.
 - Do not rewrite `.env` or mutate optimization spec files at runtime.
@@ -47,7 +47,7 @@ Primary implementation guardrails:
 
 ### Paper-Facing Spec And Docs
 
-- Modify: `scenarios/optimization/s1_typical_llm.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`
   Switch provider identity fields to `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL`.
 - Modify: `README.md`
   Document the new provider-profile workflow and `.env` shape.
@@ -61,7 +61,7 @@ Primary implementation guardrails:
 - Modify: `tests/optimizers/test_optimizer_cli.py`
   Cover `run-llm`, environment overlay behavior, and non-LLM spec rejection.
 - Modify: `tests/optimizers/test_optimizer_io.py`
-  Assert that the active `s1_typical_llm` spec uses unified runtime env vars.
+  Assert that the active `s5_aggressive15_llm` spec uses unified runtime env vars.
 
 ## Task 1: Add Shared Env Helpers And `model_env_var` Support
 
@@ -414,7 +414,7 @@ git commit -m "feat: add run-llm provider switching command"
 ## Task 4: Switch The Active LLM Spec To Unified Runtime Variables
 
 **Files:**
-- Modify: `scenarios/optimization/s1_typical_llm.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`
 - Modify: `tests/optimizers/test_optimizer_io.py`
 
 - [ ] **Step 1: Write the red spec assertions**
@@ -423,7 +423,7 @@ Update `tests/optimizers/test_optimizer_io.py` so the active LLM spec is require
 
 ```python
 def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
-    spec = load_optimization_spec("scenarios/optimization/s1_typical_llm.yaml")
+    spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_llm.yaml")
 
     assert spec.operator_control is not None
     params = spec.operator_control["controller_parameters"]
@@ -449,7 +449,7 @@ Expected:
 
 - [ ] **Step 3: Update the active LLM spec**
 
-Modify `scenarios/optimization/s1_typical_llm.yaml` so the controller parameters use:
+Modify `scenarios/optimization/s5_aggressive15_llm.yaml` so the controller parameters use:
 
 ```yaml
 provider: openai-compatible
@@ -481,7 +481,7 @@ Expected:
 
 ```bash
 git add \
-  scenarios/optimization/s1_typical_llm.yaml \
+  scenarios/optimization/s5_aggressive15_llm.yaml \
   tests/optimizers/test_optimizer_io.py
 git commit -m "chore: switch active llm spec to runtime env vars"
 ```
@@ -493,7 +493,7 @@ git commit -m "chore: switch active llm spec to runtime env vars"
 - Verify: `llm/openai_compatible/config.py`
 - Verify: `llm/openai_compatible/profile_loader.py`
 - Verify: `optimizers/cli.py`
-- Verify: `scenarios/optimization/s1_typical_llm.yaml`
+- Verify: `scenarios/optimization/s5_aggressive15_llm.yaml`
 - Verify: `tests/optimizers/test_llm_client.py`
 - Verify: `tests/optimizers/test_llm_profiles.py`
 - Verify: `tests/optimizers/test_optimizer_cli.py`
@@ -520,9 +520,9 @@ QWEN_PROXY_BASE_URL=https://qwen.example/v1
 
 ```bash
 conda run -n msfenicsx python -m optimizers.cli run-llm gpt \
-  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
-  --output-root ./scenario_runs/s1_typical/<run_id>
+  --output-root ./scenario_runs/s5_aggressive15/<run_id>
 ```
 
 - [ ] **Step 2: Run the combined focused verification suite**
@@ -561,7 +561,7 @@ git add \
   llm/openai_compatible/config.py \
   llm/openai_compatible/profile_loader.py \
   optimizers/cli.py \
-  scenarios/optimization/s1_typical_llm.yaml \
+  scenarios/optimization/s5_aggressive15_llm.yaml \
   tests/optimizers/test_llm_client.py \
   tests/optimizers/test_llm_profiles.py \
   tests/optimizers/test_optimizer_cli.py \

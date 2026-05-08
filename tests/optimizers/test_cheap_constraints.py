@@ -11,8 +11,8 @@ from optimizers.models import OptimizationSpec
 from optimizers.problem import PENALTY_VALUE, ThermalOptimizationProblem
 
 
-SPEC_PATH = Path("scenarios/optimization/s1_typical_raw.yaml")
-EVALUATION_SPEC_PATH = Path("scenarios/evaluation/s1_typical_eval.yaml")
+SPEC_PATH = Path("scenarios/optimization/s5_aggressive15_raw.yaml")
+EVALUATION_SPEC_PATH = Path("scenarios/evaluation/s5_aggressive15_eval.yaml")
 
 
 def _base_case():
@@ -23,7 +23,7 @@ def _base_case():
 def _impossible_overlap_spec() -> OptimizationSpec:
     payload = load_optimization_spec(SPEC_PATH).to_dict()
     payload["spec_meta"] = {
-        "spec_id": "s1_typical_impossible_overlap",
+        "spec_id": "s5_aggressive15_impossible_overlap",
         "description": "Cheap-constraint regression fixture with impossible narrow overlap bounds.",
     }
     payload["design_variables"] = [
@@ -70,7 +70,7 @@ def _impossible_overlap_spec() -> OptimizationSpec:
 def _clearance_violation_spec() -> OptimizationSpec:
     payload = load_optimization_spec(SPEC_PATH).to_dict()
     payload["spec_meta"] = {
-        "spec_id": "s1_typical_clearance_violation",
+        "spec_id": "s5_aggressive15_clearance_violation",
         "description": "Cheap-constraint regression fixture with near-contact but non-overlapping bounds.",
     }
     payload["design_variables"] = [

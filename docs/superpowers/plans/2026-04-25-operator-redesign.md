@@ -41,12 +41,12 @@
 
 ### Active paper-facing specs and docs
 
-- Modify: `scenarios/optimization/s1_typical_raw.yaml`
-- Modify: `scenarios/optimization/s1_typical_union.yaml`
-- Modify: `scenarios/optimization/s1_typical_llm.yaml`
-- Modify: `scenarios/optimization/s2_staged_raw.yaml`
-- Modify: `scenarios/optimization/s2_staged_union.yaml`
-- Modify: `scenarios/optimization/s2_staged_llm.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_raw.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_union.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_raw.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_union.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`
 - Modify: `README.md`
 - Modify: `AGENTS.md`
 
@@ -56,19 +56,19 @@
 - Create: `tests/optimizers/test_problem_legality_pipeline.py`
 - Modify: `tests/optimizers/test_operator_pool_contracts.py`
 - Modify: `tests/optimizers/test_operator_pool_adapters.py`
-- Modify: `tests/optimizers/test_s2_staged_baseline.py`
+- Modify: `tests/optimizers/test_s5_aggressive15_baseline.py`
 - Modify: `tests/visualization/test_render_assets_fixtures.py`
 
 ## Task 1: Add Explicit Legality Policy To Active Specs And Validation
 
 **Files:**
 - Modify: `optimizers/validation.py`
-- Modify: `scenarios/optimization/s1_typical_raw.yaml`
-- Modify: `scenarios/optimization/s1_typical_union.yaml`
-- Modify: `scenarios/optimization/s1_typical_llm.yaml`
-- Modify: `scenarios/optimization/s2_staged_raw.yaml`
-- Modify: `scenarios/optimization/s2_staged_union.yaml`
-- Modify: `scenarios/optimization/s2_staged_llm.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_raw.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_union.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_raw.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_union.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`
 - Test: `tests/optimizers/test_legality_policy.py`
 
 - [ ] **Step 1: Write the failing spec-contract tests**
@@ -86,12 +86,12 @@ from optimizers.models import OptimizationSpec
 
 
 ACTIVE_SPECS = {
-    "s1_raw": Path("scenarios/optimization/s1_typical_raw.yaml"),
-    "s1_union": Path("scenarios/optimization/s1_typical_union.yaml"),
-    "s1_llm": Path("scenarios/optimization/s1_typical_llm.yaml"),
-    "s2_raw": Path("scenarios/optimization/s2_staged_raw.yaml"),
-    "s2_union": Path("scenarios/optimization/s2_staged_union.yaml"),
-    "s2_llm": Path("scenarios/optimization/s2_staged_llm.yaml"),
+    "s1_raw": Path("scenarios/optimization/s5_aggressive15_raw.yaml"),
+    "s1_union": Path("scenarios/optimization/s5_aggressive15_union.yaml"),
+    "s1_llm": Path("scenarios/optimization/s5_aggressive15_llm.yaml"),
+    "s2_raw": Path("scenarios/optimization/s5_aggressive15_raw.yaml"),
+    "s2_union": Path("scenarios/optimization/s5_aggressive15_union.yaml"),
+    "s2_llm": Path("scenarios/optimization/s5_aggressive15_llm.yaml"),
 }
 
 
@@ -149,31 +149,31 @@ def _validate_evaluation_protocol(protocol: Any) -> None:
 - [ ] **Step 4: Update every active paper-facing optimization spec**
 
 ```yaml
-# scenarios/optimization/s1_typical_raw.yaml
+# scenarios/optimization/s5_aggressive15_raw.yaml
 evaluation_protocol:
-  evaluation_spec_path: scenarios/evaluation/s1_typical_eval.yaml
+  evaluation_spec_path: scenarios/evaluation/s5_aggressive15_eval.yaml
   legality_policy_id: minimal_canonicalization
 ```
 
 ```yaml
-# scenarios/optimization/s1_typical_union.yaml
+# scenarios/optimization/s5_aggressive15_union.yaml
 evaluation_protocol:
-  evaluation_spec_path: scenarios/evaluation/s1_typical_eval.yaml
+  evaluation_spec_path: scenarios/evaluation/s5_aggressive15_eval.yaml
   legality_policy_id: minimal_canonicalization
 ```
 
 ```yaml
-# scenarios/optimization/s1_typical_llm.yaml
+# scenarios/optimization/s5_aggressive15_llm.yaml
 evaluation_protocol:
-  evaluation_spec_path: scenarios/evaluation/s1_typical_eval.yaml
+  evaluation_spec_path: scenarios/evaluation/s5_aggressive15_eval.yaml
   legality_policy_id: projection_plus_local_restore
 ```
 
 Use the same explicit values in the staged specs:
 
-- `scenarios/optimization/s2_staged_raw.yaml` -> `minimal_canonicalization`
-- `scenarios/optimization/s2_staged_union.yaml` -> `minimal_canonicalization`
-- `scenarios/optimization/s2_staged_llm.yaml` -> `projection_plus_local_restore`
+- `scenarios/optimization/s5_aggressive15_raw.yaml` -> `minimal_canonicalization`
+- `scenarios/optimization/s5_aggressive15_union.yaml` -> `minimal_canonicalization`
+- `scenarios/optimization/s5_aggressive15_llm.yaml` -> `projection_plus_local_restore`
 
 - [ ] **Step 5: Re-run the focused test**
 
@@ -185,12 +185,12 @@ Expected: PASS.
 ```bash
 git add \
   optimizers/validation.py \
-  scenarios/optimization/s1_typical_raw.yaml \
-  scenarios/optimization/s1_typical_union.yaml \
-  scenarios/optimization/s1_typical_llm.yaml \
-  scenarios/optimization/s2_staged_raw.yaml \
-  scenarios/optimization/s2_staged_union.yaml \
-  scenarios/optimization/s2_staged_llm.yaml \
+  scenarios/optimization/s5_aggressive15_raw.yaml \
+  scenarios/optimization/s5_aggressive15_union.yaml \
+  scenarios/optimization/s5_aggressive15_llm.yaml \
+  scenarios/optimization/s5_aggressive15_raw.yaml \
+  scenarios/optimization/s5_aggressive15_union.yaml \
+  scenarios/optimization/s5_aggressive15_llm.yaml \
   tests/optimizers/test_legality_policy.py
 git commit -m "feat(optimizers): add explicit legality policy ids to active specs"
 ```
@@ -216,11 +216,11 @@ from optimizers.legality import apply_legality_policy_from_vector
 
 
 def _case():
-    return generate_case("scenarios/templates/s1_typical.yaml", seed=11)
+    return generate_case("scenarios/templates/s5_aggressive15.yaml", seed=11)
 
 
 def _raw_spec():
-    return load_optimization_spec("scenarios/optimization/s1_typical_raw.yaml")
+    return load_optimization_spec("scenarios/optimization/s5_aggressive15_raw.yaml")
 
 
 def test_minimal_canonicalization_projects_sink_but_does_not_restore_overlap() -> None:
@@ -474,7 +474,7 @@ from optimizers.problem import ThermalOptimizationProblem
 
 
 def test_problem_records_proposal_and_evaluated_vectors_separately() -> None:
-    spec_path = "scenarios/optimization/s1_typical_raw.yaml"
+    spec_path = "scenarios/optimization/s5_aggressive15_raw.yaml"
     optimization_spec = load_optimization_spec(spec_path)
     evaluation_spec = load_spec(resolve_evaluation_spec_path(spec_path, optimization_spec))
     base_case = generate_benchmark_case(spec_path, optimization_spec)
@@ -723,8 +723,8 @@ def test_layout_frames_prefer_evaluated_geometry_for_optimizer_records(monkeypat
     from optimizers.io import load_optimization_spec
     from optimizers.render_assets import _layout_frame_from_record
 
-    optimization_spec = load_optimization_spec("scenarios/optimization/s1_typical_raw.yaml")
-    base_case = generate_case("scenarios/templates/s1_typical.yaml", seed=11)
+    optimization_spec = load_optimization_spec("scenarios/optimization/s5_aggressive15_raw.yaml")
+    base_case = generate_case("scenarios/templates/s5_aggressive15.yaml", seed=11)
     decision_vector = extract_decision_vector(base_case, optimization_spec)
     record = {
         "source": "optimizer",
@@ -988,10 +988,10 @@ git commit -m "feat(optimizers): make traces and replay use evaluated geometry"
 - Create: `optimizers/operator_pool/assisted_registry.py`
 - Modify: `optimizers/operator_pool/operators.py`
 - Modify: `optimizers/validation.py`
-- Modify: `scenarios/optimization/s1_typical_union.yaml`
-- Modify: `scenarios/optimization/s1_typical_llm.yaml`
-- Modify: `scenarios/optimization/s2_staged_union.yaml`
-- Modify: `scenarios/optimization/s2_staged_llm.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_union.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_union.yaml`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`
 - Modify: `tests/optimizers/test_operator_pool_contracts.py`
 
 - [ ] **Step 1: Rewrite the operator-registry contract test first**
@@ -1030,7 +1030,7 @@ def test_registry_profiles_expose_clean_vs_assisted_pools() -> None:
 def test_registry_profile_contract_is_controller_agnostic() -> None:
     from optimizers.models import OptimizationSpec
 
-    payload = load_optimization_spec("scenarios/optimization/s1_typical_union.yaml").to_dict()
+    payload = load_optimization_spec("scenarios/optimization/s5_aggressive15_union.yaml").to_dict()
     payload["operator_control"]["controller"] = "llm"
     payload["operator_control"]["registry_profile"] = "primitive_clean"
     payload["operator_control"]["operator_pool"] = list(PRIMITIVE_OPERATOR_IDS)
@@ -1261,7 +1261,7 @@ def _validate_operator_control(operator_control: Any, *, family: str, backbone: 
 ```
 
 ```yaml
-# scenarios/optimization/s1_typical_union.yaml
+# scenarios/optimization/s5_aggressive15_union.yaml
 operator_control:
   controller: random_uniform
   registry_profile: primitive_clean
@@ -1275,7 +1275,7 @@ operator_control:
 ```
 
 ```yaml
-# scenarios/optimization/s1_typical_llm.yaml
+# scenarios/optimization/s5_aggressive15_llm.yaml
 operator_control:
   controller: llm
   registry_profile: primitive_plus_assisted
@@ -1296,8 +1296,8 @@ operator_control:
 
 Mirror the same split in the staged specs:
 
-- `scenarios/optimization/s2_staged_union.yaml` -> `controller: random_uniform`, `registry_profile: primitive_clean`, primitive pool only
-- `scenarios/optimization/s2_staged_llm.yaml` -> `controller: llm`, `registry_profile: primitive_plus_assisted`, primitive + assisted pool
+- `scenarios/optimization/s5_aggressive15_union.yaml` -> `controller: random_uniform`, `registry_profile: primitive_clean`, primitive pool only
+- `scenarios/optimization/s5_aggressive15_llm.yaml` -> `controller: llm`, `registry_profile: primitive_plus_assisted`, primitive + assisted pool
 
 - [ ] **Step 5: Re-run the focused registry tests**
 
@@ -1312,10 +1312,10 @@ git add \
   optimizers/operator_pool/assisted_registry.py \
   optimizers/operator_pool/operators.py \
   optimizers/validation.py \
-  scenarios/optimization/s1_typical_union.yaml \
-  scenarios/optimization/s1_typical_llm.yaml \
-  scenarios/optimization/s2_staged_union.yaml \
-  scenarios/optimization/s2_staged_llm.yaml \
+  scenarios/optimization/s5_aggressive15_union.yaml \
+  scenarios/optimization/s5_aggressive15_llm.yaml \
+  scenarios/optimization/s5_aggressive15_union.yaml \
+  scenarios/optimization/s5_aggressive15_llm.yaml \
   tests/optimizers/test_operator_pool_contracts.py
 git commit -m "feat(optimizers): split primitive and assisted operator registries"
 ```
@@ -1333,7 +1333,7 @@ git commit -m "feat(optimizers): split primitive and assisted operator registrie
 def test_clean_union_uses_primitive_pool_and_skips_repair_collapsed_dedup(monkeypatch: pytest.MonkeyPatch) -> None:
     from optimizers.drivers.union_driver import run_union_optimization
 
-    spec_path = "scenarios/optimization/s1_typical_union.yaml"
+    spec_path = "scenarios/optimization/s5_aggressive15_union.yaml"
     spec = _spec(spec_path)
     run = run_union_optimization(
         _base_case(spec_path, spec),
@@ -1351,7 +1351,7 @@ def test_clean_union_uses_primitive_pool_and_skips_repair_collapsed_dedup(monkey
 def test_llm_assisted_path_keeps_attempt_level_screening_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     from optimizers.drivers.union_driver import run_union_optimization
 
-    spec_path = "scenarios/optimization/s1_typical_llm.yaml"
+    spec_path = "scenarios/optimization/s5_aggressive15_llm.yaml"
     spec = _spec(spec_path, population_size=4, num_generations=1)
     run = run_union_optimization(
         _base_case(spec_path, spec),
@@ -1464,13 +1464,13 @@ git commit -m "feat(optimizers): split clean and assisted genetic union paths"
 - Modify: `optimizers/operator_pool/state_builder.py`
 - Modify: `optimizers/operator_pool/route_families.py`
 - Modify: `optimizers/operator_pool/operators.py`
-- Modify: `tests/optimizers/test_s2_staged_baseline.py`
+- Modify: `tests/optimizers/test_s5_aggressive15_baseline.py`
 
 - [ ] **Step 1: Add a failing semantic-gating test**
 
 ```python
-# tests/optimizers/test_s2_staged_baseline.py
-def test_s2_staged_union_uses_clean_registry_while_llm_retains_assisted_pool() -> None:
+# tests/optimizers/test_s5_aggressive15_baseline.py
+def test_s5_aggressive15_union_uses_clean_registry_while_llm_retains_assisted_pool() -> None:
     union = load_optimization_spec(UNION_SPEC_PATH).to_dict()
     llm = load_optimization_spec(LLM_SPEC_PATH).to_dict()
 
@@ -1491,7 +1491,7 @@ def test_s2_staged_union_uses_clean_registry_while_llm_retains_assisted_pool() -
 
 - [ ] **Step 2: Run the test and confirm failure**
 
-Run: `conda run -n msfenicsx pytest tests/optimizers/test_s2_staged_baseline.py::test_s2_staged_union_uses_clean_registry_while_llm_retains_assisted_pool -v`  
+Run: `conda run -n msfenicsx pytest tests/optimizers/test_s5_aggressive15_baseline.py::test_s5_aggressive15_union_uses_clean_registry_while_llm_retains_assisted_pool -v`  
 Expected: FAIL because state-builder and route-family semantics still assume the old shared semantic pool.
 
 - [ ] **Step 3: Make primitive operators neutral in state-builder panels**
@@ -1536,7 +1536,7 @@ ROUTE_FAMILY_BY_OPERATOR = {
 
 - [ ] **Step 5: Re-run the focused semantic-gating tests**
 
-Run: `conda run -n msfenicsx pytest tests/optimizers/test_s2_staged_baseline.py tests/optimizers/test_operator_pool_contracts.py -v`  
+Run: `conda run -n msfenicsx pytest tests/optimizers/test_s5_aggressive15_baseline.py tests/optimizers/test_operator_pool_contracts.py -v`  
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -1546,7 +1546,7 @@ git add \
   optimizers/operator_pool/state_builder.py \
   optimizers/operator_pool/route_families.py \
   optimizers/operator_pool/operators.py \
-  tests/optimizers/test_s2_staged_baseline.py
+  tests/optimizers/test_s5_aggressive15_baseline.py
 git commit -m "feat(optimizers): gate semantic operator semantics behind llm registry"
 ```
 
@@ -1559,14 +1559,14 @@ git commit -m "feat(optimizers): gate semantic operator semantics behind llm reg
 - Test: `tests/optimizers/test_problem_legality_pipeline.py`
 - Test: `tests/optimizers/test_operator_pool_contracts.py`
 - Test: `tests/optimizers/test_operator_pool_adapters.py`
-- Test: `tests/optimizers/test_s2_staged_baseline.py`
+- Test: `tests/optimizers/test_s5_aggressive15_baseline.py`
 - Test: `tests/visualization/test_render_assets_fixtures.py`
 
 - [ ] **Step 1: Update README to describe the new baseline/framework split**
 
 ```markdown
 # README.md
-- `s2_staged` now shares the same paper-facing `raw / union / llm` ladder, but `union` is a clean primitive-operator baseline while `llm` is the assisted framework line.
+- `s5_aggressive15` now shares the same paper-facing `raw / union / llm` ladder, but `union` is a clean primitive-operator baseline while `llm` is the assisted framework line.
 - active optimizer flow:
   `paper-facing scenario case -> legality policy -> cheap constraints -> solve -> single-case evaluation_report -> Pareto search -> manifest-backed optimization bundle`
 - clean baselines use `minimal_canonicalization`; assisted `llm` runs use `projection_plus_local_restore`
@@ -1594,7 +1594,7 @@ conda run -n msfenicsx pytest \
   tests/optimizers/test_problem_legality_pipeline.py \
   tests/optimizers/test_operator_pool_contracts.py \
   tests/optimizers/test_operator_pool_adapters.py \
-  tests/optimizers/test_s2_staged_baseline.py \
+  tests/optimizers/test_s5_aggressive15_baseline.py \
   tests/visualization/test_render_assets_fixtures.py -v
 ```
 
@@ -1606,16 +1606,16 @@ Run:
 
 ```bash
 conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s1_typical_raw.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
   --evaluation-workers 1 \
   --skip-render \
-  --output-root ./scenario_runs/s1_typical/raw-operator-redesign-smoke
+  --output-root ./scenario_runs/s5_aggressive15/raw-operator-redesign-smoke
 
 conda run -n msfenicsx python -m optimizers.cli optimize-benchmark \
-  --optimization-spec scenarios/optimization/s1_typical_union.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml \
   --evaluation-workers 1 \
   --skip-render \
-  --output-root ./scenario_runs/s1_typical/union-operator-redesign-smoke
+  --output-root ./scenario_runs/s5_aggressive15/union-operator-redesign-smoke
 ```
 
 Expected:

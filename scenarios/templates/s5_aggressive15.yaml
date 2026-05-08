@@ -303,7 +303,7 @@ generation_rules:
   max_placement_attempts: 2600
   placement_retries: 10
   layout_strategy:
-    kind: s2_staged_compact_core_v1
+    kind: compact_core_v1
     zones:
       active_deck:
         x_min: 0.06

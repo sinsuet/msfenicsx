@@ -13,8 +13,8 @@
 ## File Structure
 
 **Modify:**
-- `scenarios/optimization/s1_typical_llm.yaml` — align `llm` substrate fields with `s1_typical_union.yaml` while keeping `controller: llm` and `controller_parameters`.
-- `scenarios/optimization/s2_staged_llm.yaml` — align `llm` substrate fields with `s2_staged_union.yaml` while keeping `controller: llm` and `controller_parameters`.
+- `scenarios/optimization/s5_aggressive15_llm.yaml` — align `llm` substrate fields with `s5_aggressive15_union.yaml` while keeping `controller: llm` and `controller_parameters`.
+- `scenarios/optimization/s5_aggressive15_llm.yaml` — align `llm` substrate fields with `s5_aggressive15_union.yaml` while keeping `controller: llm` and `controller_parameters`.
 - `optimizers/operator_pool/policy_kernel.py` — preserve evidence annotations but stop narrowing `allowed_operator_ids` or populating `suppressed_operator_ids`.
 - `optimizers/operator_pool/llm_controller.py` — keep the full candidate pool after policy and guardrail analysis; convert guardrail wording from removal to soft advice; remove exact-positive candidate contraction from the paper-facing candidate support path.
 - `README.md` — describe `union` / `llm` as sharing the same primitive pool and legality policy; remove paper-facing assisted-framework wording.
@@ -22,13 +22,13 @@
 - `CLAUDE.md` — refine existing matched-registry wording into the representation-layer contract.
 
 **Create or modify tests:**
-- `tests/optimizers/test_operator_pool_contracts.py` — add scenario spec substrate-contract tests for `s1_typical` and `s2_staged`.
+- `tests/optimizers/test_operator_pool_contracts.py` — add scenario spec substrate-contract tests for `s5_aggressive15` and `s5_aggressive15`.
 - `tests/optimizers/test_llm_policy_kernel.py` — update hard-filter expectations to annotation-only expectations.
 - `tests/optimizers/test_llm_controller.py` — verify full candidate pool is preserved and guardrail text is soft advice.
 
 **Do not modify in this plan:**
 - `optimizers/operator_pool/primitive_registry.py` — Phase 1 keeps the current clean primitive pool.
-- `optimizers/operator_pool/assisted_registry.py` — assisted operators remain available for non-paper-facing experiments, but are not used by `s1_typical_llm` or `s2_staged_llm`.
+- `optimizers/operator_pool/assisted_registry.py` — assisted operators remain available for non-paper-facing experiments, but are not used by `s5_aggressive15_llm` or `s5_aggressive15_llm`.
 - `optimizers/algorithm_config.py` — no backbone default changes.
 - `core/`, `evaluation/`, `visualization/` — no solver/evaluation/rendering changes.
 
@@ -39,8 +39,8 @@
 ### Task 1: Lock scenario spec substrate equality
 
 **Files:**
-- Modify: `scenarios/optimization/s1_typical_llm.yaml:145-182`
-- Modify: `scenarios/optimization/s2_staged_llm.yaml:145-182`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml:145-182`
+- Modify: `scenarios/optimization/s5_aggressive15_llm.yaml:145-182`
 - Test: `tests/optimizers/test_operator_pool_contracts.py`
 
 - [ ] **Step 1: Write the failing scenario substrate contract tests**
@@ -79,18 +79,18 @@ def _substrate_fields(spec: dict) -> dict:
     }
 
 
-def test_s1_typical_union_and_llm_share_search_substrate() -> None:
-    union_spec = _load_yaml("scenarios/optimization/s1_typical_union.yaml")
-    llm_spec = _load_yaml("scenarios/optimization/s1_typical_llm.yaml")
+def test_s5_aggressive15_union_and_llm_share_search_substrate() -> None:
+    union_spec = _load_yaml("scenarios/optimization/s5_aggressive15_union.yaml")
+    llm_spec = _load_yaml("scenarios/optimization/s5_aggressive15_llm.yaml")
 
     assert union_spec["operator_control"]["controller"] == "random_uniform"
     assert llm_spec["operator_control"]["controller"] == "llm"
     assert _substrate_fields(llm_spec) == _substrate_fields(union_spec)
 
 
-def test_s2_staged_union_and_llm_share_search_substrate() -> None:
-    union_spec = _load_yaml("scenarios/optimization/s2_staged_union.yaml")
-    llm_spec = _load_yaml("scenarios/optimization/s2_staged_llm.yaml")
+def test_s5_aggressive15_union_and_llm_share_search_substrate() -> None:
+    union_spec = _load_yaml("scenarios/optimization/s5_aggressive15_union.yaml")
+    llm_spec = _load_yaml("scenarios/optimization/s5_aggressive15_llm.yaml")
 
     assert union_spec["operator_control"]["controller"] == "random_uniform"
     assert llm_spec["operator_control"]["controller"] == "llm"
@@ -104,14 +104,14 @@ If `tests/optimizers/test_operator_pool_contracts.py` already imports `Path` or 
 Run:
 
 ```bash
-conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py::test_s1_typical_union_and_llm_share_search_substrate tests/optimizers/test_operator_pool_contracts.py::test_s2_staged_union_and_llm_share_search_substrate
+conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py::test_s5_aggressive15_union_and_llm_share_search_substrate tests/optimizers/test_operator_pool_contracts.py::test_s5_aggressive15_union_and_llm_share_search_substrate
 ```
 
 Expected: FAIL because current `llm` specs use `registry_profile: primitive_plus_assisted`, include assisted operators, and use `legality_policy_id: projection_plus_local_restore`.
 
-- [ ] **Step 3: Align `s1_typical_llm.yaml` with the clean shared substrate**
+- [ ] **Step 3: Align `s5_aggressive15_llm.yaml` with the clean shared substrate**
 
-Replace the `operator_control` and `evaluation_protocol` block in `scenarios/optimization/s1_typical_llm.yaml` with:
+Replace the `operator_control` and `evaluation_protocol` block in `scenarios/optimization/s5_aggressive15_llm.yaml` with:
 
 ```yaml
 operator_control:
@@ -144,13 +144,13 @@ operator_control:
       reflection_interval: 1
     fallback_controller: random_uniform
 evaluation_protocol:
-  evaluation_spec_path: scenarios/evaluation/s1_typical_eval.yaml
+  evaluation_spec_path: scenarios/evaluation/s5_aggressive15_eval.yaml
   legality_policy_id: minimal_canonicalization
 ```
 
-- [ ] **Step 4: Align `s2_staged_llm.yaml` with the clean shared substrate**
+- [ ] **Step 4: Align `s5_aggressive15_llm.yaml` with the clean shared substrate**
 
-Replace the corresponding block in `scenarios/optimization/s2_staged_llm.yaml` with the same clean pool and `minimal_canonicalization`, preserving its existing `evaluation_spec_path`:
+Replace the corresponding block in `scenarios/optimization/s5_aggressive15_llm.yaml` with the same clean pool and `minimal_canonicalization`, preserving its existing `evaluation_spec_path`:
 
 ```yaml
 operator_control:
@@ -183,7 +183,7 @@ operator_control:
       reflection_interval: 1
     fallback_controller: random_uniform
 evaluation_protocol:
-  evaluation_spec_path: scenarios/evaluation/s2_staged_eval.yaml
+  evaluation_spec_path: scenarios/evaluation/s5_aggressive15_eval.yaml
   legality_policy_id: minimal_canonicalization
 ```
 
@@ -192,7 +192,7 @@ evaluation_protocol:
 Run:
 
 ```bash
-conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py::test_s1_typical_union_and_llm_share_search_substrate tests/optimizers/test_operator_pool_contracts.py::test_s2_staged_union_and_llm_share_search_substrate
+conda run -n msfenicsx pytest -v tests/optimizers/test_operator_pool_contracts.py::test_s5_aggressive15_union_and_llm_share_search_substrate tests/optimizers/test_operator_pool_contracts.py::test_s5_aggressive15_union_and_llm_share_search_substrate
 ```
 
 Expected: PASS.
@@ -203,7 +203,7 @@ Do not commit unless the user explicitly asks for commits. If commits are author
 
 ```bash
 git status --short
-git add tests/optimizers/test_operator_pool_contracts.py scenarios/optimization/s1_typical_llm.yaml scenarios/optimization/s2_staged_llm.yaml
+git add tests/optimizers/test_operator_pool_contracts.py scenarios/optimization/s5_aggressive15_llm.yaml scenarios/optimization/s5_aggressive15_llm.yaml
 git commit -m "$(cat <<'EOF'
 Restore shared LLM scenario substrate.
 
@@ -701,7 +701,7 @@ EOF
 In `README.md`, replace the sentence at the active mainline section that currently says `union` is clean while `llm` is assisted with:
 
 ```markdown
-At the time of this restore plan, the active paper-facing mainlines were `s1_typical` and `s2_staged`. The current active mainline is the S5-S7 aggressive family, with `s5_aggressive15` as the primary debugging template.
+At the time of this restore plan, the active paper-facing mainlines were `s5_aggressive15` and `s5_aggressive15`. The current active mainline is the S5-S7 aggressive family, with `s5_aggressive15` as the primary debugging template.
 ```
 
 - [ ] **Step 2: Update README legality-policy bullet**
@@ -788,7 +788,7 @@ Expected: PASS.
 Because this uses external LLM credentials from the environment, ask the user before running it. If approved, run with a minimal budget and local output root:
 
 ```bash
-conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s1_typical_llm.yaml --output-root ./scenario_runs/s1_typical/llm-contract-smoke --population-size 6 --num-generations 2 --evaluation-workers 1 --skip-render
+conda run -n msfenicsx python -m optimizers.cli optimize-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --output-root ./scenario_runs/s5_aggressive15/llm-contract-smoke --population-size 6 --num-generations 2 --evaluation-workers 1 --skip-render
 ```
 
 Expected: command completes or fails for an environmental/provider reason. A provider/network failure is not a contract failure; inspect generated traces only if a run directory is produced.
@@ -823,8 +823,8 @@ from pathlib import Path
 import yaml
 
 pairs = [
-    ("scenarios/optimization/s1_typical_union.yaml", "scenarios/optimization/s1_typical_llm.yaml"),
-    ("scenarios/optimization/s2_staged_union.yaml", "scenarios/optimization/s2_staged_llm.yaml"),
+    ("scenarios/optimization/s5_aggressive15_union.yaml", "scenarios/optimization/s5_aggressive15_llm.yaml"),
+    ("scenarios/optimization/s5_aggressive15_union.yaml", "scenarios/optimization/s5_aggressive15_llm.yaml"),
 ]
 for union_path, llm_path in pairs:
     union = yaml.safe_load(Path(union_path).read_text(encoding="utf-8"))
@@ -839,8 +839,8 @@ PY
 Expected:
 
 ```text
-scenarios/optimization/s1_typical_llm.yaml OK
-scenarios/optimization/s2_staged_llm.yaml OK
+scenarios/optimization/s5_aggressive15_llm.yaml OK
+scenarios/optimization/s5_aggressive15_llm.yaml OK
 ```
 
 - [ ] **Step 5: Report verification state without overclaiming performance**
@@ -857,7 +857,7 @@ Do not commit unless explicitly authorized. If commits are authorized, run:
 
 ```bash
 git status --short
-git add scenarios/optimization/s1_typical_llm.yaml scenarios/optimization/s2_staged_llm.yaml optimizers/operator_pool/policy_kernel.py optimizers/operator_pool/llm_controller.py tests/optimizers/test_operator_pool_contracts.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py README.md AGENTS.md CLAUDE.md docs/superpowers/specs/2026-04-27-fair-raw-union-llm-comparison-restore-design.md docs/superpowers/plans/2026-04-28-fair-raw-union-llm-comparison-restore.md
+git add scenarios/optimization/s5_aggressive15_llm.yaml scenarios/optimization/s5_aggressive15_llm.yaml optimizers/operator_pool/policy_kernel.py optimizers/operator_pool/llm_controller.py tests/optimizers/test_operator_pool_contracts.py tests/optimizers/test_llm_policy_kernel.py tests/optimizers/test_llm_controller.py README.md AGENTS.md CLAUDE.md docs/superpowers/specs/2026-04-27-fair-raw-union-llm-comparison-restore-design.md docs/superpowers/plans/2026-04-28-fair-raw-union-llm-comparison-restore.md
 git commit -m "$(cat <<'EOF'
 Restore fair LLM comparison contract.
 

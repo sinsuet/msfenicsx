@@ -4,11 +4,11 @@
 
 ## 1. Context
 
-`msfenicsx` already has an active paper-facing `nsga2_llm` route for `s1_typical`, and that route is intentionally built around the existing OpenAI-compatible controller stack:
+`msfenicsx` already has an active paper-facing `nsga2_llm` route for `s5_aggressive15`, and that route is intentionally built around the existing OpenAI-compatible controller stack:
 
 - `llm/openai_compatible/`
 - `optimizers/operator_pool/llm_controller.py`
-- `scenarios/optimization/s1_typical_llm.yaml`
+- `scenarios/optimization/s5_aggressive15_llm.yaml`
 
 The current implementation can already resolve:
 
@@ -31,7 +31,7 @@ We want a provider-switching workflow that makes it easy to run the same `nsga2_
 
 The workflow must satisfy all of the following:
 
-- keep the existing `s1_typical` benchmark and artifact layout intact
+- keep the existing `s5_aggressive15` benchmark and artifact layout intact
 - avoid provider-specific duplication of paper-facing optimization specs
 - keep provider credentials in `.env` without manually rewriting the active variables each time
 - support future addition of new OpenAI-compatible providers without forcing changes to core benchmark specs
@@ -48,9 +48,9 @@ The workflow must satisfy all of the following:
 ## 4. Non-Goals
 
 - Do not add Anthropic-native or other non-OpenAI transport support in this change.
-- Do not create separate paper-facing specs such as `s1_typical_llm_gpt.yaml` or `s1_typical_llm_qwen.yaml`.
+- Do not create separate paper-facing specs such as `s5_aggressive15_llm_gpt.yaml` or `s5_aggressive15_llm_qwen.yaml`.
 - Do not move benchmark policy, optimization budget, or controller behavior into provider profiles.
-- Do not change artifact layout, trace semantics, or the active `scenario_runs/s1_typical/<run_id>/` conventions.
+- Do not change artifact layout, trace semantics, or the active `scenario_runs/s5_aggressive15/<run_id>/` conventions.
 - Do not add business logic to `scenarios/`.
 
 ## 5. Design Options Considered
@@ -76,9 +76,9 @@ Decision: reject.
 
 Add files such as:
 
-- `s1_typical_llm_gpt.yaml`
-- `s1_typical_llm_claude.yaml`
-- `s1_typical_llm_qwen.yaml`
+- `s5_aggressive15_llm_gpt.yaml`
+- `s5_aggressive15_llm_claude.yaml`
+- `s5_aggressive15_llm_qwen.yaml`
 
 Pros:
 
@@ -118,9 +118,9 @@ Provider switching should happen through a new optimizer CLI subcommand:
 
 ```bash
 conda run -n msfenicsx python -m optimizers.cli run-llm gpt \
-  --optimization-spec scenarios/optimization/s1_typical_llm.yaml \
+  --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --evaluation-workers 2 \
-  --output-root ./scenario_runs/s1_typical/0415_1200__llm-gpt
+  --output-root ./scenario_runs/s5_aggressive15/0415_1200__llm-gpt
 ```
 
 Equivalent invocations for other providers should look the same:
@@ -206,7 +206,7 @@ Those remain the responsibility of the optimization spec and related controller 
 
 ### 6.5 The Active Spec Stays Paper-Facing And Provider-Agnostic
 
-The paper-facing `s1_typical` LLM spec should stay focused on benchmark and controller configuration, not provider identity.
+The paper-facing `s5_aggressive15` LLM spec should stay focused on benchmark and controller configuration, not provider identity.
 
 Its controller parameters should move toward a provider-agnostic runtime interface:
 
@@ -284,7 +284,7 @@ Update LLM controller validation so that:
 
 This preserves legacy compatibility while supporting the new provider-switching path.
 
-### `scenarios/optimization/s1_typical_llm.yaml`
+### `scenarios/optimization/s5_aggressive15_llm.yaml`
 
 Update the active paper-facing spec to use the unified runtime variable names for provider selection.
 
@@ -379,7 +379,7 @@ Implementation should proceed in this order:
 1. add `model_env_var` support in config resolution and validation
 2. add provider-profile loading support
 3. add the `run-llm` CLI entrypoint
-4. update `scenarios/optimization/s1_typical_llm.yaml` to use unified runtime variable names
+4. update `scenarios/optimization/s5_aggressive15_llm.yaml` to use unified runtime variable names
 5. add focused tests
 6. update relevant docs and usage examples
 
