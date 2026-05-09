@@ -16,6 +16,17 @@ EXPECTED_VARIABLE_IDS = [item for index in range(1, 16) for item in (f"c{index:0
     "sink_start",
     "sink_end",
 ]
+EXPECTED_NEUTRAL_UNION_OPERATOR_WEIGHTS = {
+    "vector_sbx_pm": 0.60,
+    "component_jitter_1": 0.05,
+    "anchored_component_jitter": 0.05,
+    "sink_shift": 0.05,
+    "sink_resize": 0.05,
+    "component_relocate_1": 0.08,
+    "component_swap_2": 0.04,
+    "component_block_translate_2_4": 0.04,
+    "component_subspace_sbx": 0.04,
+}
 
 
 def _variable_ids(spec_path: Path) -> list[str]:
@@ -47,24 +58,16 @@ def test_s5_registry_split_uses_structured_primitives_for_union_and_llm() -> Non
     assert union["operator_control"]["controller"] == "random_uniform"
     assert union["operator_control"]["registry_profile"] == "primitive_structured"
     assert tuple(union["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_structured")
-    assert union["operator_control"]["controller_parameters"]["operator_weights"] == {
-        "vector_sbx_pm": 0.30,
-        "sink_resize": 0.25,
-        "anchored_component_jitter": 0.15,
-        "sink_shift": 0.10,
-        "component_relocate_1": 0.07,
-        "component_block_translate_2_4": 0.05,
-        "component_subspace_sbx": 0.04,
-        "component_swap_2": 0.02,
-        "component_jitter_1": 0.02,
-    }
+    assert union["operator_control"]["controller_parameters"]["operator_weights"] == (
+        EXPECTED_NEUTRAL_UNION_OPERATOR_WEIGHTS
+    )
     assert llm["operator_control"]["controller"] == "llm"
     assert llm["operator_control"]["registry_profile"] == "primitive_structured"
     assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_structured")
     assert llm["operator_control"]["operator_pool"] == union["operator_control"]["operator_pool"]
     params = llm["operator_control"]["controller_parameters"]
     assert params["selection_strategy"] == "semantic_ranked_pick"
-    assert params["max_output_tokens"] == 512
+    assert params["max_output_tokens"] == 1024
     assert params["semantic_ranked_pick"] == {
         "max_rank_scan": 9,
         "generation_operator_cap_fraction": 0.35,

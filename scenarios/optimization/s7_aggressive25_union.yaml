@@ -1,8 +1,7 @@
 schema_version: '1.0'
 spec_meta:
   spec_id: s7_aggressive25_nsga2_union
-  description: S7 aggressive25 single-case NSGA-II union mode with fixed 52D placement
-    and sink-interval encoding.
+  description: S7 aggressive25 single-case NSGA-II union neutral fixed-stochastic operator-selection mode with fixed 52D placement and sink-interval encoding.
 benchmark_source:
   template_path: scenarios/templates/s7_aggressive25.yaml
   seed: 11
@@ -228,6 +227,19 @@ evaluation_protocol:
   legality_policy_id: projection_plus_local_restore
 operator_control:
   controller: random_uniform
+  # Neutral fixed stochastic policy: preserve the LLM support set while keeping
+  # the semantic-blind baseline native-heavy instead of hand-guided by priors.
+  controller_parameters:
+    operator_weights:
+      vector_sbx_pm: 0.60
+      component_jitter_1: 0.05
+      anchored_component_jitter: 0.05
+      sink_shift: 0.05
+      sink_resize: 0.05
+      component_relocate_1: 0.08
+      component_swap_2: 0.04
+      component_block_translate_2_4: 0.04
+      component_subspace_sbx: 0.04
   registry_profile: primitive_structured
   operator_pool:
   - vector_sbx_pm

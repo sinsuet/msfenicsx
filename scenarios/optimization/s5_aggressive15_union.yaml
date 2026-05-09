@@ -1,7 +1,7 @@
 schema_version: "1.0"
 spec_meta:
   spec_id: s5_aggressive15_nsga2_union
-  description: S5 aggressive 15-component single-case NSGA-II union fixed-stochastic operator-selection mode using the shared primitive_structured registry profile and the same 32D encoding as raw.
+  description: S5 aggressive 15-component single-case NSGA-II union neutral fixed-stochastic operator-selection mode using the shared primitive_structured registry profile and the same 32D encoding as raw.
 benchmark_source:
   template_path: scenarios/templates/s5_aggressive15.yaml
   seed: 11
@@ -144,18 +144,19 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s5_aggressive15_union.yaml
 operator_control:
   controller: random_uniform
-  # Fixed stochastic operator policy used as the semantic-controller ablation baseline.
+  # Neutral fixed stochastic policy: preserve the LLM support set while keeping
+  # the semantic-blind baseline native-heavy instead of hand-guided by priors.
   controller_parameters:
     operator_weights:
-      vector_sbx_pm: 0.30
-      sink_resize: 0.25
-      anchored_component_jitter: 0.15
-      sink_shift: 0.10
-      component_relocate_1: 0.07
-      component_block_translate_2_4: 0.05
+      vector_sbx_pm: 0.60
+      component_jitter_1: 0.05
+      anchored_component_jitter: 0.05
+      sink_shift: 0.05
+      sink_resize: 0.05
+      component_relocate_1: 0.08
+      component_swap_2: 0.04
+      component_block_translate_2_4: 0.04
       component_subspace_sbx: 0.04
-      component_swap_2: 0.02
-      component_jitter_1: 0.02
   registry_profile: primitive_structured
   operator_pool:
     - vector_sbx_pm

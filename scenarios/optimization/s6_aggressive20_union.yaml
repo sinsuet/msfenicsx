@@ -1,7 +1,7 @@
 schema_version: "1.0"
 spec_meta:
   spec_id: s6_aggressive20_nsga2_union
-  description: S6 aggressive 20-component single-case NSGA-II union-uniform mode using the shared primitive_structured registry profile and the same 42D encoding as raw.
+  description: S6 aggressive 20-component single-case NSGA-II union neutral fixed-stochastic operator-selection mode using the shared primitive_structured registry profile and the same 42D encoding as raw.
 benchmark_source:
   template_path: scenarios/templates/s6_aggressive20.yaml
   seed: 11
@@ -184,6 +184,19 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s6_aggressive20_union.yaml
 operator_control:
   controller: random_uniform
+  # Neutral fixed stochastic policy: preserve the LLM support set while keeping
+  # the semantic-blind baseline native-heavy instead of hand-guided by priors.
+  controller_parameters:
+    operator_weights:
+      vector_sbx_pm: 0.60
+      component_jitter_1: 0.05
+      anchored_component_jitter: 0.05
+      sink_shift: 0.05
+      sink_resize: 0.05
+      component_relocate_1: 0.08
+      component_swap_2: 0.04
+      component_block_translate_2_4: 0.04
+      component_subspace_sbx: 0.04
   registry_profile: primitive_structured
   operator_pool:
     - vector_sbx_pm

@@ -146,6 +146,11 @@ The fixed benchmark decisions are:
 
 Preferred commands:
 
+Notes on optimizer worker counts:
+
+- `--evaluation-workers 2` in the single-leaf examples below is only for smoke checks, quick debugging, or deliberately conservative daytime reruns.
+- Formal overnight S5/S6 paper-facing runs should follow the unified runner resource policy: multi-leaf raw/union batches use `max_concurrent_leaves=4` and `leaf_evaluation_workers=16`; single-leaf formal LLM/profile runs should use `--evaluation-workers 16` unless the machine is already heavily loaded.
+
 - `conda run -n msfenicsx pytest -v`
 - `conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s5_aggressive15.yaml`
 - `conda run -n msfenicsx python -m core.cli.main generate-case --template scenarios/templates/s5_aggressive15.yaml --seed 11 --output-root ./scenario_runs/generated_cases/s5_aggressive15/seed-11`
@@ -155,8 +160,8 @@ Preferred commands:
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --mode union --benchmark-seed 11 --algorithm-seed 1011 --population-size 2 --num-generations 1 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --mode llm --llm-profile gemma4 --benchmark-seed 11 --algorithm-seed 1011 --population-size 5 --num-generations 2 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
 - Raw-only algorithm comparisons should be run as `run-benchmark` raw leaves or batch methods; do not add `spea2` or `moead` as `union` or `llm` modes.
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_spea2_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_moead_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_spea2_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 16 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_moead_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 16 --scenario-runs-root ./scenario_runs`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_raw_union_budgeted.yaml`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s6_raw_union_budgeted.yaml`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_s6_raw_union_budgeted.yaml`
@@ -176,7 +181,7 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `glm_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> glm-5`
   - `minimax_m2_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> MiniMax-M2.5`
   - `deepseek_v4_flash -> DEEPSEEK_PROXY_API_KEY / DEEPSEEK_PROXY_BASE_URL -> deepseek-v4-flash` with `extra_body.thinking.type=disabled` and `max_output_tokens=1024`
-  - `gemma4 -> GEMMA4_API_KEY / GEMMA4_BASE_URL -> gemma4:31b-it-q8_0` through the HPC Ollama/OpenAI-compatible endpoint with `max_output_tokens=2048`
+  - `gemma4 -> GEMMA4_API_KEY / GEMMA4_BASE_URL -> gemma4:31b-it-q8_0` through the HPC Ollama/OpenAI-compatible endpoint with `max_output_tokens=1024`
   - `mimo_v2_5 -> MIMO_API_KEY / MIMO_BASE_URL -> mimo-v2.5` with `extra_body.chat_template_kwargs.enable_thinking=false` and `max_output_tokens=1024`
 - the active `scenarios/optimization/s5_aggressive15_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
@@ -209,7 +214,8 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 - Treat `scenario_template`, `thermal_case`, and `thermal_solution` as the active canonical contracts.
 - `s5_aggressive15` is the primary fixed single-case debugging template and must not define `operating_case_profiles`.
 - S5/S6/S7 are fixed single-case benchmarks; do not use multiple benchmark seeds to simulate multiple problem instances.
-- Conservative daytime optimizer reruns should prefer `--evaluation-workers 2` or lower, including future `llm` runs.
+- Conservative daytime smoke/debug optimizer reruns may prefer `--evaluation-workers 2` or lower, including future `llm` runs; do not apply this to formal overnight budgeted S5/S6/S7 runs.
+- Formal overnight budgeted raw/union batches should use the batch resource policy (`max_concurrent_leaves=4`, `leaf_evaluation_workers=16` by default). Formal single-leaf LLM/profile runs should normally use `--evaluation-workers 16`.
 - Keep evaluation criteria in standalone `evaluation_spec` files instead of adding optimizer metadata to `thermal_case`.
 - Keep optimizer search settings and design-variable bounds in standalone `optimization_spec` files.
 - Repository-wide backbone defaults belong in `optimizers/algorithm_config.py`.
@@ -295,15 +301,16 @@ Current maintained test areas are:
 
 - For major contract or workflow changes, update:
   - `README.md`
-  - relevant docs under `docs/`
   - `AGENTS.md` when repository guidance changes
+  - `CLAUDE.md` to keep it in sync
 - Keep active docs aligned with implemented reality.
-- Treat `AGENTS.md` as the single authoritative repository guidance file.
+- Treat `CLAUDE.md` as authoritative repository guidance for Claude Code sessions.
 
 ## Useful References
 
 - `README.md`
 - `AGENTS.md`
+- `CLAUDE.md`
 - `docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md`
 - `docs/superpowers/plans/2026-03-26-msfenicsx-clean-rebuild-phase1.md`
 - `scenarios/templates/s5_aggressive15.yaml`

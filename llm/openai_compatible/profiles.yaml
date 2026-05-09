@@ -41,7 +41,7 @@ profiles:
     source_api_key_env_var: GEMMA4_API_KEY
     source_base_url_env_var: GEMMA4_BASE_URL
     model: gemma4:31b-it-q8_0
-    max_output_tokens: 2048
+    max_output_tokens: 1024
   mimo_v2_5:
     source_api_key_env_var: MIMO_API_KEY
     source_base_url_env_var: MIMO_BASE_URL

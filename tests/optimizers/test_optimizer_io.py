@@ -295,8 +295,8 @@ def test_union_spec_uses_exact_primitive_operator_pool() -> None:
     }
     assert spec.operator_control is not None
     assert spec.operator_control["controller"] == "random_uniform"
-    assert spec.operator_control["registry_profile"] == "primitive_clean"
-    assert tuple(spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_clean")
+    assert spec.operator_control["registry_profile"] == "primitive_structured"
+    assert tuple(spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_structured")
 
 
 def test_union_spec_rejects_modified_semantic_operator_pool() -> None:
@@ -318,10 +318,10 @@ def test_llm_spec_shares_benchmark_source_and_operator_pool_with_union() -> None
     assert union_spec.benchmark_source == llm_spec.benchmark_source
     assert union_spec.operator_control is not None
     assert llm_spec.operator_control is not None
-    assert union_spec.operator_control["registry_profile"] == "primitive_clean"
-    assert llm_spec.operator_control["registry_profile"] == "primitive_clean"
-    assert tuple(union_spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_clean")
-    assert tuple(llm_spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_clean")
+    assert union_spec.operator_control["registry_profile"] == "primitive_structured"
+    assert llm_spec.operator_control["registry_profile"] == "primitive_structured"
+    assert tuple(union_spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_structured")
+    assert tuple(llm_spec.operator_control["operator_pool"]) == approved_operator_pool("primitive_structured")
     assert llm_spec.operator_control["operator_pool"] == union_spec.operator_control["operator_pool"]
     assert union_spec.operator_control["controller"] == "random_uniform"
     assert llm_spec.operator_control["controller"] == "llm"
@@ -337,8 +337,8 @@ def test_llm_spec_keeps_benchmark_and_budget_settings_against_union() -> None:
     assert union_spec.algorithm["num_generations"] == llm_spec.algorithm["num_generations"]
     assert union_spec.operator_control is not None
     assert llm_spec.operator_control is not None
-    assert union_spec.operator_control["registry_profile"] == "primitive_clean"
-    assert llm_spec.operator_control["registry_profile"] == "primitive_clean"
+    assert union_spec.operator_control["registry_profile"] == "primitive_structured"
+    assert llm_spec.operator_control["registry_profile"] == "primitive_structured"
     assert llm_spec.operator_control["operator_pool"] == union_spec.operator_control["operator_pool"]
 
     params = llm_spec.operator_control["controller_parameters"]
@@ -359,8 +359,8 @@ def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
     assert params["model_env_var"] == "LLM_MODEL"
     assert "model" not in params
     assert "base_url" not in params
-    assert params["max_output_tokens"] == 512
-    assert params["temperature"] == 1.0
+    assert params["max_output_tokens"] == 1024
+    assert params["temperature"] == 0.7
 
 
 def test_llm_spec_accepts_semantic_ranked_pick_parameters() -> None:

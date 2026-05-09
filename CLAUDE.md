@@ -175,6 +175,7 @@ conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_
 
 Optimize with unified benchmark runner:
 ```bash
+# Smoke example only; use formal batch specs or --evaluation-workers 16 for overnight budgeted runs.
 conda run -n msfenicsx python -m optimizers.cli run-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
   --mode raw \
@@ -196,6 +197,11 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark \
 ```
 
 `run-benchmark` launches leaves as subprocesses, writes `run_index.csv`, automatically renders assets, runs LLM trace diagnostics, and creates available seed-aware `comparisons/`.
+
+Worker-count policy:
+- `--evaluation-workers 2` is for smoke checks, quick debugging, or deliberately conservative daytime reruns.
+- Formal overnight S5/S6 raw+union batches use the batch resource policy (`max_concurrent_leaves=4`, `leaf_evaluation_workers=16`).
+- Formal single-leaf LLM/profile runs should normally use `--evaluation-workers 16` unless the server is already heavily loaded.
 
 Install LLM dependency:
 ```bash
@@ -251,7 +257,8 @@ The active `nsga2_llm` route uses OpenAI-compatible provider profiles:
 - Treat `scenario_template`, `thermal_case`, and `thermal_solution` as the active canonical contracts.
 - `s5_aggressive15` is the primary fixed single-case debugging template and must not define `operating_case_profiles`.
 - S5/S6/S7 are fixed single-case benchmarks; do not use multiple benchmark seeds to simulate multiple problem instances.
-- Conservative daytime optimizer reruns should prefer `--evaluation-workers 2` or lower, including future `llm` runs.
+- Conservative daytime smoke/debug optimizer reruns may prefer `--evaluation-workers 2` or lower, including future `llm` runs; do not apply this to formal overnight budgeted S5/S6/S7 runs.
+- Formal overnight budgeted raw/union batches should use the batch resource policy (`max_concurrent_leaves=4`, `leaf_evaluation_workers=16` by default). Formal single-leaf LLM/profile runs should normally use `--evaluation-workers 16`.
 - Keep evaluation criteria in standalone `evaluation_spec` files instead of adding optimizer metadata to `thermal_case`.
 - Keep optimizer search settings and design-variable bounds in standalone `optimization_spec` files.
 - Repository-wide backbone defaults belong in `optimizers/algorithm_config.py`.

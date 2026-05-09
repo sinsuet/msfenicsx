@@ -196,7 +196,7 @@ def test_bundled_gemma4_profile_uses_hpc_ollama_route(
         "LLM_API_KEY": "bundled-gemma-key",
         "LLM_BASE_URL": "https://gemma.example/v1",
         "LLM_MODEL": "gemma4:31b-it-q8_0",
-        "LLM_MAX_OUTPUT_TOKENS": "2048",
+        "LLM_MAX_OUTPUT_TOKENS": "1024",
     }
 
 

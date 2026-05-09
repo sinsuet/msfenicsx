@@ -158,7 +158,7 @@ conda run -n msfenicsx python -m evaluation.cli evaluate-case \
 ### 优化运行
 
 ```bash
-# 单模式 smoke 测试（小预算）
+# 单模式 smoke 测试（小预算，workers=2 仅用于快速检查）
 conda run -n msfenicsx python -m optimizers.cli run-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml \
   --mode raw \
@@ -173,7 +173,7 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark \
 conda run -n msfenicsx python -m optimizers.cli run-benchmark \
   --batch-spec scenarios/batches/s5_raw_union_budgeted.yaml
 
-# 单 seed LLM 调参
+# 单 seed LLM smoke 调参（小预算）
 conda run -n msfenicsx python -m optimizers.cli run-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --mode llm \
@@ -187,6 +187,8 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark \
 ```
 
 `run-benchmark` 是 optimizer 的唯一公开运行入口，自动执行 leaf 后处理、渲染分析图表、LLM trace 诊断，并在 campaign 内生成 seed-aware comparison。
+
+正式 overnight/budgeted 运行不要沿用 smoke 的 `--evaluation-workers 2`。S5/S6 raw+union 五 seed batch 使用 batch spec 中的 `max_concurrent_leaves=4`、`leaf_evaluation_workers=16`；正式单 leaf LLM/profile 补跑通常使用 `--evaluation-workers 16`。
 
 ## 项目结构
 

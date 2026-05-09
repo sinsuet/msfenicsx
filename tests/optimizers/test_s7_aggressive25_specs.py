@@ -18,6 +18,17 @@ EXPECTED_VARIABLE_IDS = [
     for index in range(1, 26)
     for variable_id in (f"c{index:02d}_x", f"c{index:02d}_y")
 ] + ["sink_start", "sink_end"]
+EXPECTED_NEUTRAL_UNION_OPERATOR_WEIGHTS = {
+    "vector_sbx_pm": 0.60,
+    "component_jitter_1": 0.05,
+    "anchored_component_jitter": 0.05,
+    "sink_shift": 0.05,
+    "sink_resize": 0.05,
+    "component_relocate_1": 0.08,
+    "component_swap_2": 0.04,
+    "component_block_translate_2_4": 0.04,
+    "component_subspace_sbx": 0.04,
+}
 
 
 def _variable_ids(spec_path: Path) -> list[str]:
@@ -53,6 +64,9 @@ def test_s7_registry_split_uses_structured_pool_for_union_and_llm_only() -> None
     assert union["operator_control"]["controller"] == "random_uniform"
     assert union["operator_control"]["registry_profile"] == "primitive_structured"
     assert tuple(union["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_structured")
+    assert union["operator_control"]["controller_parameters"]["operator_weights"] == (
+        EXPECTED_NEUTRAL_UNION_OPERATOR_WEIGHTS
+    )
     assert llm["operator_control"]["controller"] == "llm"
     assert llm["operator_control"]["registry_profile"] == "primitive_structured"
     assert tuple(llm["operator_control"]["operator_pool"]) == approved_operator_pool("primitive_structured")

@@ -247,7 +247,7 @@ operator_control:
     model_env_var: LLM_MODEL
     api_key_env_var: LLM_API_KEY
     base_url_env_var: LLM_BASE_URL
-    max_output_tokens: 512
+    max_output_tokens: 1024
     selection_strategy: semantic_ranked_pick
     semantic_ranked_pick:
       max_rank_scan: 9
