@@ -1,9 +1,13 @@
 schema_version: "1.0"
 profiles:
   default:
-    source_api_key_env_var: GPT_PROXY_API_KEY
-    source_base_url_env_var: GPT_PROXY_BASE_URL
-    model: gpt-5.4
+    source_api_key_env_var: DEEPSEEK_PROXY_API_KEY
+    source_base_url_env_var: DEEPSEEK_PROXY_BASE_URL
+    model: deepseek-v4-flash
+    extra_body:
+      thinking:
+        type: disabled
+    max_output_tokens: 1024
   gpt_5_4:
     source_api_key_env_var: GPT_PROXY_API_KEY
     source_base_url_env_var: GPT_PROXY_BASE_URL
@@ -19,6 +23,10 @@ profiles:
     source_api_key_env_var: GPT_PROXY_API_KEY
     source_base_url_env_var: GPT_PROXY_BASE_URL
     model: gpt-5.4
+  gpt_5_5:
+    source_api_key_env_var: GPT_PROXY_API_KEY
+    source_base_url_env_var: GPT_PROXY_BASE_URL
+    model: gpt-5.5
   glm_5:
     source_api_key_env_var: QWEN_PROXY_API_KEY
     source_base_url_env_var: QWEN_PROXY_BASE_URL
@@ -29,6 +37,14 @@ profiles:
     source_api_key_env_var: QWEN_PROXY_API_KEY
     source_base_url_env_var: QWEN_PROXY_BASE_URL
     model: MiniMax-M2.5
+    extra_body:
+      enable_thinking: false
+  kimi_k2_5:
+    source_api_key_env_var: QWEN_PROXY_API_KEY
+    source_base_url_env_var: QWEN_PROXY_BASE_URL
+    model: kimi-k2.5
+    extra_body:
+      enable_thinking: false
   deepseek_v4_flash:
     source_api_key_env_var: DEEPSEEK_PROXY_API_KEY
     source_base_url_env_var: DEEPSEEK_PROXY_BASE_URL
@@ -37,10 +53,29 @@ profiles:
       thinking:
         type: disabled
     max_output_tokens: 1024
-  gemma4:
-    source_api_key_env_var: GEMMA4_API_KEY
-    source_base_url_env_var: GEMMA4_BASE_URL
-    model: gemma4:31b-it-q8_0
+  deepseek_v4_pro:
+    source_api_key_env_var: DEEPSEEK_PROXY_API_KEY
+    source_base_url_env_var: DEEPSEEK_PROXY_BASE_URL
+    model: deepseek-v4-pro
+    extra_body:
+      thinking:
+        type: disabled
+    max_output_tokens: 1024
+  deepseek_v4_pro_2:
+    source_api_key_env_var: DEEPSEEK_PROXY_API_KEY1
+    source_base_url_env_var: DEEPSEEK_PROXY_BASE_URL2
+    model: deepseek-v4-pro
+    extra_body:
+      thinking:
+        type: disabled
+    max_output_tokens: 1024
+  deepseek_v4_flash_2:
+    source_api_key_env_var: DEEPSEEK_PROXY_API_KEY1
+    source_base_url_env_var: DEEPSEEK_PROXY_BASE_URL2
+    model: deepseek-v4-flash
+    extra_body:
+      thinking:
+        type: disabled
     max_output_tokens: 1024
   mimo_v2_5:
     source_api_key_env_var: MIMO_API_KEY

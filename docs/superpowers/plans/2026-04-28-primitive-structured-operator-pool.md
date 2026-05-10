@@ -1,8 +1,8 @@
 # Primitive Structured Operator Pool Implementation Plan
 
-> **For agentic workers:** Implement this plan before S5/S6/S7. This plan owns all operator-pool code changes. Benchmark implementation branches should not edit the operator implementation files directly.
+> **For agentic workers:** Historical rollout plan. This plan originally preceded S5/S6/S7; current paper-facing scope is S4/S5/S6. It still owns the operator-pool design history, and benchmark implementation branches should not edit the operator implementation files directly.
 
-**Goal:** Add `primitive_structured` as a shared, fair, richer primitive operator registry profile for aggressive S5/S6/S7 benchmarks.
+**Goal:** Add `primitive_structured` as a shared, fair, richer primitive operator registry profile for aggressive benchmarks. The original rollout targeted S5/S6/S7; current paper-facing use is S4/S5/S6.
 
 **Architecture:** Keep `primitive_clean` unchanged for existing S1/S2 work. Add `primitive_structured` as a superset containing all current clean primitives plus `component_block_translate_2_4` and `component_subspace_sbx`. Update route-family semantics, controller-state effects, and LLM prompt metadata so `union` and `llm` share the same candidate support while `llm` gets better semantic guidance.
 

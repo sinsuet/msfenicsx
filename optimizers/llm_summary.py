@@ -382,13 +382,12 @@ def _single_or_list(values: Sequence[str]) -> str | list[str]:
 
 def _remote_endpoint_label(llm_profile: str) -> str:
     labels = {
-        "default": "GPT_PROXY_BASE_URL",
+        "default": "DEEPSEEK_PROXY_BASE_URL",
         "gpt": "GPT_PROXY_BASE_URL",
         "qwen3_6_plus": "QWEN_PROXY_BASE_URL",
         "glm_5": "QWEN_PROXY_BASE_URL",
         "minimax_m2_5": "QWEN_PROXY_BASE_URL",
         "deepseek_v4_flash": "DEEPSEEK_PROXY_BASE_URL",
-        "gemma4": "GEMMA4_BASE_URL",
         "mimo_v2_5": "MIMO_BASE_URL",
     }
     return labels.get(str(llm_profile), f"{llm_profile}_profile")

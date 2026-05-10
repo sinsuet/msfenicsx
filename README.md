@@ -74,11 +74,23 @@ PDE solver 负责物理真值，NSGA-II 负责种群选择，repair / cheap cons
 
 | 场景 | 组件数 | 决策变量数 | PDE 评估预算 |
 |------|--------|-----------|-------------|
+| S4   | 10     | 22        | 512         |
 | S5   | 15     | 32        | 1280        |
 | S6   | 20     | 42        | 2016        |
-| S7   | 25     | 52        | 2560        |
 
 每个场景包含异构组件族（核心计算模块、功率器件、I/O 板、传感器、连接器等），带有语义放置提示和最小间距约束。散热器窗口位于顶边，跨度有限，其起止位置作为决策变量。所有组件仅优化 x/y 位置。
+
+## 最终实验结构
+
+当前论文实验固定为五个 block：
+
+| Block | 实验 | 作用 |
+|------|------|------|
+| Main | S4/S5/S6，5 seeds，`raw` vs `llm_deepseek_v4_flash` | 验证主方法在规模递增场景上稳定优于 raw |
+| Semantic Ablation | S4，5 seeds，`raw / union / llm` | 隔离语义控制贡献，说明不是多算子池本身带来的 |
+| Mechanism Ablation | S5，5 seeds，`llm_direct` vs ours | 验证 inline semantic controller 比直接 LLM 选算子更稳 |
+| Model Sensitivity | S5 seed11，DeepSeek/Qwen/Kimi/GPT/MiMo | 说明机制不是单一模型特例，但不做强统计 claim |
+| Algorithm Baseline | S5，5 seeds，NSGA-II/SPEA2/MOEA/D raw | 说明 raw baseline 不是因为 NSGA-II 太弱 |
 
 ## 实验结果
 
@@ -169,15 +181,29 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark \
   --evaluation-workers 2 \
   --scenario-runs-root ./scenario_runs
 
-# 正式 S5 raw+union 五 seed batch
+# 正式 Main block：S4/S5/S6 raw vs DeepSeek LLM
 conda run -n msfenicsx python -m optimizers.cli run-benchmark \
-  --batch-spec scenarios/batches/s5_raw_union_budgeted.yaml
+  --batch-spec scenarios/batches/s4_main_raw_llm_deepseek_budgeted.yaml
+
+conda run -n msfenicsx python -m optimizers.cli run-benchmark \
+  --batch-spec scenarios/batches/s5_main_raw_llm_deepseek_budgeted.yaml
+
+conda run -n msfenicsx python -m optimizers.cli run-benchmark \
+  --batch-spec scenarios/batches/s6_main_raw_llm_deepseek_budgeted.yaml
+
+# S4 semantic ablation
+conda run -n msfenicsx python -m optimizers.cli run-benchmark \
+  --batch-spec scenarios/batches/s4_semantic_ablation_budgeted.yaml
+
+# S5 mechanism ablation
+conda run -n msfenicsx python -m optimizers.cli run-benchmark \
+  --batch-spec scenarios/batches/s5_mechanism_llm_direct_vs_ours_budgeted.yaml
 
 # 单 seed LLM smoke 调参（小预算）
 conda run -n msfenicsx python -m optimizers.cli run-benchmark \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --mode llm \
-  --llm-profile gemma4 \
+  --llm-profile deepseek_v4_flash \
   --benchmark-seed 11 \
   --algorithm-seed 1011 \
   --population-size 5 \
@@ -188,7 +214,7 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark \
 
 `run-benchmark` 是 optimizer 的唯一公开运行入口，自动执行 leaf 后处理、渲染分析图表、LLM trace 诊断，并在 campaign 内生成 seed-aware comparison。
 
-正式 overnight/budgeted 运行不要沿用 smoke 的 `--evaluation-workers 2`。S5/S6 raw+union 五 seed batch 使用 batch spec 中的 `max_concurrent_leaves=4`、`leaf_evaluation_workers=16`；正式单 leaf LLM/profile 补跑通常使用 `--evaluation-workers 16`。
+正式 overnight/budgeted 运行不要沿用 smoke 的 `--evaluation-workers 2`。S4/S5/S6 paper-facing batch 使用 batch spec 中的 `max_concurrent_leaves=4`、`leaf_evaluation_workers=32`；正式单 leaf LLM/profile 补跑通常使用 `--evaluation-workers 32`。
 
 ## 项目结构
 

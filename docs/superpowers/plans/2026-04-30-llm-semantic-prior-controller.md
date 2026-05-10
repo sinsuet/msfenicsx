@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> Status: superseded by `2026-04-30-llm-semantic-ranker-controller.md`; keep as historical context only. Current active YAML work targets S5-S7.
+> Status: superseded by `2026-04-30-llm-semantic-ranker-controller.md`; keep as historical context only. As of 2026-05-10, current active paper-facing YAML work targets S4/S5/S6, not the historical S5-S7 set.
 
 **Goal:** Replace the active LLM route's direct operator selection with an LLM semantic/operator prior contract plus a lightweight constrained sampler, while leaving `raw` and `union` unchanged.
 
@@ -30,7 +30,7 @@
   - Add semantic-prior branch in `select_decision(...)`.
   - Add prior-specific system prompt.
   - Record prior and sampler metadata in traces and `ControllerDecision.metadata`.
-- Modify: active S5-S7 LLM specs only:
+- Modify: historical active S5-S7 LLM specs only:
   - `scenarios/optimization/s5_aggressive15_llm.yaml`
   - `scenarios/optimization/s6_aggressive20_llm.yaml`
   - `scenarios/optimization/s7_aggressive25_llm.yaml`
@@ -1629,7 +1629,9 @@ git commit -m "feat: sample llm semantic prior advice"
 
 ---
 
-### Task 4: Enable New Strategy In Active LLM Specs
+### Task 4: Enable New Strategy In Historical Active LLM Specs
+
+> Current-scope note: do not use this S5/S6/S7 file map for new execution. The active post-retirement scenario scope is S4/S5/S6.
 
 **Files:**
 - Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`

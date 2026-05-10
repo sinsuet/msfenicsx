@@ -16,7 +16,7 @@ DEFAULT_REPLICATE_SEEDS = (11, 17, 23, 29, 31)
 @dataclass(frozen=True)
 class ResourcePolicy:
     max_concurrent_leaves: int = 4
-    leaf_evaluation_workers: int = 16
+    leaf_evaluation_workers: int = 32
 
 
 @dataclass(frozen=True)
@@ -116,7 +116,7 @@ def _campaign_from_payload(payload: dict[str, Any], *, base_path: Path) -> Campa
     resource_payload = dict(payload.get("resource_policy", {}))
     resource_policy = ResourcePolicy(
         max_concurrent_leaves=int(resource_payload.get("max_concurrent_leaves", 4)),
-        leaf_evaluation_workers=int(resource_payload.get("leaf_evaluation_workers", 16)),
+        leaf_evaluation_workers=int(resource_payload.get("leaf_evaluation_workers", 32)),
     )
     comparison_payload = dict(payload.get("comparison_policy", {}))
     comparison_policy = ComparisonPolicy(
@@ -174,7 +174,7 @@ def _resolve_spec_path(base_path: Path, raw_path: str | Path) -> Path:
 
 def _scenario_id_from_spec_path(path: Path) -> str:
     name = path.stem
-    for suffix in ("_spea2_raw", "_moead_raw", "_raw", "_union", "_llm"):
+    for suffix in ("_spea2_raw", "_moead_raw", "_llm_direct", "_llm_no_repair", "_raw", "_union", "_llm"):
         if name.endswith(suffix):
             return name[: -len(suffix)]
     return name
@@ -190,6 +190,10 @@ def _method_id(
     if explicit_method_id:
         return str(explicit_method_id)
     if mode == "llm":
+        if Path(optimization_spec).stem.endswith("_llm_direct"):
+            return f"llm_direct:{llm_profile or 'default'}"
+        if Path(optimization_spec).stem.endswith("_llm_no_repair"):
+            return f"llm_no_repair:{llm_profile or 'default'}"
         return f"llm:{llm_profile or 'default'}"
     stem = Path(optimization_spec).stem
     if stem.endswith("_spea2_raw"):

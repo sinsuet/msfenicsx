@@ -233,7 +233,7 @@ Return JSON only.
 
 ## Active YAML 切换
 
-只修改 active S5-S7 LLM specs：
+历史计划只修改当时 active S5-S7 LLM specs。当前 paper-facing scope 是 S4/S5/S6；新执行不得恢复 S7：
 
 - `scenarios/optimization/s5_aggressive15_llm.yaml`
 - `scenarios/optimization/s6_aggressive20_llm.yaml`

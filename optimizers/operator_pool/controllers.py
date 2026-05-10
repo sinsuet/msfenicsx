@@ -32,7 +32,7 @@ class OperatorController(Protocol):
 
 
 def list_registered_controller_ids() -> list[str]:
-    return ["random_uniform", "llm"]
+    return ["random_uniform", "llm", "llm_direct"]
 
 
 def build_controller(controller_id: str, controller_parameters: dict[str, Any] | None = None) -> OperatorController:
@@ -47,14 +47,21 @@ def build_controller(controller_id: str, controller_parameters: dict[str, Any] |
         if controller_parameters is None:
             raise ValueError("The llm controller requires controller_parameters.")
         return LLMOperatorController(controller_parameters=controller_parameters)
+    if controller_id == "llm_direct":
+        from optimizers.operator_pool.llm_direct_controller import LLMDirectOperatorController
+
+        if controller_parameters is None:
+            raise ValueError("The llm_direct controller requires controller_parameters.")
+        return LLMDirectOperatorController(controller_parameters=controller_parameters)
     raise KeyError(f"Unsupported operator-pool controller '{controller_id}'.")
 
 
 def configure_controller_trace_outputs(controller: Any, *, output_root: str | Path | None) -> None:
-    if getattr(controller, "controller_id", None) != "llm":
+    if getattr(controller, "controller_id", None) not in {"llm", "llm_direct"}:
         return
+    controller_id = str(getattr(controller, "controller_id", "llm"))
     if output_root is None:
-        raise ValueError("The llm controller requires trace_output_root.")
+        raise ValueError(f"The {controller_id} controller requires trace_output_root.")
     if not hasattr(controller, "configure_trace_outputs"):
         return
     root = Path(output_root)

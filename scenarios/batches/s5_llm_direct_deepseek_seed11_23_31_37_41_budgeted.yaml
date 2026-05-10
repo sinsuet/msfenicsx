@@ -1,0 +1,18 @@
+campaign_id: s5_llm_direct_deepseek_seed11_23_31_37_41_budgeted
+scenario_runs_root: ./scenario_runs
+scenario_id: s5_aggressive15
+methods:
+  - method_id: llm_direct:deepseek_v4_flash
+    mode: llm
+    llm_profile: deepseek_v4_flash
+    optimization_spec: scenarios/optimization/s5_aggressive15_llm_direct.yaml
+replicate_seeds: [11, 23, 31, 37, 41]
+algorithm_seed_offset: 1000
+population_size: 40
+num_generations: 32
+resource_policy:
+  max_concurrent_leaves: 5
+  leaf_evaluation_workers: 32
+comparison_policy:
+  by_seed: true
+  aggregate: true

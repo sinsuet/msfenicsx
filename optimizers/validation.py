@@ -14,14 +14,22 @@ SUPPORTED_BACKBONES_BY_FAMILY = {
     "decomposition": ("moead",),
 }
 SUPPORTED_MODES = {"raw", "union"}
-SUPPORTED_CONTROLLERS = {"random_uniform", "llm"}
+SUPPORTED_CONTROLLERS = {"random_uniform", "llm", "llm_direct"}
 SUPPORTED_REGISTRY_PROFILES = {"primitive_clean", "primitive_structured", "primitive_plus_assisted"}
 SUPPORTED_LLM_CAPABILITY_PROFILES = {"responses_native", "chat_compatible_json"}
 SUPPORTED_LLM_PERFORMANCE_PROFILES = {"economy", "balanced", "high_reasoning"}
 SUPPORTED_LLM_FALLBACK_CONTROLLERS = {"random_uniform"}
+LLM_DIRECT_FORBIDDEN_MECHANISM_KEYS = {
+    "fallback_controller",
+    "memory",
+    "semantic_prior_sampler",
+    "semantic_ranked_pick",
+    "selection_strategy",
+}
 SUPPORTED_LEGALITY_POLICIES = {
     "minimal_canonicalization",
     "projection_plus_local_restore",
+    "bounds_only",
 }
 
 
@@ -221,8 +229,10 @@ def _validate_operator_control(operator_control: Any, *, family: str, backbone: 
             "operator_control.operator_pool must exactly match the approved pool for "
             f"registry_profile={registry_profile!r}: {list(expected_pool)}."
         )
-    if controller == "llm" and operator_control.get("controller_parameters") is not None:
+    if controller in {"llm", "llm_direct"} and operator_control.get("controller_parameters") is not None:
         _validate_llm_controller_parameters(operator_control.get("controller_parameters"))
+    if controller == "llm_direct":
+        _validate_llm_direct_controller_parameters(operator_control.get("controller_parameters"))
 
 
 def _validate_llm_controller_parameters(controller_parameters: Any) -> None:
@@ -335,6 +345,16 @@ def _validate_llm_controller_parameters(controller_parameters: Any) -> None:
                 "operator_control.controller_parameters.fallback_controller must be one of "
                 f"{sorted(SUPPORTED_LLM_FALLBACK_CONTROLLERS)}."
             )
+
+
+def _validate_llm_direct_controller_parameters(controller_parameters: Any) -> None:
+    parameters = _require_mapping(controller_parameters, "operator_control.controller_parameters")
+    forbidden_keys = sorted(str(key) for key in LLM_DIRECT_FORBIDDEN_MECHANISM_KEYS if key in parameters)
+    if forbidden_keys:
+        raise OptimizationValidationError(
+            "llm_direct is a mechanism-free top-1 ablation and must not define mechanism keys: "
+            f"{forbidden_keys}."
+        )
 
 
 def _validate_evaluation_protocol(protocol: Any) -> None:

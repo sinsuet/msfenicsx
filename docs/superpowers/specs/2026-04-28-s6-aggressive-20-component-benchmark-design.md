@@ -1,6 +1,6 @@
 # S6 Aggressive 20-Component Benchmark Design
 
-> Status: implemented; active 20-component aggressive companion in the S5-S7 mainline.
+> Status: implemented; active 20-component aggressive companion in the S4-S6 paper-facing mainline.
 >
 > This benchmark extends the aggressive family to 20 components. It is denser than S5 and should expose whether the shared primitive pool still gives `llm` a semantic advantage when congestion, thermal load, and spatial interaction all rise together.
 
@@ -165,7 +165,7 @@ No private assisted actions.
 No hard filtering.
 No divergence from the shared pool contract.
 
-That shared contract is what lets us compare S5, S6, and S7 consistently.
+That shared contract originally supported the S5/S6/S7 expansion path. After the 2026-05-10 S7 retirement, the active paper-facing comparison ladder is S4/S5/S6.
 
 ## 8. Validation Gates
 

@@ -17,7 +17,7 @@ def test_single_leaf_llm_campaign_derives_method_and_paths(tmp_path: Path) -> No
         algorithm_seed=1011,
         population_size=40,
         num_generations=32,
-        evaluation_workers=16,
+        evaluation_workers=32,
         scenario_runs_root=tmp_path / "scenario_runs",
         campaign_id="s5_budgeted_main",
         compare_with=[tmp_path / "scenario_runs/s5_aggressive15/0508_2300__raw_union"],
@@ -35,8 +35,29 @@ def test_single_leaf_llm_campaign_derives_method_and_paths(tmp_path: Path) -> No
     assert leaf.algorithm_seed == 1011
     assert leaf.population_size == 40
     assert leaf.num_generations == 32
-    assert leaf.evaluation_workers == 16
+    assert leaf.evaluation_workers == 32
     assert campaign.compare_with == (tmp_path / "scenario_runs/s5_aggressive15/0508_2300__raw_union",)
+
+
+def test_single_leaf_llm_direct_campaign_derives_base_scenario_id(tmp_path: Path) -> None:
+    campaign = build_single_leaf_campaign(
+        optimization_spec=Path("scenarios/optimization/s5_aggressive15_llm_direct.yaml"),
+        mode="llm",
+        llm_profile="deepseek_v4_flash",
+        benchmark_seed=11,
+        algorithm_seed=1011,
+        population_size=2,
+        num_generations=2,
+        evaluation_workers=2,
+        scenario_runs_root=tmp_path / "scenario_runs",
+        campaign_id="s5_llm_direct_seed11_smoke",
+    )
+
+    assert campaign.scenario_id == "s5_aggressive15"
+    leaf = campaign.leaves[0]
+    assert leaf.scenario_id == "s5_aggressive15"
+    assert leaf.method_id == "llm_direct:deepseek_v4_flash"
+    assert leaf.method_slug == "llm-direct-deepseek-v4-flash"
 
 
 def test_single_leaf_raw_campaign_uses_stable_mode_directory_slug(tmp_path: Path) -> None:
@@ -48,7 +69,7 @@ def test_single_leaf_raw_campaign_uses_stable_mode_directory_slug(tmp_path: Path
         algorithm_seed=1011,
         population_size=40,
         num_generations=32,
-        evaluation_workers=16,
+        evaluation_workers=32,
         scenario_runs_root=tmp_path / "scenario_runs",
         campaign_id=None,
     )
@@ -84,7 +105,7 @@ def test_batch_spec_expands_methods_by_replicate_seeds(tmp_path: Path) -> None:
                 "num_generations": 32,
                 "resource_policy": {
                     "max_concurrent_leaves": 4,
-                    "leaf_evaluation_workers": 16,
+                    "leaf_evaluation_workers": 32,
                 },
                 "comparison_policy": {"by_seed": True, "aggregate": True},
             },
@@ -99,7 +120,7 @@ def test_batch_spec_expands_methods_by_replicate_seeds(tmp_path: Path) -> None:
     campaign = campaigns[0]
     assert campaign.scenario_id == "s5_aggressive15"
     assert campaign.resource_policy.max_concurrent_leaves == 4
-    assert campaign.resource_policy.leaf_evaluation_workers == 16
+    assert campaign.resource_policy.leaf_evaluation_workers == 32
     assert [(leaf.method_id, leaf.benchmark_seed, leaf.algorithm_seed) for leaf in campaign.leaves] == [
         ("nsga2_raw", 11, 1011),
         ("nsga2_raw", 17, 1017),

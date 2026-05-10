@@ -1,0 +1,13 @@
+schema_version: "1.0"
+profile_meta:
+  profile_id: s4_aggressive10_nsga2_union_profile
+  description: S4 aggressive 10-component tuning for NSGA-II primitive-structured union and llm modes.
+family: genetic
+backbone: nsga2
+mode: union
+parameters:
+  crossover:
+    eta: 10
+    prob: 0.9
+  mutation:
+    eta: 15

@@ -19,7 +19,9 @@ def resolve_evaluation_workers(requested: int | None) -> int:
             raise ValueError("evaluation_workers must be >= 1.")
         return value
     cpu_count = os.cpu_count() or 1
-    return 1 if cpu_count <= 4 else 2
+    if cpu_count <= 4:
+        return 1
+    return max(cpu_count // 2, 8)
 
 
 def evaluate_candidate_payload(candidate_payload: dict[str, Any], evaluation_spec: dict[str, Any]) -> dict[str, Any]:

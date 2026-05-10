@@ -543,11 +543,41 @@ def _extract_final_front(events: Sequence[Mapping[str, Any]]) -> list[tuple[floa
 
 
 def _progress_rows(run_root: Path) -> list[dict[str, Any]]:
+    sidecar_path = run_root / "analytics" / "progress_timeline.csv"
+    if sidecar_path.exists():
+        rows = _read_progress_timeline_sidecar(sidecar_path)
+        if rows:
+            return rows
     optimization_result_path = run_root / "optimization_result.json"
     if not optimization_result_path.exists():
         return []
     payload = json.loads(optimization_result_path.read_text(encoding="utf-8"))
     return build_progress_timeline(list(payload.get("history", [])))
+
+
+def _read_progress_timeline_sidecar(path: Path) -> list[dict[str, Any]]:
+    with path.open(newline="", encoding="utf-8") as handle:
+        return [
+            {str(key): _parse_progress_sidecar_value(value) for key, value in row.items()}
+            for row in csv.DictReader(handle)
+        ]
+
+
+def _parse_progress_sidecar_value(value: Any) -> Any:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if text in {"True", "False"}:
+        return text == "True"
+    try:
+        number = float(text)
+    except ValueError:
+        return value
+    if number.is_integer() and "." not in text and "e" not in text.lower():
+        return int(number)
+    return number
 
 
 def _mode_of(run_root: Path) -> str:

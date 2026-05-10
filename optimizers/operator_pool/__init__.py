@@ -4,6 +4,7 @@ from optimizers.operator_pool.controllers import build_controller, list_register
 from optimizers.operator_pool.decisions import ControllerDecision
 from optimizers.operator_pool.layout import VariableLayout, VariableSlot
 from optimizers.operator_pool.llm_controller import LLMOperatorController
+from optimizers.operator_pool.llm_direct_controller import LLMDirectOperatorController
 from optimizers.operator_pool.models import ParentBundle
 from optimizers.operator_pool.operators import (
     OperatorDefinition,
@@ -24,6 +25,7 @@ __all__ = [
     "ControllerDecision",
     "ControllerState",
     "ControllerTraceRow",
+    "LLMDirectOperatorController",
     "LLMOperatorController",
     "approved_union_operator_ids_for_backbone",
     "get_operator_definition",

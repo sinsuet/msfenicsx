@@ -65,6 +65,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
         native_parameters: dict[str, Any],
         radiator_span_max: float | None = None,
         controller_parameters: dict[str, Any] | None = None,
+        llm_batch_size: int = 0,
     ) -> None:
         super().__init__(
             repair=raw_mating.repair,
@@ -101,6 +102,7 @@ class GeneticFamilyUnionMating(InfillCriterion):
         self.operator_attempt_trace: list[OperatorAttemptTraceRow] = []
         self._next_decision_index = 0
         self._next_attempt_index = 0
+        self.llm_batch_size = max(0, int(llm_batch_size))
 
     def do(self, problem, pop, n_offsprings, random_state=None, n_max_iterations=None, **kwargs):
         if n_max_iterations is None:
@@ -156,6 +158,8 @@ class GeneticFamilyUnionMating(InfillCriterion):
                 for row in np.asarray(parents, dtype=np.int64).tolist()
             ]
 
+        generation_index = max(0, int(getattr(algorithm, "n_iter", 0)))
+
         while len(off) < n_offsprings and n_attempted_events < n_max_iterations:
             if parent_row_queue:
                 parent_row = parent_row_queue.pop(0)
@@ -168,17 +172,38 @@ class GeneticFamilyUnionMating(InfillCriterion):
                     algorithm=algorithm,
                     **kwargs,
                 )[0].tolist()
-            record = self._build_event_record(
+            decision_index = self._next_decision_index
+            self._next_decision_index += 1
+            evaluation_index = int(problem._next_evaluation_index + len(generation_controller_trace))
+            item = self._build_event_state(
                 pop,
                 parent_row,
-                generation_index=max(0, int(getattr(algorithm, "n_iter", 0))),
+                generation_index=generation_index,
                 event_index=n_attempted_events,
-                rng=rng,
+                decision_index=decision_index,
+                evaluation_index=evaluation_index,
                 problem=problem,
                 local_controller_trace=generation_controller_trace,
                 local_operator_trace=generation_operator_trace,
                 generation_target_offsprings=int(n_offsprings),
             )
+            decision = self._dispatch_single_llm_decision(item["state"], rng)
+            decision_id = format_decision_id(
+                int(item["generation_index"]),
+                int(item["evaluation_index"]),
+                int(item["decision_index"]),
+            )
+            record = {
+                "decision_index": item["decision_index"],
+                "decision_id": decision_id,
+                "evaluation_index": item["evaluation_index"],
+                "generation_index": item["generation_index"],
+                "row": item["row"],
+                "parents": item["parents"],
+                "state": item["state"],
+                "decision": decision,
+                "operator_id": decision.selected_operator_id,
+            }
             decision_indices_seen.add(int(record["decision_index"]))
             proposal_population, next_provisional_evaluation_index = self._proposal_population_for_record(
                 problem,
@@ -497,6 +522,61 @@ class GeneticFamilyUnionMating(InfillCriterion):
             ),
             dtype=np.int64,
         )
+
+    def _build_event_state(
+        self,
+        pop: Population,
+        row: list[int],
+        *,
+        generation_index: int,
+        event_index: int,
+        decision_index: int,
+        evaluation_index: int,
+        problem: Any,
+        local_controller_trace: list[ControllerTraceRow] | None = None,
+        local_operator_trace: list[OperatorTraceRow] | None = None,
+        generation_target_offsprings: int | None = None,
+    ) -> dict[str, Any]:
+        parent_vectors = [np.asarray(pop[index].X, dtype=np.float64) for index in row]
+        parents = ParentBundle.from_vectors(*parent_vectors)
+        state = build_controller_state(
+            parents,
+            family=self.family,
+            backbone=self.backbone,
+            generation_index=generation_index,
+            evaluation_index=evaluation_index,
+            candidate_operator_ids=self.operator_ids,
+            metadata={
+                "parent_indices": row,
+                "native_parameters": deepcopy(self.native_parameters),
+                "decision_index": decision_index,
+                "design_variable_ids": list(self.design_variable_ids),
+                "total_evaluation_budget": int(self.total_evaluation_budget),
+                "radiator_span_max": self.radiator_span_max,
+                "generation_target_offsprings": generation_target_offsprings,
+            },
+            controller_trace=self.controller_trace,
+            operator_trace=self.operator_trace,
+            local_controller_trace=local_controller_trace,
+            local_operator_trace=local_operator_trace,
+            history=problem.history,
+            recent_window=self.recent_window,
+        )
+        return {
+            "decision_index": decision_index,
+            "evaluation_index": int(evaluation_index),
+            "generation_index": int(generation_index),
+            "row": list(row),
+            "parents": parents,
+            "state": state,
+        }
+
+    def _dispatch_single_llm_decision(
+        self,
+        state: dict[str, Any],
+        rng: np.random.Generator,
+    ) -> Any:
+        return select_controller_decision(self.controller, state, self.operator_ids, rng)
 
     def _build_event_record(
         self,
@@ -1069,6 +1149,7 @@ def build_genetic_union_algorithm(
             "mutation": deepcopy(algorithm_config.get("parameters", {}).get("mutation", {})),
         },
         radiator_span_max=getattr(problem, "radiator_span_max", None),
+        llm_batch_size=int(operator_control.get("llm_batch_size", 0)),
     )
     configure_controller_trace_outputs(mating.controller, output_root=trace_output_root)
     algorithm.mating = mating

@@ -140,6 +140,8 @@ def _run_slug_for_leaf(leaf: BenchmarkLeaf) -> str:
         return "raw"
     if leaf.method_id == "nsga2_union":
         return "union"
+    if leaf.method_id.startswith("llm_direct:"):
+        return leaf.method_slug
     if leaf.mode == "llm":
         return f"llm-{leaf.llm_profile or 'default'}"
     return leaf.method_slug

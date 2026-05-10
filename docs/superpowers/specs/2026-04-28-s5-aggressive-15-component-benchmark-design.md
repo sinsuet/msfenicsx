@@ -1,6 +1,6 @@
 # S5 Aggressive 15-Component Benchmark Design
 
-> Status: implemented; current primary debugging template for the active S5-S7 mainline.
+> Status: implemented; current primary debugging template for the active S4-S6 paper-facing mainline. Historical text below may still mention the retired S5-S7 expansion path.
 >
 > This benchmark is the first aggressive paper-facing benchmark that will use the shared `primitive_structured` pool. It is intentionally more spacious and more thermally demanding than `s5_aggressive15`, so `raw` weakens, `union` remains meaningful, and `llm` has room to win through better semantic operator choice.
 
@@ -209,4 +209,4 @@ This benchmark does **not**:
 5. Run a small raw / union / llm smoke comparison.
 6. Calibrate constraints if the baseline is either too easy or too pathological.
 
-S6 and S7 should only be implemented after S5 has passed the first calibration loop.
+Historical implementation note: S6 was implemented after S5 calibration. S7 has since been retired from the active paper-facing matrix; current scale work is S4/S5/S6.

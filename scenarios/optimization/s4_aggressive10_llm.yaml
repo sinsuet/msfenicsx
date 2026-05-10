@@ -1,0 +1,147 @@
+schema_version: "1.0"
+spec_meta:
+  spec_id: s4_aggressive10_nsga2_llm
+  description: S4 aggressive 10-component single-case NSGA-II llm-controller mode using DeepSeek and the shared primitive_structured registry profile with the same 22D encoding as union.
+benchmark_source:
+  template_path: scenarios/templates/s4_aggressive10.yaml
+  seed: 11
+design_variables:
+  - variable_id: c01_x
+    path: components[0].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c01_y
+    path: components[0].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c02_x
+    path: components[1].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c02_y
+    path: components[1].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c03_x
+    path: components[2].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c03_y
+    path: components[2].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c04_x
+    path: components[3].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c04_y
+    path: components[3].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c05_x
+    path: components[4].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c05_y
+    path: components[4].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c06_x
+    path: components[5].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c06_y
+    path: components[5].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c07_x
+    path: components[6].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c07_y
+    path: components[6].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c08_x
+    path: components[7].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c08_y
+    path: components[7].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c09_x
+    path: components[8].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c09_y
+    path: components[8].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c10_x
+    path: components[9].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c10_y
+    path: components[9].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: sink_start
+    path: boundary_features[0].start
+    lower_bound: 0.05
+    upper_bound: 0.7
+  - variable_id: sink_end
+    path: boundary_features[0].end
+    lower_bound: 0.2
+    upper_bound: 0.95
+algorithm:
+  family: genetic
+  backbone: nsga2
+  mode: union
+  population_size: 32
+  num_generations: 16
+  seed: 7
+  profile_path: scenarios/optimization/profiles/s4_aggressive10_union.yaml
+operator_control:
+  controller: llm
+  llm_batch_size: 16
+  registry_profile: primitive_structured
+  operator_pool:
+    - vector_sbx_pm
+    - component_jitter_1
+    - anchored_component_jitter
+    - component_relocate_1
+    - component_swap_2
+    - sink_shift
+    - sink_resize
+    - component_block_translate_2_4
+    - component_subspace_sbx
+  controller_parameters:
+    provider: openai-compatible
+    provider_profile: deepseek_v4_flash
+    capability_profile: chat_compatible_json
+    performance_profile: balanced
+    model_env_var: LLM_MODEL
+    api_key_env_var: LLM_API_KEY
+    base_url_env_var: LLM_BASE_URL
+    max_output_tokens: 1024
+    selection_strategy: semantic_ranked_pick
+    semantic_ranked_pick:
+      max_rank_scan: 9
+      generation_operator_cap_fraction: 0.35
+      rolling_operator_cap_fraction: 0.40
+      rolling_semantic_task_cap_fraction: 0.55
+      rolling_window: 16
+      near_tie_score_margin: 0.03
+      low_confidence_threshold: 0.35
+    temperature: 0.7
+    retry:
+      max_attempts: 2
+      timeout_seconds: 35
+    memory:
+      recent_window: 16
+      reflection_interval: 1
+    fallback_controller: random_uniform
+evaluation_protocol:
+  evaluation_spec_path: scenarios/evaluation/s4_aggressive10_eval.yaml
+  legality_policy_id: projection_plus_local_restore

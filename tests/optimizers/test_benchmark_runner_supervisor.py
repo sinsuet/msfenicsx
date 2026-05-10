@@ -20,7 +20,7 @@ def _leaf() -> BenchmarkLeaf:
         algorithm_seed=1011,
         population_size=40,
         num_generations=32,
-        evaluation_workers=16,
+        evaluation_workers=32,
     )
 
 
@@ -65,7 +65,7 @@ def test_supervisor_writes_index_without_forking_pool(tmp_path: Path, monkeypatc
         scenario_id="s5_aggressive15",
         scenario_runs_root=tmp_path / "scenario_runs",
         leaves=(_leaf(),),
-        resource_policy=ResourcePolicy(max_concurrent_leaves=1, leaf_evaluation_workers=16),
+        resource_policy=ResourcePolicy(max_concurrent_leaves=1, leaf_evaluation_workers=32),
     )
 
     run_root = run_campaign_supervisor(campaign, run_id="0508_2300__raw")
@@ -77,3 +77,29 @@ def test_supervisor_writes_index_without_forking_pool(tmp_path: Path, monkeypatc
     assert rows[0]["status"] == "completed"
     assert rows[0]["method_id"] == "nsga2_raw"
     assert rows[0]["benchmark_seed"] == "11"
+
+
+def test_supervisor_uses_distinct_run_slug_for_llm_direct() -> None:
+    leaf = BenchmarkLeaf(
+        scenario_id="s5_aggressive15",
+        method_id="llm_direct:deepseek_v4_flash",
+        method_slug="llm-direct-deepseek-v4-flash",
+        mode="llm",
+        optimization_spec=Path("scenarios/optimization/s5_aggressive15_llm_direct.yaml"),
+        benchmark_seed=11,
+        algorithm_seed=1011,
+        population_size=2,
+        num_generations=2,
+        evaluation_workers=2,
+        llm_profile="deepseek_v4_flash",
+    )
+    campaign = CampaignSpec(
+        campaign_id="s5_llm_direct_seed11_smoke",
+        scenario_id="s5_aggressive15",
+        scenario_runs_root=Path("scenario_runs"),
+        leaves=(leaf,),
+    )
+
+    from optimizers.benchmark_runner.supervisor import _build_run_id
+
+    assert _build_run_id(campaign).endswith("__llm-direct-deepseek-v4-flash")

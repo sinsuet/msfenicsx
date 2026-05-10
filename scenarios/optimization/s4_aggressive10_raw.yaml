@@ -1,0 +1,107 @@
+schema_version: "1.0"
+spec_meta:
+  spec_id: s4_aggressive10_nsga2_raw
+  description: S4 aggressive 10-component single-case NSGA-II raw baseline with the same 22D encoding and 32x16 budget as union and llm.
+benchmark_source:
+  template_path: scenarios/templates/s4_aggressive10.yaml
+  seed: 11
+design_variables:
+  - variable_id: c01_x
+    path: components[0].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c01_y
+    path: components[0].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c02_x
+    path: components[1].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c02_y
+    path: components[1].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c03_x
+    path: components[2].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c03_y
+    path: components[2].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c04_x
+    path: components[3].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c04_y
+    path: components[3].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c05_x
+    path: components[4].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c05_y
+    path: components[4].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c06_x
+    path: components[5].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c06_y
+    path: components[5].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c07_x
+    path: components[6].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c07_y
+    path: components[6].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c08_x
+    path: components[7].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c08_y
+    path: components[7].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c09_x
+    path: components[8].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c09_y
+    path: components[8].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: c10_x
+    path: components[9].pose.x
+    lower_bound: 0.06
+    upper_bound: 0.94
+  - variable_id: c10_y
+    path: components[9].pose.y
+    lower_bound: 0.05
+    upper_bound: 0.72
+  - variable_id: sink_start
+    path: boundary_features[0].start
+    lower_bound: 0.05
+    upper_bound: 0.7
+  - variable_id: sink_end
+    path: boundary_features[0].end
+    lower_bound: 0.2
+    upper_bound: 0.95
+algorithm:
+  family: genetic
+  backbone: nsga2
+  mode: raw
+  population_size: 32
+  num_generations: 16
+  seed: 7
+  profile_path: scenarios/optimization/profiles/s4_aggressive10_raw.yaml
+evaluation_protocol:
+  evaluation_spec_path: scenarios/evaluation/s4_aggressive10_eval.yaml
+  legality_policy_id: projection_plus_local_restore

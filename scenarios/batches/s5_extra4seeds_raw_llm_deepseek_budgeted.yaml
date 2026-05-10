@@ -1,0 +1,21 @@
+campaign_id: s5_4seeds_13_19_25_33_raw_llm_deepseek
+scenario_runs_root: ./scenario_runs
+scenario_id: s5_aggressive15
+methods:
+  - method_id: nsga2_raw
+    mode: raw
+    optimization_spec: scenarios/optimization/s5_aggressive15_raw.yaml
+  - method_id: nsga2_llm:deepseek_v4_flash
+    mode: llm
+    llm_profile: deepseek_v4_flash
+    optimization_spec: scenarios/optimization/s5_aggressive15_llm.yaml
+replicate_seeds: [13, 19, 25, 33]
+algorithm_seed_offset: 1000
+population_size: 40
+num_generations: 32
+resource_policy:
+  max_concurrent_leaves: 4
+  leaf_evaluation_workers: 32
+comparison_policy:
+  by_seed: true
+  aggregate: true

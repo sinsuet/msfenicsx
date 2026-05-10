@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--algorithm-seed", type=int)
     run_parser.add_argument("--population-size", type=_positive_int)
     run_parser.add_argument("--num-generations", type=_positive_int)
-    run_parser.add_argument("--evaluation-workers", type=_positive_int, default=16)
+    run_parser.add_argument("--evaluation-workers", type=_positive_int, default=32)
     run_parser.add_argument("--scenario-runs-root", default="./scenario_runs")
     run_parser.add_argument("--campaign-id")
     run_parser.add_argument("--compare-with", action="append", default=[])

@@ -922,8 +922,6 @@ def test_matrix_llm_profiles_include_gpt_5_4_alias(monkeypatch):
     monkeypatch.setenv("QWEN_PROXY_BASE_URL", "https://qwen.example/v1")
     monkeypatch.setenv("DEEPSEEK_PROXY_API_KEY", "deepseek-key")
     monkeypatch.setenv("DEEPSEEK_PROXY_BASE_URL", "https://deepseek.example/v1")
-    monkeypatch.setenv("GEMMA4_API_KEY", "gemma-key")
-    monkeypatch.setenv("GEMMA4_BASE_URL", "http://127.0.0.1:8000/v1")
     monkeypatch.setenv("MIMO_API_KEY", "mimo-key")
     monkeypatch.setenv("MIMO_BASE_URL", "https://token-plan-cn.xiaomimimo.example/v1")
 
@@ -931,9 +929,9 @@ def test_matrix_llm_profiles_include_gpt_5_4_alias(monkeypatch):
         "gpt_5_4": "gpt-5.4",
         "qwen3_6_plus": "qwen3.6-plus",
         "glm_5": "glm-5",
+        "kimi_k2_5": "kimi-k2.5",
         "minimax_m2_5": "MiniMax-M2.5",
         "deepseek_v4_flash": "deepseek-v4-flash",
-        "gemma4": "gemma4:31b-it-q8_0",
         "mimo_v2_5": "mimo-v2.5",
     }
 

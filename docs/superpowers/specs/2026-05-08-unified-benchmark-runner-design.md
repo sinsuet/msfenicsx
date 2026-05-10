@@ -40,8 +40,8 @@
 
 ## 非目标
 
-- 不改变 S5/S6/S7 的 paper-facing 预算、目标函数、repair path、operator substrate 或 LLM controller policy。
-- 不在本机调度 Gemma4 GPU 资源。Gemma4 通过远程 OpenAI-compatible endpoint 访问，本地只负责请求和日志。
+- 不改变 S4/S5/S6 的 paper-facing 预算、目标函数、repair path、operator substrate 或 LLM controller policy。
+- 不在本机调度模型 GPU 资源。LLM 通过远程 OpenAI-compatible endpoint 访问，本地只负责请求和日志。
 - 不迁移旧 `scenario_runs/` artifacts。
 - 不保留旧 command 的兼容 alias。删除就是删除，避免后续文档和脚本继续引用旧入口。
 - 不把图片渲染改成边跑边生成。运行过程中需要日志即可；图片和 analytics 在 leaf 完成后自动生成。
@@ -88,7 +88,7 @@ LLM profile 进入 method label。示例：
 - `llm:gpt`
 - `llm:qwen3_6_plus`
 - `llm:deepseek_v4_flash`
-- `llm:gemma4`
+- `llm:mimo_v2_5`
 
 因此同一个 seed 下可以比较：
 
@@ -125,7 +125,7 @@ population_size: 40
 num_generations: 32
 resource_policy:
   max_concurrent_leaves: 4
-  leaf_evaluation_workers: 16
+  leaf_evaluation_workers: 32
 comparison_policy:
   by_seed: true
   aggregate: true
@@ -218,11 +218,11 @@ GPU: 8 × RTX 4090, raw/union 不依赖本地 GPU
 
 ```text
 max_concurrent_leaves = 4
-leaf_evaluation_workers = 16
-total PDE workers ~= 64
+leaf_evaluation_workers = 32
+total PDE workers ~= 128
 ```
 
-这样把主要 PDE worker 数量对齐到 64 physical cores，而不是追 128 logical threads。Hyper-Threading 对 PDE/FEniCSx 求解的收益不稳定，默认不用于扩大 worker 数。内存按 754 GiB 估算足够支撑 4 个 formal-budget leaves 并行；如果实际观测到每个 leaf 峰值内存偏低，可以后续把 `max_concurrent_leaves` 调到 5 或 6，但这属于运行策略，不是默认实现。
+这样把主要 PDE worker 数量对齐到 128 logical threads（4 leaves × 32 workers）。PDE/FEniCSx 求解在 logical threads 上也能获得可观收益，充分利用可用并行度。内存按 754 GiB 估算足够支撑 4 个 formal-budget leaves 并行；如果实际观测到每个 leaf 峰值内存偏低，可以后续把 `max_concurrent_leaves` 调到 5 或 6，但这属于运行策略，不是默认实现。
 
 保守调试：
 
@@ -235,7 +235,7 @@ leaf_evaluation_workers = 8
 
 ```text
 max_concurrent_leaves = 1
-evaluation_workers = 16
+evaluation_workers = 32
 ```
 
 ## 输出布局
@@ -581,7 +581,7 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark \
 
 ```text
 max_concurrent_leaves=4
-leaf_evaluation_workers=16
+leaf_evaluation_workers=32
 ```
 
 预期输出：

@@ -93,7 +93,7 @@ def test_single_leaf_llm_campaign_derives_method_and_paths(tmp_path: Path) -> No
         algorithm_seed=1011,
         population_size=40,
         num_generations=32,
-        evaluation_workers=16,
+        evaluation_workers=32,
         scenario_runs_root=tmp_path / "scenario_runs",
         campaign_id="s5_budgeted_main",
         compare_with=[tmp_path / "scenario_runs/s5_aggressive15/0508_2300__raw_union"],
@@ -111,7 +111,7 @@ def test_single_leaf_llm_campaign_derives_method_and_paths(tmp_path: Path) -> No
     assert leaf.algorithm_seed == 1011
     assert leaf.population_size == 40
     assert leaf.num_generations == 32
-    assert leaf.evaluation_workers == 16
+    assert leaf.evaluation_workers == 32
     assert campaign.compare_with == (tmp_path / "scenario_runs/s5_aggressive15/0508_2300__raw_union",)
 
 
@@ -141,7 +141,7 @@ def test_batch_spec_expands_methods_by_replicate_seeds(tmp_path: Path) -> None:
                 "num_generations": 32,
                 "resource_policy": {
                     "max_concurrent_leaves": 4,
-                    "leaf_evaluation_workers": 16,
+                    "leaf_evaluation_workers": 32,
                 },
                 "comparison_policy": {"by_seed": True, "aggregate": True},
             },
@@ -156,7 +156,7 @@ def test_batch_spec_expands_methods_by_replicate_seeds(tmp_path: Path) -> None:
     campaign = campaigns[0]
     assert campaign.scenario_id == "s5_aggressive15"
     assert campaign.resource_policy.max_concurrent_leaves == 4
-    assert campaign.resource_policy.leaf_evaluation_workers == 16
+    assert campaign.resource_policy.leaf_evaluation_workers == 32
     assert [(leaf.method_id, leaf.benchmark_seed, leaf.algorithm_seed) for leaf in campaign.leaves] == [
         ("nsga2_raw", 11, 1011),
         ("nsga2_raw", 17, 1017),
@@ -273,7 +273,7 @@ DEFAULT_REPLICATE_SEEDS = (11, 17, 23, 29, 31)
 @dataclass(frozen=True)
 class ResourcePolicy:
     max_concurrent_leaves: int = 4
-    leaf_evaluation_workers: int = 16
+    leaf_evaluation_workers: int = 32
 
 
 @dataclass(frozen=True)
@@ -373,7 +373,7 @@ def _campaign_from_payload(payload: dict[str, Any], *, base_path: Path) -> Campa
     resource_payload = dict(payload.get("resource_policy", {}))
     resource_policy = ResourcePolicy(
         max_concurrent_leaves=int(resource_payload.get("max_concurrent_leaves", 4)),
-        leaf_evaluation_workers=int(resource_payload.get("leaf_evaluation_workers", 16)),
+        leaf_evaluation_workers=int(resource_payload.get("leaf_evaluation_workers", 32)),
     )
     comparison_payload = dict(payload.get("comparison_policy", {}))
     comparison_policy = ComparisonPolicy(
@@ -694,7 +694,7 @@ def _leaf() -> BenchmarkLeaf:
         algorithm_seed=1011,
         population_size=40,
         num_generations=32,
-        evaluation_workers=16,
+        evaluation_workers=32,
     )
 
 
@@ -739,7 +739,7 @@ def test_supervisor_writes_index_without_forking_pool(tmp_path: Path, monkeypatc
         scenario_id="s5_aggressive15",
         scenario_runs_root=tmp_path / "scenario_runs",
         leaves=(_leaf(),),
-        resource_policy=ResourcePolicy(max_concurrent_leaves=1, leaf_evaluation_workers=16),
+        resource_policy=ResourcePolicy(max_concurrent_leaves=1, leaf_evaluation_workers=32),
     )
 
     run_root = run_campaign_supervisor(campaign, run_id="0508_2300__raw")
@@ -1468,7 +1468,7 @@ def _seed_from_root(root: Path) -> int:
     return 0
 ```
 
-Also add `_percentile`, `_mean`, `_single_or_list`, and `_remote_endpoint_label` helpers. `_remote_endpoint_label("gpt")` returns `"GPT_PROXY_BASE_URL"`, `"gemma4"` returns `"GEMMA4_BASE_URL"`, unknown profiles return `"<profile>_profile"`.
+Also add `_percentile`, `_mean`, `_single_or_list`, and `_remote_endpoint_label` helpers. `_remote_endpoint_label("gpt")` returns `"GPT_PROXY_BASE_URL"`, `"deepseek_v4_flash"` returns `"DEEPSEEK_PROXY_BASE_URL"`, unknown profiles return `"<profile>_profile"`.
 
 - [ ] **Step 4: Wire LLM summary into postprocess**
 
@@ -2185,7 +2185,6 @@ from optimizers.artifacts import write_optimization_artifacts
 from optimizers.drivers.raw_driver import run_raw_optimization
 from optimizers.drivers.union_driver import run_union_optimization
 from optimizers.matrix.aggregate import aggregate_matrix
-from optimizers.matrix.config import build_s5_s7_budgeted_matrix
 from optimizers.matrix.runner import run_matrix_block
 from optimizers.operator_pool.diagnostics import analyze_controller_trace, save_controller_trace_summary
 from optimizers.run_manifest import write_run_manifest
@@ -2302,7 +2301,7 @@ def test_s5_raw_union_budgeted_batch_spec() -> None:
     assert len(campaign.leaves) == 10
     assert {leaf.population_size for leaf in campaign.leaves} == {40}
     assert {leaf.num_generations for leaf in campaign.leaves} == {32}
-    assert {leaf.evaluation_workers for leaf in campaign.leaves} == {16}
+    assert {leaf.evaluation_workers for leaf in campaign.leaves} == {32}
 
 
 def test_s6_raw_union_budgeted_batch_spec() -> None:
@@ -2350,7 +2349,7 @@ population_size: 40
 num_generations: 32
 resource_policy:
   max_concurrent_leaves: 4
-  leaf_evaluation_workers: 16
+  leaf_evaluation_workers: 32
 comparison_policy:
   by_seed: true
   aggregate: true
@@ -2377,7 +2376,7 @@ population_size: 56
 num_generations: 36
 resource_policy:
   max_concurrent_leaves: 4
-  leaf_evaluation_workers: 16
+  leaf_evaluation_workers: 32
 comparison_policy:
   by_seed: true
   aggregate: true
@@ -2405,7 +2404,7 @@ campaigns:
     num_generations: 32
     resource_policy:
       max_concurrent_leaves: 4
-      leaf_evaluation_workers: 16
+      leaf_evaluation_workers: 32
     comparison_policy:
       by_seed: true
       aggregate: true
@@ -2425,7 +2424,7 @@ campaigns:
     num_generations: 36
     resource_policy:
       max_concurrent_leaves: 4
-      leaf_evaluation_workers: 16
+      leaf_evaluation_workers: 32
     comparison_policy:
       by_seed: true
       aggregate: true
@@ -2565,7 +2564,7 @@ In `AGENTS.md`:
 - State `run-benchmark` is the only daily optimizer run entry.
 - State render/replay/analyze/compare are internal post-run phases.
 - State `scenario_runs/logs/` is not created by runner.
-- State default server policy is `max_concurrent_leaves=4`, `leaf_evaluation_workers=16`.
+- State default server policy is `max_concurrent_leaves=4`, `leaf_evaluation_workers=32`.
 - State S5/S6 formal raw+union uses `scenarios/batches/s5_s6_raw_union_budgeted.yaml`.
 
 - [ ] **Step 3: Mark old active specs/plans as superseded**
@@ -2574,8 +2573,8 @@ Edit these files near the top:
 
 - `docs/superpowers/specs/2026-05-08-suite-parallel-execution-design.md`
 - `docs/superpowers/plans/2026-05-08-suite-parallel-execution.md`
-- `docs/superpowers/specs/2026-04-29-s5-s7-512eval-benchmark-matrix-design.md`
-- `docs/superpowers/plans/2026-04-29-s5-s7-512eval-benchmark-matrix.md`
+- `docs/superpowers/specs/2026-04-29-s5-s7-512eval-benchmark-matrix-design.md` (historical, superseded by S4-S6 final matrix)
+- `docs/superpowers/plans/2026-04-29-s5-s7-512eval-benchmark-matrix.md` (historical, superseded by S4-S6 final matrix)
 
 Add:
 

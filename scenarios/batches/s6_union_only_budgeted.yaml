@@ -1,0 +1,17 @@
+campaign_id: s6_union_rerun
+scenario_runs_root: ./scenario_runs
+scenario_id: s6_aggressive20
+methods:
+  - method_id: nsga2_union
+    mode: union
+    optimization_spec: scenarios/optimization/s6_aggressive20_union.yaml
+replicate_seeds: [11, 17, 23, 29, 31]
+algorithm_seed_offset: 1000
+population_size: 56
+num_generations: 36
+resource_policy:
+  max_concurrent_leaves: 4
+  leaf_evaluation_workers: 32
+comparison_policy:
+  by_seed: true
+  aggregate: true

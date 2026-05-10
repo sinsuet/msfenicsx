@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from optimizers.benchmark_runner.run_events import append_summary_event
+from optimizers.run_telemetry import load_jsonl_rows
 
 
 def build_runtime_summary(
@@ -104,6 +106,7 @@ def run_leaf_postprocess(
     mode: str,
     llm_profile: str | None,
     optimization_spec_path: Path,
+    replay_mode: str | None = None,
 ) -> None:
     root = Path(seed_root)
     from optimizers.render_assets import render_assets
@@ -121,12 +124,19 @@ def run_leaf_postprocess(
     optimization_spec = load_optimization_spec(optimization_spec_path)
     operator_control = optimization_spec.operator_control or {}
     controller_parameters = dict(operator_control.get("controller_parameters", {}))
-    llm_overlay = load_provider_profile_overlay(llm_profile) if llm_profile else {}
-    with _temporary_env_overlay(llm_overlay):
-        replay_summary = replay_request_trace_file(
-            root / "traces" / "llm_request_trace.jsonl",
-            controller_parameters,
-            limit=None,
+    effective_replay_mode = _resolve_llm_postprocess_replay_mode(replay_mode)
+    if effective_replay_mode == "live":
+        llm_overlay = load_provider_profile_overlay(llm_profile) if llm_profile else {}
+        with _temporary_env_overlay(llm_overlay):
+            replay_summary = replay_request_trace_file(
+                root / "traces" / "llm_request_trace.jsonl",
+                controller_parameters,
+                limit=None,
+            )
+    else:
+        replay_summary = build_offline_llm_replay_summary(
+            root,
+            controller_parameters=controller_parameters,
         )
     save_replay_summary(root / "summaries" / "llm_replay_summary.json", replay_summary)
     controller_summary = analyze_controller_trace(
@@ -137,3 +147,145 @@ def run_leaf_postprocess(
         llm_response_trace_path=root / "traces" / "llm_response_trace.jsonl",
     )
     save_controller_trace_summary(root / "summaries" / "controller_trace_summary.json", controller_summary)
+
+
+def _resolve_llm_postprocess_replay_mode(replay_mode: str | None) -> str:
+    raw_mode = str(replay_mode or os.environ.get("MSFENICSX_LLM_POSTPROCESS_REPLAY", "offline")).strip().lower()
+    if raw_mode in {"live", "provider"}:
+        return "live"
+    return "offline"
+
+
+def build_offline_llm_replay_summary(
+    seed_root: str | Path,
+    *,
+    controller_parameters: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Summarize recorded LLM traces without issuing new provider requests."""
+    root = Path(seed_root)
+    request_trace_path = root / "traces" / "llm_request_trace.jsonl"
+    response_trace_path = root / "traces" / "llm_response_trace.jsonl"
+    request_rows = load_jsonl_rows(request_trace_path) if request_trace_path.exists() else []
+    response_rows = load_jsonl_rows(response_trace_path) if response_trace_path.exists() else []
+    response_by_decision_id = {
+        str(row["decision_id"]): row
+        for row in response_rows
+        if row.get("decision_id") is not None
+    }
+    row_summaries: list[dict[str, Any]] = []
+    elapsed_seconds_total = 0.0
+
+    for row_index, request_row in enumerate(request_rows):
+        decision_id = request_row.get("decision_id")
+        response_row = (
+            response_by_decision_id.get(str(decision_id))
+            if decision_id is not None
+            else None
+        )
+        if response_row is None and row_index < len(response_rows):
+            response_row = response_rows[row_index]
+        attempt_count = _offline_attempt_count(response_row)
+        elapsed_seconds = _offline_elapsed_seconds(response_row)
+        elapsed_seconds_total += elapsed_seconds
+        selected_operator_id = None if response_row is None else response_row.get("selected_operator_id")
+        error_message = _offline_error_message(response_row)
+        valid = response_row is not None and selected_operator_id is not None and not bool(
+            response_row.get("fallback_used", False)
+        )
+        row_summaries.append(
+            {
+                "row_index": int(row_index),
+                "generation_index": int(request_row.get("generation_index", 0)),
+                "evaluation_index": int(request_row.get("evaluation_index", 0)),
+                "candidate_operator_ids": [str(value) for value in request_row.get("candidate_operator_ids", [])],
+                "valid": bool(valid),
+                "retried": bool(attempt_count > 1 or _offline_retry_count(response_row) > 0),
+                "attempt_count": int(attempt_count),
+                "selected_operator_id": None if selected_operator_id is None else str(selected_operator_id),
+                "error": error_message,
+                "elapsed_seconds": float(elapsed_seconds),
+                "attempt_trace": [],
+            }
+        )
+
+    request_count = len(row_summaries)
+    success_count = sum(1 for row in row_summaries if row["valid"])
+    retry_row_count = sum(1 for row in row_summaries if row["retried"])
+    fallback_equivalent_count = request_count - success_count
+    return {
+        "aggregate": {
+            "request_count": int(request_count),
+            "success_count": int(success_count),
+            "retry_row_count": int(retry_row_count),
+            "fallback_equivalent_count": int(fallback_equivalent_count),
+            "success_rate": 0.0 if request_count <= 0 else success_count / float(request_count),
+            "retry_rate": 0.0 if request_count <= 0 else retry_row_count / float(request_count),
+            "fallback_equivalent_rate": (
+                0.0 if request_count <= 0 else fallback_equivalent_count / float(request_count)
+            ),
+            "elapsed_seconds_total": float(elapsed_seconds_total),
+            "elapsed_seconds_avg": 0.0 if request_count <= 0 else elapsed_seconds_total / float(request_count),
+        },
+        "rows": row_summaries,
+        "replay_meta": {
+            "request_trace_path": str(request_trace_path),
+            "response_trace_path": str(response_trace_path),
+            "provider": str(controller_parameters.get("provider", "")),
+            "model": _offline_controller_model(controller_parameters, request_rows=request_rows, response_rows=response_rows),
+            "capability_profile": str(controller_parameters.get("capability_profile", "")),
+            "performance_profile": str(controller_parameters.get("performance_profile", "")),
+            "replay_mode": "offline_existing_trace",
+            "live_provider_call_count": 0,
+        },
+    }
+
+
+def _offline_controller_model(
+    controller_parameters: Mapping[str, Any],
+    *,
+    request_rows: Sequence[Mapping[str, Any]],
+    response_rows: Sequence[Mapping[str, Any]],
+) -> str:
+    for rows in (response_rows, request_rows):
+        for row in rows:
+            model = str(row.get("model", "")).strip()
+            if model:
+                return model
+    return str(controller_parameters.get("model", ""))
+
+
+def _offline_attempt_count(response_row: Mapping[str, Any] | None) -> int:
+    if response_row is None:
+        return 0
+    if response_row.get("attempt_count") is not None:
+        return int(response_row["attempt_count"])
+    attempt_trace = response_row.get("attempt_trace", [])
+    if isinstance(attempt_trace, Sequence) and not isinstance(attempt_trace, (str, bytes, bytearray)):
+        return len(attempt_trace)
+    return 0
+
+
+def _offline_retry_count(response_row: Mapping[str, Any] | None) -> int:
+    if response_row is None:
+        return 0
+    if response_row.get("retry_count") is not None:
+        return int(response_row["retry_count"])
+    retries = response_row.get("retries")
+    return int(retries) if retries is not None else 0
+
+
+def _offline_elapsed_seconds(response_row: Mapping[str, Any] | None) -> float:
+    if response_row is None:
+        return 0.0
+    if response_row.get("elapsed_seconds") is not None:
+        return float(response_row["elapsed_seconds"])
+    if response_row.get("latency_ms") is not None:
+        return float(response_row["latency_ms"]) / 1000.0
+    return 0.0
+
+
+def _offline_error_message(response_row: Mapping[str, Any] | None) -> str | None:
+    if response_row is None:
+        return "missing recorded response"
+    error = response_row.get("error") or response_row.get("error_message")
+    return None if error is None else str(error)

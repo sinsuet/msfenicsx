@@ -701,7 +701,7 @@ EOF
 In `README.md`, replace the sentence at the active mainline section that currently says `union` is clean while `llm` is assisted with:
 
 ```markdown
-At the time of this restore plan, the active paper-facing mainlines were `s5_aggressive15` and `s5_aggressive15`. The current active mainline is the S5-S7 aggressive family, with `s5_aggressive15` as the primary debugging template.
+At the time of this historical restore plan, the active paper-facing mainline wording was later revised. The current active mainline is the S4-S6 aggressive family (`s4_aggressive10` through `s6_aggressive20`), with `s5_aggressive15` as the primary debugging template.
 ```
 
 - [ ] **Step 2: Update README legality-policy bullet**

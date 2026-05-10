@@ -132,7 +132,7 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --scenario-runs-root ./scenario_runs
 ```
 
-**S7 raw+union only (无 LLM)，5 seeds：**
+**Historical S7 raw+union only (无 LLM)，5 seeds，已被 S4/S5/S6 final matrix 取代：**
 ```bash
 conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s7_aggressive25_raw.yaml \
@@ -146,7 +146,7 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --scenario-runs-root ./scenario_runs
 ```
 
-**S7 LLM only (Qwen), 1 seed：**
+**Historical S7 LLM only (Qwen), 1 seed，已被 S4/S5/S6 final matrix 取代：**
 ```bash
 conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s7_aggressive25_llm.yaml \
@@ -165,7 +165,7 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
 |------|--------|-------------------|-----------|-----------------|
 | S5 raw+union+llm ×5 seeds | 15 | ~30 min | ~7.5 h | ~1.5 h |
 | S6 raw+union+llm ×5 seeds | 15 | ~50 min | ~12.5 h | ~2.5 h |
-| S7 raw+union ×5 seeds | 10 | ~80 min | ~13.3 h | ~4 h |
-| S7 llm ×1 seed | 1 | ~80 min | ~80 min | ~80 min |
+| S7 raw+union ×5 seeds | 10 | ~80 min | ~13.3 h | ~4 h | historical, superseded |
+| S7 llm ×1 seed | 1 | ~80 min | ~80 min | ~80 min | historical, superseded |
 
 并行模式下总 CPU 利用率：20 leaves × 2 processes = 40 进程，接近 44 核上限。

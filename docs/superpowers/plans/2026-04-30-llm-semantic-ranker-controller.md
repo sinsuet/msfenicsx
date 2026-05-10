@@ -4,6 +4,8 @@
 
 **Goal:** Add the LLM-only `semantic_ranked_pick` route so the model returns an ordered semantic/operator ranking and the controller deterministically picks the highest ranked non-saturated operator.
 
+> Status note, 2026-05-10: this implementation plan contains historical S5-S7 activation references from the pre-retirement stage. The current active paper-facing mainline is S4/S5/S6; use `AGENTS.md`, `CLAUDE.md`, and `docs/superpowers/plans/2026-05-10-s7-gemma4-retirement-and-s4-s6-experiment-sync.md` for current scenario scope.
+
 **Architecture:** Keep `raw` and `union` unchanged, keep the current semantic taxonomy, semantic task panels, adaptive sink gate, summary logic, and existing `semantic_prior_sampler` legacy path. Add a parallel rank-advice client contract, a focused deterministic ranked picker, and a new `LLMOperatorController` strategy branch; switch only active LLM YAMLs to the new strategy.
 
 **Tech Stack:** Python 3.12, pytest, existing OpenAI-compatible client, existing `ControllerState`, existing LLM trace JSONL writers, YAML optimization specs.
@@ -22,7 +24,7 @@
 - Modify: `optimizers/operator_pool/llm_controller.py`
   - Add `selection_strategy == "semantic_ranked_pick"` branch.
   - Add rank prompt, rank-advice request wrapper, rank input/trace helpers, fallback metadata, and response trace metadata.
-- Modify: active S5-S7 LLM specs only:
+- Modify: historical active S5-S7 LLM specs only:
   - `scenarios/optimization/s5_aggressive15_llm.yaml`
   - `scenarios/optimization/s6_aggressive20_llm.yaml`
   - `scenarios/optimization/s7_aggressive25_llm.yaml`
@@ -1644,7 +1646,9 @@ git commit -m "test: cover semantic ranked pick traces"
 
 ---
 
-### Task 5: Switch Active LLM Specs And Contracts
+### Task 5: Switch Historical Active LLM Specs And Contracts
+
+> Current-scope note: for new work, replace this S5/S6/S7 file set with the active S4/S5/S6 file set and do not revive S7.
 
 **Files:**
 - Modify: `scenarios/optimization/s5_aggressive15_llm.yaml`

@@ -51,7 +51,8 @@ def place_components(
     )
     last_error: LayoutGenerationError | None = None
     retry_count = max(1, placement_retries)
-    for attempt_index in range(retry_count):
+    max_main_retries = min(retry_count, 4)
+    for attempt_index in range(max_main_retries):
         rng = random.Random(seed + attempt_index * 7919)
         family_counts: dict[str, int] = {}
         placed_components: list[dict[str, Any]] = []
@@ -77,6 +78,45 @@ def place_components(
                 placed_records.append((source_index, candidate))
         except LayoutGenerationError as exc:
             last_error = exc
+            continue
+        return _refine_layout_compactness(
+            [component for _, component in sorted(placed_records, key=lambda item: item[0])],
+            placement_regions=placement_regions,
+            keep_out_regions=template.keep_out_regions,
+            panel_domain=template.panel_domain,
+            family_profiles=family_profiles,
+            layout_strategy=layout_strategy,
+        )
+    # Fallback: shuffled order + grid search across full placement regions.
+    # Breaks deterministic priority deadlocks for hard seeds.
+    fallback_budget = max(3, min(placement_retries, 6))
+    for attempt_index in range(fallback_budget):
+        rng = random.Random(seed + 99991 + attempt_index * 7919)
+        shuffled = list(enumerate(sampled_components))
+        rng.shuffle(shuffled)
+        family_counts: dict[str, int] = {}
+        placed_components: list[dict[str, Any]] = []
+        placed_records: list[tuple[int, dict[str, Any]]] = []
+        try:
+            for source_index, sampled_component in shuffled:
+                family_id = sampled_component["family_id"]
+                family_counts[family_id] = family_counts.get(family_id, 0) + 1
+                component_id = f"{family_id}-{family_counts[family_id]:03d}"
+                candidate = _grid_search_place(
+                    component_id=component_id,
+                    sampled_component=sampled_component,
+                    placement_regions=placement_regions,
+                    keep_out_regions=template.keep_out_regions,
+                    panel_domain=template.panel_domain,
+                    existing_components=placed_components,
+                    family_profiles=family_profiles,
+                    rng=rng,
+                )
+                if candidate is None:
+                    raise LayoutGenerationError(f"Grid search failed for {component_id}")
+                placed_components.append(candidate)
+                placed_records.append((source_index, candidate))
+        except LayoutGenerationError:
             continue
         return _refine_layout_compactness(
             [component for _, component in sorted(placed_records, key=lambda item: item[0])],
@@ -170,6 +210,61 @@ def _place_single_component(
     if candidate is not None:
         return candidate
     raise LayoutGenerationError(f"Unable to place component {component_id} without overlap or keep-out violation.")
+
+
+def _grid_search_place(
+    *,
+    component_id: str,
+    sampled_component: dict[str, Any],
+    placement_regions: list[dict[str, Any]],
+    keep_out_regions: list[dict[str, Any]],
+    panel_domain: dict[str, Any],
+    existing_components: list[dict[str, Any]],
+    family_profiles: dict[str, dict[str, Any]],
+    rng: random.Random,
+    grid_steps: int = 40,
+) -> dict[str, Any] | None:
+    """Deterministic grid search fallback for hard-to-place components."""
+    rotation_deg = float(sampled_component.get("rotation_deg", 0.0))
+    local_polygon = primitive_polygon(sampled_component["shape"], sampled_component["geometry"])
+    rotated_polygon = transform_polygon(local_polygon, {"x": 0.0, "y": 0.0, "rotation_deg": rotation_deg})
+    min_x, min_y, max_x, max_y = rotated_polygon.bounds
+    for region in placement_regions:
+        rx_min = float(region["x_min"])
+        rx_max = float(region["x_max"])
+        ry_min = float(region["y_min"])
+        ry_max = float(region["y_max"])
+        x_lo = rx_min - min_x
+        x_hi = rx_max - max_x
+        y_lo = ry_min - min_y
+        y_hi = ry_max - max_y
+        if x_lo > x_hi or y_lo > y_hi:
+            continue
+        x_step = (x_hi - x_lo) / max(grid_steps - 1, 1)
+        y_step = (y_hi - y_lo) / max(grid_steps - 1, 1)
+        # Randomize starting quadrant to avoid deterministic bias
+        x_offset = rng.random() * x_step
+        y_offset = rng.random() * y_step
+        for xi in range(grid_steps):
+            for yi in range(grid_steps):
+                x = x_lo + x_offset + xi * x_step
+                y = y_lo + y_offset + yi * y_step
+                candidate = _candidate_from_pose(
+                    component_id=component_id,
+                    sampled_component=sampled_component,
+                    x_value=x,
+                    y_value=y,
+                    rotation_deg=rotation_deg,
+                )
+                if _is_candidate_legal(
+                    candidate,
+                    keep_out_regions=keep_out_regions,
+                    panel_domain=panel_domain,
+                    existing_components=existing_components,
+                    family_profiles=family_profiles,
+                ):
+                    return candidate
+    return None
 
 
 def _try_place_with_regions(

@@ -107,18 +107,20 @@ def test_load_provider_profile_exports_optional_extra_body_as_json(tmp_path: Pat
     assert json.loads(overlay["LLM_EXTRA_BODY"]) == {"enable_thinking": False}
 
 
-def test_bundled_profiles_support_default_profile_via_gpt_env(
+def test_bundled_profiles_support_default_profile_via_deepseek_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GPT_PROXY_API_KEY", "bundled-gpt-key")
-    monkeypatch.setenv("GPT_PROXY_BASE_URL", "https://gpt.example/v1")
+    monkeypatch.setenv("DEEPSEEK_PROXY_API_KEY", "bundled-deepseek-key")
+    monkeypatch.setenv("DEEPSEEK_PROXY_BASE_URL", "https://llmapi.paratera.example/v1")
 
     overlay = load_provider_profile_overlay("default")
 
     assert overlay == {
-        "LLM_API_KEY": "bundled-gpt-key",
-        "LLM_BASE_URL": "https://gpt.example/v1",
-        "LLM_MODEL": "gpt-5.4",
+        "LLM_API_KEY": "bundled-deepseek-key",
+        "LLM_BASE_URL": "https://llmapi.paratera.example/v1",
+        "LLM_MODEL": "deepseek-v4-flash",
+        "LLM_EXTRA_BODY": '{"thinking":{"type":"disabled"}}',
+        "LLM_MAX_OUTPUT_TOKENS": "1024",
     }
 
 
@@ -142,7 +144,8 @@ def test_bundled_profiles_support_explicit_gpt_profile(
     [
         ("qwen3_6_plus", "qwen3.6-plus", True),
         ("glm_5", "glm-5", True),
-        ("minimax_m2_5", "MiniMax-M2.5", False),
+        ("kimi_k2_5", "kimi-k2.5", True),
+        ("minimax_m2_5", "MiniMax-M2.5", True),
     ],
 )
 def test_bundled_coding_plan_profiles_share_qwen_proxy_route(
@@ -184,22 +187,6 @@ def test_bundled_deepseek_v4_flash_profile_uses_model_named_env_pair(
     }
 
 
-def test_bundled_gemma4_profile_uses_hpc_ollama_route(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("GEMMA4_API_KEY", "bundled-gemma-key")
-    monkeypatch.setenv("GEMMA4_BASE_URL", "https://gemma.example/v1")
-
-    overlay = load_provider_profile_overlay("gemma4")
-
-    assert overlay == {
-        "LLM_API_KEY": "bundled-gemma-key",
-        "LLM_BASE_URL": "https://gemma.example/v1",
-        "LLM_MODEL": "gemma4:31b-it-q8_0",
-        "LLM_MAX_OUTPUT_TOKENS": "1024",
-    }
-
-
 def test_bundled_mimo_v2_5_profile_uses_mimo_env_pair(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -231,7 +218,7 @@ def test_bundled_profiles_reject_legacy_provider_style_profile_ids(profile_id: s
         "qwen3_coder_plus",
         "qwen3_max_2026_01_23",
         "glm_4_7",
-        "kimi_k2_5",
+        "gemma4",
     ],
 )
 def test_bundled_profiles_reject_non_selected_coding_plan_models(profile_id: str) -> None:
@@ -239,16 +226,23 @@ def test_bundled_profiles_reject_non_selected_coding_plan_models(profile_id: str
         load_provider_profile_overlay(profile_id)
 
 
-def test_bundled_profile_registry_keeps_gpt_as_default_and_qwen_explicit() -> None:
+def test_bundled_profile_registry_keeps_deepseek_as_default_and_gpt_explicit() -> None:
     registry = yaml.safe_load(Path("llm/openai_compatible/profiles.yaml").read_text(encoding="utf-8"))
 
     assert registry["profiles"]["default"] == {
+        "source_api_key_env_var": "DEEPSEEK_PROXY_API_KEY",
+        "source_base_url_env_var": "DEEPSEEK_PROXY_BASE_URL",
+        "model": "deepseek-v4-flash",
+        "extra_body": {"thinking": {"type": "disabled"}},
+        "max_output_tokens": 1024,
+    }
+    assert registry["profiles"]["gpt"] == {
         "source_api_key_env_var": "GPT_PROXY_API_KEY",
         "source_base_url_env_var": "GPT_PROXY_BASE_URL",
         "model": "gpt-5.4",
     }
-    assert registry["profiles"]["gpt"] == registry["profiles"]["default"]
     assert registry["profiles"]["qwen3_6_plus"]["source_api_key_env_var"] == "QWEN_PROXY_API_KEY"
+    assert "gemma4" not in registry["profiles"]
     assert registry["profiles"]["mimo_v2_5"] == {
         "source_api_key_env_var": "MIMO_API_KEY",
         "source_base_url_env_var": "MIMO_BASE_URL",

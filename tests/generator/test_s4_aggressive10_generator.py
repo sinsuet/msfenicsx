@@ -4,7 +4,7 @@ from core.generator.pipeline import generate_case
 from core.geometry.layout_rules import component_within_domain, components_violate_clearance
 
 
-TEMPLATE = "scenarios/templates/s7_aggressive25.yaml"
+TEMPLATE = "scenarios/templates/s4_aggressive10.yaml"
 
 
 def _clearance_by_family(case_payload: dict) -> dict[str, float]:
@@ -26,33 +26,32 @@ def _assert_no_clearance_violations(case_payload: dict) -> None:
             )
 
 
-def test_s7_aggressive25_generates_legal_seed_11_case() -> None:
+def test_s4_aggressive10_generates_legal_seed_11_case() -> None:
     case_payload = generate_case(TEMPLATE, seed=11).to_dict()
 
-    assert case_payload["case_meta"]["scenario_id"] == "s7_aggressive25"
-    assert len(case_payload["components"]) == 25
-    assert len(case_payload["loads"]) == 25
+    assert case_payload["case_meta"]["scenario_id"] == "s4_aggressive10"
+    assert len(case_payload["components"]) == 10
+    assert len(case_payload["loads"]) == 10
     _assert_no_clearance_violations(case_payload)
 
 
-def test_s7_aggressive25_seed_11_keeps_top_sink_and_load_shape() -> None:
+def test_s4_aggressive10_seed_11_keeps_top_sink_and_load_shape() -> None:
     case_payload = generate_case(TEMPLATE, seed=11).to_dict()
 
     assert len(case_payload["boundary_features"]) == 1
     sink = case_payload["boundary_features"][0]
     assert sink["kind"] == "line_sink"
     assert sink["edge"] == "top"
-    assert 0.46 <= float(sink["end"]) - float(sink["start"]) <= 0.48
+    assert 0.39 <= float(sink["end"]) - float(sink["start"]) <= 0.41
 
     total_load = sum(float(load["total_power"]) for load in case_payload["loads"])
-    assert 176.0 <= total_load <= 190.0
+    assert 98.0 <= total_load <= 106.0
 
 
-def test_s7_aggressive25_seed_11_layout_metrics_are_not_malformed() -> None:
+def test_s4_aggressive10_seed_11_layout_metrics_are_in_low_dimensional_dense_band() -> None:
     case_payload = generate_case(TEMPLATE, seed=11).to_dict()
     metrics = case_payload["provenance"]["layout_metrics"]
 
-    assert metrics["component_area_ratio"] >= 0.57
+    assert 0.27 <= metrics["component_area_ratio"] <= 0.31
     assert metrics["nearest_neighbor_gap_mean"] >= 0.0
-    assert metrics["bbox_fill_ratio"] >= 0.45
-    assert metrics["largest_dense_core_void_ratio"] < 0.45
+    assert metrics["bbox_fill_ratio"] >= 0.35

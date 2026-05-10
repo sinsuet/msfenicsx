@@ -9,9 +9,9 @@ import numpy as np
 
 from core.schema.models import ThermalCase
 from optimizers.codec import extract_decision_vector
-from optimizers.repair import project_case_payload_from_vector, repair_case_payload_from_vector
+from optimizers.repair import project_case_payload_from_vector, repair_case_payload_from_vector, _apply_vector_without_case_validation
 
-LegalityPolicyId = Literal["minimal_canonicalization", "projection_plus_local_restore"]
+LegalityPolicyId = Literal["minimal_canonicalization", "projection_plus_local_restore", "bounds_only"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +46,10 @@ def apply_legality_policy_from_vector(
             proposal_vector,
             radiator_span_max=radiator_span_max,
         )
+    elif legality_policy_id == "bounds_only":
+        # Only apply bounds clamping, skip all repair/projection/local restore
+        spec_payload = optimization_spec.to_dict() if hasattr(optimization_spec, "to_dict") else dict(optimization_spec)
+        payload = _apply_vector_without_case_validation(base_case, spec_payload, proposal_vector)
     else:  # pragma: no cover - validation guards this
         raise ValueError(f"Unsupported legality policy id: {legality_policy_id!r}")
 

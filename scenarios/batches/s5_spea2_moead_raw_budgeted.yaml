@@ -1,0 +1,20 @@
+campaign_id: s5_algorithm_compare_raw
+scenario_runs_root: ./scenario_runs
+scenario_id: s5_aggressive15
+methods:
+  - method_id: spea2_raw
+    mode: raw
+    optimization_spec: scenarios/optimization/s5_aggressive15_spea2_raw.yaml
+  - method_id: moead_raw
+    mode: raw
+    optimization_spec: scenarios/optimization/s5_aggressive15_moead_raw.yaml
+replicate_seeds: [11, 23, 31, 37, 41]
+algorithm_seed_offset: 1000
+population_size: 40
+num_generations: 32
+resource_policy:
+  max_concurrent_leaves: 4
+  leaf_evaluation_workers: 32
+comparison_policy:
+  by_seed: true
+  aggregate: true

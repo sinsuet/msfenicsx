@@ -37,7 +37,7 @@ STN 后处理读取 concrete run root 下的 `optimization_result.json`，使用
 
 ### 目标和权重
 
-S5/S6/S7 paper-facing 优化目标固定为：
+S4/S5/S6 paper-facing 优化目标固定为：
 
 - `summary.temperature_max`
 - `summary.temperature_gradient_rms`
@@ -93,7 +93,7 @@ location 计算步骤：
 2. 对每个维度做 `round(value / bin_width)` 的整数量化。
 3. 用量化整数 tuple 计算稳定短 hash。
 
-默认 `bin_width = 0.02`。该值与 S5/S6/S7 的坐标变量尺度匹配，能把接近布局聚合成同一 node，同时不把明显不同布局压成一个点。首版不把 `bin_width` 暴露为 CLI 参数，但必须在 `search_trajectory_metrics.csv` 中记录。
+默认 `bin_width = 0.02`。该值与 S4/S5/S6 的坐标变量尺度匹配，能把接近布局聚合成同一 node，同时不把明显不同布局压成一个点。首版不把 `bin_width` 暴露为 CLI 参数，但必须在 `search_trajectory_metrics.csv` 中记录。
 
 ### 节点和边
 

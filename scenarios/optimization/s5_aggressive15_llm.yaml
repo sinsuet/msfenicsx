@@ -144,6 +144,7 @@ algorithm:
   profile_path: scenarios/optimization/profiles/s5_aggressive15_union.yaml
 operator_control:
   controller: llm
+  llm_batch_size: 16
   registry_profile: primitive_structured
   operator_pool:
     - vector_sbx_pm
@@ -157,7 +158,7 @@ operator_control:
     - component_subspace_sbx
   controller_parameters:
     provider: openai-compatible
-    provider_profile: gemma4
+    provider_profile: deepseek_v4_flash
     capability_profile: chat_compatible_json
     performance_profile: balanced
     model_env_var: LLM_MODEL

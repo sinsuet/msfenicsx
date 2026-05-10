@@ -11,16 +11,21 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 ## Repository Status
 
 - `main` already contains the clean rebuild baseline.
-- The current active paper-facing mainline is `s5_aggressive15` through `s7_aggressive25`.
-- The primary debugging template is `s5_aggressive15`; use it for controller-sensitive smoke work unless a scale or density check explicitly needs S6/S7.
-- S5/S6/S7 use the shared `primitive_structured` operator substrate for `union` and `llm` and share the same `raw / union / llm` ladder; `union` is the fixed stochastic operator-selection baseline for semantic-controller ablation.
+- The current active paper-facing mainline is `s4_aggressive10` through `s6_aggressive20`.
+- The primary debugging template remains `s5_aggressive15`; use S4 for low-dimensional semantic ablation and S6 for scale checks.
+- S4/S5/S6 use the shared `primitive_structured` operator substrate for `union` and `llm`; `union` is used only where the final experiment design requires semantic-controller ablation.
 - The active paper-facing optimizer ladder is:
   - `nsga2_raw`
-  - `nsga2_union`
-  - `nsga2_llm`
+  - `nsga2_llm_deepseek_v4_flash`
 - Additional algorithm-comparison inputs are raw-only unless a later design explicitly promotes them:
   - `spea2_raw`
   - `moead_raw`
+- The active final experiment structure is:
+  - Main: S4/S5/S6, 5 seeds, `raw` vs `llm_deepseek_v4_flash`
+  - Semantic Ablation: S4, 5 seeds, `raw / union / llm`
+  - Mechanism Ablation: S5, 5 seeds, `llm_direct` vs ours
+  - Model Sensitivity: S5 seed11, DeepSeek/Qwen/Kimi/GPT/MiMo
+  - Algorithm Baseline: S5, 5 seeds, NSGA-II/SPEA2/MOEA/D raw
 - The active optimizer ladder uses a matched paper-facing substrate:
   - `raw`: native backbone + `projection_plus_local_restore`
   - `union`: `primitive_structured` registry + fixed stochastic operator-selection controller + `projection_plus_local_restore`
@@ -58,11 +63,19 @@ The active optimizer mainline is:
 
 The implemented paper-facing inputs are:
 
+- `scenarios/templates/s4_aggressive10.yaml`
+- `scenarios/evaluation/s4_aggressive10_eval.yaml`
+- `scenarios/optimization/s4_aggressive10_raw.yaml`
+- `scenarios/optimization/s4_aggressive10_union.yaml`
+- `scenarios/optimization/s4_aggressive10_llm.yaml`
+- `scenarios/optimization/profiles/s4_aggressive10_raw.yaml`
+- `scenarios/optimization/profiles/s4_aggressive10_union.yaml`
 - `scenarios/templates/s5_aggressive15.yaml`
 - `scenarios/evaluation/s5_aggressive15_eval.yaml`
 - `scenarios/optimization/s5_aggressive15_raw.yaml`
 - `scenarios/optimization/s5_aggressive15_union.yaml`
 - `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/s5_aggressive15_llm_direct.yaml`
 - `scenarios/optimization/s5_aggressive15_spea2_raw.yaml`
 - `scenarios/optimization/s5_aggressive15_moead_raw.yaml`
 - `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
@@ -80,45 +93,41 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/profiles/s6_aggressive20_union.yaml`
 - `scenarios/optimization/profiles/s6_aggressive20_spea2_raw.yaml`
 - `scenarios/optimization/profiles/s6_aggressive20_moead_raw.yaml`
-- `scenarios/templates/s7_aggressive25.yaml`
-- `scenarios/evaluation/s7_aggressive25_eval.yaml`
-- `scenarios/optimization/s7_aggressive25_raw.yaml`
-- `scenarios/optimization/s7_aggressive25_union.yaml`
-- `scenarios/optimization/s7_aggressive25_llm.yaml`
-- `scenarios/optimization/s7_aggressive25_spea2_raw.yaml`
-- `scenarios/optimization/s7_aggressive25_moead_raw.yaml`
-- `scenarios/optimization/profiles/s7_aggressive25_raw.yaml`
-- `scenarios/optimization/profiles/s7_aggressive25_union.yaml`
-- `scenarios/optimization/profiles/s7_aggressive25_spea2_raw.yaml`
-- `scenarios/optimization/profiles/s7_aggressive25_moead_raw.yaml`
+- `scenarios/batches/s4_main_raw_llm_deepseek_budgeted.yaml`
+- `scenarios/batches/s5_main_raw_llm_deepseek_budgeted.yaml`
+- `scenarios/batches/s6_main_raw_llm_deepseek_budgeted.yaml`
+- `scenarios/batches/s4_semantic_ablation_budgeted.yaml`
+- `scenarios/batches/s5_mechanism_llm_direct_vs_ours_budgeted.yaml`
+- `scenarios/batches/s5_model_sensitivity_seed11.yaml`
+- `scenarios/batches/s5_algorithm_baseline_raw_budgeted.yaml`
 
 The fixed benchmark decisions are:
 
 - one operating case
 - fixed named components:
+  - S4: 10 components
   - S5: 15 components
   - S6: 20 components
-  - S7: 25 components
 - all components optimize `x/y` only
 - no optimized rotation
 - scenario-specific decision dimensions:
+  - S4: 22 decision variables
   - S5: 32 decision variables
   - S6: 42 decision variables
-  - S7: 52 decision variables
 - formal paper-facing expensive PDE evaluation budgets:
+  - S4: `population_size=32`, `num_generations=16`, nominal budget `512`
   - S5: `population_size=40`, `num_generations=32`, nominal budget `1280`
   - S6: `population_size=56`, `num_generations=36`, nominal budget `2016`
-  - S7: `population_size=64`, `num_generations=40`, nominal budget `2560`
 - these budgets are intentionally budget-limited for expensive PDE-constrained optimization, not cheap benchmark convergence budgets
-- within each scenario, keep the same formal budget across `raw`, `union`, `llm`, and raw-only algorithm-comparison runs
+- within each experiment block, keep the same formal budget across compared methods
 - objectives:
   - `summary.temperature_max`
   - `summary.temperature_gradient_rms`
 - hard sink-budget constraint:
   - `case.total_radiator_span <= radiator_span_max`
 - cheap constraints must run before PDE
-- paper-facing S5/S6/S7 `raw`, `union`, `llm`, and raw-only algorithm-comparison specs use `projection_plus_local_restore`
-- paper-facing S5/S6/S7 `llm` specs use `semantic_ranked_pick` with the same controller parameters as the S5 debugging template
+- paper-facing S4/S5/S6 `raw`, `union`, `llm`, `llm_direct`, and raw-only algorithm-comparison specs use `projection_plus_local_restore`
+- paper-facing S4/S5/S6 `llm` specs use `semantic_ranked_pick` and default to `provider_profile: deepseek_v4_flash`
 
 ## Architectural Expectations
 
@@ -149,7 +158,7 @@ Preferred commands:
 Notes on optimizer worker counts:
 
 - `--evaluation-workers 2` in the single-leaf examples below is only for smoke checks, quick debugging, or deliberately conservative daytime reruns.
-- Formal overnight S5/S6 paper-facing runs should follow the unified runner resource policy: multi-leaf raw/union batches use `max_concurrent_leaves=4` and `leaf_evaluation_workers=16`; single-leaf formal LLM/profile runs should use `--evaluation-workers 16` unless the machine is already heavily loaded.
+- Formal overnight S4/S5/S6 paper-facing runs should follow the unified runner resource policy: multi-leaf batches use `max_concurrent_leaves=4` and `leaf_evaluation_workers=32`; single-leaf formal LLM/profile runs should use `--evaluation-workers 32` unless the machine is already heavily loaded.
 
 - `conda run -n msfenicsx pytest -v`
 - `conda run -n msfenicsx python -m core.cli.main validate-scenario-template --template scenarios/templates/s5_aggressive15.yaml`
@@ -158,30 +167,34 @@ Notes on optimizer worker counts:
 - `conda run -n msfenicsx python -m evaluation.cli evaluate-case --case ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/case.yaml --solution ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011/solution.yaml --spec scenarios/evaluation/s5_aggressive15_eval.yaml --output ./evaluation_report.yaml --bundle-root ./scenario_runs/s5_aggressive15/s5_aggressive15-seed-0011`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 2 --num-generations 1 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_union.yaml --mode union --benchmark-seed 11 --algorithm-seed 1011 --population-size 2 --num-generations 1 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --mode llm --llm-profile gemma4 --benchmark-seed 11 --algorithm-seed 1011 --population-size 5 --num-generations 2 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml --mode llm --llm-profile deepseek_v4_flash --benchmark-seed 11 --algorithm-seed 1011 --population-size 5 --num-generations 2 --evaluation-workers 2 --scenario-runs-root ./scenario_runs`
 - Raw-only algorithm comparisons should be run as `run-benchmark` raw leaves or batch methods; do not add `spea2` or `moead` as `union` or `llm` modes.
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_spea2_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 16 --scenario-runs-root ./scenario_runs`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_moead_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 16 --scenario-runs-root ./scenario_runs`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_raw_union_budgeted.yaml`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s6_raw_union_budgeted.yaml`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_s6_raw_union_budgeted.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_spea2_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 32 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --optimization-spec scenarios/optimization/s5_aggressive15_moead_raw.yaml --mode raw --benchmark-seed 11 --algorithm-seed 1011 --population-size 40 --num-generations 32 --evaluation-workers 32 --scenario-runs-root ./scenario_runs`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s4_main_raw_llm_deepseek_budgeted.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_main_raw_llm_deepseek_budgeted.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s6_main_raw_llm_deepseek_budgeted.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s4_semantic_ablation_budgeted.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_mechanism_llm_direct_vs_ours_budgeted.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_model_sensitivity_seed11.yaml`
+- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_algorithm_baseline_raw_budgeted.yaml`
 - `run-benchmark` automatically renders leaf assets, runs LLM replay/controller diagnostics for LLM leaves, and writes available seed-aware comparisons under `comparisons/`.
 - Budget overrides for single-leaf `run-benchmark`: `--population-size`, `--num-generations`
 - `conda run -n msfenicsx python -m pip install "openai>=1.70"`
 
 The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 
-- `run-benchmark --mode llm` defaults to the spec's `provider_profile` when `--llm-profile` is omitted; active S5-S7 LLM specs use `provider_profile: gemma4`
-- switch models explicitly with `--llm-profile qwen3_6_plus`, `--llm-profile gpt`, `--llm-profile glm_5`, `--llm-profile minimax_m2_5`, `--llm-profile deepseek_v4_flash`, `--llm-profile gemma4`, or `--llm-profile mimo_v2_5`
+- `run-benchmark --mode llm` defaults to the spec's `provider_profile` when `--llm-profile` is omitted; active S4-S6 LLM specs use `provider_profile: deepseek_v4_flash`
+- switch models explicitly with `--llm-profile deepseek_v4_flash`, `--llm-profile qwen3_6_plus`, `--llm-profile kimi_k2_5`, `--llm-profile gpt`, or `--llm-profile mimo_v2_5`
 - model profile declarations live in `llm/openai_compatible/profiles.yaml`
 - bundled model registry maps:
-  - `default -> GPT_PROXY_API_KEY / GPT_PROXY_BASE_URL -> gpt-5.4`
+  - `default -> DEEPSEEK_PROXY_API_KEY / DEEPSEEK_PROXY_BASE_URL -> deepseek-v4-flash` with `extra_body.thinking.type=disabled` and `max_output_tokens=1024`
   - `gpt -> GPT_PROXY_API_KEY / GPT_PROXY_BASE_URL -> gpt-5.4`
   - `qwen3_6_plus -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> qwen3.6-plus`
   - `glm_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> glm-5`
+  - `kimi_k2_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> kimi-k2.5`
   - `minimax_m2_5 -> QWEN_PROXY_API_KEY / QWEN_PROXY_BASE_URL -> MiniMax-M2.5`
   - `deepseek_v4_flash -> DEEPSEEK_PROXY_API_KEY / DEEPSEEK_PROXY_BASE_URL -> deepseek-v4-flash` with `extra_body.thinking.type=disabled` and `max_output_tokens=1024`
-  - `gemma4 -> GEMMA4_API_KEY / GEMMA4_BASE_URL -> gemma4:31b-it-q8_0` through the HPC Ollama/OpenAI-compatible endpoint with `max_output_tokens=1024`
   - `mimo_v2_5 -> MIMO_API_KEY / MIMO_BASE_URL -> mimo-v2.5` with `extra_body.chat_template_kwargs.enable_thinking=false` and `max_output_tokens=1024`
 - the active `scenarios/optimization/s5_aggressive15_llm.yaml` resolves runtime provider identity through:
   - `LLM_API_KEY`
@@ -194,8 +207,6 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
   - `QWEN_PROXY_BASE_URL=https://coding.dashscope.aliyuncs.com/v1`
   - `DEEPSEEK_PROXY_API_KEY`
   - `DEEPSEEK_PROXY_BASE_URL=https://llmapi.paratera.com/v1`
-  - `GEMMA4_API_KEY`
-  - `GEMMA4_BASE_URL=http://10.40.1.22:11434/v1`
   - `MIMO_API_KEY`
   - `MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1`
 
@@ -213,9 +224,9 @@ The active `nsga2_llm` route currently uses OpenAI-compatible model profiles:
 
 - Treat `scenario_template`, `thermal_case`, and `thermal_solution` as the active canonical contracts.
 - `s5_aggressive15` is the primary fixed single-case debugging template and must not define `operating_case_profiles`.
-- S5/S6/S7 are fixed single-case benchmarks; do not use multiple benchmark seeds to simulate multiple problem instances.
-- Conservative daytime smoke/debug optimizer reruns may prefer `--evaluation-workers 2` or lower, including future `llm` runs; do not apply this to formal overnight budgeted S5/S6/S7 runs.
-- Formal overnight budgeted raw/union batches should use the batch resource policy (`max_concurrent_leaves=4`, `leaf_evaluation_workers=16` by default). Formal single-leaf LLM/profile runs should normally use `--evaluation-workers 16`.
+- S4/S5/S6 are fixed single-case benchmarks; do not use multiple benchmark seeds to simulate multiple problem instances.
+- Conservative daytime smoke/debug optimizer reruns may prefer `--evaluation-workers 2` or lower, including future `llm` runs; do not apply this to formal overnight budgeted S4/S5/S6 runs.
+- Formal overnight budgeted batches should use the batch resource policy (`max_concurrent_leaves=4`, `leaf_evaluation_workers=32` by default). Formal single-leaf LLM/profile runs should normally use `--evaluation-workers 32`.
 - Keep evaluation criteria in standalone `evaluation_spec` files instead of adding optimizer metadata to `thermal_case`.
 - Keep optimizer search settings and design-variable bounds in standalone `optimization_spec` files.
 - Repository-wide backbone defaults belong in `optimizers/algorithm_config.py`.
@@ -313,11 +324,17 @@ Current maintained test areas are:
 - `CLAUDE.md`
 - `docs/superpowers/specs/2026-03-26-msfenicsx-clean-rebuild-design.md`
 - `docs/superpowers/plans/2026-03-26-msfenicsx-clean-rebuild-phase1.md`
+- `scenarios/templates/s4_aggressive10.yaml`
+- `scenarios/evaluation/s4_aggressive10_eval.yaml`
+- `scenarios/optimization/s4_aggressive10_raw.yaml`
+- `scenarios/optimization/s4_aggressive10_union.yaml`
+- `scenarios/optimization/s4_aggressive10_llm.yaml`
 - `scenarios/templates/s5_aggressive15.yaml`
 - `scenarios/evaluation/s5_aggressive15_eval.yaml`
 - `scenarios/optimization/s5_aggressive15_raw.yaml`
 - `scenarios/optimization/s5_aggressive15_union.yaml`
 - `scenarios/optimization/s5_aggressive15_llm.yaml`
+- `scenarios/optimization/s5_aggressive15_llm_direct.yaml`
 - `scenarios/optimization/s5_aggressive15_spea2_raw.yaml`
 - `scenarios/optimization/s5_aggressive15_moead_raw.yaml`
 - `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
@@ -335,17 +352,13 @@ Current maintained test areas are:
 - `scenarios/optimization/profiles/s6_aggressive20_union.yaml`
 - `scenarios/optimization/profiles/s6_aggressive20_spea2_raw.yaml`
 - `scenarios/optimization/profiles/s6_aggressive20_moead_raw.yaml`
-- `scenarios/templates/s7_aggressive25.yaml`
-- `scenarios/evaluation/s7_aggressive25_eval.yaml`
-- `scenarios/optimization/s7_aggressive25_raw.yaml`
-- `scenarios/optimization/s7_aggressive25_union.yaml`
-- `scenarios/optimization/s7_aggressive25_llm.yaml`
-- `scenarios/optimization/s7_aggressive25_spea2_raw.yaml`
-- `scenarios/optimization/s7_aggressive25_moead_raw.yaml`
-- `scenarios/optimization/profiles/s7_aggressive25_raw.yaml`
-- `scenarios/optimization/profiles/s7_aggressive25_union.yaml`
-- `scenarios/optimization/profiles/s7_aggressive25_spea2_raw.yaml`
-- `scenarios/optimization/profiles/s7_aggressive25_moead_raw.yaml`
+- `scenarios/batches/s4_main_raw_llm_deepseek_budgeted.yaml`
+- `scenarios/batches/s5_main_raw_llm_deepseek_budgeted.yaml`
+- `scenarios/batches/s6_main_raw_llm_deepseek_budgeted.yaml`
+- `scenarios/batches/s4_semantic_ablation_budgeted.yaml`
+- `scenarios/batches/s5_mechanism_llm_direct_vs_ours_budgeted.yaml`
+- `scenarios/batches/s5_model_sensitivity_seed11.yaml`
+- `scenarios/batches/s5_algorithm_baseline_raw_budgeted.yaml`
 - `optimizers/algorithm_config.py`
 - `optimizers/drivers/raw_driver.py`
 - `optimizers/drivers/union_driver.py`

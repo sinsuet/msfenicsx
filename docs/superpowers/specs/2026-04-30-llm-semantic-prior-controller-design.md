@@ -249,7 +249,7 @@ selection_strategy == "semantic_prior_sampler"
 
 ### 5. Spec 配置边界
 
-当时计划只更新 active paper-facing LLM specs；当前 active 主线已收敛到 S5-S7，后续应以 semantic ranker 设计为准：
+当时计划只更新 active paper-facing LLM specs；当前 active 主线已更新为 S4/S5/S6，后续应以 semantic ranker 设计和 S4-S6 final matrix 为准，不恢复 S7：
 
 - `scenarios/optimization/s5_aggressive15_llm.yaml`
 - `scenarios/optimization/s6_aggressive20_llm.yaml`

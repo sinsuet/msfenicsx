@@ -343,7 +343,9 @@ def test_llm_spec_keeps_benchmark_and_budget_settings_against_union() -> None:
 
     params = llm_spec.operator_control["controller_parameters"]
     assert params["memory"]["recent_window"] > 0
-    assert params["reasoning"]["effort"]
+    assert params["selection_strategy"] == "semantic_ranked_pick"
+    assert params["semantic_ranked_pick"]["max_rank_scan"] > 0
+    assert params["fallback_controller"] == "random_uniform"
     assert params["retry"]["timeout_seconds"] > 0
 
 def test_llm_spec_uses_unified_runtime_provider_env_vars() -> None:
@@ -398,6 +400,67 @@ def test_llm_validation_accepts_model_env_var_without_literal_model() -> None:
 
     assert spec.operator_control is not None
     assert spec.operator_control["controller_parameters"]["model_env_var"] == "LLM_MODEL"
+
+
+def test_llm_direct_validation_accepts_plain_controller_parameters_without_mechanism_keys() -> None:
+    payload = _spec_payload()
+    payload["algorithm"]["mode"] = "union"
+    payload["evaluation_protocol"]["legality_policy_id"] = "projection_plus_local_restore"
+    payload["operator_control"] = {
+        "controller": "llm_direct",
+        "registry_profile": "primitive_structured",
+        "operator_pool": list(approved_operator_pool("primitive_structured")),
+        "controller_parameters": {
+            "provider": "openai-compatible",
+            "provider_profile": "deepseek_v4_flash",
+            "model_env_var": "LLM_MODEL",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "api_key_env_var": "LLM_API_KEY",
+            "base_url_env_var": "LLM_BASE_URL",
+            "max_output_tokens": 1024,
+            "temperature": 0.7,
+            "retry": {
+                "max_attempts": 2,
+                "timeout_seconds": 35,
+            },
+        },
+    }
+
+    spec = OptimizationSpec.from_dict(payload)
+
+    assert spec.operator_control is not None
+    params = spec.operator_control["controller_parameters"]
+    assert spec.operator_control["controller"] == "llm_direct"
+    assert "selection_strategy" not in params
+    assert "semantic_ranked_pick" not in params
+    assert "semantic_prior_sampler" not in params
+    assert "memory" not in params
+
+
+def test_llm_direct_validation_rejects_semantic_controller_mechanism_keys() -> None:
+    payload = _spec_payload()
+    payload["algorithm"]["mode"] = "union"
+    payload["evaluation_protocol"]["legality_policy_id"] = "projection_plus_local_restore"
+    payload["operator_control"] = {
+        "controller": "llm_direct",
+        "registry_profile": "primitive_structured",
+        "operator_pool": list(approved_operator_pool("primitive_structured")),
+        "controller_parameters": {
+            "provider": "openai-compatible",
+            "provider_profile": "deepseek_v4_flash",
+            "model_env_var": "LLM_MODEL",
+            "capability_profile": "chat_compatible_json",
+            "performance_profile": "balanced",
+            "api_key_env_var": "LLM_API_KEY",
+            "base_url_env_var": "LLM_BASE_URL",
+            "max_output_tokens": 1024,
+            "selection_strategy": "semantic_ranked_pick",
+        },
+    }
+
+    with pytest.raises(OptimizationValidationError, match="llm_direct.*mechanism-free"):
+        OptimizationSpec.from_dict(payload)
 
 
 def test_resolve_algorithm_config_merges_global_defaults_profile_and_inline_overrides(tmp_path: Path) -> None:
