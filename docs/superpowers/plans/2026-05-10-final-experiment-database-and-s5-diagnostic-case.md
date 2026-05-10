@@ -12,7 +12,7 @@
 
 ## Execution Staging
 
-- **Stage A, run now:** build the database, comparisons, nIGD exports, and S5 diagnostic figure staging for all completed blocks: S4 main/semantic, S5 main, S5 model sensitivity, S5 algorithm baseline, and S6 seed23 feedback-off diagnostic.
+- **Stage A, run now:** build the database, comparisons, nIGD exports, and S5 diagnostic figure staging for all completed blocks: S4 main/semantic with active seeds `11,13,17,19,23`, S5 main, S5 model sensitivity, S5 algorithm baseline, and S6 seed23 feedback-off diagnostic.
 - **Stage A rule:** keep `main_s6` as `pending`; do not wait for or infer missing S6 DeepSeek seeds. Current paper-facing tables can still be generated with `main_s6` omitted from aggregate metrics and marked pending in `claim_evidence.csv`.
 - **Stage B, run later:** after valid S6 DeepSeek main seeds `17,23,29,31` finish with nonzero operator-level PDE feedback, archive S6 raw-vs-LLM into `scenario_runs/s6_aggressive20/0510_archive__raw_llm-deepseek_v4_flash_5seed`, rebuild S6 main comparison, and rerun Task 2 through Task 4 to refresh the database.
 
@@ -30,7 +30,7 @@
 ### Seed-Cohort Policy
 
 - Block 内必须 seed-matched：同一 block 的 compared methods 必须使用相同 benchmark seeds 和 algorithm seed offset。
-- Block 间允许 seed cohort 不同：S4/S6 当前使用 `11,17,23,29,31`，S5 main 当前使用 `11,23,31,37,41`。论文口径是扩大 stochastic coverage，而不是宣称所有 block 共用完全相同 seeds。
+- Block 间允许 seed cohort 不同：S4 main/semantic 当前使用 `11,13,17,19,23`，S5 main/algorithm baseline 当前使用 `11,23,31,37,41`，S6 main 仍固定计划为 `11,17,23,29,31` 但 Stage A pending。论文口径是扩大 stochastic coverage，而不是宣称所有 block 共用完全相同 seeds。
 - 正文推荐句：
 
 ```text
@@ -179,10 +179,10 @@ blocks:
     role: main
     scenario_id: s4_aggressive10
     methods: [raw, llm-deepseek-v4-flash]
-    seeds: [11, 17, 23, 29, 31]
+    seeds: [11, 13, 17, 19, 23]
     nominal_budget: 512
     current_root: scenario_runs/s4_aggressive10/0510_archive__raw_union_llm-deepseek_v4_flash_5seed
-    status: complete_raw_union_llm_archive
+    status: complete_rearchived_seed_cohort_11_13_17_19_23
   main_s5:
     role: main
     scenario_id: s5_aggressive15
@@ -210,10 +210,10 @@ blocks:
     role: semantic_ablation
     scenario_id: s4_aggressive10
     methods: [raw, union, llm-deepseek-v4-flash]
-    seeds: [11, 17, 23, 29, 31]
+    seeds: [11, 13, 17, 19, 23]
     nominal_budget: 512
     current_root: scenario_runs/s4_aggressive10/0510_archive__raw_union_llm-deepseek_v4_flash_5seed
-    status: complete_archive_needs_comparison_export
+    status: complete_rearchived_seed_cohort_11_13_17_19_23
   feedback_off_diagnostic_s6_seed23:
     role: feedback_off_diagnostic
     scenario_id: s6_aggressive20
@@ -1343,6 +1343,8 @@ PY
 ```
 
 Expected: in Stage A, incomplete rows are known and limited to `main_s6` DeepSeek formal seeds `17,23,29,31` plus the absent S6 unified archive rows. S5 algorithm baseline and S6 feedback-off diagnostic should be complete. In Stage B, `main_s6` should become complete after the unified archive is created.
+
+2026-05-11 note: after the Stage A exporter refresh, `completeness_matrix.csv` records all five `main_s6` LLM rows as `pending_missing_s6_main_archive` because the unified S6 main archive path is intentionally absent until Stage B. This is acceptable; S6 raw rows remain complete and S6 feedback-off is diagnostic-only.
 
 - [ ] **Step 2: Verify claim evidence paths**
 

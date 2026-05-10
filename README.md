@@ -88,26 +88,20 @@ PDE solver 负责物理真值，NSGA-II 负责种群选择，repair / cheap cons
 |------|------|------|
 | Main | S4/S5/S6，5 seeds，`raw` vs `llm_deepseek_v4_flash` | 验证主方法在规模递增场景上稳定优于 raw |
 | Semantic Ablation | S4，5 seeds，`raw / union / llm` | 隔离语义控制贡献，说明不是多算子池本身带来的 |
-| Mechanism Ablation | S5，5 seeds，`llm_direct` vs ours | 验证 inline semantic controller 比直接 LLM 选算子更稳 |
-| Model Sensitivity | S5 seed11，DeepSeek/Qwen/Kimi/GPT/MiMo | 说明机制不是单一模型特例，但不做强统计 claim |
+| Feedback-Off Diagnostic | S6 seed23，raw vs feedback-off DeepSeek | 作为 single-seed negative control，检验 operator-level PDE feedback 闭环必要性 |
+| Model Sensitivity | S5 seed11，DeepSeek/Qwen/GPT-5.5/MiMo | 说明机制不是单一模型特例，但不做强统计 claim |
 | Algorithm Baseline | S5，5 seeds，NSGA-II/SPEA2/MOEA/D raw | 说明 raw baseline 不是因为 NSGA-II 太弱 |
 
-## 实验结果
+当前 paper-facing seed policy：
 
-以 S5 场景为例（PDE cutoff = 149）：
+- S4 main 与 S4 semantic ablation 使用 seeds `[11, 13, 17, 19, 23]`，正式归档为 `scenario_runs/s4_aggressive10/0510_archive__raw_union_llm-deepseek_v4_flash_5seed`。
+- S5 main 与 S5 algorithm baseline 使用 seeds `[11, 23, 31, 37, 41]`。
+- S5 model sensitivity 使用 seed `11`，GPT-5.5 按正常有效 profile 结果呈现。
+- S6 main 仍为 `pending`；S6 seed23 feedback-off 仅作为 diagnostic negative control，不纳入 S6 main aggregate。
 
-| 模式 | 峰值温度 T_max | 梯度 RMS | 可行率 |
-|------|---------------|----------|--------|
-| raw  | 326.75        | 20.81    | 0.523  |
-| union | 327.23       | 21.05    | 0.604  |
-| **llm** | **324.23** | **17.87** | **0.678** |
+## 当前 Stage A 结果口径
 
-LLM 模式的优势来自两个层面：
-
-- **比 raw 多了热控语义动作**：能够处理 sink alignment、block movement、subspace recombination
-- **比 union 更懂何时使用这些动作**：没有把算子池变成随机扰动噪声
-
-trace 显示 LLM 的算子分布更均衡——不仅使用 sink 操作，也显著使用 `component_block_translate_2_4`、`component_subspace_sbx`、`anchored_component_jitter`，对应"散热边界调整 + 组件簇重构 + 局部抛光"的组合策略。
+Stage A 已完成 S4/S5 main、S4 semantic ablation、S5 model sensitivity、S5 raw-only algorithm baseline 和 S6 seed23 feedback-off diagnostic 的 paper experiment database。主统计看每个 registered block 内的 multi-seed aggregate mean；在已完成的 S4/S5 main block 中，DeepSeek LLM 相比 raw 在 mean nIGD、mean hypervolume、mean gradient RMS、mean peak temperature 和 feasible rate 上均占优。S5 seed11 只作为 representative diagnostic case 展示机制过程，不替代 multi-seed aggregate 统计。
 
 ## 快速上手
 
@@ -194,10 +188,6 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark \
 # S4 semantic ablation
 conda run -n msfenicsx python -m optimizers.cli run-benchmark \
   --batch-spec scenarios/batches/s4_semantic_ablation_budgeted.yaml
-
-# S5 mechanism ablation
-conda run -n msfenicsx python -m optimizers.cli run-benchmark \
-  --batch-spec scenarios/batches/s5_mechanism_llm_direct_vs_ours_budgeted.yaml
 
 # 单 seed LLM smoke 调参（小预算）
 conda run -n msfenicsx python -m optimizers.cli run-benchmark \

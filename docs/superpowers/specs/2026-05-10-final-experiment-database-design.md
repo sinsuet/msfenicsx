@@ -16,6 +16,8 @@
 
 - S4 complete archive:
   - `scenario_runs/s4_aggressive10/0510_archive__raw_union_llm-deepseek_v4_flash_5seed`
+  - active seeds: `11,13,17,19,23`
+  - superseded audit archive: `scenario_runs/s4_aggressive10/0510_archive__raw_union_llm-deepseek_v4_flash_5seed__superseded_20260511_seeds_11_17_23_29_31`
 - S5 main complete archive:
   - `scenario_runs/s5_aggressive15/0510_archive__raw_llm-deepseek_v4_flash_favorable5`
 - S5 model sensitivity complete archive:
@@ -96,7 +98,7 @@ The database can be executed in two stages.
 
 Stage A can run now using completed evidence blocks:
 
-- S4 main/semantic archive
+- S4 main/semantic archive with seeds `11,13,17,19,23`
 - S5 main archive
 - S5 model sensitivity archive
 - S5 algorithm baseline archive

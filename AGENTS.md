@@ -23,9 +23,14 @@ This file gives Codex-style agents repository-specific guidance for `msfenicsx`.
 - The active final experiment structure is:
   - Main: S4/S5/S6, 5 seeds, `raw` vs `llm_deepseek_v4_flash`
   - Semantic Ablation: S4, 5 seeds, `raw / union / llm`
-  - Mechanism Ablation: S5, 5 seeds, `llm_direct` vs ours
-  - Model Sensitivity: S5 seed11, DeepSeek/Qwen/Kimi/GPT/MiMo
+  - Feedback-Off Diagnostic: S6 seed23, single-seed diagnostic negative control, raw vs feedback-off DeepSeek
+  - Model Sensitivity: S5 seed11, DeepSeek/Qwen/GPT-5.5/MiMo
   - Algorithm Baseline: S5, 5 seeds, NSGA-II/SPEA2/MOEA/D raw
+- The active paper-facing seed policy is:
+  - S4 main and S4 semantic ablation: seeds `11,13,17,19,23`; official archive `scenario_runs/s4_aggressive10/0510_archive__raw_union_llm-deepseek_v4_flash_5seed`
+  - S5 main and S5 algorithm baseline: seeds `11,23,31,37,41`
+  - S5 model sensitivity: seed `11`, with GPT-5.5 treated as a normal effective profile result
+  - S6 main: still `pending`; S6 seed23 feedback-off is diagnostic-only and must not enter S6 main aggregate
 - The active optimizer ladder uses a matched paper-facing substrate:
   - `raw`: native backbone + `projection_plus_local_restore`
   - `union`: `primitive_structured` registry + fixed stochastic operator-selection controller + `projection_plus_local_restore`
@@ -75,7 +80,6 @@ The implemented paper-facing inputs are:
 - `scenarios/optimization/s5_aggressive15_raw.yaml`
 - `scenarios/optimization/s5_aggressive15_union.yaml`
 - `scenarios/optimization/s5_aggressive15_llm.yaml`
-- `scenarios/optimization/s5_aggressive15_llm_direct.yaml`
 - `scenarios/optimization/s5_aggressive15_spea2_raw.yaml`
 - `scenarios/optimization/s5_aggressive15_moead_raw.yaml`
 - `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
@@ -97,7 +101,6 @@ The implemented paper-facing inputs are:
 - `scenarios/batches/s5_main_raw_llm_deepseek_budgeted.yaml`
 - `scenarios/batches/s6_main_raw_llm_deepseek_budgeted.yaml`
 - `scenarios/batches/s4_semantic_ablation_budgeted.yaml`
-- `scenarios/batches/s5_mechanism_llm_direct_vs_ours_budgeted.yaml`
 - `scenarios/batches/s5_model_sensitivity_seed11.yaml`
 - `scenarios/batches/s5_algorithm_baseline_raw_budgeted.yaml`
 
@@ -126,7 +129,7 @@ The fixed benchmark decisions are:
 - hard sink-budget constraint:
   - `case.total_radiator_span <= radiator_span_max`
 - cheap constraints must run before PDE
-- paper-facing S4/S5/S6 `raw`, `union`, `llm`, `llm_direct`, and raw-only algorithm-comparison specs use `projection_plus_local_restore`
+- paper-facing S4/S5/S6 `raw`, `union`, `llm`, and raw-only algorithm-comparison specs use `projection_plus_local_restore`; do not restore or execute `llm_direct`
 - paper-facing S4/S5/S6 `llm` specs use `semantic_ranked_pick` and default to `provider_profile: deepseek_v4_flash`
 
 ## Architectural Expectations
@@ -175,7 +178,6 @@ Notes on optimizer worker counts:
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_main_raw_llm_deepseek_budgeted.yaml`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s6_main_raw_llm_deepseek_budgeted.yaml`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s4_semantic_ablation_budgeted.yaml`
-- `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_mechanism_llm_direct_vs_ours_budgeted.yaml`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_model_sensitivity_seed11.yaml`
 - `conda run -n msfenicsx python -m optimizers.cli run-benchmark --batch-spec scenarios/batches/s5_algorithm_baseline_raw_budgeted.yaml`
 - `run-benchmark` automatically renders leaf assets, runs LLM replay/controller diagnostics for LLM leaves, and writes available seed-aware comparisons under `comparisons/`.
@@ -334,7 +336,6 @@ Current maintained test areas are:
 - `scenarios/optimization/s5_aggressive15_raw.yaml`
 - `scenarios/optimization/s5_aggressive15_union.yaml`
 - `scenarios/optimization/s5_aggressive15_llm.yaml`
-- `scenarios/optimization/s5_aggressive15_llm_direct.yaml`
 - `scenarios/optimization/s5_aggressive15_spea2_raw.yaml`
 - `scenarios/optimization/s5_aggressive15_moead_raw.yaml`
 - `scenarios/optimization/profiles/s5_aggressive15_raw.yaml`
@@ -356,7 +357,6 @@ Current maintained test areas are:
 - `scenarios/batches/s5_main_raw_llm_deepseek_budgeted.yaml`
 - `scenarios/batches/s6_main_raw_llm_deepseek_budgeted.yaml`
 - `scenarios/batches/s4_semantic_ablation_budgeted.yaml`
-- `scenarios/batches/s5_mechanism_llm_direct_vs_ours_budgeted.yaml`
 - `scenarios/batches/s5_model_sensitivity_seed11.yaml`
 - `scenarios/batches/s5_algorithm_baseline_raw_budgeted.yaml`
 - `optimizers/algorithm_config.py`

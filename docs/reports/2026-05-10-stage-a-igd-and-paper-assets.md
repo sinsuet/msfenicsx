@@ -25,8 +25,8 @@ IGD/nIGD 解释规则：
 
 | Block | Method | Seeds | Mean nIGD ↓ | Median nIGD ↓ | IQR | Mean HV ↑ | Mean Gradient RMS ↓ | Mean Peak Temp ↓ |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| main_s4 | raw | 5 | 0.5364 | 0.5479 | 0.1800 | 932.86 | 12.6460 | 314.0804 |
-| main_s4 | LLM DeepSeek | 5 | 0.1356 | 0.1304 | 0.2084 | 1050.59 | 11.3818 | 313.6936 |
+| main_s4 | raw | 5 | 0.6893 | 0.7093 | 0.2492 | 909.73 | 12.6756 | 314.2745 |
+| main_s4 | LLM DeepSeek | 5 | 0.0470 | 0.0000 | 0.0264 | 1103.99 | 10.5761 | 313.5375 |
 | main_s5 | raw | 5 | 0.7461 | 0.6835 | 0.4966 | 917.69 | 14.5028 | 319.3326 |
 | main_s5 | LLM DeepSeek | 5 | 0.1914 | 0.0000 | 0.4103 | 1075.53 | 12.5949 | 318.9771 |
 
@@ -34,21 +34,22 @@ IGD/nIGD 解释规则：
 
 | Block | nIGD reduction | HV change | Gradient RMS change | Peak Temp change |
 |---|---:|---:|---:|---:|
-| main_s4 | -74.7% | +12.6% | -10.0% | -0.12% |
+| main_s4 | -93.2% | +21.4% | -16.6% | -0.23% |
 | main_s5 | -74.3% | +17.2% | -13.2% | -0.11% |
 
 逐 seed 胜率作为附录透明性材料，不作为主结论口径：
 
 | Block | nIGD wins | HV wins | Gradient wins | Peak-temp wins |
 |---|---:|---:|---:|---:|
-| main_s4, LLM vs raw | 4/5 | 4/5 | 4/5 | 2/5 |
+| main_s4, LLM vs raw | 5/5 | 5/5 | 5/5 | 3/5 |
 | main_s5, LLM vs raw | 4/5 | 5/5 | 5/5 | 3/5 |
 
 逐 seed 非支配现象，建议放附录说明：
 
 | Block | Seed | nIGD delta, LLM-raw | HV delta, LLM-raw | Gradient delta, LLM-raw | Peak delta, LLM-raw |
 |---|---:|---:|---:|---:|---:|
-| main_s4 | 31 | +0.2405 | -60.78 | +0.7464 | +0.6827 |
+| main_s4 | 11 | -0.3394 | +332.35 | -3.8819 | +0.0419 |
+| main_s4 | 19 | -0.5082 | +68.93 | -0.7077 | +0.0708 |
 | main_s5 | 31 | +0.3226 | +16.83 | -0.2829 | +0.4714 |
 
 说明：
@@ -61,21 +62,21 @@ IGD/nIGD 解释规则：
 
 | Method | Seeds | Mean nIGD ↓ | Mean HV ↑ | Mean Gradient RMS ↓ | Mean Peak Temp ↓ |
 |---|---:|---:|---:|---:|---:|
-| raw | 5 | 0.6094 | 932.86 | 12.6460 | 314.0804 |
-| union | 5 | 0.6603 | 908.00 | 12.9846 | 314.1542 |
-| LLM DeepSeek | 5 | 0.2680 | 1050.59 | 11.3818 | 313.6936 |
+| raw | 5 | 0.6893 | 909.73 | 12.6756 | 314.2745 |
+| union | 5 | 0.8559 | 869.16 | 13.1443 | 314.7643 |
+| LLM DeepSeek | 5 | 0.0470 | 1103.99 | 10.5761 | 313.5375 |
 
 LLM 相比 raw：
 
-- nIGD 胜率：4/5 seeds，mean delta -0.3414。
-- HV 胜率：4/5 seeds，mean delta +117.73。
-- gradient RMS 胜率：4/5 seeds，mean delta -1.2642。
+- nIGD 胜率：5/5 seeds，mean delta -0.6423。
+- HV 胜率：5/5 seeds，mean delta +194.26。
+- gradient RMS 胜率：5/5 seeds，mean delta -2.0995。
 
 LLM 相比 union：
 
-- nIGD 胜率：4/5 seeds，mean delta -0.3923。
-- HV 胜率：4/5 seeds，mean delta +142.59。
-- gradient RMS 胜率：4/5 seeds，mean delta -1.6028。
+- nIGD 胜率：5/5 seeds，mean delta -0.8090。
+- HV 胜率：5/5 seeds，mean delta +234.84。
+- gradient RMS 胜率：5/5 seeds，mean delta -2.5682。
 
 可用表述：
 
@@ -252,7 +253,7 @@ Prompt audit：
 
 建议正文结论句：
 
-> Across the completed S4 and S5 main blocks, the DeepSeek semantic controller is consistently best under the registered aggregate-mean metrics: it reduces mean nIGD by about 74% relative to raw, increases mean hypervolume, reduces mean gradient RMS and peak temperature, and improves feasible-search behavior under matched seeds and budgets. We use S5 seed 11 as a representative diagnostic case to visualize how this aggregate advantage arises in a fully traced medium-scale run.
+> Across the completed S4 and S5 main blocks, the DeepSeek semantic controller is consistently best under the registered aggregate-mean metrics: it reduces mean nIGD by about 93% on S4 and 74% on S5 relative to raw, increases mean hypervolume, reduces mean gradient RMS and peak temperature, and improves feasible-search behavior under matched seeds and budgets. We use S5 seed 11 as a representative diagnostic case to visualize how this aggregate advantage arises in a fully traced medium-scale run.
 
 ## 写作边界
 

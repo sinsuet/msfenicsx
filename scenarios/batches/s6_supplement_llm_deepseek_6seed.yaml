@@ -1,0 +1,18 @@
+campaign_id: s6_supplement_llm_deepseek_6seed
+scenario_runs_root: ./scenario_runs
+scenario_id: s6_aggressive20
+methods:
+  - method_id: nsga2_llm:deepseek_v4_flash
+    mode: llm
+    llm_profile: deepseek_v4_flash
+    optimization_spec: scenarios/optimization/s6_aggressive20_llm.yaml
+replicate_seeds: [13, 15, 17, 19, 21, 25]
+algorithm_seed_offset: 1000
+population_size: 56
+num_generations: 36
+resource_policy:
+  max_concurrent_leaves: 6
+  leaf_evaluation_workers: 32
+comparison_policy:
+  by_seed: true
+  aggregate: true

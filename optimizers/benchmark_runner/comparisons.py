@@ -79,11 +79,20 @@ def _method_id(seed_root: Path) -> str:
         payload = yaml.safe_load(run_yaml.read_text(encoding="utf-8")) or {}
         explicit = payload.get("method_id")
         if explicit:
-            return str(explicit).replace(":", "-")
+            return _canonical_method_id(str(explicit))
         mode = payload.get("mode")
         if mode:
-            return str(mode).replace(":", "-")
-    return seed_root.parent.parent.name
+            return _canonical_method_id(str(mode))
+    return _canonical_method_id(seed_root.parent.parent.name)
+
+
+def _canonical_method_id(method_id: str) -> str:
+    method = str(method_id).strip()
+    if method.startswith("nsga2_llm:"):
+        return f"llm-{method.split(':', 1)[1]}"
+    if method.startswith("nsga2-llm-"):
+        return f"llm-{method.split('nsga2-llm-', 1)[1]}"
+    return method.replace(":", "-")
 
 
 def _ordered_methods(runs_by_method: dict[str, Path]) -> list[str]:
