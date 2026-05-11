@@ -53,6 +53,7 @@ def build_comparison_bundle(
     suite_root: Path | None = None,
     benchmark_seed: int | None = None,
     hires: bool = False,
+    series_label_overrides: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     resolved_runs = [resolve_single_run_root(Path(run)) for run in runs]
     output = Path(output)
@@ -67,10 +68,11 @@ def build_comparison_bundle(
     tables_root.mkdir(parents=True, exist_ok=True)
 
     payloads = [_collect_run_payload(run_root) for run_root in resolved_runs]
+    _apply_series_label_overrides(payloads, series_label_overrides or {})
     reference_point = _apply_shared_hypervolume_reference(payloads)
     _apply_shared_igd_reference(payloads)
     _disambiguate_duplicate_series_labels(payloads)
-    payloads.sort(key=lambda item: _series_sort_key(str(item["series_label"]), mode=str(item["mode"])))
+    payloads.sort(key=_payload_sort_key)
 
     hypervolume_series = {
         str(payload["series_label"]): list(payload["hypervolume_series"])
@@ -422,6 +424,36 @@ def _disambiguate_duplicate_series_labels(payloads: Sequence[dict[str, Any]]) ->
         representative_panel = payload.get("representative_panel")
         if isinstance(representative_panel, dict):
             representative_panel["series_label"] = disambiguated
+
+
+def _apply_series_label_overrides(
+    payloads: Sequence[dict[str, Any]],
+    overrides: Mapping[str, str],
+) -> None:
+    if not overrides:
+        return
+    normalized = {str(Path(key)): str(value) for key, value in overrides.items()}
+    resolved = {str(Path(key).resolve()): str(value) for key, value in overrides.items()}
+    order_by_key = {str(Path(key)): index for index, key in enumerate(overrides)}
+    order_by_resolved_key = {str(Path(key).resolve()): index for index, key in enumerate(overrides)}
+    for payload in payloads:
+        run_root = Path(payload["run_root"])
+        normalized_key = str(run_root)
+        resolved_key = str(run_root.resolve())
+        label = normalized.get(normalized_key) or resolved.get(resolved_key)
+        if not label:
+            continue
+        payload["_series_order"] = order_by_key.get(normalized_key, order_by_resolved_key.get(resolved_key, 0))
+        payload["series_label"] = label
+        summary_row = payload.get("summary_row")
+        if isinstance(summary_row, dict):
+            summary_row["series_label"] = label
+        timeline_rollup = payload.get("timeline_rollup")
+        if isinstance(timeline_rollup, dict):
+            timeline_rollup["series_label"] = label
+        representative_panel = payload.get("representative_panel")
+        if isinstance(representative_panel, dict):
+            representative_panel["series_label"] = label
 
 
 def _build_aggregate_suite_bundle(
@@ -841,6 +873,12 @@ def _aggregate_mode_summary(rows: Sequence[Mapping[str, Any]]) -> list[dict[str,
                 "best_temperature_max_mean": _mean(_numeric_values(mode_rows, "best_temperature_max")),
                 "best_gradient_rms_mean": _mean(_numeric_values(mode_rows, "best_gradient_rms")),
                 "final_hypervolume_mean": _mean(_numeric_values(mode_rows, "final_hypervolume")),
+                "final_igd_mean": _mean(_numeric_values(mode_rows, "final_igd")),
+                "final_igd_median": _median(_numeric_values(mode_rows, "final_igd")),
+                "final_igd_iqr": _iqr(_numeric_values(mode_rows, "final_igd")),
+                "normalized_final_igd_mean": _mean(_numeric_values(mode_rows, "normalized_final_igd")),
+                "normalized_final_igd_median": _median(_numeric_values(mode_rows, "normalized_final_igd")),
+                "normalized_final_igd_iqr": _iqr(_numeric_values(mode_rows, "normalized_final_igd")),
             }
         )
     return summary_rows
@@ -1084,6 +1122,18 @@ def _mean(values: Sequence[float]) -> float | None:
     return float(sum(values) / float(len(values)))
 
 
+def _median(values: Sequence[float]) -> float | None:
+    if not values:
+        return None
+    return float(np.median(values))
+
+
+def _iqr(values: Sequence[float]) -> float | None:
+    if not values:
+        return None
+    return float(np.percentile(values, 75) - np.percentile(values, 25))
+
+
 def _win_rate(left_values: Sequence[Any], right_values: Sequence[Any], *, lower_is_better: bool) -> float | None:
     scores: list[float] = []
     for left, right in zip(left_values, right_values, strict=True):
@@ -1116,6 +1166,17 @@ def _series_sort_key(series_label: str, *, mode: str | None = None) -> tuple[int
         if label_text == candidate or label_text.endswith(f" {candidate}"):
             return (_mode_sort_key(candidate), raw_priority, label_text)
     return (len(MODE_ORDER), raw_priority, label_text)
+
+
+def _payload_sort_key(payload: Mapping[str, Any]) -> tuple[int, int, int, str]:
+    explicit_order = payload.get("_series_order")
+    if explicit_order is not None:
+        return (0, int(explicit_order), 0, str(payload.get("series_label", "")))
+    mode_order, raw_priority, label_text = _series_sort_key(
+        str(payload.get("series_label", "")),
+        mode=str(payload.get("mode", "")),
+    )
+    return (1, mode_order, raw_priority, label_text)
 
 
 def _comparison_overview_title(*, benchmark_seed: int | None, comparison_kind: str) -> str:

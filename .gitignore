@@ -11,7 +11,7 @@ __pycache__/
 .superpowers/
 logs/
 scenario_runs/
-paper_runs/
+tools/
 # Local environment and secrets
 .env
 .env.*
@@ -20,3 +20,4 @@ paper_runs/
 
 #paper writting
 paper/
+paper_database/

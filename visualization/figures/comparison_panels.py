@@ -291,7 +291,7 @@ def render_seed_outcome_dashboard(
     metric_defs = [
         ("best_temperature_max", "Best Tmax"),
         ("best_gradient_rms", "Best Grad RMS"),
-        ("first_feasible_eval", "First Feasible Eval"),
+        ("first_feasible_pde_eval", "First Feasible Eval"),
         ("final_hypervolume", "Final Hypervolume"),
     ]
     grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -306,8 +306,8 @@ def render_seed_outcome_dashboard(
     for axis, (metric_key, metric_label) in zip(axes.flat, metric_defs):
         for seed_index, seed in enumerate(sorted(grouped)):
             seed_rows = sorted(grouped[seed], key=lambda row: x_positions.get(str(row.get("mode")), 0))
-            xs = [x_positions[str(row.get("mode"))] for row in seed_rows if row.get(metric_key) is not None]
-            ys = [float(row[metric_key]) for row in seed_rows if row.get(metric_key) is not None]
+            xs = [x_positions[str(row.get("mode"))] for row in seed_rows if _metric_value(row, metric_key) is not None]
+            ys = [float(_metric_value(row, metric_key)) for row in seed_rows if _metric_value(row, metric_key) is not None]
             if not xs:
                 continue
             color = PALETTE_CATEGORICAL[(seed_index + 1) % len(PALETTE_CATEGORICAL)]
@@ -421,7 +421,16 @@ def _summary_table_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "best_grad": row.get("best_gradient_rms", row.get("best_gradient_rms_mean")),
         "feasible_rate": row.get("feasible_rate", row.get("feasible_rate_mean")),
         "hypervolume": row.get("final_hypervolume", row.get("final_hypervolume_mean")),
+        "igd": row.get("final_igd", row.get("final_igd_mean")),
+        "nigd": row.get("normalized_final_igd", row.get("normalized_final_igd_mean")),
     }
+
+
+def _metric_value(row: Mapping[str, Any], key: str) -> Any:
+    value = row.get(key)
+    if value is not None:
+        return value
+    return row.get(f"{key}_mean")
 
 
 def _display_value(value: Any) -> str:

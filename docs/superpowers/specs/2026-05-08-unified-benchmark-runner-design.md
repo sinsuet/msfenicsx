@@ -425,14 +425,14 @@ Comparison 必须按 seed 分层，再做共同 seed 集合上的 aggregate。ru
 
 ### 示例：先跑 S5 raw+union 五个 seeds
 
-运行 S5 raw+union seeds `[11, 17, 23, 29, 31]` 后，自动生成：
+运行 S5 raw+union seeds `[11, 23, 31, 37, 41]` 后，自动生成：
 
 ```text
 comparisons/by_seed/seed-11/    raw vs union
-comparisons/by_seed/seed-17/    raw vs union
 comparisons/by_seed/seed-23/    raw vs union
-comparisons/by_seed/seed-29/    raw vs union
 comparisons/by_seed/seed-31/    raw vs union
+comparisons/by_seed/seed-37/    raw vs union
+comparisons/by_seed/seed-41/    raw vs union
 comparisons/aggregate/          raw vs union over 5 seeds
 ```
 

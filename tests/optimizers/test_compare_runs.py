@@ -251,6 +251,43 @@ def test_compare_runs_disambiguates_same_mode_strategy_variants(tmp_path: Path) 
     assert pairwise_rows[0]["left_label"] != pairwise_rows[0]["right_label"]
 
 
+def test_comparison_bundle_uses_explicit_series_label_overrides(tmp_path: Path) -> None:
+    import csv
+
+    from optimizers.comparison_artifacts import build_comparison_bundle
+
+    run_a = tmp_path / "raw" / "seeds" / "seed-23"
+    run_b = tmp_path / "llm-normal" / "seeds" / "seed-23"
+    run_c = tmp_path / "llm-feedback-off" / "seeds" / "seed-23"
+    _seed_run(run_a, "raw")
+    _seed_run(run_b, "llm")
+    _seed_run(run_c, "llm")
+    for run_root in (run_b, run_c):
+        (run_root / "run.yaml").write_text(
+            "mode: llm\nalgorithm:\n  backbone: nsga2\n  label: NSGA-II\n",
+            encoding="utf-8",
+        )
+
+    output = tmp_path / "paper_database" / "paper_experiment_db" / "figures" / "s6_seed23_mechanism_ablation"
+    build_comparison_bundle(
+        runs=[run_a, run_b, run_c],
+        output=output,
+        comparison_kind="mechanism_ablation",
+        benchmark_seed=23,
+        series_label_overrides={
+            str(run_a): "raw seed23",
+            str(run_b): "normal LLM seed23",
+            str(run_c): "feedback-off LLM seed23",
+        },
+    )
+
+    mode_rows = list(csv.DictReader((output / "tables" / "mode_metrics.csv").open()))
+    labels = {row["series_label"] for row in mode_rows}
+    assert labels == {"raw seed23", "normal LLM seed23", "feedback-off LLM seed23"}
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["series_labels"] == ["raw seed23", "normal LLM seed23", "feedback-off LLM seed23"]
+
+
 def test_compare_runs_writes_pde_budget_accounting_outputs(tmp_path: Path) -> None:
     import csv
 

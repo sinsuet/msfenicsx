@@ -62,7 +62,7 @@
   - Main: S4/S5/S6, 5 seeds, `raw` vs `llm_deepseek_v4_flash`
   - Semantic Ablation: S4, 5 seeds, `raw / union / llm`
   - Mechanism Ablation: S5, 5 seeds, `llm_direct` vs ours
-  - Model Sensitivity: S5 seed11, DeepSeek/Qwen/Kimi/GPT/MiMo
+  - Model Sensitivity: S5 seed11, DeepSeek/Qwen/GPT-5.5/MiMo; GLM/MiniMax appendix
   - Algorithm Baseline: S5, 5 seeds, NSGA-II/SPEA2/MOEA/D raw
 - [ ] Remove Gemma4 from examples, profile lists, and resource guidance.
 

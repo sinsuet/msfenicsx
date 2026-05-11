@@ -14,9 +14,9 @@
 
 - Status: §8, §9, and appendix briefs generated; final integration not started.
 - Generated under ignored `paper/` tree:
-  - `paper/els-cas-templates/planning/chapter_briefs/08_discussion_brief.md`
-  - `paper/els-cas-templates/planning/chapter_briefs/09_conclusion_brief.md`
-  - `paper/els-cas-templates/planning/chapter_briefs/appendix_brief.md`
+  - `paper/msgalaxy/planning/chapter_briefs/08_discussion_brief.md`
+  - `paper/msgalaxy/planning/chapter_briefs/09_conclusion_brief.md`
+  - `paper/msgalaxy/planning/chapter_briefs/appendix_brief.md`
   - Appendix Table A1 / Appendix Table B1 / Appendix Fig. B1 entries in `figure_table_register.md`
 - Verified during recovery:
   - Discussion, Conclusion, and Appendix briefs preserve the `single-seed` / `aggregate` / `diagnostic` / `pending` / `hypothesis` evidence boundaries.
@@ -27,41 +27,41 @@
 
 ## Shared Literature and Citation Rules
 
-- All literature/source-paper PDFs, reading notes, and staged BibTeX entries belong under `paper/els-cas-templates/references/`.
-- `paper/els-cas-templates/planning/citation_register.md` is the citation admission register;正文 may cite only entries with `Status = verified`.
+- All literature/source-paper PDFs, reading notes, and staged BibTeX entries belong under `paper/msgalaxy/references/`.
+- `paper/msgalaxy/planning/citation_register.md` is the citation admission register;正文 may cite only entries with `Status = verified`.
 - Default literature search window is 2021-2026. Older papers are allowed only for classical foundations such as NSGA-II, MOEA/D, adaptive operator selection, hyper-heuristics, and spacecraft thermal-control foundations.
 - Journals should be JCR/CAS Q1 or equivalent top-field venues where possible; conferences should be CCF-A/A* or field-top venues where possible.
 - arXiv-only entries require explicit justification and should not anchor a core claim if a peer-reviewed source can support it.
 - Official metadata sources are preferred: DOI/publisher pages, DBLP, OpenReview, IEEE, ACM, ScienceDirect, Springer, and arXiv official pages.
 - Do not expand the Elsevier sample `cas-refs.bib` as the real bibliography. Use `references/bibtex/staging.bib`, promote approved entries to `references/bibtex/verified.bib`, and later generate the final root `references.bib`.
 - Integration must check that every `\citep{...}` / `\citet{...}` key exists in `verified.bib` and is marked `verified` in `citation_register.md`.
-- LaTeX compile hygiene: all formal or smoke manuscript compilation must run from `paper/els-cas-templates` and write outputs to `paper/els-cas-templates/compile/`, e.g. `latexmk -pdf -interaction=nonstopmode -halt-on-error -outdir=compile manuscript.tex`. Do not leave `.aux`, `.log`, `.out`, `.fls`, `.fdb_latexmk`, `.synctex.gz`, or generated PDFs in the template root or `sections/`.
+- LaTeX compile hygiene: all formal or smoke manuscript compilation must run from `paper/msgalaxy` and write outputs to `paper/msgalaxy/compile/`, e.g. `latexmk -pdf -interaction=nonstopmode -halt-on-error -outdir=compile msgalaxy.tex`. Do not leave `.aux`, `.log`, `.out`, `.fls`, `.fdb_latexmk`, `.synctex.gz`, or generated PDFs in the template root or `sections/`.
 
 ## File Structure
 
-- Create: `paper/els-cas-templates/planning/chapter_briefs/08_discussion_brief.md`
-- Create: `paper/els-cas-templates/planning/chapter_briefs/09_conclusion_brief.md`
-- Create: `paper/els-cas-templates/planning/chapter_briefs/appendix_brief.md`
-- Later after approval: `paper/els-cas-templates/sections/08_discussion.tex`
-- Later after approval: `paper/els-cas-templates/sections/09_conclusion.tex`
-- Later after approval: `paper/els-cas-templates/sections/appendix_a_contracts.tex`
-- Later after approval: `paper/els-cas-templates/sections/appendix_b_additional_results.tex`
-- Later after approval: `paper/els-cas-templates/manuscript.tex`
+- Create: `paper/msgalaxy/planning/chapter_briefs/08_discussion_brief.md`
+- Create: `paper/msgalaxy/planning/chapter_briefs/09_conclusion_brief.md`
+- Create: `paper/msgalaxy/planning/chapter_briefs/appendix_brief.md`
+- Later after approval: `paper/msgalaxy/sections/08_discussion.tex`
+- Later after approval: `paper/msgalaxy/sections/09_conclusion.tex`
+- Later after approval: `paper/msgalaxy/sections/appendix_a_contracts.tex`
+- Later after approval: `paper/msgalaxy/sections/appendix_b_additional_results.tex`
+- Later after approval: `paper/msgalaxy/msgalaxy.tex`
 
 ## Task 1: Draft Discussion Brief
 
 **Files:**
-- Create: `paper/els-cas-templates/planning/chapter_briefs/08_discussion_brief.md`
+- Create: `paper/msgalaxy/planning/chapter_briefs/08_discussion_brief.md`
 
 - [ ] **Step 1: Read upstream briefs and registers**
 
 Run:
 
 ```bash
-sed -n '1,220p' paper/els-cas-templates/planning/narrative_register.md
-sed -n '1,220p' paper/els-cas-templates/planning/evidence_register.md
-sed -n '1,220p' paper/els-cas-templates/planning/chapter_briefs/06_results_brief.md
-sed -n '1,220p' paper/els-cas-templates/planning/chapter_briefs/07_mechanistic_analysis_brief.md
+sed -n '1,220p' paper/msgalaxy/planning/narrative_register.md
+sed -n '1,220p' paper/msgalaxy/planning/evidence_register.md
+sed -n '1,220p' paper/msgalaxy/planning/chapter_briefs/06_results_brief.md
+sed -n '1,220p' paper/msgalaxy/planning/chapter_briefs/07_mechanistic_analysis_brief.md
 ```
 
 Expected: identify confirmed claims, diagnostic claims, pending claims, and limitations.
@@ -109,7 +109,7 @@ Ask user to confirm which limitations to include in main text.
 ## Task 2: Draft Conclusion Brief
 
 **Files:**
-- Create: `paper/els-cas-templates/planning/chapter_briefs/09_conclusion_brief.md`
+- Create: `paper/msgalaxy/planning/chapter_briefs/09_conclusion_brief.md`
 
 - [ ] **Step 1: Draft `09_conclusion_brief.md`**
 
@@ -153,8 +153,8 @@ Ask user to approve conclusion strength after final Results are frozen.
 ## Task 3: Draft Appendix Brief
 
 **Files:**
-- Create: `paper/els-cas-templates/planning/chapter_briefs/appendix_brief.md`
-- Modify: `paper/els-cas-templates/planning/figure_table_register.md`
+- Create: `paper/msgalaxy/planning/chapter_briefs/appendix_brief.md`
+- Modify: `paper/msgalaxy/planning/figure_table_register.md`
 
 - [ ] **Step 1: Register appendix tables and figures**
 

@@ -9,7 +9,7 @@ methods:
     mode: llm
     llm_profile: deepseek_v4_flash
     optimization_spec: scenarios/optimization/s5_aggressive15_llm.yaml
-replicate_seeds: [11, 23, 31, 37, 41]
+replicate_seeds: [23, 37, 19, 11, 41]
 algorithm_seed_offset: 1000
 population_size: 40
 num_generations: 32

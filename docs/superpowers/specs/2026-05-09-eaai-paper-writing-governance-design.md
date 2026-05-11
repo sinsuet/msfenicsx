@@ -4,7 +4,7 @@
 
 ## 1. Goal
 
-为 `paper/els-cas-templates` 中的 EAAI 论文建立一套可分阶段确认、可并行执行、可保持全文一致性的写作机制。
+为 `paper/msgalaxy` 中的 EAAI 论文建立一套可分阶段确认、可并行执行、可保持全文一致性的写作机制。
 
 这份 spec 不直接写论文正文，而是定义：
 
@@ -100,7 +100,7 @@ Appendix：
 推荐在论文目录下维护写作控制文件：
 
 ```text
-paper/els-cas-templates/planning/
+paper/msgalaxy/planning/
   narrative_register.md
   terminology_register.md
   citation_register.md
@@ -122,12 +122,12 @@ paper/els-cas-templates/planning/
 
 ## 7.1 LaTeX Compile Hygiene
 
-正式稿和 smoke check 的 LaTeX 编译都必须从 `paper/els-cas-templates` 执行，并把所有编译产物写入 `paper/els-cas-templates/compile/`。推荐命令：
+正式稿和 smoke check 的 LaTeX 编译都必须从 `paper/msgalaxy` 执行，并把所有编译产物写入 `paper/msgalaxy/compile/`。推荐命令：
 
 ```bash
-cd paper/els-cas-templates
+cd paper/msgalaxy
 mkdir -p compile
-latexmk -pdf -interaction=nonstopmode -halt-on-error -outdir=compile manuscript.tex
+latexmk -pdf -interaction=nonstopmode -halt-on-error -outdir=compile msgalaxy.tex
 ```
 
 如果手动调用 `pdflatex` / `bibtex`，也必须使用 `-output-directory=compile`，并在需要时对 `compile/manuscript` 运行 `bibtex`。模板根目录和 `sections/` 目录只保留源码、CAS class/style、规划文件和人工维护资源；不要留下 `.aux`、`.log`、`.out`、`.fls`、`.fdb_latexmk`、`.synctex.gz` 或临时 PDF。
@@ -274,7 +274,7 @@ latexmk -pdf -interaction=nonstopmode -halt-on-error -outdir=compile manuscript.
 
 当前应作为计划输入的本地文件：
 
-- `paper/els-cas-templates/2026-05-09-eaai-paper-parallel-writing-spec-plan.md`
+- `paper/msgalaxy/2026-05-09-eaai-paper-parallel-writing-spec-plan.md`
 - `docs/ss.txt`
 - `scenario_runs/compares/s5_seed11_raw_union-neutral_llm-deepseek/s5_seed11_semantic_ablation_report.md`
 - `scenario_runs/compares/s5_seed11_raw_union-neutral_llm-deepseek/analytics/summary_rows.csv`

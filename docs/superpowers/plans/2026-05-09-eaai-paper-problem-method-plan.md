@@ -14,8 +14,8 @@
 
 - Status: problem/method briefs generated; user review gate still open.
 - Generated under ignored `paper/` tree:
-  - `paper/els-cas-templates/planning/chapter_briefs/03_problem_benchmark_brief.md`
-  - `paper/els-cas-templates/planning/chapter_briefs/04_method_brief.md`
+  - `paper/msgalaxy/planning/chapter_briefs/03_problem_benchmark_brief.md`
+  - `paper/msgalaxy/planning/chapter_briefs/04_method_brief.md`
   - corresponding Fig. 2/Table 2/Fig. 3/Table 3/Algorithm 1/Algorithm 2 entries in `figure_table_register.md`
 - Verified during recovery:
   - S4/S5/S6 are fixed single-case scale labels with 22/32/42 decision variables from component `x/y` variables plus `sink_start/sink_end`.
@@ -26,30 +26,30 @@
 
 ## Shared Literature and Citation Rules
 
-- All literature/source-paper PDFs, reading notes, and staged BibTeX entries belong under `paper/els-cas-templates/references/`.
-- `paper/els-cas-templates/planning/citation_register.md` is the citation admission register;正文 may cite only entries with `Status = verified`.
+- All literature/source-paper PDFs, reading notes, and staged BibTeX entries belong under `paper/msgalaxy/references/`.
+- `paper/msgalaxy/planning/citation_register.md` is the citation admission register;正文 may cite only entries with `Status = verified`.
 - Default literature search window is 2021-2026. Older papers are allowed only for classical foundations such as NSGA-II, MOEA/D, adaptive operator selection, hyper-heuristics, and spacecraft thermal-control foundations.
 - Journals should be JCR/CAS Q1 or equivalent top-field venues where possible; conferences should be CCF-A/A* or field-top venues where possible.
 - arXiv-only entries require explicit justification and should not anchor a core claim if a peer-reviewed source can support it.
 - Official metadata sources are preferred: DOI/publisher pages, DBLP, OpenReview, IEEE, ACM, ScienceDirect, Springer, and arXiv official pages.
 - Do not expand the Elsevier sample `cas-refs.bib` as the real bibliography. Use `references/bibtex/staging.bib`, promote approved entries to `references/bibtex/verified.bib`, and later generate the final root `references.bib`.
 - Problem/method citations must support definitions, benchmark context, or algorithm lineage; they must not be used to smuggle in unverified performance claims.
-- LaTeX compile hygiene: all formal or smoke manuscript compilation must run from `paper/els-cas-templates` and write outputs to `paper/els-cas-templates/compile/`, e.g. `latexmk -pdf -interaction=nonstopmode -halt-on-error -outdir=compile manuscript.tex`. Do not leave `.aux`, `.log`, `.out`, `.fls`, `.fdb_latexmk`, `.synctex.gz`, or generated PDFs in the template root or `sections/`.
+- LaTeX compile hygiene: all formal or smoke manuscript compilation must run from `paper/msgalaxy` and write outputs to `paper/msgalaxy/compile/`, e.g. `latexmk -pdf -interaction=nonstopmode -halt-on-error -outdir=compile msgalaxy.tex`. Do not leave `.aux`, `.log`, `.out`, `.fls`, `.fdb_latexmk`, `.synctex.gz`, or generated PDFs in the template root or `sections/`.
 
 ## File Structure
 
-- Modify: `paper/els-cas-templates/planning/terminology_register.md`
-- Modify: `paper/els-cas-templates/planning/figure_table_register.md`
-- Create: `paper/els-cas-templates/planning/chapter_briefs/03_problem_benchmark_brief.md`
-- Create: `paper/els-cas-templates/planning/chapter_briefs/04_method_brief.md`
-- Later after approval: `paper/els-cas-templates/sections/03_problem_benchmark.tex`
-- Later after approval: `paper/els-cas-templates/sections/04_method.tex`
+- Modify: `paper/msgalaxy/planning/terminology_register.md`
+- Modify: `paper/msgalaxy/planning/figure_table_register.md`
+- Create: `paper/msgalaxy/planning/chapter_briefs/03_problem_benchmark_brief.md`
+- Create: `paper/msgalaxy/planning/chapter_briefs/04_method_brief.md`
+- Later after approval: `paper/msgalaxy/sections/03_problem_benchmark.tex`
+- Later after approval: `paper/msgalaxy/sections/04_method.tex`
 
 ## Task 1: Freeze Problem Formulation Brief
 
 **Files:**
-- Create: `paper/els-cas-templates/planning/chapter_briefs/03_problem_benchmark_brief.md`
-- Modify: `paper/els-cas-templates/planning/figure_table_register.md`
+- Create: `paper/msgalaxy/planning/chapter_briefs/03_problem_benchmark_brief.md`
+- Modify: `paper/msgalaxy/planning/figure_table_register.md`
 
 - [ ] **Step 1: Inspect required source files**
 
@@ -130,9 +130,9 @@ Ask user to confirm the problem framing before drafting equations or LaTeX.
 ## Task 2: Freeze Method Brief
 
 **Files:**
-- Create: `paper/els-cas-templates/planning/chapter_briefs/04_method_brief.md`
-- Modify: `paper/els-cas-templates/planning/figure_table_register.md`
-- Modify: `paper/els-cas-templates/planning/terminology_register.md`
+- Create: `paper/msgalaxy/planning/chapter_briefs/04_method_brief.md`
+- Modify: `paper/msgalaxy/planning/figure_table_register.md`
+- Modify: `paper/msgalaxy/planning/terminology_register.md`
 
 - [ ] **Step 1: Inspect method source files**
 

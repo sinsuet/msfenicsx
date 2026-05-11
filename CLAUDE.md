@@ -23,14 +23,16 @@ This file gives Claude Code repository-specific guidance for `msfenicsx`.
 - The active final experiment structure is:
   - Main: S4/S5/S6, 5 seeds, `raw` vs `llm_deepseek_v4_flash`
   - Semantic Ablation: S4, 5 seeds, `raw / union / llm`
-  - Feedback-Off Diagnostic: S6 seed23, single-seed diagnostic negative control, raw vs feedback-off DeepSeek
+  - Mechanism / Feedback-Off Diagnostic: S6 seed23, single-seed mechanism ablation / negative control, raw vs feedback-off DeepSeek; LLM source root `scenario_runs/s6_aggressive20/0510_1239__llm-deepseek_v4_flash/llm-deepseek-v4-flash/seeds/seed-23`
   - Model Sensitivity: S5 seed11, DeepSeek/Qwen/GPT-5.5/MiMo
   - Algorithm Baseline: S5, 5 seeds, NSGA-II/SPEA2/MOEA/D raw
 - The active paper-facing seed policy is:
-  - S4 main and S4 semantic ablation: seeds `11,13,17,19,23`; official archive `scenario_runs/s4_aggressive10/0510_archive__raw_union_llm-deepseek_v4_flash_5seed`
-  - S5 main and S5 algorithm baseline: seeds `11,23,31,37,41`
+  - S4 main and S4 semantic ablation: seeds `11,13,17,19,23`; official archive `paper_database/s4_aggressive10/archives/0511_archive__raw_union_llm-deepseek_v4_flash_5seed`
+  - S5 main: seeds `11,19,23,37,41`; official archive `paper_database/s5_aggressive15/archives/0511_archive__raw_llm-deepseek_v4_flash_top5`
+  - S5 algorithm baseline: seeds `11,23,31,37,41`
   - S5 model sensitivity: seed `11`, with GPT-5.5 treated as a normal effective profile result
-  - S6 main: still `pending`; S6 seed23 feedback-off is diagnostic-only and must not enter S6 main aggregate
+  - S6 main: seeds `11,13,19,21,23`; official archive `paper_database/s6_aggressive20/archives/0511_archive__raw_llm-deepseek_v4_flash_5seed`
+  - S6 seed23 mechanism / feedback-off diagnostic is diagnostic-only and must not enter S6 main aggregate
 - The active optimizer ladder uses a matched paper-facing substrate:
   - `raw`: native backbone + `projection_plus_local_restore`
   - `union`: `primitive_structured` registry + fixed stochastic operator-selection controller + `projection_plus_local_restore`

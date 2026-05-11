@@ -108,8 +108,8 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s5_aggressive15_llm.yaml \
   --mode raw --mode union --mode llm \
   --llm-profile mimo_v2_5 \
-  --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 \
-  --benchmark-seed 29 --benchmark-seed 31 \
+  --benchmark-seed 11 --benchmark-seed 23 --benchmark-seed 31 \
+  --benchmark-seed 37 --benchmark-seed 41 \
   --population-size 40 --num-generations 32 \
   --parallel --max-concurrent-leaves 20 \
   --leaf-evaluation-workers 1 \
@@ -124,8 +124,8 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s6_aggressive20_llm.yaml \
   --mode raw --mode union --mode llm \
   --llm-profile mimo_v2_5 \
-  --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 \
-  --benchmark-seed 29 --benchmark-seed 31 \
+  --benchmark-seed 13 --benchmark-seed 19 --benchmark-seed 11 \
+  --benchmark-seed 21 --benchmark-seed 23 \
   --population-size 56 --num-generations 36 \
   --parallel --max-concurrent-leaves 20 \
   --leaf-evaluation-workers 1 \
@@ -138,8 +138,8 @@ conda run -n msfenicsx python -m optimizers.cli run-benchmark-suite \
   --optimization-spec scenarios/optimization/s7_aggressive25_raw.yaml \
   --optimization-spec scenarios/optimization/s7_aggressive25_union.yaml \
   --mode raw --mode union \
-  --benchmark-seed 11 --benchmark-seed 17 --benchmark-seed 23 \
-  --benchmark-seed 29 --benchmark-seed 31 \
+  --benchmark-seed 11 --benchmark-seed 13 --benchmark-seed 17 \
+  --benchmark-seed 19 --benchmark-seed 23 \
   --population-size 64 --num-generations 40 \
   --parallel --max-concurrent-leaves 20 \
   --leaf-evaluation-workers 1 \

@@ -82,26 +82,28 @@ PDE solver 负责物理真值，NSGA-II 负责种群选择，repair / cheap cons
 
 ## 最终实验结构
 
-当前论文实验固定为五个 block：
+当前论文实验固定为主实验和四个诊断/上下文 block：
 
 | Block | 实验 | 作用 |
 |------|------|------|
 | Main | S4/S5/S6，5 seeds，`raw` vs `llm_deepseek_v4_flash` | 验证主方法在规模递增场景上稳定优于 raw |
 | Semantic Ablation | S4，5 seeds，`raw / union / llm` | 隔离语义控制贡献，说明不是多算子池本身带来的 |
-| Feedback-Off Diagnostic | S6 seed23，raw vs feedback-off DeepSeek | 作为 single-seed negative control，检验 operator-level PDE feedback 闭环必要性 |
+| Mechanism / Feedback-Off Diagnostic | S6 seed23，raw vs feedback-off DeepSeek；LLM root 为 `scenario_runs/s6_aggressive20/0510_1239__llm-deepseek_v4_flash/llm-deepseek-v4-flash/seeds/seed-23` | 作为 single-seed mechanism ablation / negative control，检验 operator-level PDE feedback 闭环必要性 |
 | Model Sensitivity | S5 seed11，DeepSeek/Qwen/GPT-5.5/MiMo | 说明机制不是单一模型特例，但不做强统计 claim |
 | Algorithm Baseline | S5，5 seeds，NSGA-II/SPEA2/MOEA/D raw | 说明 raw baseline 不是因为 NSGA-II 太弱 |
 
 当前 paper-facing seed policy：
 
-- S4 main 与 S4 semantic ablation 使用 seeds `[11, 13, 17, 19, 23]`，正式归档为 `scenario_runs/s4_aggressive10/0510_archive__raw_union_llm-deepseek_v4_flash_5seed`。
-- S5 main 与 S5 algorithm baseline 使用 seeds `[11, 23, 31, 37, 41]`。
+- S4 main 与 S4 semantic ablation 使用 seeds `[11, 13, 17, 19, 23]`，正式归档为 `paper_database/s4_aggressive10/archives/0511_archive__raw_union_llm-deepseek_v4_flash_5seed`。
+- S5 main 使用 seeds `[11, 19, 23, 37, 41]`，正式归档为 `paper_database/s5_aggressive15/archives/0511_archive__raw_llm-deepseek_v4_flash_top5`。
+- S5 algorithm baseline 使用 seeds `[11, 23, 31, 37, 41]`。
 - S5 model sensitivity 使用 seed `11`，GPT-5.5 按正常有效 profile 结果呈现。
-- S6 main 仍为 `pending`；S6 seed23 feedback-off 仅作为 diagnostic negative control，不纳入 S6 main aggregate。
+- S6 main 使用 seeds `[11, 13, 19, 21, 23]`，正式归档为 `paper_database/s6_aggressive20/archives/0511_archive__raw_llm-deepseek_v4_flash_5seed`。
+- S6 seed23 mechanism / feedback-off diagnostic 为 diagnostic-only，不纳入 S6 main aggregate；其 LLM 机制消融源 run 是旧跑 `scenario_runs/s6_aggressive20/0510_1239__llm-deepseek_v4_flash/llm-deepseek-v4-flash/seeds/seed-23`。
 
 ## 当前 Stage A 结果口径
 
-Stage A 已完成 S4/S5 main、S4 semantic ablation、S5 model sensitivity、S5 raw-only algorithm baseline 和 S6 seed23 feedback-off diagnostic 的 paper experiment database。主统计看每个 registered block 内的 multi-seed aggregate mean；在已完成的 S4/S5 main block 中，DeepSeek LLM 相比 raw 在 mean nIGD、mean hypervolume、mean gradient RMS、mean peak temperature 和 feasible rate 上均占优。S5 seed11 只作为 representative diagnostic case 展示机制过程，不替代 multi-seed aggregate 统计。
+Stage A 已完成 S4/S5/S6 main、S4 semantic ablation、S6 seed23 mechanism / feedback-off diagnostic、S5 model sensitivity 和 S5 raw-only algorithm baseline 的 paper experiment database。主统计看每个 registered block 内的 multi-seed aggregate mean；paper-facing nIGD 使用 `block_archive_dense_nigd`，即基于现有 PDE evaluation trace 的 block-level empirical archive dense reference，不重跑实验。在三个 main block 中，DeepSeek LLM 相比 raw 在 mean nIGD、mean hypervolume、mean gradient RMS、mean peak temperature 和 feasible rate 上均占优。S6 seed23 mechanism / feedback-off diagnostic 只作为 single-seed 机制消融证据，不替代 multi-seed aggregate 统计。
 
 ## 快速上手
 
